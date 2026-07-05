@@ -1802,7 +1802,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 _ => null,
             };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = token }], connection.StderrBuffer, cancellationToken);
+                connection.Rpc,
+                "connect",
+                [new ConnectRequest
+                {
+                    Token = token,
+                    EnableGitHubTelemetryForwarding = _options.OnGitHubTelemetry != null ? true : null,
+                }],
+                connection.StderrBuffer,
+                cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))

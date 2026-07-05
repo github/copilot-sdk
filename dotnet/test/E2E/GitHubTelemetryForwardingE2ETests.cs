@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Collections.Concurrent;
+using System.Linq;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
@@ -37,13 +38,16 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             });
 
+            var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+            Assert.NotNull(answer);
+
             await TestHelper.WaitForConditionAsync(
-                () => !notifications.IsEmpty,
+                () => notifications.Any(notification => string.Equals(notification.SessionId, session.SessionId, StringComparison.Ordinal)),
                 timeout: TimeSpan.FromSeconds(30),
                 timeoutMessage: "Timed out waiting for GitHub telemetry notification.");
 
-            Assert.True(notifications.TryPeek(out var notification));
-            Assert.False(string.IsNullOrEmpty(notification.SessionId));
+            var notification = notifications.First(notification => string.Equals(notification.SessionId, session.SessionId, StringComparison.Ordinal));
+            Assert.Equal(session.SessionId, notification.SessionId);
             Assert.NotNull(notification.Event);
             Assert.NotEmpty(notification.Event.Kind);
             Assert.IsType<bool>(notification.Restricted);
