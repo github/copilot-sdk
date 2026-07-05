@@ -1018,7 +1018,7 @@ async fn github_telemetry_event_dispatches_to_callback() {
     .await;
 
     let received = timeout(TIMEOUT, rx.recv()).await.unwrap().unwrap();
-    assert_eq!(received.session_id, session_id);
+    assert_eq!(received.session_id.as_deref(), Some(session_id.as_str()));
     assert!(!received.restricted);
     assert_eq!(received.event.kind, "tool_call_executed");
     assert_eq!(
