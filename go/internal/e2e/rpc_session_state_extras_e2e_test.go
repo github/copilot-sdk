@@ -70,7 +70,7 @@ func TestRpcSessionStateExtras(t *testing.T) {
 		session := createPortedSession(t, client, nil)
 		defer session.Disconnect()
 		defer func() {
-			_, _ = session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: false})
+			_, _ = session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(false)})
 		}()
 
 		initial, err := session.RPC.Permissions.GetAllowAll(t.Context())
@@ -81,7 +81,7 @@ func TestRpcSessionStateExtras(t *testing.T) {
 			t.Fatal("Allow-all should be disabled on a fresh session")
 		}
 
-		enable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: true})
+		enable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(true)})
 		if err != nil {
 			t.Fatalf("Permissions.SetAllowAll(true) failed: %v", err)
 		}
@@ -96,7 +96,7 @@ func TestRpcSessionStateExtras(t *testing.T) {
 			t.Fatal("Expected allow-all to be enabled")
 		}
 
-		disable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: false})
+		disable, err := session.RPC.Permissions.SetAllowAll(t.Context(), &rpc.PermissionsSetAllowAllRequest{Enabled: copilot.Bool(false)})
 		if err != nil {
 			t.Fatalf("Permissions.SetAllowAll(false) failed: %v", err)
 		}

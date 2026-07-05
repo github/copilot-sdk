@@ -182,7 +182,7 @@ public class McpOAuthE2ETest {
                                     }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                             .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                waitForMcpServerStatus(session, serverName, McpServerStatus.FAILED, observedRequest);
+                waitForMcpServerStatus(session, serverName, McpServerStatus.NEEDS_AUTH, observedRequest);
             }
 
             var request = observedRequest.get();

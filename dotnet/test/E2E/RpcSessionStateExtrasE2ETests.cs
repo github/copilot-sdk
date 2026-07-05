@@ -64,19 +64,19 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
             var initial = await session.Rpc.Permissions.GetAllowAllAsync();
             Assert.False(initial.Enabled, "Allow-all should be disabled on a fresh session.");
 
-            var enable = await session.Rpc.Permissions.SetAllowAllAsync(true);
+            var enable = await session.Rpc.Permissions.SetAllowAllAsync(enabled: true);
             Assert.True(enable.Success);
             Assert.True(enable.Enabled);
             Assert.True((await session.Rpc.Permissions.GetAllowAllAsync()).Enabled);
 
-            var disable = await session.Rpc.Permissions.SetAllowAllAsync(false);
+            var disable = await session.Rpc.Permissions.SetAllowAllAsync(enabled: false);
             Assert.True(disable.Success);
             Assert.False(disable.Enabled);
             Assert.False((await session.Rpc.Permissions.GetAllowAllAsync()).Enabled);
         }
         finally
         {
-            await session.Rpc.Permissions.SetAllowAllAsync(false);
+            await session.Rpc.Permissions.SetAllowAllAsync(enabled: false);
         }
     }
 

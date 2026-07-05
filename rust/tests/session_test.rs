@@ -25,7 +25,7 @@ use github_copilot_sdk::types::{
     MessageOptions, RequestId, SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation,
     ToolResult,
 };
-use github_copilot_sdk::{Client, ContextTier, tool};
+use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -912,6 +912,94 @@ async fn resume_session_omits_github_telemetry_forwarding_without_callback() {
 }
 
 #[tokio::test]
+async fn connect_sends_github_telemetry_forwarding_when_callback_registered() {
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(|_notification| {});
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_omits_github_telemetry_forwarding_without_callback() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert!(
+        request["params"]
+            .get("enableGitHubTelemetryForwarding")
+            .is_none_or(Value::is_null),
+        "forwarding flag should be omitted when no callback is registered"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_rejects_invalid_protocol_version_values() {
+    for protocol_version in [-1, i64::from(u32::MAX) + 1] {
+        let (client, mut server_read, mut server_write) = make_client();
+
+        let handle = tokio::spawn({
+            let client = client.clone();
+            async move { client.verify_protocol_version().await }
+        });
+
+        let request = read_framed(&mut server_read).await;
+        assert_eq!(request["method"], "connect");
+
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "ok": true, "protocolVersion": protocol_version, "version": "test" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+        let err = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        match err.kind() {
+            ErrorKind::Protocol(ProtocolErrorKind::InvalidProtocolVersion { server }) => {
+                assert_eq!(*server, protocol_version);
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
 async fn github_telemetry_event_dispatches_to_callback() {
     use github_copilot_sdk::github_telemetry::GitHubTelemetryNotification;
 
@@ -965,7 +1053,7 @@ async fn github_telemetry_event_dispatches_to_callback() {
     .await;
 
     let received = timeout(TIMEOUT, rx.recv()).await.unwrap().unwrap();
-    assert_eq!(received.session_id, session_id);
+    assert_eq!(received.session_id.as_deref(), Some(session_id.as_str()));
     assert!(!received.restricted);
     assert_eq!(received.event.kind, "tool_call_executed");
     assert_eq!(

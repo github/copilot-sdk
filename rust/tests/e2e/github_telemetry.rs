@@ -47,7 +47,12 @@ async fn should_forward_github_telemetry_on_session_create() {
                 let first = notifications
                     .first()
                     .expect("github telemetry notification");
-                assert!(!first.session_id.is_empty());
+                assert!(
+                    first
+                        .session_id
+                        .as_deref()
+                        .is_some_and(|session_id| !session_id.is_empty())
+                );
                 let _: bool = first.restricted;
                 assert!(!first.event.kind.is_empty());
             }

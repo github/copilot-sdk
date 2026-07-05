@@ -488,6 +488,40 @@ describe("CopilotClient", () => {
         expect(resumePayload.enableGitHubTelemetryForwarding).toBe(true);
     });
 
+    it("opts into GitHub telemetry forwarding on the connect handshake when a handler is provided", async () => {
+        const client = new CopilotClient({ onGitHubTelemetry: () => {} });
+        onTestFinished(() => client.forceStop());
+
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "connect") return { ok: true, protocolVersion: 3, version: "test" };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+
+        const connectCall = sendRequest.mock.calls.find(([method]) => method === "connect");
+        expect(connectCall).toBeDefined();
+        expect((connectCall![1] as any).enableGitHubTelemetryForwarding).toBe(true);
+    });
+
+    it("does not opt into GitHub telemetry forwarding on the connect handshake without a handler", async () => {
+        const client = new CopilotClient();
+        onTestFinished(() => client.forceStop());
+
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "connect") return { ok: true, protocolVersion: 3, version: "test" };
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+
+        const connectCall = sendRequest.mock.calls.find(([method]) => method === "connect");
+        expect(connectCall).toBeDefined();
+        expect((connectCall![1] as any).enableGitHubTelemetryForwarding).toBeUndefined();
+    });
+
     it("does not opt into GitHub telemetry forwarding without a handler", async () => {
         const client = new CopilotClient();
         await client.start();

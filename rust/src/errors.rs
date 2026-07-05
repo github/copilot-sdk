@@ -63,6 +63,12 @@ pub enum ProtocolErrorKind {
         max: u32,
     },
 
+    /// The CLI server reported a protocol version that can't be represented by the SDK.
+    InvalidProtocolVersion {
+        /// Version reported by the server.
+        server: i64,
+    },
+
     /// The CLI server's protocol version changed between calls.
     VersionChanged {
         /// Previously negotiated version.
@@ -93,6 +99,9 @@ impl fmt::Display for ProtocolErrorKind {
                     f,
                     "version mismatch: server={server}, supported={min}\u{2013}{max}"
                 )
+            }
+            ProtocolErrorKind::InvalidProtocolVersion { server } => {
+                write!(f, "invalid protocol version: server={server}")
             }
             ProtocolErrorKind::VersionChanged { previous, current } => {
                 write!(f, "version changed: was {previous}, now {current}")
