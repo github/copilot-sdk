@@ -35,7 +35,7 @@ func TestGitHubTelemetryE2E(t *testing.T) {
 		t.Cleanup(func() { session.Disconnect() })
 
 		notification := waitForGitHubTelemetryNotification(t, &mu, &notifications, 30*time.Second)
-		if notification.SessionID == "" {
+		if notification.SessionID == nil || *notification.SessionID == "" {
 			t.Fatal("Expected a non-empty SessionID")
 		}
 		if notification.Event.Kind == "" {

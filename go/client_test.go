@@ -2593,8 +2593,12 @@ func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {
 
 	select {
 	case n := <-received:
-		if n.SessionID != "sess-telemetry" {
-			t.Errorf("session id = %q, want sess-telemetry", n.SessionID)
+		sessionID := ""
+		if n.SessionID != nil {
+			sessionID = *n.SessionID
+		}
+		if sessionID != "sess-telemetry" {
+			t.Errorf("session id = %q, want sess-telemetry", sessionID)
 		}
 		if !n.Restricted {
 			t.Error("expected restricted to be true")
