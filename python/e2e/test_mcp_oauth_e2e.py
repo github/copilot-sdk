@@ -249,7 +249,7 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
             ) as session:
-                await _wait_for_mcp_server_status(session, server_name, McpServerStatus.FAILED)
+                await _wait_for_mcp_server_status(session, server_name, McpServerStatus.NEEDS_AUTH)
 
             assert observed_request is not None
             assert observed_request["serverName"] == server_name

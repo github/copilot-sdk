@@ -193,7 +193,7 @@ describe("MCP OAuth host auth", async () => {
             });
             onTestFinished(() => disconnectSession(session));
 
-            await waitForMcpServerStatus(session, serverName, "failed");
+            await waitForMcpServerStatus(session, serverName, "needs-auth");
 
             expect(authRequest).toMatchObject({
                 serverName,
