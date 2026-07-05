@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Tool` type.
+ * Built-in tool metadata with identifier, optional namespaced name, description, input-parameter schema, and usage instructions.
  *
  * @since 1.0.0
  */

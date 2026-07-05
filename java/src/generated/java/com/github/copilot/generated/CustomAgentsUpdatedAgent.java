@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CustomAgentsUpdatedAgent` type.
+ * A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
  *
  * @since 1.0.0
  */

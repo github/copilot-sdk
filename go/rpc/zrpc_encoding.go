@@ -669,6 +669,91 @@ func (r *CommandsRespondToQueuedCommandRequest) UnmarshalJSON(data []byte) error
 	return nil
 }
 
+func unmarshalDebugCollectLogsDestination(data []byte) (DebugCollectLogsDestination, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DebugCollectLogsDestinationKindArchive:
+		var d DebugCollectLogsDestinationArchive
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DebugCollectLogsDestinationKindDirectory:
+		var d DebugCollectLogsDestinationDirectory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDebugCollectLogsDestinationData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDebugCollectLogsDestinationData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DebugCollectLogsDestinationArchive) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationArchive
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DebugCollectLogsDestinationDirectory) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationDirectory
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *DebugCollectLogsRequest) UnmarshalJSON(data []byte) error {
+	type rawDebugCollectLogsRequest struct {
+		AdditionalEntries []DebugCollectLogsEntry  `json:"additionalEntries,omitzero"`
+		Destination       json.RawMessage          `json:"destination"`
+		Include           *DebugCollectLogsInclude `json:"include,omitempty"`
+	}
+	var raw rawDebugCollectLogsRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AdditionalEntries = raw.AdditionalEntries
+	if raw.Destination != nil {
+		value, err := unmarshalDebugCollectLogsDestination(raw.Destination)
+		if err != nil {
+			return err
+		}
+		r.Destination = value
+	}
+	r.Include = raw.Include
+	return nil
+}
+
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -3273,6 +3358,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
+		SelfFetchManagedSettings               *bool                                                `json:"selfFetchManagedSettings,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
 		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
@@ -3342,6 +3428,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteSteerable = raw.RemoteSteerable
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
+	r.SelfFetchManagedSettings = raw.SelfFetchManagedSettings
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
 	r.SessionLimits = raw.SessionLimits

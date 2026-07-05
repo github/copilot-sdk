@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.mcp_server_status_changed".
+ * Session event "session.mcp_server_status_changed". Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

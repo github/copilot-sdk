@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+ * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -37,7 +37,11 @@ public final class SessionPermissionsChangedEvent extends SessionEvent {
         /** Aggregate allow-all flag before the change */
         @JsonProperty("previousAllowAllPermissions") Boolean previousAllowAllPermissions,
         /** Aggregate allow-all flag after the change */
-        @JsonProperty("allowAllPermissions") Boolean allowAllPermissions
+        @JsonProperty("allowAllPermissions") Boolean allowAllPermissions,
+        /** Allow-all mode before the change */
+        @JsonProperty("previousAllowAllPermissionMode") PermissionAllowAllMode previousAllowAllPermissionMode,
+        /** Allow-all mode after the change */
+        @JsonProperty("allowAllPermissionMode") PermissionAllowAllMode allowAllPermissionMode
     ) {
     }
 }

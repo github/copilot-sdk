@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `UsageMetricsModelMetricTokenDetail` type.
+ * Per-model token-detail entry containing the accumulated token count for one token type.
  *
  * @since 1.0.0
  */

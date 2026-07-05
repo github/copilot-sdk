@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -25,10 +24,6 @@ public record SandboxConfigUserPolicyNetwork(
     /** Whether outbound network traffic is allowed at all. */
     @JsonProperty("allowOutbound") Boolean allowOutbound,
     /** Whether traffic to local/loopback addresses is allowed. */
-    @JsonProperty("allowLocalNetwork") Boolean allowLocalNetwork,
-    /** Hosts allowed in addition to the base policy. */
-    @JsonProperty("allowedHosts") List<String> allowedHosts,
-    /** Hosts explicitly blocked. */
-    @JsonProperty("blockedHosts") List<String> blockedHosts
+    @JsonProperty("allowLocalNetwork") Boolean allowLocalNetwork
 ) {
 }

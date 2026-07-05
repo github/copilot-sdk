@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `PermissionRule` type.
+ * A permission approval or denial rule matched against a tool request, identified by a rule kind with an optional argument value.
  *
  * @since 1.0.0
  */

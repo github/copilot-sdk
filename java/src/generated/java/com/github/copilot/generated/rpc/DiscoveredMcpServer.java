@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `DiscoveredMcpServer` type.
+ * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
  *
  * @since 1.0.0
  */

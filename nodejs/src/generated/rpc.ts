@@ -203,6 +203,20 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
+ * Current or requested allow-all mode.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsAllowAllMode".
+ */
+/** @experimental */
+export type PermissionsAllowAllMode =
+  /** Permission requests follow the normal approval flow. */
+  | "off"
+  /** Tool, path, and URL permission requests are automatically approved. */
+  | "on"
+  /** Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable. */
+  | "auto";
+/**
  * Authentication type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -280,6 +294,84 @@ export type ContentFilterMode =
   | "markdown"
   /** Remove characters that can hide directives. */
   | "hidden_characters";
+/**
+ * Source category for a collected debug bundle entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsSource".
+ */
+/** @experimental */
+export type DebugCollectLogsSource =
+  /** Session event log. */
+  | "events"
+  /** Process log for the session. */
+  | "process-log"
+  /** Interactive shell log for the session. */
+  | "shell-log"
+  /** Caller-provided diagnostic entry. */
+  | "additional";
+/**
+ * Destination for the redacted debug bundle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsDestination".
+ */
+/** @experimental */
+export type DebugCollectLogsDestination =
+  | {
+      /**
+       * Absolute or server-relative path for the .tgz archive to create.
+       */
+      outputPath: string;
+      /**
+       * When true, create the archive atomically without overwriting an existing file by appending ` (N)` before the extension as needed. Defaults to false.
+       */
+      noOverwrite?: boolean;
+      kind: "archive";
+    }
+  | {
+      /**
+       * Directory where redacted files should be staged. The directory is created if needed.
+       */
+      outputDirectory: string;
+      kind: "directory";
+    };
+/**
+ * Kind of caller-provided debug log entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsEntryKind".
+ */
+/** @experimental */
+export type DebugCollectLogsEntryKind =
+  /** Include a single server-local file. */
+  | "file"
+  /** Include files from a server-local directory recursively. */
+  | "directory";
+/**
+ * How a collected debug entry should be redacted before being staged.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsRedaction".
+ */
+/** @experimental */
+export type DebugCollectLogsRedaction =
+  /** Redact the file as plain UTF-8 log text. */
+  | "plain-text"
+  /** Redact each non-empty line as a session event JSON object, falling back to plain-text redaction for malformed lines. */
+  | "events-jsonl";
+/**
+ * Destination kind that was written.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsResultKind".
+ */
+/** @experimental */
+export type DebugCollectLogsResultKind =
+  /** A .tgz archive was written. */
+  | "archive"
+  /** A directory containing redacted files was written. */
+  | "directory";
 /**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
@@ -1254,7 +1346,7 @@ export type ProviderEndpointTransport =
   /** WebSocket transport. */
   | "websockets";
 /**
- * Schema for the `PushAttachment` type.
+ * Attachment union accepted by push input, covering files, directories, GitHub objects, blobs, snippets, and extension context.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PushAttachment".
@@ -1642,6 +1734,52 @@ export type SessionsOpenProgressStatus =
   /** The step has completed successfully. */
   | "complete";
 /**
+ * Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsPredicateName".
+ */
+/** @experimental */
+export type SessionSettingsPredicateName =
+  /** Whether the security-tools feature flag enables security tool wiring. */
+  | "securityToolsEnabled"
+  /** Whether third-party security tools should receive the security prompt. */
+  | "thirdPartySecurityPromptEnabled"
+  /** Whether validation may run in parallel. */
+  | "parallelValidationEnabled"
+  /** Whether runtime timing telemetry is enabled. */
+  | "runtimeTimingTelemetryEnabled"
+  /** Whether the co-author hook is enabled. */
+  | "coAuthorHookEnabled"
+  /** Whether Chronicle integration is enabled. */
+  | "chronicleEnabled"
+  /** Whether content-exclusion policy may self-fetch data. */
+  | "contentExclusionSelfFetchEnabled"
+  /** Whether Claude Opus token-limit caps should be applied. */
+  | "capClaudeOpusTokenLimitsEnabled"
+  /** Whether code-review behavior is enabled. */
+  | "codeReviewFeatureEnabled"
+  /** Whether CCA should use the TypeScript autofind behavior. */
+  | "ccaUseTsAutofindEnabled"
+  /** Whether the dependency checker is enabled. */
+  | "dependencyCheckerEnabled"
+  /** Whether the Dependabot checker is enabled. */
+  | "dependabotCheckerEnabled"
+  /** Whether the CodeQL checker is enabled. */
+  | "codeqlCheckerEnabled"
+  /** Whether trivial-change handling is enabled. */
+  | "trivialChangeEnabled"
+  /** Whether trivial-change skip behavior is enabled. */
+  | "trivialChangeSkipEnabled"
+  /** Whether trivial-change handling is enabled for code review. */
+  | "trivialChangeEnabledForCodeReview"
+  /** Whether trivial-change skip behavior is enabled for code review. */
+  | "trivialChangeSkipEnabledForCodeReview"
+  /** Whether trivial-change handling is enabled for a specific tool. */
+  | "trivialChangeEnabledForTool"
+  /** Whether trivial-change skip behavior is enabled for a specific tool. */
+  | "trivialChangeSkipEnabledForTool";
+/**
  * Which session sources to include. Defaults to `local` for backward compatibility.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1781,7 +1919,7 @@ export type TaskExecutionMode =
   /** The task is managed in the background. */
   | "background";
 /**
- * Schema for the `TaskInfo` type.
+ * Tracked task union returned by task APIs, containing either an agent task or a shell task.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskInfo".
@@ -1823,7 +1961,7 @@ export type UIAutoModeSwitchResponse =
   /** Decline the automatic mode switch. */
   | "no";
 /**
- * Schema for the `UIElicitationFieldValue` type.
+ * Submitted UI elicitation field value: string, number, boolean, or an array of strings.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationFieldValue".
@@ -2001,7 +2139,7 @@ export interface AbortResult {
   error?: string;
 }
 /**
- * Schema for the `AccountAllUsers` type.
+ * Authenticated account entry returned by `account.getAllUsers`, with auth info and an optional associated token.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountAllUsers".
@@ -2015,7 +2153,7 @@ export interface AccountAllUsers {
   token?: string;
 }
 /**
- * Schema for the `HMACAuthInfo` type.
+ * Authentication-info variant for GitHub-internal HMAC auth, carrying the public GitHub host and HMAC secret.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "HMACAuthInfo".
@@ -2044,9 +2182,21 @@ export interface HMACAuthInfo {
  */
 /** @experimental */
 export interface CopilotUserResponse {
+  /**
+   * GitHub login of the authenticated user.
+   */
   login?: string;
+  /**
+   * Copilot access SKU identifier (e.g. `free_limited_copilot`, `copilot_for_business_seat_quota`) used to gate model and feature access.
+   */
   access_type_sku?: string;
+  /**
+   * Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
+   */
   analytics_tracking_id?: string;
+  /**
+   * Date the Copilot seat was assigned to the user, if applicable.
+   */
   assigned_date?:
     | (
         | {
@@ -2055,12 +2205,30 @@ export interface CopilotUserResponse {
         | string
       )
     | null;
+  /**
+   * Whether the user is eligible to sign up for the free/limited Copilot tier.
+   */
   can_signup_for_limited?: boolean;
+  /**
+   * Whether Copilot chat is enabled for the user.
+   */
   chat_enabled?: boolean;
+  /**
+   * Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
+   */
   copilot_plan?: string;
+  /**
+   * Whether `.copilotignore` content-exclusion support is enabled for the user.
+   */
   copilotignore_enabled?: boolean;
   endpoints?: CopilotUserResponseEndpoints;
+  /**
+   * Logins of the organizations the user belongs to.
+   */
   organization_login_list?: string[];
+  /**
+   * Organizations the user belongs to, each with an optional login and display name.
+   */
   organization_list?:
     | (
         | {
@@ -2086,7 +2254,13 @@ export interface CopilotUserResponse {
           } | null)[]
       )
     | null;
+  /**
+   * Whether the Codex agent is enabled for the user.
+   */
   codex_agent_enabled?: boolean;
+  /**
+   * Whether MCP (Model Context Protocol) support is enabled for the user.
+   */
   is_mcp_enabled?:
     | (
         | {
@@ -2095,26 +2269,62 @@ export interface CopilotUserResponse {
         | boolean
       )
     | null;
+  /**
+   * Date the user's usage quota next resets, as a raw string from the Copilot API; see `quota_reset_date_utc` for the UTC-normalized value.
+   */
   quota_reset_date?: string;
   quota_snapshots?: CopilotUserResponseQuotaSnapshots;
+  /**
+   * Whether the user's telemetry is subject to restricted-data handling.
+   */
   restricted_telemetry?: boolean;
+  /**
+   * Whether the user is a GitHub/Microsoft staff member.
+   */
   is_staff?: boolean;
+  /**
+   * Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
+   */
   te?: boolean;
+  /**
+   * Whether the account is on usage-based (token/AI-credit) billing rather than a fixed premium-request quota.
+   */
   token_based_billing?: boolean;
+  /**
+   * Whether the user is able to upgrade their Copilot plan.
+   */
   can_upgrade_plan?: boolean;
+  /**
+   * UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
+   */
   quota_reset_date_utc?: string;
+  /**
+   * Per-category quota allotments for free/limited-tier users, keyed by quota category.
+   */
   limited_user_quotas?: {
     [k: string]: number | undefined;
   };
+  /**
+   * Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
+   */
   limited_user_reset_date?: string;
+  /**
+   * Per-category monthly quota allotments, keyed by quota category.
+   */
   monthly_quotas?: {
     [k: string]: number | undefined;
   };
+  /**
+   * Whether cloud session storage is enabled for the user.
+   */
   cloud_session_storage_enabled?: boolean;
+  /**
+   * Whether CLI remote control is enabled for the user.
+   */
   cli_remote_control_enabled?: boolean;
 }
 /**
- * Schema for the `CopilotUserResponseEndpoints` type.
+ * Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseEndpoints".
@@ -2127,7 +2337,7 @@ export interface CopilotUserResponseEndpoints {
   telemetry?: string;
 }
 /**
- * Schema for the `CopilotUserResponseQuotaSnapshots` type.
+ * Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshots".
@@ -2155,70 +2365,178 @@ export interface CopilotUserResponseQuotaSnapshots {
     | undefined;
 }
 /**
- * Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+ * Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsChat".
  */
 /** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsChat {
+  /**
+   * Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+   */
   entitlement?: number;
+  /**
+   * Count of additional pay-per-request usage consumed this period beyond the entitlement.
+   */
   overage_count?: number;
+  /**
+   * Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+   */
   overage_permitted?: boolean;
+  /**
+   * Percentage of the entitlement remaining at the snapshot timestamp.
+   */
   percent_remaining?: number;
+  /**
+   * Identifier of the quota bucket this snapshot describes.
+   */
   quota_id?: string;
+  /**
+   * Amount of quota remaining at the snapshot timestamp.
+   */
   quota_remaining?: number;
+  /**
+   * Remaining entitlement/quota amount at the snapshot timestamp.
+   */
   remaining?: number;
+  /**
+   * Whether the entitlement for this category is unlimited.
+   */
   unlimited?: boolean;
+  /**
+   * UTC timestamp when this snapshot was captured.
+   */
   timestamp_utc?: string;
+  /**
+   * Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+   */
   has_quota?: boolean;
+  /**
+   * Unix epoch time, in seconds, when this quota next resets.
+   */
   quota_reset_at?: number;
+  /**
+   * Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+   */
   token_based_billing?: boolean;
 }
 /**
- * Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+ * Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsCompletions".
  */
 /** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsCompletions {
+  /**
+   * Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+   */
   entitlement?: number;
+  /**
+   * Count of additional pay-per-request usage consumed this period beyond the entitlement.
+   */
   overage_count?: number;
+  /**
+   * Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+   */
   overage_permitted?: boolean;
+  /**
+   * Percentage of the entitlement remaining at the snapshot timestamp.
+   */
   percent_remaining?: number;
+  /**
+   * Identifier of the quota bucket this snapshot describes.
+   */
   quota_id?: string;
+  /**
+   * Amount of quota remaining at the snapshot timestamp.
+   */
   quota_remaining?: number;
+  /**
+   * Remaining entitlement/quota amount at the snapshot timestamp.
+   */
   remaining?: number;
+  /**
+   * Whether the entitlement for this category is unlimited.
+   */
   unlimited?: boolean;
+  /**
+   * UTC timestamp when this snapshot was captured.
+   */
   timestamp_utc?: string;
+  /**
+   * Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+   */
   has_quota?: boolean;
+  /**
+   * Unix epoch time, in seconds, when this quota next resets.
+   */
   quota_reset_at?: number;
+  /**
+   * Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+   */
   token_based_billing?: boolean;
 }
 /**
- * Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+ * Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotUserResponseQuotaSnapshotsPremiumInteractions".
  */
 /** @experimental */
 export interface CopilotUserResponseQuotaSnapshotsPremiumInteractions {
+  /**
+   * Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
+   */
   entitlement?: number;
+  /**
+   * Count of additional pay-per-request usage consumed this period beyond the entitlement.
+   */
   overage_count?: number;
+  /**
+   * Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+   */
   overage_permitted?: boolean;
+  /**
+   * Percentage of the entitlement remaining at the snapshot timestamp.
+   */
   percent_remaining?: number;
+  /**
+   * Identifier of the quota bucket this snapshot describes.
+   */
   quota_id?: string;
+  /**
+   * Amount of quota remaining at the snapshot timestamp.
+   */
   quota_remaining?: number;
+  /**
+   * Remaining entitlement/quota amount at the snapshot timestamp.
+   */
   remaining?: number;
+  /**
+   * Whether the entitlement for this category is unlimited.
+   */
   unlimited?: boolean;
+  /**
+   * UTC timestamp when this snapshot was captured.
+   */
   timestamp_utc?: string;
+  /**
+   * Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
+   */
   has_quota?: boolean;
+  /**
+   * Unix epoch time, in seconds, when this quota next resets.
+   */
   quota_reset_at?: number;
+  /**
+   * Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
+   */
   token_based_billing?: boolean;
 }
 /**
- * Schema for the `EnvAuthInfo` type.
+ * Authentication-info variant for a token sourced from an environment variable, with host, optional login, token, and env var name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EnvAuthInfo".
@@ -2248,7 +2566,7 @@ export interface EnvAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * Schema for the `TokenAuthInfo` type.
+ * Authentication-info variant for SDK-configured token authentication, carrying host and the secret token value.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TokenAuthInfo".
@@ -2270,7 +2588,7 @@ export interface TokenAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * Schema for the `CopilotApiTokenAuthInfo` type.
+ * Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CopilotApiTokenAuthInfo".
@@ -2288,7 +2606,7 @@ export interface CopilotApiTokenAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * Schema for the `UserAuthInfo` type.
+ * Authentication-info variant for OAuth user auth, with host and login; the token remains in the runtime secret store.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UserAuthInfo".
@@ -2310,7 +2628,7 @@ export interface UserAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * Schema for the `GhCliAuthInfo` type.
+ * Authentication-info variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "GhCliAuthInfo".
@@ -2336,7 +2654,7 @@ export interface GhCliAuthInfo {
   copilotUser?: CopilotUserResponse;
 }
 /**
- * Schema for the `ApiKeyAuthInfo` type.
+ * Authentication-info variant for API-key authentication to a non-GitHub LLM provider, carrying the secret `apiKey` and host.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ApiKeyAuthInfo".
@@ -2395,7 +2713,7 @@ export interface AccountGetQuotaResult {
   };
 }
 /**
- * Schema for the `AccountQuotaSnapshot` type.
+ * Quota usage snapshot for a Copilot quota type, including entitlement, used requests, overage, reset date, and remaining percentage.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AccountQuotaSnapshot".
@@ -2493,7 +2811,7 @@ export interface AccountLogoutResult {
   hasMoreUsers: boolean;
 }
 /**
- * Schema for the `AgentDiscoveryPath` type.
+ * Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentDiscoveryPath".
@@ -2541,7 +2859,7 @@ export interface AgentGetCurrentResult {
   agent?: AgentInfo | null;
 }
 /**
- * Schema for the `AgentInfo` type.
+ * Custom agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentInfo".
@@ -2894,12 +3212,13 @@ export interface AllowAllPermissionSetResult {
    */
   success: boolean;
   /**
-   * Authoritative allow-all state after the mutation
+   * Authoritative full allow-all state after the mutation
    */
   enabled: boolean;
+  mode?: PermissionsAllowAllMode;
 }
 /**
- * Current full allow-all permission state.
+ * Current allow-all permission mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AllowAllPermissionState".
@@ -2910,6 +3229,7 @@ export interface AllowAllPermissionState {
    * Whether full allow-all permissions are currently active
    */
   enabled: boolean;
+  mode?: PermissionsAllowAllMode;
 }
 /**
  * Cancellation result for a user-requested shell command.
@@ -3309,7 +3629,7 @@ export interface CommandList {
   commands: SlashCommandInfo[];
 }
 /**
- * Schema for the `SlashCommandInfo` type.
+ * Slash-command metadata with name, aliases, description, kind, input hint, execution allowance, and schedulability.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandInfo".
@@ -3469,7 +3789,7 @@ export interface CommandsRespondToQueuedCommandRequest {
   result: QueuedCommandResult;
 }
 /**
- * Schema for the `QueuedCommandHandled` type.
+ * Queued-command response indicating the host executed the command, with an optional flag to stop queue processing.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "QueuedCommandHandled".
@@ -3486,7 +3806,7 @@ export interface QueuedCommandHandled {
   stopProcessingQueue?: boolean;
 }
 /**
- * Schema for the `QueuedCommandNotHandled` type.
+ * Queued-command response indicating the host did not execute the command and the queue may continue.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "QueuedCommandNotHandled".
@@ -3689,7 +4009,7 @@ export interface ConnectRemoteSessionParams {
   sessionId: string;
 }
 /**
- * Optional connection token presented by the SDK client during the handshake.
+ * Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectRequest".
@@ -3701,6 +4021,10 @@ export interface ConnectRequest {
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
    */
   token?: string;
+  /**
+   * Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification, in addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled.
+   */
+  enableGitHubTelemetryForwarding?: boolean;
 }
 /**
  * Handshake result reporting the server's protocol version and package version on success.
@@ -3807,7 +4131,143 @@ export interface CurrentToolMetadata {
   deferLoading?: boolean;
 }
 /**
- * Schema for the `DiscoveredMcpServer` type.
+ * A file included in the redacted debug bundle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsCollectedEntry".
+ */
+/** @experimental */
+export interface DebugCollectLogsCollectedEntry {
+  /**
+   * Relative path of the file in the staged bundle/archive.
+   */
+  bundlePath: string;
+  source: DebugCollectLogsSource;
+  /**
+   * Redacted output size in bytes.
+   */
+  sizeBytes: number;
+}
+/**
+ * A caller-provided server-local file or directory to include in the debug bundle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsEntry".
+ */
+/** @experimental */
+export interface DebugCollectLogsEntry {
+  kind: DebugCollectLogsEntryKind;
+  /**
+   * Server-local source path to read.
+   */
+  path: string;
+  /**
+   * Relative path to use inside the staged bundle/archive.
+   */
+  bundlePath: string;
+  redaction?: DebugCollectLogsRedaction;
+  /**
+   * When true, collection fails if this entry cannot be read. Defaults to false, which records the entry in `skippedEntries`.
+   */
+  required?: boolean;
+}
+/**
+ * Built-in session diagnostics to include in the bundle. Omitted fields default to true.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsInclude".
+ */
+/** @experimental */
+export interface DebugCollectLogsInclude {
+  /**
+   * Include the session event log (`events.jsonl`). Defaults to true.
+   */
+  events?: boolean;
+  /**
+   * Include process logs for the session. Defaults to true.
+   */
+  processLogs?: boolean;
+  /**
+   * Include interactive shell logs written under the session's `shell-logs` directory. Defaults to true.
+   */
+  shellLogs?: boolean;
+  /**
+   * Server-local path to the session's events.jsonl file. Internal callers normally omit this and let the runtime derive it from the session.
+   */
+  eventsPath?: string;
+  /**
+   * Server-local path to the current process log. When set, it is included as `process.log` and its directory is searched for prior logs from the same session.
+   */
+  currentProcessLogPath?: string;
+  /**
+   * Server-local process log directory to search when `currentProcessLogPath` is unavailable, useful for collecting logs for inactive sessions.
+   */
+  processLogDirectory?: string;
+  /**
+   * Maximum number of previous process logs to include. Defaults to 5.
+   */
+  previousProcessLogLimit?: number;
+}
+/**
+ * Options for collecting a redacted session debug bundle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsRequest".
+ */
+/** @experimental */
+export interface DebugCollectLogsRequest {
+  destination: DebugCollectLogsDestination;
+  include?: DebugCollectLogsInclude;
+  /**
+   * Caller-provided server-local files or directories to include in addition to the runtime's built-in session diagnostics. This lets host applications add their own diagnostics without changing the API shape.
+   */
+  additionalEntries?: DebugCollectLogsEntry[];
+}
+/**
+ * Result of collecting a redacted debug bundle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsResult".
+ */
+/** @experimental */
+export interface DebugCollectLogsResult {
+  kind: DebugCollectLogsResultKind;
+  /**
+   * Actual archive path or staging directory path written. This may differ from the requested path when no-overwrite suffixing or fallback-to-temp-directory was needed.
+   */
+  path: string;
+  /**
+   * Files included in the redacted bundle.
+   */
+  entries: DebugCollectLogsCollectedEntry[];
+  /**
+   * Optional files or directories that could not be included.
+   */
+  skippedEntries?: DebugCollectLogsSkippedEntry[];
+}
+/**
+ * An optional debug bundle entry that could not be included.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DebugCollectLogsSkippedEntry".
+ */
+/** @experimental */
+export interface DebugCollectLogsSkippedEntry {
+  /**
+   * Relative path requested for this bundle entry.
+   */
+  bundlePath: string;
+  /**
+   * Server-local source path that could not be read.
+   */
+  path?: string;
+  /**
+   * Reason the entry was skipped.
+   */
+  reason: string;
+}
+/**
+ * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServer".
@@ -3961,7 +4421,7 @@ export interface ExecuteCommandResult {
   error?: string;
 }
 /**
- * Schema for the `Extension` type.
+ * Discovered extension metadata, including source-qualified ID, name, discovery source, status, and optional process ID.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Extension".
@@ -4477,7 +4937,7 @@ export interface GitHubTelemetryEvent {
   client?: GitHubTelemetryClientInfo;
 }
 /**
- * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+ * Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding during the `server.connect` handshake.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "GitHubTelemetryNotification".
@@ -4485,9 +4945,9 @@ export interface GitHubTelemetryEvent {
 /** @experimental */
 export interface GitHubTelemetryNotification {
   /**
-   * Session the telemetry event belongs to.
+   * Session the telemetry event belongs to, when it is session-scoped. Omitted for sessionless events (for example, `server.sendTelemetry` calls with no session id), which are still forwarded to opted-in connections.
    */
-  sessionId: string;
+  sessionId?: string;
   /**
    * Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
    */
@@ -4663,7 +5123,7 @@ export interface HistoryTruncateResult {
   eventsRemoved: number;
 }
 /**
- * Schema for the `InstalledPlugin` type.
+ * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstalledPlugin".
@@ -4697,7 +5157,7 @@ export interface InstalledPlugin {
   source?: InstalledPluginSource;
 }
 /**
- * Schema for the `InstalledPluginSourceGitHub` type.
+ * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref, and optional subpath.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstalledPluginSourceGitHub".
@@ -4713,7 +5173,7 @@ export interface InstalledPluginSourceGitHub {
   path?: string;
 }
 /**
- * Schema for the `InstalledPluginSourceUrl` type.
+ * Source descriptor for a direct URL plugin install, with URL, optional ref, and optional subpath.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstalledPluginSourceUrl".
@@ -4729,7 +5189,7 @@ export interface InstalledPluginSourceUrl {
   path?: string;
 }
 /**
- * Schema for the `InstalledPluginSourceLocal` type.
+ * Source descriptor for a direct local plugin install, with a local filesystem path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstalledPluginSourceLocal".
@@ -4772,7 +5232,7 @@ export interface InstalledPluginInfo {
   enabled: boolean;
 }
 /**
- * Schema for the `InstructionDiscoveryPath` type.
+ * Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstructionDiscoveryPath".
@@ -4855,7 +5315,7 @@ export interface InstructionsGetSourcesResult {
   sources: InstructionSource[];
 }
 /**
- * Schema for the `InstructionSource` type.
+ * Loaded instruction source for a session, including path, content, category, location, applicability, and optional description.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstructionSource".
@@ -4974,6 +5434,18 @@ export interface LlmInferenceHttpRequestStartRequest {
   url: string;
   headers: LlmInferenceHeaders;
   transport?: LlmInferenceHttpRequestStartTransport;
+  /**
+   * Stable per-agent-instance id attributing this request to a specific agent trajectory. Present when the request originates from an agent turn; absent for requests issued outside any agent context (e.g. some SDK callers). A request with an `agentId` but no `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced from the runtime's per-request agent context and surfaced on the envelope independently of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header from this same context. Consumers routing each provider call to a training trajectory should key on this rather than on lifecycle events, since it is available on the request path before sampling.
+   */
+  agentId?: string;
+  /**
+   * Id of the parent agent that spawned the agent issuing this request. Present only for subagent requests; absent for root-agent requests and non-agent requests. Combined with `agentId`, this lets consumers attribute a call to a child trajectory versus the root. Like `agentId`, it comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id` header from this same context.
+   */
+  parentAgentId?: string;
+  /**
+   * Coarse classification of the interaction that produced this request. Open string for forward-compatibility; known values include `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, and `conversation-user`. Absent when the runtime did not classify the request. Comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Interaction-Type` header from this same context.
+   */
+  interactionType?: string;
 }
 /**
  * Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
@@ -5088,7 +5560,7 @@ export interface LlmInferenceSetProviderResult {
   success: boolean;
 }
 /**
- * Schema for the `LocalSessionMetadataValue` type.
+ * Persisted local session metadata, including identifiers, timestamps, summary/name, client, context, detached state, and task ID.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "LocalSessionMetadataValue".
@@ -5301,7 +5773,7 @@ export interface MarketplaceListResult {
   marketplaces: MarketplaceInfo[];
 }
 /**
- * Schema for the `MarketplaceRefreshEntry` type.
+ * Per-marketplace refresh result, including marketplace name, success flag, and optional failure error.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "MarketplaceRefreshEntry".
@@ -5352,7 +5824,7 @@ export interface MarketplaceRemoveResult {
   dependentPlugins?: string[];
 }
 /**
- * Schema for the `McpAllowedServer` type.
+ * MCP server allowed by policy, with server name and optional PII-free explanatory note.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAllowedServer".
@@ -5567,7 +6039,7 @@ export interface McpAppsReadResourceResult {
   contents: McpAppsResourceContent[];
 }
 /**
- * Schema for the `McpAppsResourceContent` type.
+ * MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsResourceContent".
@@ -5973,7 +6445,7 @@ export interface McpExecuteSamplingResult {
   [k: string]: unknown | undefined;
 }
 /**
- * Schema for the `McpFilteredServer` type.
+ * MCP server filtered by policy, with name, reason, optional redacted reason, and enterprise login.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpFilteredServer".
@@ -6148,7 +6620,7 @@ export interface McpListToolsResult {
   tools: McpTools[];
 }
 /**
- * Schema for the `McpTools` type.
+ * MCP tool metadata with tool name and optional description.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpTools".
@@ -6379,7 +6851,7 @@ export interface McpSamplingExecutionResult {
   error?: string;
 }
 /**
- * Schema for the `McpServer` type.
+ * MCP server status entry, including config source/plugin source and any connection error.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServer".
@@ -6765,7 +7237,7 @@ export interface MetadataSnapshotRemoteMetadataRepository {
   branch: string;
 }
 /**
- * Schema for the `Model` type.
+ * Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Model".
@@ -7261,7 +7733,7 @@ export interface NameSetRequest {
   name: string;
 }
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicy` type.
+ * Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "OptionsUpdateAdditionalContentExclusionPolicy".
@@ -7273,7 +7745,7 @@ export interface OptionsUpdateAdditionalContentExclusionPolicy {
   scope: OptionsUpdateAdditionalContentExclusionPolicyScope;
 }
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRule` type.
+ * Single content-exclusion rule supplied to `session.options.update`, with paths, match conditions, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "OptionsUpdateAdditionalContentExclusionPolicyRule".
@@ -7286,7 +7758,7 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRule {
   source: OptionsUpdateAdditionalContentExclusionPolicyRuleSource;
 }
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+ * Source descriptor for a `session.options.update` content-exclusion rule, with source name and type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "OptionsUpdateAdditionalContentExclusionPolicyRuleSource".
@@ -7297,7 +7769,7 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRuleSource {
   type: string;
 }
 /**
- * Schema for the `PendingPermissionRequest` type.
+ * Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PendingPermissionRequest".
@@ -7324,7 +7796,7 @@ export interface PendingPermissionRequestList {
   items: PendingPermissionRequest[];
 }
 /**
- * Schema for the `PermissionDecisionApproveOnce` type.
+ * Permission-decision request variant to approve only the current permission request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveOnce".
@@ -7337,7 +7809,7 @@ export interface PermissionDecisionApproveOnce {
   kind: "approve-once";
 }
 /**
- * Schema for the `PermissionDecisionApproveForSession` type.
+ * Permission-decision request variant to approve for the rest of the session, with optional tool approval or URL domain.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSession".
@@ -7355,7 +7827,7 @@ export interface PermissionDecisionApproveForSession {
   domain?: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+ * Session-scoped approval details for specific command identifiers.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalCommands".
@@ -7372,7 +7844,7 @@ export interface PermissionDecisionApproveForSessionApprovalCommands {
   commandIdentifiers: string[];
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+ * Session-scoped approval details for read-only filesystem operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalRead".
@@ -7385,7 +7857,7 @@ export interface PermissionDecisionApproveForSessionApprovalRead {
   kind: "read";
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+ * Session-scoped approval details for filesystem write operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalWrite".
@@ -7398,7 +7870,7 @@ export interface PermissionDecisionApproveForSessionApprovalWrite {
   kind: "write";
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+ * Session-scoped approval details for an MCP server tool, or all tools on the server when `toolName` is null.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalMcp".
@@ -7419,7 +7891,7 @@ export interface PermissionDecisionApproveForSessionApprovalMcp {
   toolName: string | null;
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+ * Session-scoped approval details for MCP sampling requests from a server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalMcpSampling".
@@ -7436,7 +7908,7 @@ export interface PermissionDecisionApproveForSessionApprovalMcpSampling {
   serverName: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+ * Session-scoped approval details for writes to long-term memory.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalMemory".
@@ -7449,7 +7921,7 @@ export interface PermissionDecisionApproveForSessionApprovalMemory {
   kind: "memory";
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+ * Session-scoped approval details for a custom tool, keyed by tool name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalCustomTool".
@@ -7466,7 +7938,7 @@ export interface PermissionDecisionApproveForSessionApprovalCustomTool {
   toolName: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+ * Session-scoped approval details for extension-management operations, optionally narrowed by operation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalExtensionManagement".
@@ -7483,7 +7955,7 @@ export interface PermissionDecisionApproveForSessionApprovalExtensionManagement 
   operation?: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess` type.
+ * Session-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess".
@@ -7500,7 +7972,7 @@ export interface PermissionDecisionApproveForSessionApprovalExtensionPermissionA
   extensionName: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocation` type.
+ * Permission-decision request variant to approve and persist a permission for a project location, with approval details and location key.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocation".
@@ -7518,7 +7990,7 @@ export interface PermissionDecisionApproveForLocation {
   locationKey: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+ * Location-scoped approval details for specific command identifiers.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalCommands".
@@ -7535,7 +8007,7 @@ export interface PermissionDecisionApproveForLocationApprovalCommands {
   commandIdentifiers: string[];
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+ * Location-scoped approval details for read-only filesystem operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalRead".
@@ -7548,7 +8020,7 @@ export interface PermissionDecisionApproveForLocationApprovalRead {
   kind: "read";
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+ * Location-scoped approval details for filesystem write operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalWrite".
@@ -7561,7 +8033,7 @@ export interface PermissionDecisionApproveForLocationApprovalWrite {
   kind: "write";
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+ * Location-scoped approval details for an MCP server tool, or all tools on the server when `toolName` is null.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalMcp".
@@ -7582,7 +8054,7 @@ export interface PermissionDecisionApproveForLocationApprovalMcp {
   toolName: string | null;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+ * Location-scoped approval details for MCP sampling requests from a server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalMcpSampling".
@@ -7599,7 +8071,7 @@ export interface PermissionDecisionApproveForLocationApprovalMcpSampling {
   serverName: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+ * Location-scoped approval details for writes to long-term memory.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalMemory".
@@ -7612,7 +8084,7 @@ export interface PermissionDecisionApproveForLocationApprovalMemory {
   kind: "memory";
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+ * Location-scoped approval details for a custom tool, keyed by tool name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalCustomTool".
@@ -7629,7 +8101,7 @@ export interface PermissionDecisionApproveForLocationApprovalCustomTool {
   toolName: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+ * Location-scoped approval details for extension-management operations, optionally narrowed by operation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalExtensionManagement".
@@ -7646,7 +8118,7 @@ export interface PermissionDecisionApproveForLocationApprovalExtensionManagement
   operation?: string;
 }
 /**
- * Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess` type.
+ * Location-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess".
@@ -7663,7 +8135,7 @@ export interface PermissionDecisionApproveForLocationApprovalExtensionPermission
   extensionName: string;
 }
 /**
- * Schema for the `PermissionDecisionApprovePermanently` type.
+ * Permission-decision request variant to permanently approve a URL domain across sessions.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApprovePermanently".
@@ -7680,7 +8152,7 @@ export interface PermissionDecisionApprovePermanently {
   domain: string;
 }
 /**
- * Schema for the `PermissionDecisionReject` type.
+ * Permission-decision request variant to reject a pending permission request, with optional feedback.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionReject".
@@ -7697,7 +8169,7 @@ export interface PermissionDecisionReject {
   feedback?: string;
 }
 /**
- * Schema for the `PermissionDecisionUserNotAvailable` type.
+ * Permission-decision variant indicating no user was available to confirm the request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionUserNotAvailable".
@@ -7710,7 +8182,7 @@ export interface PermissionDecisionUserNotAvailable {
   kind: "user-not-available";
 }
 /**
- * Schema for the `PermissionDecisionApproved` type.
+ * Permission-decision variant indicating the request was approved.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApproved".
@@ -7723,7 +8195,7 @@ export interface PermissionDecisionApproved {
   kind: "approved";
 }
 /**
- * Schema for the `PermissionDecisionApprovedForSession` type.
+ * Permission-decision variant indicating approval was remembered for the session, with approval details.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApprovedForSession".
@@ -7737,7 +8209,7 @@ export interface PermissionDecisionApprovedForSession {
   approval: UserToolSessionApproval;
 }
 /**
- * Schema for the `PermissionDecisionApprovedForLocation` type.
+ * Permission-decision variant indicating approval was persisted for a project location, with approval details and location key.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionApprovedForLocation".
@@ -7755,7 +8227,7 @@ export interface PermissionDecisionApprovedForLocation {
   locationKey: string;
 }
 /**
- * Schema for the `PermissionDecisionCancelled` type.
+ * Permission-decision variant indicating the request was cancelled before use, with an optional reason.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionCancelled".
@@ -7772,7 +8244,7 @@ export interface PermissionDecisionCancelled {
   reason?: string;
 }
 /**
- * Schema for the `PermissionDecisionDeniedByRules` type.
+ * Permission-decision variant indicating explicit denial by permission rules, with the matching rules.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionDeniedByRules".
@@ -7789,7 +8261,7 @@ export interface PermissionDecisionDeniedByRules {
   rules: PermissionRule[];
 }
 /**
- * Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+ * Permission-decision variant indicating no approval rule matched and user confirmation was unavailable.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser".
@@ -7802,7 +8274,7 @@ export interface PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUse
   kind: "denied-no-approval-rule-and-could-not-request-from-user";
 }
 /**
- * Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.
+ * Permission-decision variant indicating the user denied an interactive prompt, with optional feedback and force-reject flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionDeniedInteractivelyByUser".
@@ -7823,7 +8295,7 @@ export interface PermissionDecisionDeniedInteractivelyByUser {
   forceReject?: boolean;
 }
 /**
- * Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.
+ * Permission-decision variant indicating denial by content-exclusion policy, with path and message.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionDeniedByContentExclusionPolicy".
@@ -7844,7 +8316,7 @@ export interface PermissionDecisionDeniedByContentExclusionPolicy {
   message: string;
 }
 /**
- * Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.
+ * Permission-decision variant indicating denial by a permission request hook, with optional message and interrupt flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionDeniedByPermissionRequestHook".
@@ -7893,7 +8365,7 @@ export interface PermissionLocationAddToolApprovalParams {
   approval: PermissionsLocationsAddToolApprovalDetails;
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.
+ * Location-persisted tool approval details for specific command identifiers.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsCommands".
@@ -7910,7 +8382,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsCommands {
   commandIdentifiers: string[];
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.
+ * Location-persisted tool approval details for read-only filesystem operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsRead".
@@ -7923,7 +8395,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsRead {
   kind: "read";
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.
+ * Location-persisted tool approval details for filesystem write operations.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsWrite".
@@ -7936,7 +8408,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsWrite {
   kind: "write";
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
+ * Location-persisted tool approval details for an MCP server tool, or all tools when `toolName` is null.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsMcp".
@@ -7957,7 +8429,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsMcp {
   toolName: string | null;
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
+ * Location-persisted tool approval details for MCP sampling requests from a server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsMcpSampling".
@@ -7974,7 +8446,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsMcpSampling {
   serverName: string;
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
+ * Location-persisted tool approval details for writes to long-term memory.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsMemory".
@@ -7987,7 +8459,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsMemory {
   kind: "memory";
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.
+ * Location-persisted tool approval details for a custom tool, keyed by tool name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsCustomTool".
@@ -8004,7 +8476,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsCustomTool {
   toolName: string;
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.
+ * Location-persisted tool approval details for extension-management operations, optionally narrowed by operation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsExtensionManagement".
@@ -8021,7 +8493,7 @@ export interface PermissionsLocationsAddToolApprovalDetailsExtensionManagement {
   operation?: string;
 }
 /**
- * Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.
+ * Location-persisted tool approval details for an extension's permission-gated capability access, keyed by extension name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess".
@@ -8271,7 +8743,7 @@ export interface PermissionRulesSet {
   denied: PermissionRule[];
 }
 /**
- * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.
+ * Content-exclusion policy supplied to `session.permissions.configure`, with rules, last-updated data, and scope.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsConfigureAdditionalContentExclusionPolicy".
@@ -8283,7 +8755,7 @@ export interface PermissionsConfigureAdditionalContentExclusionPolicy {
   scope: PermissionsConfigureAdditionalContentExclusionPolicyScope;
 }
 /**
- * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
+ * Single content-exclusion rule supplied to `session.permissions.configure`, with paths, match conditions, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsConfigureAdditionalContentExclusionPolicyRule".
@@ -8296,7 +8768,7 @@ export interface PermissionsConfigureAdditionalContentExclusionPolicyRule {
   source: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource;
 }
 /**
- * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
+ * Source descriptor for a `session.permissions.configure` content-exclusion rule, with source name and type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsConfigureAdditionalContentExclusionPolicyRuleSource".
@@ -8506,17 +8978,22 @@ export interface PermissionsResetSessionApprovalsResult {
   success: boolean;
 }
 /**
- * Whether to enable full allow-all permissions for the session.
+ * Allow-all mode to apply for the session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsSetAllowAllRequest".
  */
 /** @experimental */
 export interface PermissionsSetAllowAllRequest {
+  mode?: PermissionsAllowAllMode;
   /**
-   * Whether to enable full allow-all permissions
+   * Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.
    */
-  enabled: boolean;
+  enabled?: boolean;
+  /**
+   * Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+   */
+  model?: string;
   source?: PermissionsSetAllowAllSource;
 }
 /**
@@ -8739,7 +9216,7 @@ export interface PlanUpdateRequest {
   content: string;
 }
 /**
- * Schema for the `Plugin` type.
+ * Session plugin metadata, with name, marketplace, optional version, and enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Plugin".
@@ -8961,7 +9438,7 @@ export interface PluginsUpdateRequest {
   name: string;
 }
 /**
- * Schema for the `PluginUpdateAllEntry` type.
+ * Per-plugin result from updating all plugins, with versions, skills installed, success flag, and optional error.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginUpdateAllEntry".
@@ -9713,7 +10190,7 @@ export interface PushAttachmentBlob {
   displayName?: string;
 }
 /**
- * Schema for the `QueuePendingItems` type.
+ * User-facing pending queue entry, with kind and display text for a queued message, slash command, or model change.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "QueuePendingItems".
@@ -10258,14 +10735,6 @@ export interface SandboxConfigUserPolicyNetwork {
    * Whether traffic to local/loopback addresses is allowed.
    */
   allowLocalNetwork?: boolean;
-  /**
-   * Hosts allowed in addition to the base policy.
-   */
-  allowedHosts?: string[];
-  /**
-   * Hosts explicitly blocked.
-   */
-  blockedHosts?: string[];
 }
 /**
  * macOS seatbelt-specific options.
@@ -10304,7 +10773,7 @@ export interface SandboxConfigUserPolicyExperimentalSeatbelt {
   keychainAccess?: boolean;
 }
 /**
- * Schema for the `ScheduleEntry` type.
+ * Scheduled prompt entry with ID, timing (`intervalMs`, `cron`, or `at`), prompt text, recurrence, and next run time.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ScheduleEntry".
@@ -10530,7 +10999,7 @@ export interface ServerInstructionSourceList {
   sources: InstructionSource[];
 }
 /**
- * Schema for the `ServerSkill` type.
+ * Server-side skill metadata, including name, description, source, enabled/invocable state, path, project path, and argument hint.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ServerSkill".
@@ -10781,7 +11250,7 @@ export interface SessionFsReaddirResult {
   error?: SessionFsError;
 }
 /**
- * Schema for the `SessionFsReaddirWithTypesEntry` type.
+ * Directory entry returned by session filesystem `readdirWithTypes`, with name and entry type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesEntry".
@@ -11085,7 +11554,7 @@ export interface SessionFsWriteFileRequest {
   mode?: number;
 }
 /**
- * Schema for the `SessionInstalledPlugin` type.
+ * Installed plugin record for a session, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionInstalledPlugin".
@@ -11119,7 +11588,7 @@ export interface SessionInstalledPlugin {
   source?: SessionInstalledPluginSource;
 }
 /**
- * Schema for the `SessionInstalledPluginSourceGitHub` type.
+ * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref, and optional subpath.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionInstalledPluginSourceGitHub".
@@ -11135,7 +11604,7 @@ export interface SessionInstalledPluginSourceGitHub {
   path?: string;
 }
 /**
- * Schema for the `SessionInstalledPluginSourceUrl` type.
+ * Source descriptor for a direct URL plugin install, with URL, optional ref, and optional subpath.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionInstalledPluginSourceUrl".
@@ -11151,7 +11620,7 @@ export interface SessionInstalledPluginSourceUrl {
   path?: string;
 }
 /**
- * Schema for the `SessionInstalledPluginSourceLocal` type.
+ * Source descriptor for a direct local plugin install, with a local filesystem path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionInstalledPluginSourceLocal".
@@ -11351,6 +11820,10 @@ export interface SessionOpenOptions {
     [k: string]: unknown | undefined;
   };
   /**
+   * Opt-in: self-fetch enterprise managed settings at session bootstrap.
+   */
+  selfFetchManagedSettings?: boolean;
+  /**
    * Feature-flag values resolved by the host.
    */
   featureFlags?: {
@@ -11527,7 +12000,7 @@ export interface SessionOpenOptions {
   sessionCapabilities?: SessionCapability[];
 }
 /**
- * Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicy` type.
+ * Content-exclusion policy supplied to `sessions.open` options, with rules, last-updated data, and scope.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionOpenOptionsAdditionalContentExclusionPolicy".
@@ -11539,7 +12012,7 @@ export interface SessionOpenOptionsAdditionalContentExclusionPolicy {
   scope: SessionOpenOptionsAdditionalContentExclusionPolicyScope;
 }
 /**
- * Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRule` type.
+ * Single content-exclusion rule supplied to `sessions.open` options, with paths, match conditions, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionOpenOptionsAdditionalContentExclusionPolicyRule".
@@ -11552,7 +12025,7 @@ export interface SessionOpenOptionsAdditionalContentExclusionPolicyRule {
   source: SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource;
 }
 /**
- * Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
+ * Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource".
@@ -11750,7 +12223,7 @@ export interface SessionOpenResult {
   progress?: SessionsOpenProgress[];
 }
 /**
- * Schema for the `SessionsOpenProgress` type.
+ * `sessions.open` handoff progress update with step, status, and optional message.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionsOpenProgress".
@@ -11892,6 +12365,134 @@ export interface SessionSetCredentialsResult {
    * Whether the session ended up with a populated `copilotUser` for the installed credentials. `true` when the supplied credential already carried `copilotUser` or it was successfully re-resolved server-side. `false` when the credential is installed without `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In both `false` cases the token swap still applied, but plan/quota/billing metadata is degraded. Present whenever a credential was supplied; omitted only when no credential was supplied (no-op call).
    */
   copilotUserResolved?: boolean;
+}
+/**
+ * Availability of built-in job tools surfaced to boundary consumers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsBuiltInToolAvailabilitySnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsBuiltInToolAvailabilitySnapshot {
+  reportProgress?: boolean;
+  createPullRequest?: boolean;
+}
+/**
+ * Named Rust-owned settings predicate to evaluate for this session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsEvaluatePredicateRequest".
+ */
+/** @experimental */
+export interface SessionSettingsEvaluatePredicateRequest {
+  name: SessionSettingsPredicateName;
+  /**
+   * Tool name for tool-scoped predicates such as trivial-change handling.
+   */
+  toolName?: string;
+}
+/**
+ * Result of evaluating a Rust-owned settings predicate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsEvaluatePredicateResult".
+ */
+/** @experimental */
+export interface SessionSettingsEvaluatePredicateResult {
+  enabled: boolean;
+}
+/**
+ * Redacted job settings for a session. The job nonce is excluded.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsJobSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsJobSnapshot {
+  eventType?: string;
+  isTriggerJob?: boolean;
+  builtInToolAvailability?: SessionSettingsBuiltInToolAvailabilitySnapshot;
+}
+/**
+ * Redacted model routing settings for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsModelSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsModelSnapshot {
+  model?: string;
+  defaultReasoningEffort?: string;
+  instanceId?: string;
+  callbackUrl?: string;
+}
+/**
+ * Online-evaluation settings safe to expose across the SDK boundary.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsOnlineEvaluationSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsOnlineEvaluationSnapshot {
+  disableOnlineEvaluation?: boolean;
+  enableOnlineEvaluationOutputFile?: boolean;
+}
+/**
+ * Redacted repository and GitHub host settings for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsRepoSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsRepoSnapshot {
+  name?: string;
+  id?: number;
+  branch?: string;
+  commit?: string;
+  readWrite?: boolean;
+  ownerName?: string;
+  ownerId?: number;
+  serverUrl?: string;
+  host?: string;
+  hostProtocol?: string;
+  secretScanningUrl?: string;
+  prCommitCount?: number;
+}
+/**
+ * Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsSnapshot {
+  version?: string;
+  clientName?: string;
+  timeoutMs?: number;
+  startTimeMs?: number;
+  repo: SessionSettingsRepoSnapshot;
+  model: SessionSettingsModelSnapshot;
+  validation: SessionSettingsValidationSnapshot;
+  job: SessionSettingsJobSnapshot;
+  onlineEvaluation: SessionSettingsOnlineEvaluationSnapshot;
+}
+/**
+ * Redacted validation and memory-tool settings for a session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSettingsValidationSnapshot".
+ */
+/** @experimental */
+export interface SessionSettingsValidationSnapshot {
+  timeout?: number;
+  dependabotTimeout?: number;
+  codeqlEnabled?: boolean;
+  codeReviewEnabled?: boolean;
+  codeReviewModel?: string;
+  advisoryEnabled?: boolean;
+  secretScanningEnabled?: boolean;
+  memoryStoreEnabled?: boolean;
+  memoryVoteEnabled?: boolean;
 }
 /**
  * UUID prefix to resolve to a unique session ID.
@@ -12637,7 +13238,7 @@ export interface ShutdownRequest {
   reason?: string;
 }
 /**
- * Schema for the `Skill` type.
+ * Skill metadata available to a session, with name, description, source, enabled/invocable state, path, plugin, and argument hint.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Skill".
@@ -12675,7 +13276,7 @@ export interface Skill {
   argumentHint?: string;
 }
 /**
- * Schema for the `SkillDiscoveryPath` type.
+ * Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillDiscoveryPath".
@@ -12813,7 +13414,7 @@ export interface SkillsGetInvokedResult {
   skills: SkillsInvokedSkill[];
 }
 /**
- * Schema for the `SkillsInvokedSkill` type.
+ * Skill invocation record with name, path, content, allowed tools, and turn number.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SkillsInvokedSkill".
@@ -12859,7 +13460,7 @@ export interface SkillsLoadDiagnostics {
   errors: string[];
 }
 /**
- * Schema for the `SlashCommandAgentPromptResult` type.
+ * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, and settings-change flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandAgentPromptResult".
@@ -12885,7 +13486,7 @@ export interface SlashCommandAgentPromptResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Schema for the `SlashCommandCompletedResult` type.
+ * Slash-command invocation result indicating completion, with optional message and settings-change flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandCompletedResult".
@@ -12906,7 +13507,7 @@ export interface SlashCommandCompletedResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Schema for the `SlashCommandTextResult` type.
+ * Slash-command invocation result containing text output plus Markdown/ANSI rendering flags.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandTextResult".
@@ -12935,7 +13536,7 @@ export interface SlashCommandTextResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Schema for the `SlashCommandSelectSubcommandResult` type.
+ * Slash-command invocation result asking the client to present subcommand options for a parent command.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandSelectSubcommandResult".
@@ -12964,7 +13565,7 @@ export interface SlashCommandSelectSubcommandResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
- * Schema for the `SlashCommandSelectSubcommandOption` type.
+ * Selectable slash-command subcommand option with name, description, and optional group label.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandSelectSubcommandOption".
@@ -13003,7 +13604,7 @@ export interface SubagentSettingsEntry {
   contextTier?: SubagentSettingsEntryContextTier;
 }
 /**
- * Schema for the `TaskAgentInfo` type.
+ * Tracked background agent task metadata, including IDs, status, timing, agent type, prompt, model, result, and latest response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskAgentInfo".
@@ -13082,7 +13683,7 @@ export interface TaskAgentInfo {
   idleSince?: string;
 }
 /**
- * Schema for the `TaskAgentProgress` type.
+ * Progress snapshot for an agent task, with recent activity lines and optional latest intent.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskAgentProgress".
@@ -13103,7 +13704,7 @@ export interface TaskAgentProgress {
   latestIntent?: string;
 }
 /**
- * Schema for the `TaskProgressLine` type.
+ * Timestamped display line for task progress output or recent agent activity.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskProgressLine".
@@ -13120,7 +13721,7 @@ export interface TaskProgressLine {
   timestamp: string;
 }
 /**
- * Schema for the `TaskShellInfo` type.
+ * Tracked shell task metadata, including ID, command, status, timing, attachment/execution mode, log path, and PID.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellInfo".
@@ -13181,7 +13782,7 @@ export interface TaskList {
   tasks: TaskInfo[];
 }
 /**
- * Schema for the `TaskShellProgress` type.
+ * Progress snapshot for a shell task, with recent stdout/stderr output and optional process ID.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellProgress".
@@ -13437,7 +14038,7 @@ export interface TelemetrySetFeatureOverridesRequest {
   };
 }
 /**
- * Schema for the `Tool` type.
+ * Built-in tool metadata with identifier, optional namespaced name, description, input-parameter schema, and usage instructions.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Tool".
@@ -13570,7 +14171,7 @@ export interface UIElicitationArrayAnyOfFieldItems {
   anyOf: UIElicitationArrayAnyOfFieldItemsAnyOf[];
 }
 /**
- * Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type.
+ * Selectable option for a UI elicitation multi-select array item, with submitted value and display label.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationArrayAnyOfFieldItemsAnyOf".
@@ -13737,7 +14338,7 @@ export interface UIElicitationStringOneOfField {
   default?: string;
 }
 /**
- * Schema for the `UIElicitationStringOneOfFieldOneOf` type.
+ * Selectable option for a UI elicitation single-select string field, with submitted value and display label.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationStringOneOfFieldOneOf".
@@ -13919,7 +14520,7 @@ export interface UIEphemeralQueryResult {
   answer: string;
 }
 /**
- * Schema for the `UIExitPlanModeResponse` type.
+ * User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIExitPlanModeResponse".
@@ -14066,7 +14667,7 @@ export interface UIHandlePendingUserInputRequest {
   response: UIUserInputResponse;
 }
 /**
- * Schema for the `UIUserInputResponse` type.
+ * User response for a pending user-input request, with answer text and whether it was typed freeform.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIUserInputResponse".
@@ -14189,7 +14790,7 @@ export interface UsageGetMetricsResult {
   lastCallOutputTokens: number;
 }
 /**
- * Schema for the `UsageMetricsTokenDetail` type.
+ * Session-wide token-detail entry containing the accumulated token count for one token type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsTokenDetail".
@@ -14227,7 +14828,7 @@ export interface UsageMetricsCodeChanges {
   filesModified: string[];
 }
 /**
- * Schema for the `UsageMetricsModelMetric` type.
+ * Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetric".
@@ -14294,7 +14895,7 @@ export interface UsageMetricsModelMetricUsage {
   reasoningTokens?: number;
 }
 /**
- * Schema for the `UsageMetricsModelMetricTokenDetail` type.
+ * Per-model token-detail entry containing the accumulated token count for one token type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetricTokenDetail".
@@ -14499,7 +15100,7 @@ export interface WorkspaceDiffResult {
   isFallback: boolean;
 }
 /**
- * Schema for the `WorkspacesCheckpoints` type.
+ * Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint filename.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "WorkspacesCheckpoints".
@@ -15363,7 +15964,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
         /**
          * Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.
          *
-         * @param params Optional connection token presented by the SDK client during the handshake.
+         * @param params Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
          *
          * @returns Handshake result reporting the server's protocol version and package version on success.
          *
@@ -15479,6 +16080,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             setCredentials: async (params: SessionSetCredentialsParams): Promise<SessionSetCredentialsResult> =>
                 connection.sendRequest("session.gitHubAuth.setCredentials", { sessionId, ...params }),
+        },
+        /** @experimental */
+        debug: {
+            /**
+             * Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
+             *
+             * @param params Options for collecting a redacted session debug bundle.
+             *
+             * @returns Result of collecting a redacted debug bundle.
+             */
+            collectLogs: async (params: DebugCollectLogsRequest): Promise<DebugCollectLogsResult> =>
+                connection.sendRequest("session.debug.collectLogs", { sessionId, ...params }),
         },
         /** @experimental */
         canvas: {
@@ -16429,18 +17042,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             setApproveAll: async (params: PermissionsSetApproveAllRequest): Promise<PermissionsSetApproveAllResult> =>
                 connection.sendRequest("session.permissions.setApproveAll", { sessionId, ...params }),
             /**
-             * Enables or disables full allow-all permissions (tools, paths, and URLs) for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the unrestricted path and URL managers and emits `session.permissions_changed` on transition. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
+             * Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
              *
-             * @param params Whether to enable full allow-all permissions for the session.
+             * @param params Allow-all mode to apply for the session.
              *
              * @returns Indicates whether the operation succeeded and reports the post-mutation state.
              */
             setAllowAll: async (params: PermissionsSetAllowAllRequest): Promise<AllowAllPermissionSetResult> =>
                 connection.sendRequest("session.permissions.setAllowAll", { sessionId, ...params }),
             /**
-             * Returns whether full allow-all permissions are currently active for the session.
+             * Returns the current allow-all permission mode for the session.
              *
-             * @returns Current full allow-all permission state.
+             * @returns Current allow-all permission mode.
              */
             getAllowAll: async (): Promise<AllowAllPermissionState> =>
                 connection.sendRequest("session.permissions.getAllowAll", { sessionId }),
@@ -16960,6 +17573,25 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                     connection.sendRequest("session.mcp.oauth.respond", { sessionId, ...params }),
             },
         },
+        /** @experimental */
+        settings: {
+            /**
+             * Returns a redacted snapshot of session runtime settings, with secrets and raw feature flags excluded. Internal: the runtime settings shape is a runtime-internal surface and is deliberately kept out of the public SDK, because consumers should not depend on the runtime's internal settings layout. It remains callable in-process and is expected to be reworked as the runtime internals are consolidated.
+             *
+             * @returns Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
+             */
+            snapshot: async (): Promise<SessionSettingsSnapshot> =>
+                connection.sendRequest("session.settings.snapshot", { sessionId }),
+            /**
+             * Evaluates a named Rust-owned settings predicate without exposing raw feature flags. Internal: the raw feature-flag names and composition are runtime-internal, so this predicate-evaluation helper is kept out of the public SDK surface and is callable in-process only.
+             *
+             * @param params Named Rust-owned settings predicate to evaluate for this session.
+             *
+             * @returns Result of evaluating a Rust-owned settings predicate.
+             */
+            evaluatePredicate: async (params: SessionSettingsEvaluatePredicateRequest): Promise<SessionSettingsEvaluatePredicateResult> =>
+                connection.sendRequest("session.settings.evaluatePredicate", { sessionId, ...params }),
+        },
     };
 }
 
@@ -17228,9 +17860,9 @@ export interface LlmInferenceHandler {
 /** @experimental */
 export interface GitHubTelemetryHandler {
     /**
-     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding for the session.
+     * Forwards a single GitHub telemetry event to a host connection that opted into telemetry forwarding during the `server.connect` handshake. Opted-in connections receive every event the runtime emits after the handshake — across all sessions, plus sessionless events (for example, `server.sendTelemetry` calls with no session id).
      *
-     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding for the session.
+     * @param params Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding during the `server.connect` handshake.
      */
     event(params: GitHubTelemetryNotification): Promise<void>;
 }

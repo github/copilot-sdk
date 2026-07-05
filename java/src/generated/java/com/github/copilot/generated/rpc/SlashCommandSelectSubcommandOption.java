@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandSelectSubcommandOption` type.
+ * Selectable slash-command subcommand option with name, description, and optional group label.
  *
  * @since 1.0.0
  */

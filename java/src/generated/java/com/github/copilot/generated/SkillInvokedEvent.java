@@ -37,6 +37,8 @@ public final class SkillInvokedEvent extends SessionEvent {
     public record SkillInvokedEventData(
         /** Name of the invoked skill */
         @JsonProperty("name") String name,
+        /** Model identifier active when the skill was invoked, when known */
+        @JsonProperty("model") String model,
         /** File path to the SKILL.md definition */
         @JsonProperty("path") String path,
         /** Full content of the skill file, injected into the conversation for the model */

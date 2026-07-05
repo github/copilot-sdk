@@ -36,6 +36,8 @@ public final class AssistantTurnStartEvent extends SessionEvent {
     public record AssistantTurnStartEventData(
         /** Identifier for this turn within the agentic loop, typically a stringified turn number */
         @JsonProperty("turnId") String turnId,
+        /** Model identifier used for this turn, when known */
+        @JsonProperty("model") String model,
         /** CAPI interaction ID for correlating this turn with upstream telemetry */
         @JsonProperty("interactionId") String interactionId
     ) {

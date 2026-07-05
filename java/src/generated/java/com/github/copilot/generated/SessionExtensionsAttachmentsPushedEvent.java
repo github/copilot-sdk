@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.extensions.attachments_pushed".
+ * Session event "session.extensions.attachments_pushed". Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

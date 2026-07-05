@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Whether to enable full allow-all permissions for the session.
+ * Allow-all mode to apply for the session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -26,8 +26,12 @@ import javax.annotation.processing.Generated;
 public record SessionPermissionsSetAllowAllParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Whether to enable full allow-all permissions */
+    /** Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both. */
+    @JsonProperty("mode") PermissionsAllowAllMode mode,
+    /** Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`. */
     @JsonProperty("enabled") Boolean enabled,
+    /** Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used. */
+    @JsonProperty("model") String model,
     /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
     @JsonProperty("source") PermissionsSetAllowAllSource source
 ) {

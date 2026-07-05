@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CommandsChangedCommand` type.
+ * A single slash command available in the session, as listed by the `commands.changed` event.
  *
  * @since 1.0.0
  */

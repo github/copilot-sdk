@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `InstructionSource` type.
+ * Loaded instruction source for a session, including path, content, category, location, applicability, and optional description.
  *
  * @since 1.0.0
  */

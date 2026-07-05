@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ * A single action within a canvas declaration, with its name, optional description, and optional input schema.
  *
  * @since 1.0.0
  */

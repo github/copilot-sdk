@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRule` type.
+ * Single content-exclusion rule supplied to `session.options.update`, with paths, match conditions, and source.
  *
  * @since 1.0.0
  */
@@ -25,7 +25,7 @@ public record OptionsUpdateAdditionalContentExclusionPolicyRule(
     @JsonProperty("paths") List<String> paths,
     @JsonProperty("ifAnyMatch") List<String> ifAnyMatch,
     @JsonProperty("ifNoneMatch") List<String> ifNoneMatch,
-    /** Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type. */
+    /** Source descriptor for a `session.options.update` content-exclusion rule, with source name and type. */
     @JsonProperty("source") OptionsUpdateAdditionalContentExclusionPolicyRuleSource source
 ) {
 }

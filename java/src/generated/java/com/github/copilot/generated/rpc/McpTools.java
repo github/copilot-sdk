@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpTools` type.
+ * MCP tool metadata with tool name and optional description.
  *
  * @since 1.0.0
  */

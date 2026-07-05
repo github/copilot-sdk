@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `InstalledPlugin` type.
+ * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * @since 1.0.0
  */

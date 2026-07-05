@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicy` type.
+ * Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
  *
  * @since 1.0.0
  */

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpAllowedServer` type.
+ * MCP server allowed by policy, with server name and optional PII-free explanatory note.
  *
  * @since 1.0.0
  */

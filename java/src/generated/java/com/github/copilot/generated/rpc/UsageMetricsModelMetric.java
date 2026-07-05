@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `UsageMetricsModelMetric` type.
+ * Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
  *
  * @since 1.0.0
  */

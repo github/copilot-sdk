@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+ * Marker object for microphone permission on an MCP Apps UI resource.
  *
  * @since 1.0.0
  */

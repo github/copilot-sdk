@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpFilteredServer` type.
+ * MCP server filtered by policy, with name, reason, optional redacted reason, and enterprise login.
  *
  * @since 1.0.0
  */

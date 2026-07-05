@@ -50,6 +50,7 @@ type (
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentType                                                 = rpc.AttachmentType
+	AutoApprovalRecommendation                                     = rpc.AutoApprovalRecommendation
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -132,9 +133,11 @@ type (
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
 	PendingMessagesModifiedData                                    = rpc.PendingMessagesModifiedData
+	PermissionAllowAllMode                                         = rpc.PermissionAllowAllMode
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
 	PermissionApprovedForSession                                   = rpc.PermissionApprovedForSession
+	PermissionAutoApproval                                         = rpc.PermissionAutoApproval
 	PermissionCancelled                                            = rpc.PermissionCancelled
 	PermissionCompletedData                                        = rpc.PermissionCompletedData
 	PermissionDeniedByContentExclusionPolicy                       = rpc.PermissionDeniedByContentExclusionPolicy
@@ -363,6 +366,10 @@ const (
 	AttachmentTypeGitHubTreeComparison                                 = rpc.AttachmentTypeGitHubTreeComparison
 	AttachmentTypeGitHubURL                                            = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
+	AutoApprovalRecommendationApprove                                  = rpc.AutoApprovalRecommendationApprove
+	AutoApprovalRecommendationError                                    = rpc.AutoApprovalRecommendationError
+	AutoApprovalRecommendationExcluded                                 = rpc.AutoApprovalRecommendationExcluded
+	AutoApprovalRecommendationRequireApproval                          = rpc.AutoApprovalRecommendationRequireApproval
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -441,6 +448,9 @@ const (
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
 	OmittedBinaryTypeResource                                          = rpc.OmittedBinaryTypeResource
+	PermissionAllowAllModeAuto                                         = rpc.PermissionAllowAllModeAuto
+	PermissionAllowAllModeOff                                          = rpc.PermissionAllowAllModeOff
+	PermissionAllowAllModeOn                                           = rpc.PermissionAllowAllModeOn
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement

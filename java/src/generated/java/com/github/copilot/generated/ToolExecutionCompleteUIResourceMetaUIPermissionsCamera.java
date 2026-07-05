@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+ * Marker object for camera permission on an MCP Apps UI resource.
  *
  * @since 1.0.0
  */

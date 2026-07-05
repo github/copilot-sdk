@@ -28,7 +28,7 @@ public record SessionUiHandlePendingUserInputParams(
     @JsonProperty("sessionId") String sessionId,
     /** The unique request ID from the user_input.requested event */
     @JsonProperty("requestId") String requestId,
-    /** Schema for the `UIUserInputResponse` type. */
+    /** User response for a pending user-input request, with answer text and whether it was typed freeform. */
     @JsonProperty("response") UIUserInputResponse response
 ) {
 }

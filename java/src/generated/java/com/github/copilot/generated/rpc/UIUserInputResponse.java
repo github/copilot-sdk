@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `UIUserInputResponse` type.
+ * User response for a pending user-input request, with answer text and whether it was typed freeform.
  *
  * @since 1.0.0
  */

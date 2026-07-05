@@ -28,7 +28,8 @@ type AbortResult struct {
 	Success bool `json:"success"`
 }
 
-// Schema for the `AccountAllUsers` type.
+// Authenticated account entry returned by `account.getAllUsers`, with auth info and an
+// optional associated token.
 // Experimental: AccountAllUsers is part of an experimental API and may change or be removed.
 type AccountAllUsers struct {
 	// Authentication information for this user
@@ -106,7 +107,8 @@ type AccountLogoutResult struct {
 	HasMoreUsers bool `json:"hasMoreUsers"`
 }
 
-// Schema for the `AccountQuotaSnapshot` type.
+// Quota usage snapshot for a Copilot quota type, including entitlement, used requests,
+// overage, reset date, and remaining percentage.
 // Experimental: AccountQuotaSnapshot is part of an experimental API and may change or be
 // removed.
 type AccountQuotaSnapshot struct {
@@ -128,7 +130,8 @@ type AccountQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
-// Schema for the `AgentDiscoveryPath` type.
+// Canonical directory where custom agents can be discovered or created, with scope,
+// preference, and optional project path.
 // Experimental: AgentDiscoveryPath is part of an experimental API and may change or be
 // removed.
 type AgentDiscoveryPath struct {
@@ -159,7 +162,8 @@ type AgentGetCurrentResult struct {
 	Agent *AgentInfo `json:"agent,omitempty"`
 }
 
-// Schema for the `AgentInfo` type.
+// Custom agent metadata, including identifiers, display details, source, tools, model, MCP
+// servers, skills, and file path.
 // Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
 	// Description of the agent's purpose
@@ -429,18 +433,22 @@ type AgentsGetDiscoveryPathsRequest struct {
 // Experimental: AllowAllPermissionSetResult is part of an experimental API and may change
 // or be removed.
 type AllowAllPermissionSetResult struct {
-	// Authoritative allow-all state after the mutation
+	// Authoritative full allow-all state after the mutation
 	Enabled bool `json:"enabled"`
+	// Authoritative allow-all mode after the mutation
+	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
 
-// Current full allow-all permission state.
+// Current allow-all permission mode.
 // Experimental: AllowAllPermissionState is part of an experimental API and may change or be
 // removed.
 type AllowAllPermissionState struct {
 	// Whether full allow-all permissions are currently active
 	Enabled bool `json:"enabled"`
+	// Current allow-all mode
+	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
 }
 
 // A user message attachment — a file, directory, code selection, blob, GitHub-anchored
@@ -852,7 +860,8 @@ func (r RawAuthInfoData) Type() AuthInfoType {
 	return r.Discriminator
 }
 
-// Schema for the `ApiKeyAuthInfo` type.
+// Authentication-info variant for API-key authentication to a non-GitHub LLM provider,
+// carrying the secret `apiKey` and host.
 // Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
 type APIKeyAuthInfo struct {
 	// The API key. Treat as a secret.
@@ -870,7 +879,8 @@ func (APIKeyAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeAPIKey
 }
 
-// Schema for the `CopilotApiTokenAuthInfo` type.
+// Authentication-info variant for direct Copilot API token auth sourced from environment
+// variables, with public GitHub host.
 // Experimental: CopilotAPITokenAuthInfo is part of an experimental API and may change or be
 // removed.
 type CopilotAPITokenAuthInfo struct {
@@ -887,7 +897,8 @@ func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeCopilotAPIToken
 }
 
-// Schema for the `EnvAuthInfo` type.
+// Authentication-info variant for a token sourced from an environment variable, with host,
+// optional login, token, and env var name.
 // Experimental: EnvAuthInfo is part of an experimental API and may change or be removed.
 type EnvAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -910,7 +921,8 @@ func (EnvAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeEnv
 }
 
-// Schema for the `GhCliAuthInfo` type.
+// Authentication-info variant for GitHub CLI credentials, carrying host, login, and the `gh
+// auth token` value.
 // Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
 type GhCLIAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -930,7 +942,8 @@ func (GhCLIAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeGhCLI
 }
 
-// Schema for the `HMACAuthInfo` type.
+// Authentication-info variant for GitHub-internal HMAC auth, carrying the public GitHub
+// host and HMAC secret.
 // Experimental: HMACAuthInfo is part of an experimental API and may change or be removed.
 type HMACAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -948,7 +961,8 @@ func (HMACAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeHMAC
 }
 
-// Schema for the `TokenAuthInfo` type.
+// Authentication-info variant for SDK-configured token authentication, carrying host and
+// the secret token value.
 // Experimental: TokenAuthInfo is part of an experimental API and may change or be removed.
 type TokenAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -966,7 +980,8 @@ func (TokenAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeToken
 }
 
-// Schema for the `UserAuthInfo` type.
+// Authentication-info variant for OAuth user auth, with host and login; the token remains
+// in the runtime secret store.
 // Experimental: UserAuthInfo is part of an experimental API and may change or be removed.
 type UserAuthInfo struct {
 	// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -1341,10 +1356,19 @@ type ConnectRemoteSessionParams struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Optional connection token presented by the SDK client during the handshake.
+// Parameters for the `server.connect` handshake: an optional connection token and optional
+// connection-level opt-ins (e.g. GitHub telemetry forwarding).
 // Experimental: ConnectRequest is part of an experimental API and may change or be removed.
 // Internal: ConnectRequest is an internal SDK API and is not part of the public surface.
 type ConnectRequest struct {
+	// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the
+	// runtime forwards every internal telemetry event it emits — across all sessions, plus
+	// sessionless events — to this connection over the `gitHubTelemetry.event` notification, in
+	// addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for
+	// first-party hosts that re-emit the events into their own telemetry stores. Both
+	// unrestricted and restricted events are forwarded, each tagged with a `restricted`
+	// discriminator; a backstop drops restricted events when restricted telemetry is disabled.
+	EnableGitHubTelemetryForwarding *bool `json:"enableGitHubTelemetryForwarding,omitempty"`
 	// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
 	Token *string `json:"token,omitempty"`
 }
@@ -1381,37 +1405,66 @@ type ContextHeaviestMessage struct {
 // Experimental: CopilotUserResponse is part of an experimental API and may change or be
 // removed.
 type CopilotUserResponse struct {
-	AccessTypeSku              *string `json:"access_type_sku,omitempty"`
-	AnalyticsTrackingID        *string `json:"analytics_tracking_id,omitempty"`
-	AssignedDate               *string `json:"assigned_date,omitempty"`
-	CanSignupForLimited        *bool   `json:"can_signup_for_limited,omitempty"`
-	CanUpgradePlan             *bool   `json:"can_upgrade_plan,omitempty"`
-	ChatEnabled                *bool   `json:"chat_enabled,omitempty"`
-	CLIRemoteControlEnabled    *bool   `json:"cli_remote_control_enabled,omitempty"`
-	CloudSessionStorageEnabled *bool   `json:"cloud_session_storage_enabled,omitempty"`
-	CodexAgentEnabled          *bool   `json:"codex_agent_enabled,omitempty"`
-	CopilotignoreEnabled       *bool   `json:"copilotignore_enabled,omitempty"`
-	CopilotPlan                *string `json:"copilot_plan,omitempty"`
-	// Schema for the `CopilotUserResponseEndpoints` type.
-	Endpoints             *CopilotUserResponseEndpoints             `json:"endpoints,omitempty"`
-	IsMCPEnabled          *bool                                     `json:"is_mcp_enabled,omitempty"`
-	IsStaff               *bool                                     `json:"is_staff,omitempty"`
-	LimitedUserQuotas     map[string]float64                        `json:"limited_user_quotas,omitzero"`
-	LimitedUserResetDate  *string                                   `json:"limited_user_reset_date,omitempty"`
-	Login                 *string                                   `json:"login,omitempty"`
-	MonthlyQuotas         map[string]float64                        `json:"monthly_quotas,omitzero"`
-	OrganizationList      []CopilotUserResponseOrganizationListItem `json:"organization_list,omitzero"`
-	OrganizationLoginList []string                                  `json:"organization_login_list,omitzero"`
-	QuotaResetDate        *string                                   `json:"quota_reset_date,omitempty"`
-	QuotaResetDateUTC     *string                                   `json:"quota_reset_date_utc,omitempty"`
-	// Schema for the `CopilotUserResponseQuotaSnapshots` type.
-	QuotaSnapshots      *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
-	RestrictedTelemetry *bool                              `json:"restricted_telemetry,omitempty"`
-	Te                  *bool                              `json:"te,omitempty"`
-	TokenBasedBilling   *bool                              `json:"token_based_billing,omitempty"`
+	// Copilot access SKU identifier (e.g. `free_limited_copilot`,
+	// `copilot_for_business_seat_quota`) used to gate model and feature access.
+	AccessTypeSku *string `json:"access_type_sku,omitempty"`
+	// Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
+	AnalyticsTrackingID *string `json:"analytics_tracking_id,omitempty"`
+	// Date the Copilot seat was assigned to the user, if applicable.
+	AssignedDate *string `json:"assigned_date,omitempty"`
+	// Whether the user is eligible to sign up for the free/limited Copilot tier.
+	CanSignupForLimited *bool `json:"can_signup_for_limited,omitempty"`
+	// Whether the user is able to upgrade their Copilot plan.
+	CanUpgradePlan *bool `json:"can_upgrade_plan,omitempty"`
+	// Whether Copilot chat is enabled for the user.
+	ChatEnabled *bool `json:"chat_enabled,omitempty"`
+	// Whether CLI remote control is enabled for the user.
+	CLIRemoteControlEnabled *bool `json:"cli_remote_control_enabled,omitempty"`
+	// Whether cloud session storage is enabled for the user.
+	CloudSessionStorageEnabled *bool `json:"cloud_session_storage_enabled,omitempty"`
+	// Whether the Codex agent is enabled for the user.
+	CodexAgentEnabled *bool `json:"codex_agent_enabled,omitempty"`
+	// Whether `.copilotignore` content-exclusion support is enabled for the user.
+	CopilotignoreEnabled *bool `json:"copilotignore_enabled,omitempty"`
+	// Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
+	CopilotPlan *string `json:"copilot_plan,omitempty"`
+	// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
+	Endpoints *CopilotUserResponseEndpoints `json:"endpoints,omitempty"`
+	// Whether MCP (Model Context Protocol) support is enabled for the user.
+	IsMCPEnabled *bool `json:"is_mcp_enabled,omitempty"`
+	// Whether the user is a GitHub/Microsoft staff member.
+	IsStaff *bool `json:"is_staff,omitempty"`
+	// Per-category quota allotments for free/limited-tier users, keyed by quota category.
+	LimitedUserQuotas map[string]float64 `json:"limited_user_quotas,omitzero"`
+	// Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
+	LimitedUserResetDate *string `json:"limited_user_reset_date,omitempty"`
+	// GitHub login of the authenticated user.
+	Login *string `json:"login,omitempty"`
+	// Per-category monthly quota allotments, keyed by quota category.
+	MonthlyQuotas map[string]float64 `json:"monthly_quotas,omitzero"`
+	// Organizations the user belongs to, each with an optional login and display name.
+	OrganizationList []CopilotUserResponseOrganizationListItem `json:"organization_list,omitzero"`
+	// Logins of the organizations the user belongs to.
+	OrganizationLoginList []string `json:"organization_login_list,omitzero"`
+	// Date the user's usage quota next resets, as a raw string from the Copilot API; see
+	// `quota_reset_date_utc` for the UTC-normalized value.
+	QuotaResetDate *string `json:"quota_reset_date,omitempty"`
+	// UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
+	QuotaResetDateUTC *string `json:"quota_reset_date_utc,omitempty"`
+	// Quota snapshot map from the raw Copilot user-response passthrough, with chat,
+	// completions, premium-interactions, and other entries.
+	QuotaSnapshots *CopilotUserResponseQuotaSnapshots `json:"quota_snapshots,omitempty"`
+	// Whether the user's telemetry is subject to restricted-data handling.
+	RestrictedTelemetry *bool `json:"restricted_telemetry,omitempty"`
+	// Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side
+	// eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
+	Te *bool `json:"te,omitempty"`
+	// Whether the account is on usage-based (token/AI-credit) billing rather than a fixed
+	// premium-request quota.
+	TokenBasedBilling *bool `json:"token_based_billing,omitempty"`
 }
 
-// Schema for the `CopilotUserResponseEndpoints` type.
+// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
 // Experimental: CopilotUserResponseEndpoints is part of an experimental API and may change
 // or be removed.
 type CopilotUserResponseEndpoints struct {
@@ -1426,70 +1479,122 @@ type CopilotUserResponseOrganizationListItem struct {
 	Name  *string `json:"name,omitempty"`
 }
 
-// Schema for the `CopilotUserResponseQuotaSnapshots` type.
+// Quota snapshot map from the raw Copilot user-response passthrough, with chat,
+// completions, premium-interactions, and other entries.
 // Experimental: CopilotUserResponseQuotaSnapshots is part of an experimental API and may
 // change or be removed.
 type CopilotUserResponseQuotaSnapshots struct {
-	// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+	// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement,
+	// overage, remaining quota, reset, and billing fields.
 	Chat *CopilotUserResponseQuotaSnapshotsChat `json:"chat,omitempty"`
-	// Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+	// Completions quota snapshot from the raw Copilot user-response passthrough, with
+	// entitlement, overage, remaining quota, reset, and billing fields.
 	Completions *CopilotUserResponseQuotaSnapshotsCompletions `json:"completions,omitempty"`
-	// Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+	// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with
+	// entitlement, overage, remaining quota, reset, and billing fields.
 	PremiumInteractions *CopilotUserResponseQuotaSnapshotsPremiumInteractions `json:"premium_interactions,omitempty"`
 }
 
-// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement,
+// overage, remaining quota, reset, and billing fields.
 // Experimental: CopilotUserResponseQuotaSnapshotsChat is part of an experimental API and
 // may change or be removed.
 type CopilotUserResponseQuotaSnapshotsChat struct {
-	Entitlement       *float64 `json:"entitlement,omitempty"`
-	HasQuota          *bool    `json:"has_quota,omitempty"`
-	OverageCount      *float64 `json:"overage_count,omitempty"`
-	OveragePermitted  *bool    `json:"overage_permitted,omitempty"`
-	PercentRemaining  *float64 `json:"percent_remaining,omitempty"`
-	QuotaID           *string  `json:"quota_id,omitempty"`
-	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
-	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
-	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
-	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
-	Unlimited         *bool    `json:"unlimited,omitempty"`
+	// Number of requests/units included in the entitlement for this period; `-1` denotes an
+	// unlimited entitlement.
+	Entitlement *float64 `json:"entitlement,omitempty"`
+	// Whether the user currently has quota available; when `false` and not unlimited, further
+	// requests are blocked until the quota resets.
+	HasQuota *bool `json:"has_quota,omitempty"`
+	// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+	OverageCount *float64 `json:"overage_count,omitempty"`
+	// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+	OveragePermitted *bool `json:"overage_permitted,omitempty"`
+	// Percentage of the entitlement remaining at the snapshot timestamp.
+	PercentRemaining *float64 `json:"percent_remaining,omitempty"`
+	// Identifier of the quota bucket this snapshot describes.
+	QuotaID *string `json:"quota_id,omitempty"`
+	// Amount of quota remaining at the snapshot timestamp.
+	QuotaRemaining *float64 `json:"quota_remaining,omitempty"`
+	// Unix epoch time, in seconds, when this quota next resets.
+	QuotaResetAt *float64 `json:"quota_reset_at,omitempty"`
+	// Remaining entitlement/quota amount at the snapshot timestamp.
+	Remaining *float64 `json:"remaining,omitempty"`
+	// UTC timestamp when this snapshot was captured.
+	TimestampUTC *string `json:"timestamp_utc,omitempty"`
+	// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed
+	// premium-request count.
+	TokenBasedBilling *bool `json:"token_based_billing,omitempty"`
+	// Whether the entitlement for this category is unlimited.
+	Unlimited *bool `json:"unlimited,omitempty"`
 }
 
-// Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+// Completions quota snapshot from the raw Copilot user-response passthrough, with
+// entitlement, overage, remaining quota, reset, and billing fields.
 // Experimental: CopilotUserResponseQuotaSnapshotsCompletions is part of an experimental API
 // and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsCompletions struct {
-	Entitlement       *float64 `json:"entitlement,omitempty"`
-	HasQuota          *bool    `json:"has_quota,omitempty"`
-	OverageCount      *float64 `json:"overage_count,omitempty"`
-	OveragePermitted  *bool    `json:"overage_permitted,omitempty"`
-	PercentRemaining  *float64 `json:"percent_remaining,omitempty"`
-	QuotaID           *string  `json:"quota_id,omitempty"`
-	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
-	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
-	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
-	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
-	Unlimited         *bool    `json:"unlimited,omitempty"`
+	// Number of requests/units included in the entitlement for this period; `-1` denotes an
+	// unlimited entitlement.
+	Entitlement *float64 `json:"entitlement,omitempty"`
+	// Whether the user currently has quota available; when `false` and not unlimited, further
+	// requests are blocked until the quota resets.
+	HasQuota *bool `json:"has_quota,omitempty"`
+	// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+	OverageCount *float64 `json:"overage_count,omitempty"`
+	// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+	OveragePermitted *bool `json:"overage_permitted,omitempty"`
+	// Percentage of the entitlement remaining at the snapshot timestamp.
+	PercentRemaining *float64 `json:"percent_remaining,omitempty"`
+	// Identifier of the quota bucket this snapshot describes.
+	QuotaID *string `json:"quota_id,omitempty"`
+	// Amount of quota remaining at the snapshot timestamp.
+	QuotaRemaining *float64 `json:"quota_remaining,omitempty"`
+	// Unix epoch time, in seconds, when this quota next resets.
+	QuotaResetAt *float64 `json:"quota_reset_at,omitempty"`
+	// Remaining entitlement/quota amount at the snapshot timestamp.
+	Remaining *float64 `json:"remaining,omitempty"`
+	// UTC timestamp when this snapshot was captured.
+	TimestampUTC *string `json:"timestamp_utc,omitempty"`
+	// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed
+	// premium-request count.
+	TokenBasedBilling *bool `json:"token_based_billing,omitempty"`
+	// Whether the entitlement for this category is unlimited.
+	Unlimited *bool `json:"unlimited,omitempty"`
 }
 
-// Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with
+// entitlement, overage, remaining quota, reset, and billing fields.
 // Experimental: CopilotUserResponseQuotaSnapshotsPremiumInteractions is part of an
 // experimental API and may change or be removed.
 type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
-	Entitlement       *float64 `json:"entitlement,omitempty"`
-	HasQuota          *bool    `json:"has_quota,omitempty"`
-	OverageCount      *float64 `json:"overage_count,omitempty"`
-	OveragePermitted  *bool    `json:"overage_permitted,omitempty"`
-	PercentRemaining  *float64 `json:"percent_remaining,omitempty"`
-	QuotaID           *string  `json:"quota_id,omitempty"`
-	QuotaRemaining    *float64 `json:"quota_remaining,omitempty"`
-	QuotaResetAt      *float64 `json:"quota_reset_at,omitempty"`
-	Remaining         *float64 `json:"remaining,omitempty"`
-	TimestampUTC      *string  `json:"timestamp_utc,omitempty"`
-	TokenBasedBilling *bool    `json:"token_based_billing,omitempty"`
-	Unlimited         *bool    `json:"unlimited,omitempty"`
+	// Number of requests/units included in the entitlement for this period; `-1` denotes an
+	// unlimited entitlement.
+	Entitlement *float64 `json:"entitlement,omitempty"`
+	// Whether the user currently has quota available; when `false` and not unlimited, further
+	// requests are blocked until the quota resets.
+	HasQuota *bool `json:"has_quota,omitempty"`
+	// Count of additional pay-per-request usage consumed this period beyond the entitlement.
+	OverageCount *float64 `json:"overage_count,omitempty"`
+	// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
+	OveragePermitted *bool `json:"overage_permitted,omitempty"`
+	// Percentage of the entitlement remaining at the snapshot timestamp.
+	PercentRemaining *float64 `json:"percent_remaining,omitempty"`
+	// Identifier of the quota bucket this snapshot describes.
+	QuotaID *string `json:"quota_id,omitempty"`
+	// Amount of quota remaining at the snapshot timestamp.
+	QuotaRemaining *float64 `json:"quota_remaining,omitempty"`
+	// Unix epoch time, in seconds, when this quota next resets.
+	QuotaResetAt *float64 `json:"quota_reset_at,omitempty"`
+	// Remaining entitlement/quota amount at the snapshot timestamp.
+	Remaining *float64 `json:"remaining,omitempty"`
+	// UTC timestamp when this snapshot was captured.
+	TimestampUTC *string `json:"timestamp_utc,omitempty"`
+	// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed
+	// premium-request count.
+	TokenBasedBilling *bool `json:"token_based_billing,omitempty"`
+	// Whether the entitlement for this category is unlimited.
+	Unlimited *bool `json:"unlimited,omitempty"`
 }
 
 // The currently selected model, reasoning effort, and context tier for the session. The
@@ -1527,6 +1632,142 @@ type CurrentToolMetadata struct {
 	NamespacedName *string `json:"namespacedName,omitempty"`
 }
 
+// A file included in the redacted debug bundle.
+// Experimental: DebugCollectLogsCollectedEntry is part of an experimental API and may
+// change or be removed.
+type DebugCollectLogsCollectedEntry struct {
+	// Relative path of the file in the staged bundle/archive.
+	BundlePath string `json:"bundlePath"`
+	// Redacted output size in bytes.
+	SizeBytes int64 `json:"sizeBytes"`
+	// Source category for this entry.
+	Source DebugCollectLogsSource `json:"source"`
+}
+
+// Destination for the redacted debug bundle.
+// Experimental: DebugCollectLogsDestination is part of an experimental API and may change
+// or be removed.
+type DebugCollectLogsDestination interface {
+	debugCollectLogsDestination()
+	Kind() DebugCollectLogsDestinationKind
+}
+
+type RawDebugCollectLogsDestinationData struct {
+	Discriminator DebugCollectLogsDestinationKind
+	Raw           json.RawMessage
+}
+
+func (RawDebugCollectLogsDestinationData) debugCollectLogsDestination() {}
+func (r RawDebugCollectLogsDestinationData) Kind() DebugCollectLogsDestinationKind {
+	return r.Discriminator
+}
+
+type DebugCollectLogsDestinationArchive struct {
+	// When true, create the archive atomically without overwriting an existing file by
+	// appending ` (N)` before the extension as needed. Defaults to false.
+	NoOverwrite *bool `json:"noOverwrite,omitempty"`
+	// Absolute or server-relative path for the .tgz archive to create.
+	OutputPath string `json:"outputPath"`
+}
+
+func (DebugCollectLogsDestinationArchive) debugCollectLogsDestination() {}
+func (DebugCollectLogsDestinationArchive) Kind() DebugCollectLogsDestinationKind {
+	return DebugCollectLogsDestinationKindArchive
+}
+
+type DebugCollectLogsDestinationDirectory struct {
+	// Directory where redacted files should be staged. The directory is created if needed.
+	OutputDirectory string `json:"outputDirectory"`
+}
+
+func (DebugCollectLogsDestinationDirectory) debugCollectLogsDestination() {}
+func (DebugCollectLogsDestinationDirectory) Kind() DebugCollectLogsDestinationKind {
+	return DebugCollectLogsDestinationKindDirectory
+}
+
+// A caller-provided server-local file or directory to include in the debug bundle.
+// Experimental: DebugCollectLogsEntry is part of an experimental API and may change or be
+// removed.
+type DebugCollectLogsEntry struct {
+	// Relative path to use inside the staged bundle/archive.
+	BundlePath string `json:"bundlePath"`
+	// Kind of source path to include.
+	Kind DebugCollectLogsEntryKind `json:"kind"`
+	// Server-local source path to read.
+	Path string `json:"path"`
+	// How text content from this entry should be redacted. Defaults to plain-text.
+	Redaction *DebugCollectLogsRedaction `json:"redaction,omitempty"`
+	// When true, collection fails if this entry cannot be read. Defaults to false, which
+	// records the entry in `skippedEntries`.
+	Required *bool `json:"required,omitempty"`
+}
+
+// Built-in session diagnostics to include in the bundle. Omitted fields default to true.
+// Experimental: DebugCollectLogsInclude is part of an experimental API and may change or be
+// removed.
+type DebugCollectLogsInclude struct {
+	// Server-local path to the current process log. When set, it is included as `process.log`
+	// and its directory is searched for prior logs from the same session.
+	CurrentProcessLogPath *string `json:"currentProcessLogPath,omitempty"`
+	// Include the session event log (`events.jsonl`). Defaults to true.
+	Events *bool `json:"events,omitempty"`
+	// Server-local path to the session's events.jsonl file. Internal callers normally omit this
+	// and let the runtime derive it from the session.
+	EventsPath *string `json:"eventsPath,omitempty"`
+	// Maximum number of previous process logs to include. Defaults to 5.
+	PreviousProcessLogLimit *int64 `json:"previousProcessLogLimit,omitempty"`
+	// Server-local process log directory to search when `currentProcessLogPath` is unavailable,
+	// useful for collecting logs for inactive sessions.
+	ProcessLogDirectory *string `json:"processLogDirectory,omitempty"`
+	// Include process logs for the session. Defaults to true.
+	ProcessLogs *bool `json:"processLogs,omitempty"`
+	// Include interactive shell logs written under the session's `shell-logs` directory.
+	// Defaults to true.
+	ShellLogs *bool `json:"shellLogs,omitempty"`
+}
+
+// Options for collecting a redacted session debug bundle.
+// Experimental: DebugCollectLogsRequest is part of an experimental API and may change or be
+// removed.
+type DebugCollectLogsRequest struct {
+	// Caller-provided server-local files or directories to include in addition to the runtime's
+	// built-in session diagnostics. This lets host applications add their own diagnostics
+	// without changing the API shape.
+	AdditionalEntries []DebugCollectLogsEntry `json:"additionalEntries,omitzero"`
+	// Where the redacted bundle should be written. Use `archive` to produce a .tgz, or
+	// `directory` to stage redacted files for caller-managed upload/post-processing.
+	Destination DebugCollectLogsDestination `json:"destination"`
+	// Which built-in session diagnostics to include. Omitted fields default to true.
+	Include *DebugCollectLogsInclude `json:"include,omitempty"`
+}
+
+// Result of collecting a redacted debug bundle.
+// Experimental: DebugCollectLogsResult is part of an experimental API and may change or be
+// removed.
+type DebugCollectLogsResult struct {
+	// Files included in the redacted bundle.
+	Entries []DebugCollectLogsCollectedEntry `json:"entries"`
+	// Destination kind that was written.
+	Kind DebugCollectLogsResultKind `json:"kind"`
+	// Actual archive path or staging directory path written. This may differ from the requested
+	// path when no-overwrite suffixing or fallback-to-temp-directory was needed.
+	Path string `json:"path"`
+	// Optional files or directories that could not be included.
+	SkippedEntries []DebugCollectLogsSkippedEntry `json:"skippedEntries,omitzero"`
+}
+
+// An optional debug bundle entry that could not be included.
+// Experimental: DebugCollectLogsSkippedEntry is part of an experimental API and may change
+// or be removed.
+type DebugCollectLogsSkippedEntry struct {
+	// Relative path requested for this bundle entry.
+	BundlePath string `json:"bundlePath"`
+	// Server-local source path that could not be read.
+	Path *string `json:"path,omitempty"`
+	// Reason the entry was skipped.
+	Reason string `json:"reason"`
+}
+
 // Canvas available in the current session.
 // Experimental: DiscoveredCanvas is part of an experimental API and may change or be
 // removed.
@@ -1547,7 +1788,8 @@ type DiscoveredCanvas struct {
 	InputSchema any `json:"inputSchema,omitempty"`
 }
 
-// Schema for the `DiscoveredMcpServer` type.
+// MCP server discovered by `mcp.discover`, with config source, optional plugin source,
+// transport type, and enabled state.
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
 // removed.
 type DiscoveredMCPServer struct {
@@ -1677,7 +1919,8 @@ type ExecuteCommandResult struct {
 	Error *string `json:"error,omitempty"`
 }
 
-// Schema for the `Extension` type.
+// Discovered extension metadata, including source-qualified ID, name, discovery source,
+// status, and optional process ID.
 // Experimental: Extension is part of an experimental API and may change or be removed.
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper',
@@ -1925,7 +2168,8 @@ type RawExternalToolTextResultForLlmContentResourceDetailsData struct {
 func (RawExternalToolTextResultForLlmContentResourceDetailsData) externalToolTextResultForLlmContentResourceDetails() {
 }
 
-// Schema for the `EmbeddedBlobResourceContents` type.
+// Embedded binary resource contents identified by a URI, with an optional MIME type and a
+// base64-encoded blob.
 // Experimental: EmbeddedBlobResourceContents is part of an experimental API and may change
 // or be removed.
 type EmbeddedBlobResourceContents struct {
@@ -1939,7 +2183,8 @@ type EmbeddedBlobResourceContents struct {
 
 func (EmbeddedBlobResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
 
-// Schema for the `EmbeddedTextResourceContents` type.
+// Embedded text resource contents identified by a URI, with an optional MIME type and a
+// text payload.
 // Experimental: EmbeddedTextResourceContents is part of an experimental API and may change
 // or be removed.
 type EmbeddedTextResourceContents struct {
@@ -2092,8 +2337,8 @@ type GitHubTelemetryEventResult struct {
 }
 
 // Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the
-// runtime forwards to a host connection that opted into telemetry forwarding for the
-// session.
+// runtime forwards to a host connection that opted into telemetry forwarding during the
+// `server.connect` handshake.
 // Experimental: GitHubTelemetryNotification is part of an experimental API and may change
 // or be removed.
 type GitHubTelemetryNotification struct {
@@ -2102,8 +2347,10 @@ type GitHubTelemetryNotification struct {
 	// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route
 	// restricted events to first-party Microsoft stores only.
 	Restricted bool `json:"restricted"`
-	// Session the telemetry event belongs to.
-	SessionID string `json:"sessionId"`
+	// Session the telemetry event belongs to, when it is session-scoped. Omitted for
+	// sessionless events (for example, `server.sendTelemetry` calls with no session id), which
+	// are still forwarded to opted-in connections.
+	SessionID *string `json:"sessionId,omitempty"`
 }
 
 // Pending external tool call request ID, with the tool result or an error describing why it
@@ -2214,7 +2461,8 @@ type HistoryTruncateResult struct {
 	EventsRemoved int64 `json:"eventsRemoved"`
 }
 
-// Schema for the `InstalledPlugin` type.
+// Installed plugin record from global state, with marketplace, version, install time,
+// enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
 type InstalledPlugin struct {
 	// Path where the plugin is cached locally
@@ -2262,7 +2510,8 @@ type InstalledPluginSource struct {
 	String                      *string
 }
 
-// Schema for the `InstalledPluginSourceGitHub` type.
+// Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref,
+// and optional subpath.
 // Experimental: InstalledPluginSourceGitHub is part of an experimental API and may change
 // or be removed.
 type InstalledPluginSourceGitHub struct {
@@ -2273,7 +2522,7 @@ type InstalledPluginSourceGitHub struct {
 	Source InstalledPluginSourceGitHubSource `json:"source"`
 }
 
-// Schema for the `InstalledPluginSourceLocal` type.
+// Source descriptor for a direct local plugin install, with a local filesystem path.
 // Experimental: InstalledPluginSourceLocal is part of an experimental API and may change or
 // be removed.
 type InstalledPluginSourceLocal struct {
@@ -2282,7 +2531,8 @@ type InstalledPluginSourceLocal struct {
 	Source InstalledPluginSourceLocalSource `json:"source"`
 }
 
-// Schema for the `InstalledPluginSourceUrl` type.
+// Source descriptor for a direct URL plugin install, with URL, optional ref, and optional
+// subpath.
 // Experimental: InstalledPluginSourceURL is part of an experimental API and may change or
 // be removed.
 type InstalledPluginSourceURL struct {
@@ -2293,7 +2543,8 @@ type InstalledPluginSourceURL struct {
 	URL    string                         `json:"url"`
 }
 
-// Schema for the `InstructionDiscoveryPath` type.
+// Canonical file or directory where custom instructions can be discovered or created, with
+// location, kind, preference, and project path.
 // Experimental: InstructionDiscoveryPath is part of an experimental API and may change or
 // be removed.
 type InstructionDiscoveryPath struct {
@@ -2352,7 +2603,8 @@ type InstructionsGetSourcesResult struct {
 	Sources []InstructionSource `json:"sources"`
 }
 
-// Schema for the `InstructionSource` type.
+// Loaded instruction source for a session, including path, content, category, location,
+// applicability, and optional description.
 // Experimental: InstructionSource is part of an experimental API and may change or be
 // removed.
 type InstructionSource struct {
@@ -2420,9 +2672,35 @@ type LlmInferenceHTTPRequestChunkResult struct {
 // Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
 // change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
+	// Stable per-agent-instance id attributing this request to a specific agent trajectory.
+	// Present when the request originates from an agent turn; absent for requests issued
+	// outside any agent context (e.g. some SDK callers). A request with an `agentId` but no
+	// `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced
+	// from the runtime's per-request agent context and surfaced on the envelope independently
+	// of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider
+	// requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header
+	// from this same context. Consumers routing each provider call to a training trajectory
+	// should key on this rather than on lifecycle events, since it is available on the request
+	// path before sampling.
+	AgentID *string             `json:"agentId,omitempty"`
 	Headers map[string][]string `json:"headers"`
+	// Coarse classification of the interaction that produced this request. Open string for
+	// forward-compatibility; known values include `conversation-agent`,
+	// `conversation-subagent`, `conversation-sampling`, `conversation-background`,
+	// `conversation-compaction`, and `conversation-user`. Absent when the runtime did not
+	// classify the request. Comes from the runtime's per-request agent context independently of
+	// transport; on the CAPI transport the runtime derives the upstream `X-Interaction-Type`
+	// header from this same context.
+	InteractionType *string `json:"interactionType,omitempty"`
 	// HTTP method, e.g. GET, POST.
 	Method string `json:"method"`
+	// Id of the parent agent that spawned the agent issuing this request. Present only for
+	// subagent requests; absent for root-agent requests and non-agent requests. Combined with
+	// `agentId`, this lets consumers attribute a call to a child trajectory versus the root.
+	// Like `agentId`, it comes from the runtime's per-request agent context independently of
+	// transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id`
+	// header from this same context.
+	ParentAgentID *string `json:"parentAgentId,omitempty"`
 	// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate
 	// httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies
 	// back to the runtime.
@@ -2518,7 +2796,8 @@ type LlmInferenceSetProviderResult struct {
 	Success bool `json:"success"`
 }
 
-// Schema for the `LocalSessionMetadataValue` type.
+// Persisted local session metadata, including identifiers, timestamps, summary/name,
+// client, context, detached state, and task ID.
 // Experimental: LocalSessionMetadataValue is part of an experimental API and may change or
 // be removed.
 type LocalSessionMetadataValue struct {
@@ -2634,7 +2913,8 @@ type MarketplacePluginInfo struct {
 	Name string `json:"name"`
 }
 
-// Schema for the `MarketplaceRefreshEntry` type.
+// Per-marketplace refresh result, including marketplace name, success flag, and optional
+// failure error.
 // Experimental: MarketplaceRefreshEntry is part of an experimental API and may change or be
 // removed.
 type MarketplaceRefreshEntry struct {
@@ -2665,7 +2945,7 @@ type MarketplaceRemoveResult struct {
 	Removed bool `json:"removed"`
 }
 
-// Schema for the `McpAllowedServer` type.
+// MCP server allowed by policy, with server name and optional PII-free explanatory note.
 // Experimental: MCPAllowedServer is part of an experimental API and may change or be
 // removed.
 type MCPAllowedServer struct {
@@ -2801,7 +3081,8 @@ type MCPAppsReadResourceResult struct {
 	Contents []MCPAppsResourceContent `json:"contents"`
 }
 
-// Schema for the `McpAppsResourceContent` type.
+// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
+// metadata.
 // Experimental: MCPAppsResourceContent is part of an experimental API and may change or be
 // removed.
 type MCPAppsResourceContent struct {
@@ -3035,7 +3316,8 @@ type MCPExecuteSamplingRequest struct {
 type MCPExecuteSamplingResult struct {
 }
 
-// Schema for the `McpFilteredServer` type.
+// MCP server filtered by policy, with name, reason, optional redacted reason, and
+// enterprise login.
 // Experimental: MCPFilteredServer is part of an experimental API and may change or be
 // removed.
 type MCPFilteredServer struct {
@@ -3361,7 +3643,7 @@ type MCPSamplingExecutionResult struct {
 	Result *MCPExecuteSamplingResult `json:"result,omitempty"`
 }
 
-// Schema for the `McpServer` type.
+// MCP server status entry, including config source/plugin source and any connection error.
 // Experimental: MCPServer is part of an experimental API and may change or be removed.
 type MCPServer struct {
 	// Error message if the server failed to connect
@@ -3559,7 +3841,7 @@ type MCPStopServerRequest struct {
 	ServerName string `json:"serverName"`
 }
 
-// Schema for the `McpTools` type.
+// MCP tool metadata with tool name and optional description.
 // Experimental: MCPTools is part of an experimental API and may change or be removed.
 type MCPTools struct {
 	// Tool description, when provided.
@@ -3739,7 +4021,8 @@ type MetadataSnapshotRemoteMetadataRepository struct {
 	Owner string `json:"owner"`
 }
 
-// Schema for the `Model` type.
+// Copilot model metadata, including identifier, display name, capabilities, policy,
+// billing, reasoning efforts, and picker categories.
 // Experimental: Model is part of an experimental API and may change or be removed.
 type Model struct {
 	// Billing information
@@ -4103,7 +4386,8 @@ type OpenCanvasInstance struct {
 	URL *string `json:"url,omitempty"`
 }
 
-// Schema for the `OptionsUpdateAdditionalContentExclusionPolicy` type.
+// Content-exclusion policy supplied to `session.options.update`, with rules, last-updated
+// data, and scope.
 // Experimental: OptionsUpdateAdditionalContentExclusionPolicy is part of an experimental
 // API and may change or be removed.
 type OptionsUpdateAdditionalContentExclusionPolicy struct {
@@ -4113,18 +4397,21 @@ type OptionsUpdateAdditionalContentExclusionPolicy struct {
 	Scope OptionsUpdateAdditionalContentExclusionPolicyScope `json:"scope"`
 }
 
-// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRule` type.
+// Single content-exclusion rule supplied to `session.options.update`, with paths, match
+// conditions, and source.
 // Experimental: OptionsUpdateAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type OptionsUpdateAdditionalContentExclusionPolicyRule struct {
 	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
 	Paths       []string `json:"paths"`
-	// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+	// Source descriptor for a `session.options.update` content-exclusion rule, with source name
+	// and type.
 	Source OptionsUpdateAdditionalContentExclusionPolicyRuleSource `json:"source"`
 }
 
-// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+// Source descriptor for a `session.options.update` content-exclusion rule, with source name
+// and type.
 // Experimental: OptionsUpdateAdditionalContentExclusionPolicyRuleSource is part of an
 // experimental API and may change or be removed.
 type OptionsUpdateAdditionalContentExclusionPolicyRuleSource struct {
@@ -4132,7 +4419,8 @@ type OptionsUpdateAdditionalContentExclusionPolicyRuleSource struct {
 	Type string `json:"type"`
 }
 
-// Schema for the `PendingPermissionRequest` type.
+// Pending permission prompt reconstructed from event history, with request ID and
+// user-facing prompt details.
 // Experimental: PendingPermissionRequest is part of an experimental API and may change or
 // be removed.
 type PendingPermissionRequest struct {
@@ -4172,7 +4460,7 @@ func (r RawPermissionDecisionData) Kind() PermissionDecisionKind {
 	return r.Discriminator
 }
 
-// Schema for the `PermissionDecisionApproved` type.
+// Permission-decision variant indicating the request was approved.
 // Experimental: PermissionDecisionApproved is part of an experimental API and may change or
 // be removed.
 type PermissionDecisionApproved struct {
@@ -4183,7 +4471,8 @@ func (PermissionDecisionApproved) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproved
 }
 
-// Schema for the `PermissionDecisionApprovedForLocation` type.
+// Permission-decision variant indicating approval was persisted for a project location,
+// with approval details and location key.
 // Experimental: PermissionDecisionApprovedForLocation is part of an experimental API and
 // may change or be removed.
 type PermissionDecisionApprovedForLocation struct {
@@ -4198,7 +4487,8 @@ func (PermissionDecisionApprovedForLocation) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForLocation
 }
 
-// Schema for the `PermissionDecisionApprovedForSession` type.
+// Permission-decision variant indicating approval was remembered for the session, with
+// approval details.
 // Experimental: PermissionDecisionApprovedForSession is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionApprovedForSession struct {
@@ -4211,7 +4501,8 @@ func (PermissionDecisionApprovedForSession) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForSession
 }
 
-// Schema for the `PermissionDecisionApproveForLocation` type.
+// Permission-decision request variant to approve and persist a permission for a project
+// location, with approval details and location key.
 // Experimental: PermissionDecisionApproveForLocation is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionApproveForLocation struct {
@@ -4226,7 +4517,8 @@ func (PermissionDecisionApproveForLocation) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForLocation
 }
 
-// Schema for the `PermissionDecisionApproveForSession` type.
+// Permission-decision request variant to approve for the rest of the session, with optional
+// tool approval or URL domain.
 // Experimental: PermissionDecisionApproveForSession is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionApproveForSession struct {
@@ -4241,7 +4533,7 @@ func (PermissionDecisionApproveForSession) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForSession
 }
 
-// Schema for the `PermissionDecisionApproveOnce` type.
+// Permission-decision request variant to approve only the current permission request.
 // Experimental: PermissionDecisionApproveOnce is part of an experimental API and may change
 // or be removed.
 type PermissionDecisionApproveOnce struct {
@@ -4252,7 +4544,7 @@ func (PermissionDecisionApproveOnce) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveOnce
 }
 
-// Schema for the `PermissionDecisionApprovePermanently` type.
+// Permission-decision request variant to permanently approve a URL domain across sessions.
 // Experimental: PermissionDecisionApprovePermanently is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionApprovePermanently struct {
@@ -4265,7 +4557,8 @@ func (PermissionDecisionApprovePermanently) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovePermanently
 }
 
-// Schema for the `PermissionDecisionCancelled` type.
+// Permission-decision variant indicating the request was cancelled before use, with an
+// optional reason.
 // Experimental: PermissionDecisionCancelled is part of an experimental API and may change
 // or be removed.
 type PermissionDecisionCancelled struct {
@@ -4278,7 +4571,8 @@ func (PermissionDecisionCancelled) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindCancelled
 }
 
-// Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.
+// Permission-decision variant indicating denial by content-exclusion policy, with path and
+// message.
 // Experimental: PermissionDecisionDeniedByContentExclusionPolicy is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionDeniedByContentExclusionPolicy struct {
@@ -4293,7 +4587,8 @@ func (PermissionDecisionDeniedByContentExclusionPolicy) Kind() PermissionDecisio
 	return PermissionDecisionKindDeniedByContentExclusionPolicy
 }
 
-// Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.
+// Permission-decision variant indicating denial by a permission request hook, with optional
+// message and interrupt flag.
 // Experimental: PermissionDecisionDeniedByPermissionRequestHook is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionDeniedByPermissionRequestHook struct {
@@ -4308,7 +4603,8 @@ func (PermissionDecisionDeniedByPermissionRequestHook) Kind() PermissionDecision
 	return PermissionDecisionKindDeniedByPermissionRequestHook
 }
 
-// Schema for the `PermissionDecisionDeniedByRules` type.
+// Permission-decision variant indicating explicit denial by permission rules, with the
+// matching rules.
 // Experimental: PermissionDecisionDeniedByRules is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionDeniedByRules struct {
@@ -4321,7 +4617,8 @@ func (PermissionDecisionDeniedByRules) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByRules
 }
 
-// Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.
+// Permission-decision variant indicating the user denied an interactive prompt, with
+// optional feedback and force-reject flag.
 // Experimental: PermissionDecisionDeniedInteractivelyByUser is part of an experimental API
 // and may change or be removed.
 type PermissionDecisionDeniedInteractivelyByUser struct {
@@ -4336,7 +4633,8 @@ func (PermissionDecisionDeniedInteractivelyByUser) Kind() PermissionDecisionKind
 	return PermissionDecisionKindDeniedInteractivelyByUser
 }
 
-// Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+// Permission-decision variant indicating no approval rule matched and user confirmation was
+// unavailable.
 // Experimental: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser is part of
 // an experimental API and may change or be removed.
 type PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
@@ -4347,7 +4645,8 @@ func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() P
 	return PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
-// Schema for the `PermissionDecisionReject` type.
+// Permission-decision request variant to reject a pending permission request, with optional
+// feedback.
 // Experimental: PermissionDecisionReject is part of an experimental API and may change or
 // be removed.
 type PermissionDecisionReject struct {
@@ -4360,7 +4659,7 @@ func (PermissionDecisionReject) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindReject
 }
 
-// Schema for the `PermissionDecisionUserNotAvailable` type.
+// Permission-decision variant indicating no user was available to confirm the request.
 // Experimental: PermissionDecisionUserNotAvailable is part of an experimental API and may
 // change or be removed.
 type PermissionDecisionUserNotAvailable struct {
@@ -4390,7 +4689,7 @@ func (r RawPermissionDecisionApproveForLocationApprovalData) Kind() PermissionDe
 	return r.Discriminator
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+// Location-scoped approval details for specific command identifiers.
 // Experimental: PermissionDecisionApproveForLocationApprovalCommands is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalCommands struct {
@@ -4404,7 +4703,7 @@ func (PermissionDecisionApproveForLocationApprovalCommands) Kind() PermissionDec
 	return PermissionDecisionApproveForLocationApprovalKindCommands
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+// Location-scoped approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionDecisionApproveForLocationApprovalCustomTool is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalCustomTool struct {
@@ -4418,7 +4717,8 @@ func (PermissionDecisionApproveForLocationApprovalCustomTool) Kind() PermissionD
 	return PermissionDecisionApproveForLocationApprovalKindCustomTool
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+// Location-scoped approval details for extension-management operations, optionally narrowed
+// by operation.
 // Experimental: PermissionDecisionApproveForLocationApprovalExtensionManagement is part of
 // an experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
@@ -4433,8 +4733,8 @@ func (PermissionDecisionApproveForLocationApprovalExtensionManagement) Kind() Pe
 	return PermissionDecisionApproveForLocationApprovalKindExtensionManagement
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
-// type.
+// Location-scoped approval details for an extension's permission-gated capability access,
+// keyed by extension name.
 // Experimental: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess is
 // part of an experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struct {
@@ -4448,7 +4748,8 @@ func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kin
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+// Location-scoped approval details for an MCP server tool, or all tools on the server when
+// `toolName` is null.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalMCP struct {
@@ -4464,7 +4765,7 @@ func (PermissionDecisionApproveForLocationApprovalMCP) Kind() PermissionDecision
 	return PermissionDecisionApproveForLocationApprovalKindMCP
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+// Location-scoped approval details for MCP sampling requests from a server.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalMCPSampling struct {
@@ -4478,7 +4779,7 @@ func (PermissionDecisionApproveForLocationApprovalMCPSampling) Kind() Permission
 	return PermissionDecisionApproveForLocationApprovalKindMCPSampling
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+// Location-scoped approval details for writes to long-term memory.
 // Experimental: PermissionDecisionApproveForLocationApprovalMemory is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalMemory struct {
@@ -4490,7 +4791,7 @@ func (PermissionDecisionApproveForLocationApprovalMemory) Kind() PermissionDecis
 	return PermissionDecisionApproveForLocationApprovalKindMemory
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+// Location-scoped approval details for read-only filesystem operations.
 // Experimental: PermissionDecisionApproveForLocationApprovalRead is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalRead struct {
@@ -4502,7 +4803,7 @@ func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisio
 	return PermissionDecisionApproveForLocationApprovalKindRead
 }
 
-// Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+// Location-scoped approval details for filesystem write operations.
 // Experimental: PermissionDecisionApproveForLocationApprovalWrite is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalWrite struct {
@@ -4533,7 +4834,7 @@ func (r RawPermissionDecisionApproveForSessionApprovalData) Kind() PermissionDec
 	return r.Discriminator
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+// Session-scoped approval details for specific command identifiers.
 // Experimental: PermissionDecisionApproveForSessionApprovalCommands is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalCommands struct {
@@ -4547,7 +4848,7 @@ func (PermissionDecisionApproveForSessionApprovalCommands) Kind() PermissionDeci
 	return PermissionDecisionApproveForSessionApprovalKindCommands
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+// Session-scoped approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionDecisionApproveForSessionApprovalCustomTool is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalCustomTool struct {
@@ -4561,7 +4862,8 @@ func (PermissionDecisionApproveForSessionApprovalCustomTool) Kind() PermissionDe
 	return PermissionDecisionApproveForSessionApprovalKindCustomTool
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+// Session-scoped approval details for extension-management operations, optionally narrowed
+// by operation.
 // Experimental: PermissionDecisionApproveForSessionApprovalExtensionManagement is part of
 // an experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
@@ -4576,8 +4878,8 @@ func (PermissionDecisionApproveForSessionApprovalExtensionManagement) Kind() Per
 	return PermissionDecisionApproveForSessionApprovalKindExtensionManagement
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
-// type.
+// Session-scoped approval details for an extension's permission-gated capability access,
+// keyed by extension name.
 // Experimental: PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess is
 // part of an experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct {
@@ -4591,7 +4893,8 @@ func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+// Session-scoped approval details for an MCP server tool, or all tools on the server when
+// `toolName` is null.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCP is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalMCP struct {
@@ -4606,7 +4909,7 @@ func (PermissionDecisionApproveForSessionApprovalMCP) Kind() PermissionDecisionA
 	return PermissionDecisionApproveForSessionApprovalKindMCP
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+// Session-scoped approval details for MCP sampling requests from a server.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalMCPSampling struct {
@@ -4620,7 +4923,7 @@ func (PermissionDecisionApproveForSessionApprovalMCPSampling) Kind() PermissionD
 	return PermissionDecisionApproveForSessionApprovalKindMCPSampling
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+// Session-scoped approval details for writes to long-term memory.
 // Experimental: PermissionDecisionApproveForSessionApprovalMemory is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalMemory struct {
@@ -4632,7 +4935,7 @@ func (PermissionDecisionApproveForSessionApprovalMemory) Kind() PermissionDecisi
 	return PermissionDecisionApproveForSessionApprovalKindMemory
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+// Session-scoped approval details for read-only filesystem operations.
 // Experimental: PermissionDecisionApproveForSessionApprovalRead is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalRead struct {
@@ -4644,7 +4947,7 @@ func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecision
 	return PermissionDecisionApproveForSessionApprovalKindRead
 }
 
-// Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+// Session-scoped approval details for filesystem write operations.
 // Experimental: PermissionDecisionApproveForSessionApprovalWrite is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalWrite struct {
@@ -4820,7 +5123,8 @@ type PermissionRequestResult struct {
 	Success bool `json:"success"`
 }
 
-// Schema for the `PermissionRule` type.
+// A permission approval or denial rule matched against a tool request, identified by a rule
+// kind with an optional argument value.
 // Experimental: PermissionRule is part of an experimental API and may change or be removed.
 type PermissionRule struct {
 	// Argument value matched against the request, or null when the rule kind has no argument
@@ -4841,7 +5145,8 @@ type PermissionRulesSet struct {
 	Denied []PermissionRule `json:"denied"`
 }
 
-// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.
+// Content-exclusion policy supplied to `session.permissions.configure`, with rules,
+// last-updated data, and scope.
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicy is part of an
 // experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicy struct {
@@ -4852,18 +5157,21 @@ type PermissionsConfigureAdditionalContentExclusionPolicy struct {
 	Scope PermissionsConfigureAdditionalContentExclusionPolicyScope `json:"scope"`
 }
 
-// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
+// Single content-exclusion rule supplied to `session.permissions.configure`, with paths,
+// match conditions, and source.
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicyRule struct {
 	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
 	Paths       []string `json:"paths"`
-	// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
+	// Source descriptor for a `session.permissions.configure` content-exclusion rule, with
+	// source name and type.
 	Source PermissionsConfigureAdditionalContentExclusionPolicyRuleSource `json:"source"`
 }
 
-// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
+// Source descriptor for a `session.permissions.configure` content-exclusion rule, with
+// source name and type.
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource is part of
 // an experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicyRuleSource struct {
@@ -4939,7 +5247,7 @@ func (r RawPermissionsLocationsAddToolApprovalDetailsData) Kind() PermissionsLoc
 	return r.Discriminator
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.
+// Location-persisted tool approval details for specific command identifiers.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsCommands is part of an
 // experimental API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsCommands struct {
@@ -4953,7 +5261,7 @@ func (PermissionsLocationsAddToolApprovalDetailsCommands) Kind() PermissionsLoca
 	return PermissionsLocationsAddToolApprovalDetailsKindCommands
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.
+// Location-persisted tool approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsCustomTool is part of an
 // experimental API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsCustomTool struct {
@@ -4967,7 +5275,8 @@ func (PermissionsLocationsAddToolApprovalDetailsCustomTool) Kind() PermissionsLo
 	return PermissionsLocationsAddToolApprovalDetailsKindCustomTool
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.
+// Location-persisted tool approval details for extension-management operations, optionally
+// narrowed by operation.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsExtensionManagement is part of an
 // experimental API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsExtensionManagement struct {
@@ -4982,7 +5291,8 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) Kind() Perm
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.
+// Location-persisted tool approval details for an extension's permission-gated capability
+// access, keyed by extension name.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess is part
 // of an experimental API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess struct {
@@ -4996,7 +5306,8 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind(
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
+// Location-persisted tool approval details for an MCP server tool, or all tools when
+// `toolName` is null.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
 // API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsMCP struct {
@@ -5011,7 +5322,7 @@ func (PermissionsLocationsAddToolApprovalDetailsMCP) Kind() PermissionsLocations
 	return PermissionsLocationsAddToolApprovalDetailsKindMCP
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
+// Location-persisted tool approval details for MCP sampling requests from a server.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCPSampling is part of an
 // experimental API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsMCPSampling struct {
@@ -5025,7 +5336,7 @@ func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) Kind() PermissionsL
 	return PermissionsLocationsAddToolApprovalDetailsKindMCPSampling
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
+// Location-persisted tool approval details for writes to long-term memory.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMemory is part of an experimental
 // API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsMemory struct {
@@ -5037,7 +5348,7 @@ func (PermissionsLocationsAddToolApprovalDetailsMemory) Kind() PermissionsLocati
 	return PermissionsLocationsAddToolApprovalDetailsKindMemory
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.
+// Location-persisted tool approval details for read-only filesystem operations.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsRead is part of an experimental
 // API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsRead struct {
@@ -5048,7 +5359,7 @@ func (PermissionsLocationsAddToolApprovalDetailsRead) Kind() PermissionsLocation
 	return PermissionsLocationsAddToolApprovalDetailsKindRead
 }
 
-// Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.
+// Location-persisted tool approval details for filesystem write operations.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsWrite is part of an experimental
 // API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsWrite struct {
@@ -5142,12 +5453,19 @@ type PermissionsResetSessionApprovalsResult struct {
 	Success bool `json:"success"`
 }
 
-// Whether to enable full allow-all permissions for the session.
+// Allow-all mode to apply for the session.
 // Experimental: PermissionsSetAllowAllRequest is part of an experimental API and may change
 // or be removed.
 type PermissionsSetAllowAllRequest struct {
-	// Whether to enable full allow-all permissions
-	Enabled bool `json:"enabled"`
+	// Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is
+	// treated as `mode: "on"` and any other value is treated as `mode: "off"`.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM
+	// auto-approval; `off` disables both.
+	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
+	// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when
+	// `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+	Model *string `json:"model,omitempty"`
 	// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
 	Source *PermissionsSetAllowAllSource `json:"source,omitempty"`
 }
@@ -5303,7 +5621,7 @@ type PlanUpdateRequest struct {
 	Content string `json:"content"`
 }
 
-// Schema for the `Plugin` type.
+// Session plugin metadata, with name, marketplace, optional version, and enabled state.
 // Experimental: Plugin is part of an experimental API and may change or be removed.
 type Plugin struct {
 	// Whether the plugin is currently enabled
@@ -5469,7 +5787,8 @@ type PluginsUpdateRequest struct {
 	Name string `json:"name"`
 }
 
-// Schema for the `PluginUpdateAllEntry` type.
+// Per-plugin result from updating all plugins, with versions, skills installed, success
+// flag, and optional error.
 // Experimental: PluginUpdateAllEntry is part of an experimental API and may change or be
 // removed.
 type PluginUpdateAllEntry struct {
@@ -5683,7 +6002,8 @@ type ProviderTokenAcquireResult struct {
 	Token string `json:"token"`
 }
 
-// Schema for the `PushAttachment` type.
+// Attachment union accepted by push input, covering files, directories, GitHub objects,
+// blobs, snippets, and extension context.
 // Experimental: PushAttachment is part of an experimental API and may change or be removed.
 type PushAttachment interface {
 	pushAttachment()
@@ -6055,7 +6375,8 @@ type QueuedCommandResult interface {
 	Handled() bool
 }
 
-// Schema for the `QueuedCommandHandled` type.
+// Queued-command response indicating the host executed the command, with an optional flag
+// to stop queue processing.
 // Experimental: QueuedCommandHandled is part of an experimental API and may change or be
 // removed.
 type QueuedCommandHandled struct {
@@ -6069,7 +6390,8 @@ func (QueuedCommandHandled) Handled() bool {
 	return true
 }
 
-// Schema for the `QueuedCommandNotHandled` type.
+// Queued-command response indicating the host did not execute the command and the queue may
+// continue.
 // Experimental: QueuedCommandNotHandled is part of an experimental API and may change or be
 // removed.
 type QueuedCommandNotHandled struct {
@@ -6080,7 +6402,8 @@ func (QueuedCommandNotHandled) Handled() bool {
 	return false
 }
 
-// Schema for the `QueuePendingItems` type.
+// User-facing pending queue entry, with kind and display text for a queued message, slash
+// command, or model change.
 // Experimental: QueuePendingItems is part of an experimental API and may change or be
 // removed.
 type QueuePendingItems struct {
@@ -6459,14 +6782,10 @@ type SandboxConfigUserPolicyFilesystem struct {
 // Experimental: SandboxConfigUserPolicyNetwork is part of an experimental API and may
 // change or be removed.
 type SandboxConfigUserPolicyNetwork struct {
-	// Hosts allowed in addition to the base policy.
-	AllowedHosts []string `json:"allowedHosts,omitzero"`
 	// Whether traffic to local/loopback addresses is allowed.
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
 	// Whether outbound network traffic is allowed at all.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// Hosts explicitly blocked.
-	BlockedHosts []string `json:"blockedHosts,omitzero"`
 }
 
 // macOS seatbelt-specific options.
@@ -6477,7 +6796,8 @@ type SandboxConfigUserPolicySeatbelt struct {
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
 }
 
-// Schema for the `ScheduleEntry` type.
+// Scheduled prompt entry with ID, timing (`intervalMs`, `cron`, or `at`), prompt text,
+// recurrence, and next run time.
 // Experimental: ScheduleEntry is part of an experimental API and may change or be removed.
 type ScheduleEntry struct {
 	// Absolute fire time (epoch milliseconds) for a one-shot calendar schedule.
@@ -6625,7 +6945,8 @@ type ServerInstructionSourceList struct {
 	Sources []InstructionSource `json:"sources"`
 }
 
-// Schema for the `ServerSkill` type.
+// Server-side skill metadata, including name, description, source, enabled/invocable state,
+// path, project path, and argument hint.
 // Experimental: ServerSkill is part of an experimental API and may change or be removed.
 type ServerSkill struct {
 	// Optional freeform hint describing the skill's expected arguments, from the
@@ -6916,7 +7237,8 @@ type SessionFSReaddirResult struct {
 	Error *SessionFSError `json:"error,omitempty"`
 }
 
-// Schema for the `SessionFsReaddirWithTypesEntry` type.
+// Directory entry returned by session filesystem `readdirWithTypes`, with name and entry
+// type.
 // Experimental: SessionFSReaddirWithTypesEntry is part of an experimental API and may
 // change or be removed.
 type SessionFSReaddirWithTypesEntry struct {
@@ -7118,7 +7440,8 @@ type SessionFSWriteFileRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Schema for the `SessionInstalledPlugin` type.
+// Installed plugin record for a session, with marketplace, version, install time, enabled
+// state, cache path, and source.
 // Experimental: SessionInstalledPlugin is part of an experimental API and may change or be
 // removed.
 type SessionInstalledPlugin struct {
@@ -7148,7 +7471,8 @@ type SessionInstalledPluginSource struct {
 	String                             *string
 }
 
-// Schema for the `SessionInstalledPluginSourceGitHub` type.
+// Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref,
+// and optional subpath.
 // Experimental: SessionInstalledPluginSourceGitHub is part of an experimental API and may
 // change or be removed.
 type SessionInstalledPluginSourceGitHub struct {
@@ -7159,7 +7483,7 @@ type SessionInstalledPluginSourceGitHub struct {
 	Source SessionInstalledPluginSourceGitHubSource `json:"source"`
 }
 
-// Schema for the `SessionInstalledPluginSourceLocal` type.
+// Source descriptor for a direct local plugin install, with a local filesystem path.
 // Experimental: SessionInstalledPluginSourceLocal is part of an experimental API and may
 // change or be removed.
 type SessionInstalledPluginSourceLocal struct {
@@ -7168,7 +7492,8 @@ type SessionInstalledPluginSourceLocal struct {
 	Source SessionInstalledPluginSourceLocalSource `json:"source"`
 }
 
-// Schema for the `SessionInstalledPluginSourceUrl` type.
+// Source descriptor for a direct URL plugin install, with URL, optional ref, and optional
+// subpath.
 // Experimental: SessionInstalledPluginSourceURL is part of an experimental API and may
 // change or be removed.
 type SessionInstalledPluginSourceURL struct {
@@ -7515,6 +7840,8 @@ type SessionOpenOptions struct {
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
 	SandboxConfig *SandboxConfig `json:"sandboxConfig,omitempty"`
+	// Opt-in: self-fetch enterprise managed settings at session bootstrap.
+	SelfFetchManagedSettings *bool `json:"selfFetchManagedSettings,omitempty"`
 	// Capabilities enabled for this session.
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
 	// Optional stable session identifier to use for a new session.
@@ -7537,7 +7864,8 @@ type SessionOpenOptions struct {
 	WorkingDirectoryContext *SessionContext `json:"workingDirectoryContext,omitempty"`
 }
 
-// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicy` type.
+// Content-exclusion policy supplied to `sessions.open` options, with rules, last-updated
+// data, and scope.
 // Experimental: SessionOpenOptionsAdditionalContentExclusionPolicy is part of an
 // experimental API and may change or be removed.
 type SessionOpenOptionsAdditionalContentExclusionPolicy struct {
@@ -7548,18 +7876,19 @@ type SessionOpenOptionsAdditionalContentExclusionPolicy struct {
 	Scope SessionOpenOptionsAdditionalContentExclusionPolicyScope `json:"scope"`
 }
 
-// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRule` type.
+// Single content-exclusion rule supplied to `sessions.open` options, with paths, match
+// conditions, and source.
 // Experimental: SessionOpenOptionsAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type SessionOpenOptionsAdditionalContentExclusionPolicyRule struct {
 	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
 	Paths       []string `json:"paths"`
-	// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
+	// Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
 	Source SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource `json:"source"`
 }
 
-// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
+// Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
 // Experimental: SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource is part of an
 // experimental API and may change or be removed.
 type SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource struct {
@@ -7875,6 +8204,107 @@ type SessionSetCredentialsResult struct {
 	Success bool `json:"success"`
 }
 
+// Availability of built-in job tools surfaced to boundary consumers.
+// Experimental: SessionSettingsBuiltInToolAvailabilitySnapshot is part of an experimental
+// API and may change or be removed.
+type SessionSettingsBuiltInToolAvailabilitySnapshot struct {
+	CreatePullRequest *bool `json:"createPullRequest,omitempty"`
+	ReportProgress    *bool `json:"reportProgress,omitempty"`
+}
+
+// Named Rust-owned settings predicate to evaluate for this session.
+// Experimental: SessionSettingsEvaluatePredicateRequest is part of an experimental API and
+// may change or be removed.
+type SessionSettingsEvaluatePredicateRequest struct {
+	// Predicate name. The runtime owns the raw feature-flag names and composition logic.
+	Name SessionSettingsPredicateName `json:"name"`
+	// Tool name for tool-scoped predicates such as trivial-change handling.
+	ToolName *string `json:"toolName,omitempty"`
+}
+
+// Result of evaluating a Rust-owned settings predicate.
+// Experimental: SessionSettingsEvaluatePredicateResult is part of an experimental API and
+// may change or be removed.
+type SessionSettingsEvaluatePredicateResult struct {
+	Enabled bool `json:"enabled"`
+}
+
+// Redacted job settings for a session. The job nonce is excluded.
+// Experimental: SessionSettingsJobSnapshot is part of an experimental API and may change or
+// be removed.
+type SessionSettingsJobSnapshot struct {
+	BuiltInToolAvailability *SessionSettingsBuiltInToolAvailabilitySnapshot `json:"builtInToolAvailability,omitempty"`
+	EventType               *string                                         `json:"eventType,omitempty"`
+	IsTriggerJob            *bool                                           `json:"isTriggerJob,omitempty"`
+}
+
+// Redacted model routing settings for a session.
+// Experimental: SessionSettingsModelSnapshot is part of an experimental API and may change
+// or be removed.
+type SessionSettingsModelSnapshot struct {
+	CallbackURL            *string `json:"callbackUrl,omitempty"`
+	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
+	InstanceID             *string `json:"instanceId,omitempty"`
+	Model                  *string `json:"model,omitempty"`
+}
+
+// Online-evaluation settings safe to expose across the SDK boundary.
+// Experimental: SessionSettingsOnlineEvaluationSnapshot is part of an experimental API and
+// may change or be removed.
+type SessionSettingsOnlineEvaluationSnapshot struct {
+	DisableOnlineEvaluation          *bool `json:"disableOnlineEvaluation,omitempty"`
+	EnableOnlineEvaluationOutputFile *bool `json:"enableOnlineEvaluationOutputFile,omitempty"`
+}
+
+// Redacted repository and GitHub host settings for a session.
+// Experimental: SessionSettingsRepoSnapshot is part of an experimental API and may change
+// or be removed.
+type SessionSettingsRepoSnapshot struct {
+	Branch            *string  `json:"branch,omitempty"`
+	Commit            *string  `json:"commit,omitempty"`
+	Host              *string  `json:"host,omitempty"`
+	HostProtocol      *string  `json:"hostProtocol,omitempty"`
+	ID                *float64 `json:"id,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	OwnerID           *float64 `json:"ownerId,omitempty"`
+	OwnerName         *string  `json:"ownerName,omitempty"`
+	PrCommitCount     *float64 `json:"prCommitCount,omitempty"`
+	ReadWrite         *bool    `json:"readWrite,omitempty"`
+	SecretScanningURL *string  `json:"secretScanningUrl,omitempty"`
+	ServerURL         *string  `json:"serverUrl,omitempty"`
+}
+
+// Redacted, serializable view of session runtime settings for SDK boundary consumers.
+// Secrets and raw feature flags are intentionally excluded.
+// Experimental: SessionSettingsSnapshot is part of an experimental API and may change or be
+// removed.
+type SessionSettingsSnapshot struct {
+	ClientName       *string                                 `json:"clientName,omitempty"`
+	Job              SessionSettingsJobSnapshot              `json:"job"`
+	Model            SessionSettingsModelSnapshot            `json:"model"`
+	OnlineEvaluation SessionSettingsOnlineEvaluationSnapshot `json:"onlineEvaluation"`
+	Repo             SessionSettingsRepoSnapshot             `json:"repo"`
+	StartTimeMs      *float64                                `json:"startTimeMs,omitempty"`
+	TimeoutMs        *float64                                `json:"timeoutMs,omitempty"`
+	Validation       SessionSettingsValidationSnapshot       `json:"validation"`
+	Version          *string                                 `json:"version,omitempty"`
+}
+
+// Redacted validation and memory-tool settings for a session.
+// Experimental: SessionSettingsValidationSnapshot is part of an experimental API and may
+// change or be removed.
+type SessionSettingsValidationSnapshot struct {
+	AdvisoryEnabled       *bool    `json:"advisoryEnabled,omitempty"`
+	CodeqlEnabled         *bool    `json:"codeqlEnabled,omitempty"`
+	CodeReviewEnabled     *bool    `json:"codeReviewEnabled,omitempty"`
+	CodeReviewModel       *string  `json:"codeReviewModel,omitempty"`
+	DependabotTimeout     *float64 `json:"dependabotTimeout,omitempty"`
+	MemoryStoreEnabled    *bool    `json:"memoryStoreEnabled,omitempty"`
+	MemoryVoteEnabled     *bool    `json:"memoryVoteEnabled,omitempty"`
+	SecretScanningEnabled *bool    `json:"secretScanningEnabled,omitempty"`
+	Timeout               *float64 `json:"timeout,omitempty"`
+}
+
 // UUID prefix to resolve to a unique session ID.
 // Experimental: SessionsFindByPrefixRequest is part of an experimental API and may change
 // or be removed.
@@ -8056,7 +8486,7 @@ type SessionsLoadDeferredRepoHooksRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// Schema for the `SessionsOpenProgress` type.
+// `sessions.open` handoff progress update with step, status, and optional message.
 // Experimental: SessionsOpenProgress is part of an experimental API and may change or be
 // removed.
 type SessionsOpenProgress struct {
@@ -8459,7 +8889,8 @@ type ShutdownRequest struct {
 	Type *ShutdownType `json:"type,omitempty"`
 }
 
-// Schema for the `Skill` type.
+// Skill metadata available to a session, with name, description, source, enabled/invocable
+// state, path, plugin, and argument hint.
 // Experimental: Skill is part of an experimental API and may change or be removed.
 type Skill struct {
 	// Optional freeform hint describing the skill's expected arguments, from the
@@ -8481,7 +8912,8 @@ type Skill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
-// Schema for the `SkillDiscoveryPath` type.
+// Canonical directory where skills can be discovered or created, with scope, preference,
+// and optional project path.
 // Experimental: SkillDiscoveryPath is part of an experimental API and may change or be
 // removed.
 type SkillDiscoveryPath struct {
@@ -8574,7 +9006,7 @@ type SkillsGetInvokedResult struct {
 	Skills []SkillsInvokedSkill `json:"skills"`
 }
 
-// Schema for the `SkillsInvokedSkill` type.
+// Skill invocation record with name, path, content, allowed tools, and turn number.
 // Experimental: SkillsInvokedSkill is part of an experimental API and may change or be
 // removed.
 type SkillsInvokedSkill struct {
@@ -8600,7 +9032,8 @@ type SkillsLoadDiagnostics struct {
 	Warnings []string `json:"warnings"`
 }
 
-// Schema for the `SlashCommandInfo` type.
+// Slash-command metadata with name, aliases, description, kind, input hint, execution
+// allowance, and schedulability.
 // Experimental: SlashCommandInfo is part of an experimental API and may change or be
 // removed.
 type SlashCommandInfo struct {
@@ -8673,7 +9106,8 @@ func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResult
 	return r.Discriminator
 }
 
-// Schema for the `SlashCommandAgentPromptResult` type.
+// Slash-command invocation result that submits an agent prompt, with display prompt,
+// optional mode, and settings-change flag.
 // Experimental: SlashCommandAgentPromptResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandAgentPromptResult struct {
@@ -8693,7 +9127,8 @@ func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindAgentPrompt
 }
 
-// Schema for the `SlashCommandCompletedResult` type.
+// Slash-command invocation result indicating completion, with optional message and
+// settings-change flag.
 // Experimental: SlashCommandCompletedResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandCompletedResult struct {
@@ -8709,7 +9144,8 @@ func (SlashCommandCompletedResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindCompleted
 }
 
-// Schema for the `SlashCommandSelectSubcommandResult` type.
+// Slash-command invocation result asking the client to present subcommand options for a
+// parent command.
 // Experimental: SlashCommandSelectSubcommandResult is part of an experimental API and may
 // change or be removed.
 type SlashCommandSelectSubcommandResult struct {
@@ -8729,7 +9165,7 @@ func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKin
 	return SlashCommandInvocationResultKindSelectSubcommand
 }
 
-// Schema for the `SlashCommandTextResult` type.
+// Slash-command invocation result containing text output plus Markdown/ANSI rendering flags.
 // Experimental: SlashCommandTextResult is part of an experimental API and may change or be
 // removed.
 type SlashCommandTextResult struct {
@@ -8749,7 +9185,8 @@ func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindText
 }
 
-// Schema for the `SlashCommandSelectSubcommandOption` type.
+// Selectable slash-command subcommand option with name, description, and optional group
+// label.
 // Experimental: SlashCommandSelectSubcommandOption is part of an experimental API and may
 // change or be removed.
 type SlashCommandSelectSubcommandOption struct {
@@ -8788,7 +9225,7 @@ type SubagentSettingsEntry struct {
 	Model *string `json:"model,omitempty"`
 }
 
-// Schema for the `TaskInfo` type.
+// Tracked task union returned by task APIs, containing either an agent task or a shell task.
 // Experimental: TaskInfo is part of an experimental API and may change or be removed.
 type TaskInfo interface {
 	taskInfo()
@@ -8805,7 +9242,8 @@ func (r RawTaskInfoData) Type() TaskInfoType {
 	return r.Discriminator
 }
 
-// Schema for the `TaskAgentInfo` type.
+// Tracked background agent task metadata, including IDs, status, timing, agent type,
+// prompt, model, result, and latest response.
 // Experimental: TaskAgentInfo is part of an experimental API and may change or be removed.
 type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the current active period began
@@ -8854,7 +9292,8 @@ func (TaskAgentInfo) Type() TaskInfoType {
 	return TaskInfoTypeAgent
 }
 
-// Schema for the `TaskShellInfo` type.
+// Tracked shell task metadata, including ID, command, status, timing, attachment/execution
+// mode, log path, and PID.
 // Experimental: TaskShellInfo is part of an experimental API and may change or be removed.
 type TaskShellInfo struct {
 	// Whether the shell runs inside a managed PTY session or as an independent background
@@ -8910,7 +9349,8 @@ func (r RawTaskProgressData) Type() TaskProgressType {
 	return r.Discriminator
 }
 
-// Schema for the `TaskAgentProgress` type.
+// Progress snapshot for an agent task, with recent activity lines and optional latest
+// intent.
 // Experimental: TaskAgentProgress is part of an experimental API and may change or be
 // removed.
 type TaskAgentProgress struct {
@@ -8925,7 +9365,8 @@ func (TaskAgentProgress) Type() TaskProgressType {
 	return TaskProgressTypeAgent
 }
 
-// Schema for the `TaskShellProgress` type.
+// Progress snapshot for a shell task, with recent stdout/stderr output and optional process
+// ID.
 // Experimental: TaskShellProgress is part of an experimental API and may change or be
 // removed.
 type TaskShellProgress struct {
@@ -8940,7 +9381,7 @@ func (TaskShellProgress) Type() TaskProgressType {
 	return TaskProgressTypeShell
 }
 
-// Schema for the `TaskProgressLine` type.
+// Timestamped display line for task progress output or recent agent activity.
 // Experimental: TaskProgressLine is part of an experimental API and may change or be
 // removed.
 type TaskProgressLine struct {
@@ -9110,7 +9551,8 @@ type TelemetrySetFeatureOverridesRequest struct {
 	Features map[string]string `json:"features"`
 }
 
-// Schema for the `Tool` type.
+// Built-in tool metadata with identifier, optional namespaced name, description,
+// input-parameter schema, and usage instructions.
 // Experimental: Tool is part of an experimental API and may change or be removed.
 type Tool struct {
 	// Description of what the tool does
@@ -9172,7 +9614,8 @@ type UIElicitationArrayAnyOfFieldItems struct {
 	AnyOf []UIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf"`
 }
 
-// Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type.
+// Selectable option for a UI elicitation multi-select array item, with submitted value and
+// display label.
 // Experimental: UIElicitationArrayAnyOfFieldItemsAnyOf is part of an experimental API and
 // may change or be removed.
 type UIElicitationArrayAnyOfFieldItemsAnyOf struct {
@@ -9192,7 +9635,7 @@ type UIElicitationArrayEnumFieldItems struct {
 	Type UIElicitationArrayEnumFieldItemsType `json:"type"`
 }
 
-// Schema for the `UIElicitationFieldValue` type.
+// Submitted UI elicitation field value: string, number, boolean, or an array of strings.
 // Experimental: UIElicitationFieldValue is part of an experimental API and may change or be
 // removed.
 type UIElicitationFieldValue interface {
@@ -9431,7 +9874,8 @@ func (UIElicitationStringOneOfField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
 
-// Schema for the `UIElicitationStringOneOfFieldOneOf` type.
+// Selectable option for a UI elicitation single-select string field, with submitted value
+// and display label.
 // Experimental: UIElicitationStringOneOfFieldOneOf is part of an experimental API and may
 // change or be removed.
 type UIElicitationStringOneOfFieldOneOf struct {
@@ -9469,7 +9913,8 @@ type UIEphemeralQueryResult struct {
 	Answer string `json:"answer"`
 }
 
-// Schema for the `UIExitPlanModeResponse` type.
+// User response for a pending exit-plan-mode request, with approval state, selected action,
+// auto-approve flag, and feedback.
 // Experimental: UIExitPlanModeResponse is part of an experimental API and may change or be
 // removed.
 type UIExitPlanModeResponse struct {
@@ -9512,7 +9957,8 @@ type UIHandlePendingElicitationRequest struct {
 type UIHandlePendingExitPlanModeRequest struct {
 	// The unique request ID from the exit_plan_mode.requested event
 	RequestID string `json:"requestId"`
-	// Schema for the `UIExitPlanModeResponse` type.
+	// User response for a pending exit-plan-mode request, with approval state, selected action,
+	// auto-approve flag, and feedback.
 	Response UIExitPlanModeResponse `json:"response"`
 }
 
@@ -9562,7 +10008,8 @@ type UIHandlePendingSessionLimitsExhaustedRequest struct {
 type UIHandlePendingUserInputRequest struct {
 	// The unique request ID from the user_input.requested event
 	RequestID string `json:"requestId"`
-	// Schema for the `UIUserInputResponse` type.
+	// User response for a pending user-input request, with answer text and whether it was typed
+	// freeform.
 	Response UIUserInputResponse `json:"response"`
 }
 
@@ -9609,7 +10056,8 @@ type UIUnregisterDirectAutoModeSwitchHandlerResult struct {
 	Unregistered bool `json:"unregistered"`
 }
 
-// Schema for the `UIUserInputResponse` type.
+// User response for a pending user-input request, with answer text and whether it was typed
+// freeform.
 // Experimental: UIUserInputResponse is part of an experimental API and may change or be
 // removed.
 type UIUserInputResponse struct {
@@ -9672,7 +10120,8 @@ type UsageMetricsCodeChanges struct {
 	LinesRemoved int64 `json:"linesRemoved"`
 }
 
-// Schema for the `UsageMetricsModelMetric` type.
+// Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and
+// per-token-type details.
 // Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
 // removed.
 type UsageMetricsModelMetric struct {
@@ -9696,7 +10145,7 @@ type UsageMetricsModelMetricRequests struct {
 	Count int64 `json:"count"`
 }
 
-// Schema for the `UsageMetricsModelMetricTokenDetail` type.
+// Per-model token-detail entry containing the accumulated token count for one token type.
 // Experimental: UsageMetricsModelMetricTokenDetail is part of an experimental API and may
 // change or be removed.
 type UsageMetricsModelMetricTokenDetail struct {
@@ -9720,7 +10169,7 @@ type UsageMetricsModelMetricUsage struct {
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 }
 
-// Schema for the `UsageMetricsTokenDetail` type.
+// Session-wide token-detail entry containing the accumulated token count for one token type.
 // Experimental: UsageMetricsTokenDetail is part of an experimental API and may change or be
 // removed.
 type UsageMetricsTokenDetail struct {
@@ -9813,7 +10262,7 @@ func (r RawUserToolSessionApprovalData) Kind() UserToolSessionApprovalKind {
 	return r.Discriminator
 }
 
-// Schema for the `UserToolSessionApprovalCommands` type.
+// Session-scoped tool-approval rule for specific shell command identifiers.
 // Experimental: UserToolSessionApprovalCommands is part of an experimental API and may
 // change or be removed.
 type UserToolSessionApprovalCommands struct {
@@ -9826,7 +10275,7 @@ func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCommands
 }
 
-// Schema for the `UserToolSessionApprovalCustomTool` type.
+// Session-scoped tool-approval rule for a custom tool, keyed by tool name.
 // Experimental: UserToolSessionApprovalCustomTool is part of an experimental API and may
 // change or be removed.
 type UserToolSessionApprovalCustomTool struct {
@@ -9839,7 +10288,8 @@ func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCustomTool
 }
 
-// Schema for the `UserToolSessionApprovalExtensionManagement` type.
+// Session-scoped tool-approval rule for extension-management operations, optionally
+// narrowed by operation.
 // Experimental: UserToolSessionApprovalExtensionManagement is part of an experimental API
 // and may change or be removed.
 type UserToolSessionApprovalExtensionManagement struct {
@@ -9852,7 +10302,8 @@ func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApproval
 	return UserToolSessionApprovalKindExtensionManagement
 }
 
-// Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
+// Session-scoped tool-approval rule for an extension's permission-gated capability access,
+// keyed by extension name.
 // Experimental: UserToolSessionApprovalExtensionPermissionAccess is part of an experimental
 // API and may change or be removed.
 type UserToolSessionApprovalExtensionPermissionAccess struct {
@@ -9865,7 +10316,8 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
-// Schema for the `UserToolSessionApprovalMcp` type.
+// Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when
+// `toolName` is null.
 // Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
 // be removed.
 type UserToolSessionApprovalMCP struct {
@@ -9880,7 +10332,7 @@ func (UserToolSessionApprovalMCP) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMCP
 }
 
-// Schema for the `UserToolSessionApprovalMemory` type.
+// Session-scoped tool-approval rule for writes to long-term memory.
 // Experimental: UserToolSessionApprovalMemory is part of an experimental API and may change
 // or be removed.
 type UserToolSessionApprovalMemory struct {
@@ -9891,7 +10343,7 @@ func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMemory
 }
 
-// Schema for the `UserToolSessionApprovalRead` type.
+// Session-scoped tool-approval rule for read-only filesystem operations.
 // Experimental: UserToolSessionApprovalRead is part of an experimental API and may change
 // or be removed.
 type UserToolSessionApprovalRead struct {
@@ -9902,7 +10354,7 @@ func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
 }
 
-// Schema for the `UserToolSessionApprovalWrite` type.
+// Session-scoped tool-approval rule for filesystem write operations.
 // Experimental: UserToolSessionApprovalWrite is part of an experimental API and may change
 // or be removed.
 type UserToolSessionApprovalWrite struct {
@@ -9985,7 +10437,8 @@ type WorkspaceDiffResult struct {
 	RequestedMode WorkspaceDiffMode `json:"requestedMode"`
 }
 
-// Schema for the `WorkspacesCheckpoints` type.
+// Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint
+// filename.
 // Experimental: WorkspacesCheckpoints is part of an experimental API and may change or be
 // removed.
 type WorkspacesCheckpoints struct {
@@ -10439,6 +10892,67 @@ type CopilotAPITokenAuthInfoHost string
 
 const (
 	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
+)
+
+// Kind discriminator for DebugCollectLogsDestination.
+type DebugCollectLogsDestinationKind string
+
+const (
+	DebugCollectLogsDestinationKindArchive   DebugCollectLogsDestinationKind = "archive"
+	DebugCollectLogsDestinationKindDirectory DebugCollectLogsDestinationKind = "directory"
+)
+
+// Kind of caller-provided debug log entry.
+// Experimental: DebugCollectLogsEntryKind is part of an experimental API and may change or
+// be removed.
+type DebugCollectLogsEntryKind string
+
+const (
+	// Include files from a server-local directory recursively.
+	DebugCollectLogsEntryKindDirectory DebugCollectLogsEntryKind = "directory"
+	// Include a single server-local file.
+	DebugCollectLogsEntryKindFile DebugCollectLogsEntryKind = "file"
+)
+
+// How a collected debug entry should be redacted before being staged.
+// Experimental: DebugCollectLogsRedaction is part of an experimental API and may change or
+// be removed.
+type DebugCollectLogsRedaction string
+
+const (
+	// Redact each non-empty line as a session event JSON object, falling back to plain-text
+	// redaction for malformed lines.
+	DebugCollectLogsRedactionEventsJsonl DebugCollectLogsRedaction = "events-jsonl"
+	// Redact the file as plain UTF-8 log text.
+	DebugCollectLogsRedactionPlainText DebugCollectLogsRedaction = "plain-text"
+)
+
+// Destination kind that was written.
+// Experimental: DebugCollectLogsResultKind is part of an experimental API and may change or
+// be removed.
+type DebugCollectLogsResultKind string
+
+const (
+	// A .tgz archive was written.
+	DebugCollectLogsResultKindArchive DebugCollectLogsResultKind = "archive"
+	// A directory containing redacted files was written.
+	DebugCollectLogsResultKindDirectory DebugCollectLogsResultKind = "directory"
+)
+
+// Source category for a collected debug bundle entry.
+// Experimental: DebugCollectLogsSource is part of an experimental API and may change or be
+// removed.
+type DebugCollectLogsSource string
+
+const (
+	// Caller-provided diagnostic entry.
+	DebugCollectLogsSourceAdditional DebugCollectLogsSource = "additional"
+	// Session event log.
+	DebugCollectLogsSourceEvents DebugCollectLogsSource = "events"
+	// Process log for the session.
+	DebugCollectLogsSourceProcessLog DebugCollectLogsSource = "process-log"
+	// Interactive shell log for the session.
+	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
 )
 
 // Server transport type: stdio, http, sse (deprecated), or memory
@@ -11133,6 +11647,21 @@ const (
 	PermissionLocationTypeRepo PermissionLocationType = "repo"
 )
 
+// Current or requested allow-all mode.
+// Experimental: PermissionsAllowAllMode is part of an experimental API and may change or be
+// removed.
+type PermissionsAllowAllMode string
+
+const (
+	// Permission requests follow the normal approval flow with an LLM advisory recommendation
+	// attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
+	PermissionsAllowAllModeAuto PermissionsAllowAllMode = "auto"
+	// Permission requests follow the normal approval flow.
+	PermissionsAllowAllModeOff PermissionsAllowAllMode = "off"
+	// Tool, path, and URL permission requests are automatically approved.
+	PermissionsAllowAllModeOn PermissionsAllowAllMode = "on"
+)
+
 // Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`
 // enumeration.
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicyScope is part of an
@@ -11599,6 +12128,53 @@ const (
 	SessionOpenParamsKindRemote     SessionOpenParamsKind = "remote"
 	SessionOpenParamsKindResume     SessionOpenParamsKind = "resume"
 	SessionOpenParamsKindResumeLast SessionOpenParamsKind = "resumeLast"
+)
+
+// Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names
+// are intentionally not part of the contract.
+// Experimental: SessionSettingsPredicateName is part of an experimental API and may change
+// or be removed.
+type SessionSettingsPredicateName string
+
+const (
+	// Whether Claude Opus token-limit caps should be applied.
+	SessionSettingsPredicateNameCapClaudeOpusTokenLimitsEnabled SessionSettingsPredicateName = "capClaudeOpusTokenLimitsEnabled"
+	// Whether CCA should use the TypeScript autofind behavior.
+	SessionSettingsPredicateNameCcaUseTsAutofindEnabled SessionSettingsPredicateName = "ccaUseTsAutofindEnabled"
+	// Whether Chronicle integration is enabled.
+	SessionSettingsPredicateNameChronicleEnabled SessionSettingsPredicateName = "chronicleEnabled"
+	// Whether the co-author hook is enabled.
+	SessionSettingsPredicateNameCoAuthorHookEnabled SessionSettingsPredicateName = "coAuthorHookEnabled"
+	// Whether the CodeQL checker is enabled.
+	SessionSettingsPredicateNameCodeqlCheckerEnabled SessionSettingsPredicateName = "codeqlCheckerEnabled"
+	// Whether code-review behavior is enabled.
+	SessionSettingsPredicateNameCodeReviewFeatureEnabled SessionSettingsPredicateName = "codeReviewFeatureEnabled"
+	// Whether content-exclusion policy may self-fetch data.
+	SessionSettingsPredicateNameContentExclusionSelfFetchEnabled SessionSettingsPredicateName = "contentExclusionSelfFetchEnabled"
+	// Whether the Dependabot checker is enabled.
+	SessionSettingsPredicateNameDependabotCheckerEnabled SessionSettingsPredicateName = "dependabotCheckerEnabled"
+	// Whether the dependency checker is enabled.
+	SessionSettingsPredicateNameDependencyCheckerEnabled SessionSettingsPredicateName = "dependencyCheckerEnabled"
+	// Whether validation may run in parallel.
+	SessionSettingsPredicateNameParallelValidationEnabled SessionSettingsPredicateName = "parallelValidationEnabled"
+	// Whether runtime timing telemetry is enabled.
+	SessionSettingsPredicateNameRuntimeTimingTelemetryEnabled SessionSettingsPredicateName = "runtimeTimingTelemetryEnabled"
+	// Whether the security-tools feature flag enables security tool wiring.
+	SessionSettingsPredicateNameSecurityToolsEnabled SessionSettingsPredicateName = "securityToolsEnabled"
+	// Whether third-party security tools should receive the security prompt.
+	SessionSettingsPredicateNameThirdPartySecurityPromptEnabled SessionSettingsPredicateName = "thirdPartySecurityPromptEnabled"
+	// Whether trivial-change handling is enabled.
+	SessionSettingsPredicateNameTrivialChangeEnabled SessionSettingsPredicateName = "trivialChangeEnabled"
+	// Whether trivial-change handling is enabled for code review.
+	SessionSettingsPredicateNameTrivialChangeEnabledForCodeReview SessionSettingsPredicateName = "trivialChangeEnabledForCodeReview"
+	// Whether trivial-change handling is enabled for a specific tool.
+	SessionSettingsPredicateNameTrivialChangeEnabledForTool SessionSettingsPredicateName = "trivialChangeEnabledForTool"
+	// Whether trivial-change skip behavior is enabled.
+	SessionSettingsPredicateNameTrivialChangeSkipEnabled SessionSettingsPredicateName = "trivialChangeSkipEnabled"
+	// Whether trivial-change skip behavior is enabled for code review.
+	SessionSettingsPredicateNameTrivialChangeSkipEnabledForCodeReview SessionSettingsPredicateName = "trivialChangeSkipEnabledForCodeReview"
+	// Whether trivial-change skip behavior is enabled for a specific tool.
+	SessionSettingsPredicateNameTrivialChangeSkipEnabledForTool SessionSettingsPredicateName = "trivialChangeSkipEnabledForTool"
 )
 
 // Task type determines the handoff strategy (CCA fetches events; CLI prepares a transient
@@ -13672,7 +14248,8 @@ type InternalServerRPC struct {
 //
 // RPC method: connect.
 //
-// Parameters: Optional connection token presented by the SDK client during the handshake.
+// Parameters: Parameters for the `server.connect` handshake: an optional connection token
+// and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
 //
 // Returns: Handshake result reporting the server's protocol version and package version on
 // success.
@@ -14135,6 +14712,41 @@ func (a *CompletionsAPI) Request(ctx context.Context, params *CompletionsRequest
 		return nil, err
 	}
 	var result CompletionsRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: DebugAPI contains experimental APIs that may change or be removed.
+type DebugAPI sessionAPI
+
+// CollectLogs collects a redacted session debug log bundle into a local archive or staging
+// directory. The runtime includes session-owned logs by default and accepts caller-provided
+// diagnostic entries so host applications can add their own files without changing this API
+// shape.
+//
+// RPC method: session.debug.collectLogs.
+//
+// Parameters: Options for collecting a redacted session debug bundle.
+//
+// Returns: Result of collecting a redacted debug bundle.
+func (a *DebugAPI) CollectLogs(ctx context.Context, params *DebugCollectLogsRequest) (*DebugCollectLogsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AdditionalEntries != nil {
+			req["additionalEntries"] = params.AdditionalEntries
+		}
+		req["destination"] = params.Destination
+		if params.Include != nil {
+			req["include"] = *params.Include
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.debug.collectLogs", req)
+	if err != nil {
+		return nil, err
+	}
+	var result DebugCollectLogsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -15788,12 +16400,11 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 	return &result, nil
 }
 
-// GetAllowAll returns whether full allow-all permissions are currently active for the
-// session.
+// GetAllowAll returns the current allow-all permission mode for the session.
 //
 // RPC method: session.permissions.getAllowAll.
 //
-// Returns: Current full allow-all permission state.
+// Returns: Current allow-all permission mode.
 func (a *PermissionsAPI) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.permissions.getAllowAll", req)
@@ -15928,23 +16539,31 @@ func (a *PermissionsAPI) ResetSessionApprovals(ctx context.Context) (*Permission
 	return &result, nil
 }
 
-// SetAllowAll enables or disables full allow-all permissions (tools, paths, and URLs) for
-// the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder)
-// to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the
-// unrestricted path and URL managers and emits `session.permissions_changed` on transition.
-// The result returns the authoritative post-mutation state so callers can update their
-// local mirrors without racing the `session.permissions_changed` notification on the same
-// wire.
+// SetAllowAll sets the allow-all permission mode for the session. Used by attach-mode
+// clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's
+// permission state. The `on` mode swaps in unrestricted path and URL managers and emits
+// `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths
+// active while attaching LLM safety recommendations. The result returns the authoritative
+// post-mutation state so callers can update their local mirrors without racing the
+// `session.permissions_changed` notification on the same wire.
 //
 // RPC method: session.permissions.setAllowAll.
 //
-// Parameters: Whether to enable full allow-all permissions for the session.
+// Parameters: Allow-all mode to apply for the session.
 //
 // Returns: Indicates whether the operation succeeded and reports the post-mutation state.
 func (a *PermissionsAPI) SetAllowAll(ctx context.Context, params *PermissionsSetAllowAllRequest) (*AllowAllPermissionSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
-		req["enabled"] = params.Enabled
+		if params.Enabled != nil {
+			req["enabled"] = *params.Enabled
+		}
+		if params.Mode != nil {
+			req["mode"] = *params.Mode
+		}
+		if params.Model != nil {
+			req["model"] = *params.Model
+		}
 		if params.Source != nil {
 			req["source"] = *params.Source
 		}
@@ -17851,6 +18470,7 @@ type SessionRPC struct {
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
 	Completions  *CompletionsAPI
+	Debug        *DebugAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
 	Fleet        *FleetAPI
@@ -18064,6 +18684,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.Completions = (*CompletionsAPI)(&r.common)
+	r.Debug = (*DebugAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
@@ -18303,19 +18924,81 @@ func (s *InternalMCPAPI) Oauth() *InternalMCPOauthAPI {
 	return (*InternalMCPOauthAPI)(s)
 }
 
+// Experimental: InternalSettingsAPI contains experimental APIs that may change or be
+// removed.
+type InternalSettingsAPI internalSessionAPI
+
+// EvaluatePredicate evaluates a named Rust-owned settings predicate without exposing raw
+// feature flags. Internal: the raw feature-flag names and composition are runtime-internal,
+// so this predicate-evaluation helper is kept out of the public SDK surface and is callable
+// in-process only.
+//
+// RPC method: session.settings.evaluatePredicate.
+//
+// Parameters: Named Rust-owned settings predicate to evaluate for this session.
+//
+// Returns: Result of evaluating a Rust-owned settings predicate.
+// Internal: EvaluatePredicate is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalSettingsAPI) EvaluatePredicate(ctx context.Context, params *SessionSettingsEvaluatePredicateRequest) (*SessionSettingsEvaluatePredicateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+		if params.ToolName != nil {
+			req["toolName"] = *params.ToolName
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.settings.evaluatePredicate", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSettingsEvaluatePredicateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Snapshot returns a redacted snapshot of session runtime settings, with secrets and raw
+// feature flags excluded. Internal: the runtime settings shape is a runtime-internal
+// surface and is deliberately kept out of the public SDK, because consumers should not
+// depend on the runtime's internal settings layout. It remains callable in-process and is
+// expected to be reworked as the runtime internals are consolidated.
+//
+// RPC method: session.settings.snapshot.
+//
+// Returns: Redacted, serializable view of session runtime settings for SDK boundary
+// consumers. Secrets and raw feature flags are intentionally excluded.
+// Internal: Snapshot is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalSettingsAPI) Snapshot(ctx context.Context) (*SessionSettingsSnapshot, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.settings.snapshot", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSettingsSnapshot
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // InternalSessionRPC provides internal SDK session-scoped RPC methods (handshake helpers
 // etc.). Not part of the public API.
 type InternalSessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common internalSessionAPI
 
-	MCP *InternalMCPAPI
+	MCP      *InternalMCPAPI
+	Settings *InternalSettingsAPI
 }
 
 func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalSessionRPC {
 	r := &InternalSessionRPC{}
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.MCP = (*InternalMCPAPI)(&r.common)
+	r.Settings = (*InternalSettingsAPI)(&r.common)
 	return r
 }
 
@@ -18816,13 +19499,15 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 // removed.
 type GitHubTelemetryHandler interface {
 	// Event forwards a single GitHub telemetry event to a host connection that opted into
-	// telemetry forwarding for the session.
+	// telemetry forwarding during the `server.connect` handshake. Opted-in connections receive
+	// every event the runtime emits after the handshake — across all sessions, plus sessionless
+	// events (for example, `server.sendTelemetry` calls with no session id).
 	//
 	// RPC method: gitHubTelemetry.event.
 	//
 	// Parameters: Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry
-	// event the runtime forwards to a host connection that opted into telemetry forwarding for
-	// the session.
+	// event the runtime forwards to a host connection that opted into telemetry forwarding
+	// during the `server.connect` handshake.
 	Event(request *GitHubTelemetryNotification) error
 }
 

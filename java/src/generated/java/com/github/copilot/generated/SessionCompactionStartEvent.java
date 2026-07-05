@@ -34,6 +34,8 @@ public final class SessionCompactionStartEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionCompactionStartEventData(
+        /** Model identifier used for compaction, when known */
+        @JsonProperty("model") String model,
         /** Token count from system message(s) at compaction start */
         @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) at compaction start */

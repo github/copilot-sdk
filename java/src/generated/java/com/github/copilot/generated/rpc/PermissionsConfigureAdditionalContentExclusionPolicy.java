@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.
+ * Content-exclusion policy supplied to `session.permissions.configure`, with rules, last-updated data, and scope.
  *
  * @since 1.0.0
  */

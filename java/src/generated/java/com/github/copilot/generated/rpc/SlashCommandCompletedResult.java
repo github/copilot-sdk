@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandCompletedResult` type.
+ * Slash-command invocation result indicating completion, with optional message and settings-change flag.
  *
  * @since 1.0.0
  */

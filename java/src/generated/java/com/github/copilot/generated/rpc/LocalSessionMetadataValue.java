@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `LocalSessionMetadataValue` type.
+ * Persisted local session metadata, including identifiers, timestamps, summary/name, client, context, detached state, and task ID.
  *
  * @since 1.0.0
  */

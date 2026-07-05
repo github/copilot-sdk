@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ServerSkill` type.
+ * Server-side skill metadata, including name, description, source, enabled/invocable state, path, project path, and argument hint.
  *
  * @since 1.0.0
  */

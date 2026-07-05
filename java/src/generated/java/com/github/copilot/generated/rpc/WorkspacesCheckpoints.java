@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `WorkspacesCheckpoints` type.
+ * Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint filename.
  *
  * @since 1.0.0
  */

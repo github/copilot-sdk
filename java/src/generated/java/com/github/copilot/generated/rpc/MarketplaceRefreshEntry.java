@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `MarketplaceRefreshEntry` type.
+ * Per-marketplace refresh result, including marketplace name, success flag, and optional failure error.
  *
  * @since 1.0.0
  */

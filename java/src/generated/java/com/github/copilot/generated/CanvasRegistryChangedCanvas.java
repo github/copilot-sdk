@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `CanvasRegistryChangedCanvas` type.
+ * A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions.
  *
  * @since 1.0.0
  */

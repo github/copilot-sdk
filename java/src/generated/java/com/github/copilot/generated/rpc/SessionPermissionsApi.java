@@ -103,7 +103,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Whether to enable full allow-all permissions for the session.
+     * Allow-all mode to apply for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

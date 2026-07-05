@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpServer` type.
+ * MCP server status entry, including config source/plugin source and any connection error.
  *
  * @since 1.0.0
  */

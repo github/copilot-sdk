@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandAgentPromptResult` type.
+ * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, and settings-change flag.
  *
  * @since 1.0.0
  */

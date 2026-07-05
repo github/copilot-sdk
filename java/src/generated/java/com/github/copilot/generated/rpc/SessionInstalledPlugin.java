@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SessionInstalledPlugin` type.
+ * Installed plugin record for a session, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * @since 1.0.0
  */

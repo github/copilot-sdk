@@ -92,7 +92,7 @@ public final class ServerRpc {
     }
 
     /**
-     * Optional connection token presented by the SDK client during the handshake.
+     * Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

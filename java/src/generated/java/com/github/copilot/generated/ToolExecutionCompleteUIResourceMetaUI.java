@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+ * MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
  *
  * @since 1.0.0
  */
@@ -21,9 +21,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolExecutionCompleteUIResourceMetaUI(
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type. */
+    /** CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains. */
     @JsonProperty("csp") ToolExecutionCompleteUIResourceMetaUICsp csp,
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type. */
+    /** Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write. */
     @JsonProperty("permissions") ToolExecutionCompleteUIResourceMetaUIPermissions permissions,
     @JsonProperty("domain") String domain,
     @JsonProperty("prefersBorder") Boolean prefersBorder
