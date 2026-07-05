@@ -1818,13 +1818,26 @@ impl Client {
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
-        let result = self
-            .rpc()
-            .connect(crate::generated::api_types::ConnectRequest {
-                token: self.inner.effective_connection_token.clone(),
-            })
+        let params = crate::generated::api_types::ConnectRequest {
+            token: self.inner.effective_connection_token.clone(),
+            enable_git_hub_telemetry_forwarding: self
+                .inner
+                .on_github_telemetry
+                .is_some()
+                .then_some(true),
+        };
+        let value = self
+            .call(
+                crate::generated::api_types::rpc_methods::CONNECT,
+                Some(serde_json::to_value(params)?),
+            )
             .await?;
-        Ok(u32::try_from(result.protocol_version).ok())
+        let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
+        Ok(Some(u32::try_from(result.protocol_version).map_err(
+            |_| ProtocolErrorKind::InvalidProtocolVersion {
+                server: result.protocol_version,
+            },
+        )?))
     }
 
     /// Send a `ping` RPC and return the typed [`PingResponse`].

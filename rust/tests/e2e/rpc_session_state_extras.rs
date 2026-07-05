@@ -102,7 +102,9 @@ async fn should_get_and_set_allowall_permissions() {
                     .rpc()
                     .permissions()
                     .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: true,
+                        enabled: Some(true),
+                        mode: None,
+                        model: None,
                         source: None,
                     })
                     .await
@@ -123,7 +125,9 @@ async fn should_get_and_set_allowall_permissions() {
                     .rpc()
                     .permissions()
                     .set_allow_all(PermissionsSetAllowAllRequest {
-                        enabled: false,
+                        enabled: Some(false),
+                        mode: None,
+                        model: None,
                         source: None,
                     })
                     .await

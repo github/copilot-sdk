@@ -172,7 +172,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
             }
         });
 
-        await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Failed);
+        await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.NeedsAuth);
 
         Assert.NotNull(observedRequest);
         Assert.NotEmpty(observedRequest!.RequestId);

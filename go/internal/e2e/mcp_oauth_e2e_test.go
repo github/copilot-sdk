@@ -218,7 +218,7 @@ func TestMCPOAuthE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { session.Disconnect() })
 
-		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusFailed)
+		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusNeedsAuth)
 		if observedRequest.ServerName != serverName {
 			t.Fatalf("Expected serverName %q, got %q", serverName, observedRequest.ServerName)
 		}

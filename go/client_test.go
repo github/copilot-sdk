@@ -2487,6 +2487,52 @@ func assertForwardingFlagAbsent(t *testing.T, params json.RawMessage) {
 	}
 }
 
+func TestClient_ForwardsGitHubTelemetryForwardingOnConnect(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		internalRPC: rpc.NewInternalServerRPC(rpcClient),
+		sessions:    make(map[string]*Session),
+		options:     ClientOptions{OnGitHubTelemetry: func(*rpc.GitHubTelemetryNotification) {}},
+	}
+
+	connectParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		connectParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+	})
+
+	if err := client.verifyProtocolVersion(t.Context()); err != nil {
+		t.Fatalf("verifyProtocolVersion failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-connectParams)
+}
+
+func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		internalRPC: rpc.NewInternalServerRPC(rpcClient),
+		sessions:    make(map[string]*Session),
+		options:     ClientOptions{},
+	}
+
+	connectParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		connectParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+	})
+
+	if err := client.verifyProtocolVersion(t.Context()); err != nil {
+		t.Fatalf("verifyProtocolVersion failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-connectParams)
+}
+
 func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {
 	// The runtime forwards telemetry via a JSON-RPC *notification* (no id).
 	// Drive a real Content-Length-framed notification through the transport and
@@ -2547,8 +2593,12 @@ func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {
 
 	select {
 	case n := <-received:
-		if n.SessionID != "sess-telemetry" {
-			t.Errorf("session id = %q, want sess-telemetry", n.SessionID)
+		sessionID := ""
+		if n.SessionID != nil {
+			sessionID = *n.SessionID
+		}
+		if sessionID != "sess-telemetry" {
+			t.Errorf("session id = %q, want sess-telemetry", sessionID)
 		}
 		if !n.Restricted {
 			t.Error("expected restricted to be true")

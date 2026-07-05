@@ -217,7 +217,7 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .await
                 .expect("create session");
 
-            wait_for_mcp_server_status(&session, server_name, McpServerStatus::Failed).await;
+            wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
 
             let request = handler
                 .request

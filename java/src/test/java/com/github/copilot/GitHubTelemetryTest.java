@@ -32,8 +32,9 @@ import com.github.copilot.rpc.SessionConfig;
 /**
  * Exercises the hand-written GitHub telemetry forwarding surface: the
  * {@code gitHubTelemetry.event} notification adapter, the
- * {@code enableGitHubTelemetryForwarding} capability flag on the create/resume
- * requests, and the {@code onGitHubTelemetry} client option.
+ * {@code enableGitHubTelemetryForwarding} capability flag on the connect
+ * handshake and the create/resume requests, and the {@code onGitHubTelemetry}
+ * client option.
  */
 @AllowCopilotExperimental
 class GitHubTelemetryTest {
@@ -146,6 +147,12 @@ class GitHubTelemetryTest {
 
             client.start().get(15, TimeUnit.SECONDS);
 
+            // Connecting must opt into telemetry forwarding at the connection level so
+            // the runtime can forward the first session's un-replayable start event.
+            JsonNode connectParams = server.awaitConnect();
+            assertTrue(connectParams.path("enableGitHubTelemetryForwarding").asBoolean(),
+                    "connect request should carry enableGitHubTelemetryForwarding=true");
+
             // Creating a session must opt it into telemetry forwarding.
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(15,
                     TimeUnit.SECONDS);
@@ -177,6 +184,10 @@ class GitHubTelemetryTest {
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
 
             client.start().get(15, TimeUnit.SECONDS);
+
+            JsonNode connectParams = server.awaitConnect();
+            assertFalse(connectParams.has("enableGitHubTelemetryForwarding"),
+                    "connect request should omit the flag when no handler is registered");
 
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(15,
                     TimeUnit.SECONDS);
@@ -214,6 +225,7 @@ class GitHubTelemetryTest {
         private final ServerSocket serverSocket;
         private final Thread acceptThread;
         private final CompletableFuture<JsonRpcClient> ready = new CompletableFuture<>();
+        private final CompletableFuture<JsonNode> connectParams = new CompletableFuture<>();
         private final CompletableFuture<JsonNode> createParams = new CompletableFuture<>();
         private final CompletableFuture<JsonNode> resumeParams = new CompletableFuture<>();
 
@@ -226,6 +238,10 @@ class GitHubTelemetryTest {
 
         String url() {
             return "127.0.0.1:" + serverSocket.getLocalPort();
+        }
+
+        JsonNode awaitConnect() throws Exception {
+            return connectParams.get(15, TimeUnit.SECONDS);
         }
 
         JsonNode awaitCreate() throws Exception {
@@ -244,8 +260,10 @@ class GitHubTelemetryTest {
             try {
                 Socket socket = serverSocket.accept();
                 JsonRpcClient server = JsonRpcClient.fromSocket(socket);
-                server.registerMethodHandler("connect",
-                        (id, params) -> respond(server, id, Map.of("protocolVersion", 2)));
+                server.registerMethodHandler("connect", (id, params) -> {
+                    connectParams.complete(params);
+                    respond(server, id, Map.of("protocolVersion", 2));
+                });
                 server.registerMethodHandler("session.create", (id, params) -> {
                     createParams.complete(params);
                     respond(server, id, Map.of("sessionId", params.path("sessionId").asText("created"), "workspacePath",
@@ -261,6 +279,7 @@ class GitHubTelemetryTest {
                 ready.complete(server);
             } catch (IOException e) {
                 ready.completeExceptionally(e);
+                connectParams.completeExceptionally(e);
                 createParams.completeExceptionally(e);
                 resumeParams.completeExceptionally(e);
             }

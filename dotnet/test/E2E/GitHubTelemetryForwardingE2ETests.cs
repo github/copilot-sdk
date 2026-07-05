@@ -43,7 +43,7 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
                 timeoutMessage: "Timed out waiting for GitHub telemetry notification.");
 
             Assert.True(notifications.TryPeek(out var notification));
-            Assert.NotEmpty(notification.SessionId);
+            Assert.False(string.IsNullOrEmpty(notification.SessionId));
             Assert.NotNull(notification.Event);
             Assert.NotEmpty(notification.Event.Kind);
             Assert.IsType<bool>(notification.Restricted);
