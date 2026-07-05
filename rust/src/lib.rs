@@ -1818,28 +1818,9 @@ impl Client {
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
-        // Built inline rather than via the generated `ConnectRequest` so we can
-        // carry the connection-level telemetry opt-in without hand-editing
-        // generated code. The runtime reads `enableGitHubTelemetryForwarding` on
-        // this handshake to forward `gitHubTelemetry.event` for the connection's
-        // lifetime, which lets the first session's un-replayable `session.start`
-        // event be forwarded. It is also sent on session.create/resume so older
-        // CLIs that only read it there still opt in.
-        #[derive(serde::Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct ConnectParams {
-            #[serde(skip_serializing_if = "Option::is_none")]
-            token: Option<String>,
-            #[serde(
-                rename = "enableGitHubTelemetryForwarding",
-                skip_serializing_if = "Option::is_none"
-            )]
-            enable_github_telemetry_forwarding: Option<bool>,
-        }
-
-        let params = ConnectParams {
+        let params = crate::generated::api_types::ConnectRequest {
             token: self.inner.effective_connection_token.clone(),
-            enable_github_telemetry_forwarding: self
+            enable_git_hub_telemetry_forwarding: self
                 .inner
                 .on_github_telemetry
                 .is_some()
@@ -1852,7 +1833,11 @@ impl Client {
             )
             .await?;
         let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
-        Ok(u32::try_from(result.protocol_version).ok())
+        Ok(Some(u32::try_from(result.protocol_version).map_err(
+            |_| ProtocolErrorKind::InvalidProtocolVersion {
+                server: result.protocol_version,
+            },
+        )?))
     }
 
     /// Send a `ping` RPC and return the typed [`PingResponse`].

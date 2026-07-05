@@ -25,7 +25,7 @@ use github_copilot_sdk::types::{
     MessageOptions, RequestId, SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation,
     ToolResult,
 };
-use github_copilot_sdk::{Client, ContextTier, tool};
+use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -962,6 +962,41 @@ async fn connect_omits_github_telemetry_forwarding_without_callback() {
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
     timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_rejects_invalid_protocol_version_values() {
+    for protocol_version in [-1, i64::from(u32::MAX) + 1] {
+        let (client, mut server_read, mut server_write) = make_client();
+
+        let handle = tokio::spawn({
+            let client = client.clone();
+            async move { client.verify_protocol_version().await }
+        });
+
+        let request = read_framed(&mut server_read).await;
+        assert_eq!(request["method"], "connect");
+
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "ok": true, "protocolVersion": protocol_version, "version": "test" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+        let err = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        match err.kind() {
+            ErrorKind::Protocol(ProtocolErrorKind::InvalidProtocolVersion { server }) => {
+                assert_eq!(*server, protocol_version);
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
 }
 
 #[tokio::test]
