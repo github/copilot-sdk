@@ -294,18 +294,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // The worker reads its configuration (telemetry export, etc.) from
                     // the environment passed here, so apply the same telemetry-derived
                     // vars the child-process path sets on its startInfo.Environment.
-                    var ffiEnvironment = new Dictionary<string, string?>();
-                    if (_options.Environment is not null)
-                    {
-                        foreach (var kvp in _options.Environment)
-                        {
-                            ffiEnvironment[kvp.Key] = kvp.Value;
-                        }
-                    }
+                    var ffiEnvironment = _options.Environment?.ToDictionary(kvp => kvp.Key, kvp => (string?)kvp.Value)
+                        ?? new Dictionary<string, string?>();
                     ApplyTelemetryEnvironment(ffiEnvironment, _options.Telemetry);
-                    var resolvedFfiEnvironment = ffiEnvironment
-                        .Where(kvp => kvp.Value is not null)
-                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
+                    var resolvedFfiEnvironment = ffiEnvironment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
                     var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), resolvedFfiEnvironment, _logger);
                     _ffiHost = ffiHost;
                     await ffiHost.StartAsync(ct);
