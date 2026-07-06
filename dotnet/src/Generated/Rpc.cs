@@ -5903,30 +5903,6 @@ internal sealed class McpIsServerRunningRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Empty result after recording the MCP OAuth response.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class McpOauthRespondResult
-{
-}
-
-/// <summary>MCP OAuth request id and optional provider response.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class McpOauthRespondRequest
-{
-    /// <summary>In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.</summary>
-    [JsonInclude]
-    [JsonPropertyName("provider")]
-    internal JsonElement? Provider { get; set; }
-
-    /// <summary>OAuth request identifier from mcp.oauth_required.</summary>
-    [JsonPropertyName("requestId")]
-    public string RequestId { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
 /// <summary>Indicates whether the pending MCP OAuth response was accepted.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpOauthHandlePendingResult
@@ -21244,20 +21220,6 @@ public sealed class McpOauthApi
         _session = session;
     }
 
-    /// <summary>Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.</summary>
-    /// <param name="requestId">OAuth request identifier from mcp.oauth_required.</param>
-    /// <param name="provider">In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Empty result after recording the MCP OAuth response.</returns>
-    internal async Task<McpOauthRespondResult> RespondAsync(string requestId, object? provider = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(requestId);
-        _session.ThrowIfDisposed();
-
-        var request = new McpOauthRespondRequest { SessionId = _session.SessionId, RequestId = requestId, Provider = CopilotClient.ToJsonElementForWire(provider) };
-        return await CopilotClient.InvokeRpcAsync<McpOauthRespondResult>(_session.Rpc, "session.mcp.oauth.respond", [request], cancellationToken);
-    }
-
     /// <summary>Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.</summary>
     /// <param name="requestId">OAuth request identifier from the mcp.oauth_required event.</param>
     /// <param name="result">Host response to the pending OAuth request.</param>
@@ -23696,8 +23658,6 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpOauthLoginRequest))]
 [JsonSerializable(typeof(McpOauthLoginResult))]
 [JsonSerializable(typeof(McpOauthPendingRequestResponse))]
-[JsonSerializable(typeof(McpOauthRespondRequest))]
-[JsonSerializable(typeof(McpOauthRespondResult))]
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
 [JsonSerializable(typeof(McpReloadWithConfigRequest))]
 [JsonSerializable(typeof(McpRemoveGitHubResult))]
