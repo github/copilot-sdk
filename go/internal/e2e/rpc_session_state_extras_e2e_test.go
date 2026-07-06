@@ -176,6 +176,157 @@ func TestRpcSessionStateExtras(t *testing.T) {
 		}
 	})
 
+	t.Run("should_add_byok_provider_and_model_at_runtime", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		session := createPortedSession(t, client, nil)
+		defer session.Disconnect()
+
+		apiKey := "provider-key"
+		providerType := rpc.ProviderConfigTypeOpenai
+		wireAPI := rpc.ProviderConfigWireAPICompletions
+		modelName := "Go Added Model"
+		maxPromptTokens := float64(4096)
+		result, err := session.RPC.Provider.Add(t.Context(), &rpc.ProviderAddRequest{
+			Providers: []rpc.NamedProviderConfig{{
+				Name:    "go-e2e-provider",
+				Type:    &providerType,
+				BaseURL: "https://models.example.test/v1",
+				APIKey:  &apiKey,
+				Headers: map[string]string{"x-provider": "go"},
+				WireAPI: &wireAPI,
+			}},
+			Models: []rpc.ProviderModelConfig{{
+				ID:              "small",
+				Provider:        "go-e2e-provider",
+				Name:            &modelName,
+				MaxPromptTokens: &maxPromptTokens,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Provider.Add failed: %v", err)
+		}
+		if len(result.Models) != 1 {
+			t.Fatalf("Expected one added provider model, got %+v", result.Models)
+		}
+
+		selectionID := "go-e2e-provider/small"
+		if _, err := session.RPC.Model.SwitchTo(t.Context(), &rpc.ModelSwitchToRequest{ModelID: selectionID}); err != nil {
+			t.Fatalf("Model.SwitchTo added model failed: %v", err)
+		}
+		current, err := session.RPC.Model.GetCurrent(t.Context())
+		if err != nil {
+			t.Fatalf("Model.GetCurrent after provider add failed: %v", err)
+		}
+		if current.ModelID == nil || *current.ModelID != selectionID {
+			t.Fatalf("Expected current model %q, got %+v", selectionID, current)
+		}
+	})
+
+	t.Run("should_return_empty_completions_when_host_does_not_provide_them", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		session := createPortedSession(t, client, nil)
+		defer session.Disconnect()
+
+		result, err := session.RPC.Completions.Request(t.Context(), &rpc.CompletionsRequestRequest{
+			Text:   "Use @ to mention context",
+			Offset: 5,
+		})
+		if err != nil {
+			t.Fatalf("Completions.Request failed: %v", err)
+		}
+		if result.Items == nil {
+			t.Fatal("Expected non-nil completion items list")
+		}
+	})
+
+	t.Run("should_report_visibility_as_unsynced_for_local_session", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		session := createPortedSession(t, client, nil)
+		defer session.Disconnect()
+
+		status := rpc.SessionVisibilityStatusUnshared
+		set, err := session.RPC.Visibility.Set(t.Context(), &rpc.VisibilitySetRequest{Status: status})
+		if err != nil {
+			t.Fatalf("Visibility.Set failed: %v", err)
+		}
+		if set.Synced || set.Status != nil || set.ShareURL != nil {
+			t.Fatalf("Expected unsynced visibility set result, got %+v", set)
+		}
+		get, err := session.RPC.Visibility.Get(t.Context())
+		if err != nil {
+			t.Fatalf("Visibility.Get failed: %v", err)
+		}
+		if get.Synced || get.Status != nil || get.ShareURL != nil {
+			t.Fatalf("Expected unsynced visibility get result, got %+v", get)
+		}
+	})
+
+	t.Run("should_get_context_attribution_and_heaviest_messages_after_turn", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		session := createPortedSession(t, client, nil)
+		defer session.Disconnect()
+
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say CONTEXT_METADATA_OK exactly."})
+		if err != nil {
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+		if answer == nil {
+			t.Fatal("Expected final assistant message")
+		}
+
+		attribution, err := session.RPC.Metadata.GetContextAttribution(t.Context())
+		if err != nil {
+			t.Fatalf("Metadata.GetContextAttribution failed: %v", err)
+		}
+		if attribution == nil {
+			t.Fatal("Expected attribution result")
+		}
+		limit := int64(5)
+		heaviest, err := session.RPC.Metadata.GetContextHeaviestMessages(t.Context(), &rpc.MetadataContextHeaviestMessagesRequest{Limit: &limit})
+		if err != nil {
+			t.Fatalf("Metadata.GetContextHeaviestMessages failed: %v", err)
+		}
+		if heaviest.Messages == nil {
+			t.Fatal("Expected non-nil heaviest messages list")
+		}
+	})
+
+	t.Run("should_update_and_clear_live_subagent_settings", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		session := createPortedSession(t, client, nil)
+		defer session.Disconnect()
+
+		contextTier := rpc.SubagentSettingsEntryContextTierLongContext
+		model := "gpt-5-mini"
+		reasoningEffort := "low"
+		update, err := session.RPC.Tools.UpdateSubagentSettings(t.Context(), &rpc.UpdateSubagentSettingsRequest{
+			Subagents: &rpc.SubagentSettings{
+				DisabledSubagents: []string{"legacy-agent"},
+				Agents: map[string]rpc.SubagentSettingsEntry{
+					"general-purpose": {
+						ContextTier: &contextTier,
+						Model:       &model,
+						EffortLevel: &reasoningEffort,
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Tools.UpdateSubagentSettings failed: %v", err)
+		}
+		if update == nil {
+			t.Fatal("Expected update result")
+		}
+
+		clear, err := session.RPC.Tools.UpdateSubagentSettings(t.Context(), &rpc.UpdateSubagentSettingsRequest{})
+		if err != nil {
+			t.Fatalf("Tools.UpdateSubagentSettings clear failed: %v", err)
+		}
+		if clear == nil {
+			t.Fatal("Expected clear result")
+		}
+	})
+
 	t.Run("should_reload_session_plugins", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 		session := createPortedSession(t, client, nil)

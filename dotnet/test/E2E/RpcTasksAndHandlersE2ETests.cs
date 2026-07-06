@@ -209,6 +209,14 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             response: UIAutoModeSwitchResponse.No);
         Assert.False(autoModeSwitch.Success);
 
+        var sessionLimits = await session.Rpc.Ui.HandlePendingSessionLimitsExhaustedAsync(
+            requestId: "missing-session-limits-exhausted-request",
+            response: new UISessionLimitsExhaustedResponse
+            {
+                Action = UISessionLimitsExhaustedResponseAction.Cancel,
+            });
+        Assert.False(sessionLimits.Success);
+
         var exitPlanMode = await session.Rpc.Ui.HandlePendingExitPlanModeAsync(
             requestId: "missing-exit-plan-mode-request",
             response: new UIExitPlanModeResponse
@@ -251,6 +259,19 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 LocationKey = "missing-location",
             });
         Assert.False(locationApproval.Success);
+
+        var missingHeaders = await session.Rpc.Mcp.Headers.HandlePendingHeadersRefreshRequestAsync(
+            requestId: "missing-headers-refresh-request",
+            result: new McpHeadersHandlePendingHeadersRefreshRequestHeaders
+            {
+                Headers = new Dictionary<string, string> { ["X-SDK-Test"] = "missing" },
+            });
+        Assert.False(missingHeaders.Success);
+
+        var missingNoHeaders = await session.Rpc.Mcp.Headers.HandlePendingHeadersRefreshRequestAsync(
+            requestId: "missing-headers-refresh-none-request",
+            result: new McpHeadersHandlePendingHeadersRefreshRequestNone());
+        Assert.False(missingNoHeaders.Success);
     }
 
     [Fact]

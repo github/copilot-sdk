@@ -19,8 +19,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.junit.jupiter.api.AfterAll;
@@ -33,7 +36,9 @@ import com.github.copilot.generated.McpOauthRequestReason;
 import com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams;
 import com.github.copilot.generated.rpc.McpServerStatus;
 import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
+import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
 import com.github.copilot.rpc.McpAuthInvocation;
+import com.github.copilot.rpc.McpAuthRequest;
 import com.github.copilot.rpc.McpAuthResult;
 import com.github.copilot.rpc.McpAuthToken;
 import com.github.copilot.rpc.McpHttpServerConfig;
@@ -192,6 +197,62 @@ public class McpOAuthE2ETest {
         }
     }
 
+    @Test
+    void testShouldResolvePendingMcpOauthRequestThroughRpc() throws Exception {
+        try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
+            var serverName = "oauth-direct-rpc-mcp";
+            var observedRequest = new AtomicReference<McpAuthRequest>();
+            var pendingHandlerResult = new CompletableFuture<McpAuthResult>();
+
+            try (var client = ctx.createClient();
+                    var session = client.createSession(new SessionConfig().setEnableMcpApps(true)
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setOnMcpAuthRequest((request, invocation) -> {
+                                assertNotNull(invocation);
+                                observedRequest.set(request);
+                                return pendingHandlerResult;
+                            }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
+                                    .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
+                            .get()) {
+                var connected = CompletableFuture.runAsync(() -> {
+                    try {
+                        waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
+
+                var request = waitForAuthRequest(observedRequest);
+                assertEquals(serverName, request.serverName());
+                assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
+                assertEquals(McpOauthRequestReason.INITIAL, request.reason());
+                assertNotNull(request.wwwAuthenticateParams());
+                assertEquals(oauthServer.url() + "/.well-known/oauth-protected-resource",
+                        request.wwwAuthenticateParams().resourceMetadataUrl());
+                assertEquals("mcp.read", request.wwwAuthenticateParams().scope());
+                assertEquals("invalid_token", request.wwwAuthenticateParams().error());
+
+                var handled = session.getRpc().mcp.oauth.handlePendingRequest(
+                        new SessionMcpOauthHandlePendingRequestParams(null, request.requestId(), Map.of("kind", "token",
+                                "accessToken", EXPECTED_TOKEN, "tokenType", "Bearer", "expiresIn", 3600L)))
+                        .get(30, TimeUnit.SECONDS);
+                assertTrue(handled.success());
+
+                pendingHandlerResult.complete(McpAuthResult.cancelled());
+                connected.get(60, TimeUnit.SECONDS);
+                var tools = session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)).get(30,
+                        TimeUnit.SECONDS);
+                assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
+            } finally {
+                pendingHandlerResult.complete(McpAuthResult.cancelled());
+            }
+
+            var requests = oauthServer.requests();
+            assertTrue(
+                    requests.stream().anyMatch(record -> ("Bearer " + EXPECTED_TOKEN).equals(record.authorization())));
+        }
+    }
+
     private static void callWhoami(CopilotSession session, String serverName, String scenario) throws Exception {
         var result = session.getRpc().mcp.apps.callTool(
                 new SessionMcpAppsCallToolParams(null, serverName, "whoami", Map.of("scenario", scenario), serverName))
@@ -219,6 +280,18 @@ public class McpOAuthE2ETest {
         }
         fail(serverName + " did not reach " + status + "; last status was " + lastStatus + "; auth handler invoked="
                 + (observedRequest.get() != null));
+    }
+
+    private static McpAuthRequest waitForAuthRequest(AtomicReference<McpAuthRequest> observedRequest) throws Exception {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline) {
+            var request = observedRequest.get();
+            if (request != null) {
+                return request;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("Timed out waiting for MCP OAuth request");
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

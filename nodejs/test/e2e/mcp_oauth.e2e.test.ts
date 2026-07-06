@@ -90,6 +90,73 @@ describe("MCP OAuth host auth", async () => {
     });
 
     it(
+        "should resolve pending MCP OAuth request with direct RPC",
+        { timeout: 120_000 },
+        async () => {
+            const oauthServer = await startOAuthMcpServer();
+            const serverName = "oauth-direct-rpc-mcp";
+            let resolveAuthRequest!: (request: McpAuthRequest) => void;
+            const authRequest = new Promise<McpAuthRequest>((resolve) => {
+                resolveAuthRequest = resolve;
+            });
+            let releaseHandler!: (value: unknown) => void;
+            const handlerResult = new Promise<unknown>((resolve) => {
+                releaseHandler = resolve;
+            });
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                enableMcpApps: true,
+                onMcpAuthRequest: async (request) => {
+                    resolveAuthRequest(request);
+                    await handlerResult;
+                    return { kind: "token", accessToken: EXPECTED_TOKEN };
+                },
+                mcpServers: {
+                    [serverName]: {
+                        type: "http",
+                        url: `${oauthServer.url}/mcp`,
+                        tools: ["*"],
+                        oauthClientId: "sdk-e2e-client",
+                        oauthPublicClient: true,
+                    } as unknown as MCPServerConfig,
+                },
+            });
+            onTestFinished(() => disconnectSession(session));
+
+            const connected = waitForMcpServerStatus(session, serverName);
+            const request = await authRequest;
+            expect(request).toMatchObject({
+                requestId: expect.any(String),
+                serverName,
+                serverUrl: `${oauthServer.url}/mcp`,
+                reason: "initial",
+                wwwAuthenticateParams: {
+                    resourceMetadataUrl: `${oauthServer.url}/.well-known/oauth-protected-resource`,
+                    scope: "mcp.read",
+                    error: "invalid_token",
+                },
+            });
+
+            const handled = await session.rpc.mcp.oauth.handlePendingRequest({
+                requestId: request.requestId,
+                result: {
+                    kind: "token",
+                    accessToken: EXPECTED_TOKEN,
+                    tokenType: "Bearer",
+                    expiresIn: 3600,
+                },
+            });
+            expect(handled.success).toBe(true);
+
+            await connected;
+            const tools = await session.rpc.mcp.listTools({ serverName });
+            expect(tools.tools.map((tool) => tool.name)).toContain("whoami");
+            releaseHandler(undefined);
+        }
+    );
+
+    it(
         "should request host-owned replacement tokens across the MCP OAuth lifecycle",
         { timeout: 120_000 },
         async () => {

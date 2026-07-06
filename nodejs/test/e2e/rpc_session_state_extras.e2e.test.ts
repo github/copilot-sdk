@@ -103,6 +103,103 @@ describe("Session-scoped state extras RPC", async () => {
         }
     });
 
+    it("should add byok provider and model at runtime", { timeout: 120_000 }, async () => {
+        const session = await createSession();
+        try {
+            const providerName = `sdk-runtime-provider-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const modelId = "sdk-runtime-model";
+            const selectionId = `${providerName}/${modelId}`;
+
+            const added = await session.rpc.provider.add({
+                providers: [
+                    {
+                        name: providerName,
+                        type: "openai",
+                        wireApi: "completions",
+                        baseUrl: "https://api.example.test/v1",
+                        apiKey: "runtime-provider-secret",
+                        headers: { "X-SDK-Provider": "runtime" },
+                    },
+                ],
+                models: [
+                    {
+                        provider: providerName,
+                        id: modelId,
+                        name: "SDK Runtime Model",
+                        modelId: "claude-sonnet-4.5",
+                        wireModel: "wire-sdk-runtime-model",
+                        maxContextWindowTokens: 4096,
+                        maxPromptTokens: 3072,
+                        maxOutputTokens: 1024,
+                        capabilities: {
+                            limits: {
+                                maxContextWindowTokens: 4096,
+                                maxPromptTokens: 3072,
+                                maxOutputTokens: 1024,
+                            },
+                            supports: {
+                                reasoningEffort: false,
+                                vision: false,
+                            },
+                        },
+                    },
+                ],
+            });
+
+            expect(added.models).toHaveLength(1);
+            expect(JSON.stringify(added.models[0])).toContain(selectionId);
+            expect(JSON.stringify(added.models[0])).toContain("SDK Runtime Model");
+
+            const listed = await session.rpc.model.list();
+            expect(listed.list.some((model) => JSON.stringify(model).includes(selectionId))).toBe(
+                true
+            );
+
+            const switched = await session.rpc.model.switchTo({ modelId: selectionId });
+            expect(switched.modelId).toBe(selectionId);
+            expect((await session.rpc.model.getCurrent()).modelId).toBe(selectionId);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it(
+        "should return empty completions when host does not provide them",
+        { timeout: 120_000 },
+        async () => {
+            const session = await createSession();
+            try {
+                const triggers = await session.rpc.completions.getTriggerCharacters();
+                expect(triggers.triggerCharacters).toEqual([]);
+
+                const completions = await session.rpc.completions.request({
+                    text: "Use @",
+                    offset: 5,
+                });
+                expect(completions.items).toEqual([]);
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
+
+    it("should report visibility as unsynced for local session", { timeout: 120_000 }, async () => {
+        const session = await createSession();
+        try {
+            const initial = await session.rpc.visibility.get();
+            expect(initial.synced).toBe(false);
+            expect(initial.status).toBeUndefined();
+            expect(initial.shareUrl).toBeUndefined();
+
+            const set = await session.rpc.visibility.set({ status: "repo" });
+            expect(set.synced).toBe(false);
+            expect(set.status).toBeUndefined();
+            expect(set.shareUrl).toBeUndefined();
+        } finally {
+            await session.disconnect();
+        }
+    });
+
     it("should get and set allowall permissions", { timeout: 120_000 }, async () => {
         const session = await createSession();
         try {
@@ -124,6 +221,72 @@ describe("Session-scoped state extras RPC", async () => {
             } catch {
                 // Best-effort reset.
             }
+            await session.disconnect();
+        }
+    });
+
+    it(
+        "should get context attribution and heaviest messages after turn",
+        { timeout: 120_000 },
+        async () => {
+            const session = await createSession();
+            try {
+                const answer = await session.sendAndWait({
+                    prompt: "Say CONTEXT_METADATA_OK exactly.",
+                });
+                expect(answer?.data.content ?? "").toContain("CONTEXT_METADATA_OK");
+
+                const attribution = await session.rpc.metadata.getContextAttribution();
+                expect(attribution.contextAttribution).not.toBeNull();
+                const contextAttribution = attribution.contextAttribution!;
+                expect(contextAttribution.totalTokens).toBeGreaterThan(0);
+                expect(contextAttribution.entries.length).toBeGreaterThan(0);
+                for (const entry of contextAttribution.entries) {
+                    expect(entry.id.trim()).toBeTruthy();
+                    expect(entry.kind.trim()).toBeTruthy();
+                    expect(entry.label.trim()).toBeTruthy();
+                    expect(entry.tokens).toBeGreaterThanOrEqual(0);
+                    for (const attribute of entry.attributes ?? []) {
+                        expect(attribute.key.trim()).toBeTruthy();
+                    }
+                }
+
+                const heaviest = await session.rpc.metadata.getContextHeaviestMessages({
+                    limit: 2,
+                });
+                expect(heaviest.totalTokens).toBeGreaterThan(0);
+                expect(heaviest.messages.length).toBeLessThanOrEqual(2);
+                for (const message of heaviest.messages) {
+                    expect(message.id.trim()).toBeTruthy();
+                    expect(message.tokens).toBeGreaterThanOrEqual(0);
+                }
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
+
+    it("should update and clear live subagent settings", { timeout: 120_000 }, async () => {
+        const session = await createSession();
+        try {
+            await expect(
+                session.rpc.tools.updateSubagentSettings({
+                    subagents: {
+                        "general-purpose": {
+                            model: "claude-haiku-4.5",
+                            effortLevel: "low",
+                            contextTier: "default",
+                        },
+                    },
+                })
+            ).resolves.toBeDefined();
+
+            await expect(
+                session.rpc.tools.updateSubagentSettings({
+                    subagents: null,
+                })
+            ).resolves.toBeDefined();
+        } finally {
             await session.disconnect();
         }
     });

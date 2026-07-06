@@ -226,6 +226,77 @@ func TestMCPOAuthE2E(t *testing.T) {
 			t.Fatalf("Unexpected auth request reason: %q", observedRequest.Reason)
 		}
 	})
+
+	t.Run("resolve pending MCP OAuth request through RPC", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		ctx.ConfigureWithoutSnapshot(t)
+		client := ctx.NewClient()
+		defer client.ForceStop()
+
+		baseURL := startOAuthMCPServer(t)
+		serverName := "oauth-direct-rpc-mcp"
+		requests := make(chan copilot.MCPAuthRequest, 1)
+		releaseHandler := make(chan struct{})
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			EnableMCPApps:       true,
+			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
+				requests <- request
+				<-releaseHandler
+				return copilot.MCPAuthResultCancelled(), nil
+			},
+			MCPServers: map[string]copilot.MCPServerConfig{
+				serverName: copilot.MCPHTTPServerConfig{
+					URL:   baseURL + "/mcp",
+					Tools: []string{"*"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		t.Cleanup(func() { session.Disconnect() })
+
+		connected := make(chan error, 1)
+		go func() {
+			connected <- waitForMCPServerStatusResult(t.Context(), session, serverName, rpc.MCPServerStatusConnected, 60*time.Second)
+		}()
+
+		var request copilot.MCPAuthRequest
+		select {
+		case request = <-requests:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timed out waiting for MCP OAuth request")
+		}
+
+		tokenType := "Bearer"
+		expiresIn := int64(3600)
+		result, err := session.RPC.MCP.Oauth().HandlePendingRequest(t.Context(), &rpc.MCPOauthHandlePendingRequest{
+			RequestID: request.RequestID,
+			Result: rpc.MCPOauthPendingRequestResponseToken{
+				AccessToken: expectedMCPOAuthToken,
+				TokenType:   &tokenType,
+				ExpiresIn:   &expiresIn,
+			},
+		})
+		if err != nil {
+			close(releaseHandler)
+			t.Fatalf("HandlePendingRequest failed: %v", err)
+		}
+		close(releaseHandler)
+		if !result.Success {
+			t.Fatal("Expected direct MCP OAuth pending request resolution to succeed")
+		}
+
+		if err := <-connected; err != nil {
+			t.Fatal(err)
+		}
+		requestLog := fetchOAuthMCPRequests(t, baseURL)
+		if !hasAuthorization(requestLog, "Bearer "+expectedMCPOAuthToken) {
+			t.Fatal("Expected MCP request with token supplied through direct RPC")
+		}
+	})
 }
 
 type oauthMCPRequest struct {

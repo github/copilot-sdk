@@ -55,8 +55,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsConnectResult> connect() {
-        return caller.invoke("sessions.connect", java.util.Map.of(), SessionsConnectResult.class);
+    public CompletableFuture<SessionsConnectResult> connect(SessionsConnectParams params) {
+        return caller.invoke("sessions.connect", params, SessionsConnectResult.class);
     }
 
     /**
@@ -110,8 +110,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath() {
-        return caller.invoke("sessions.getEventFilePath", java.util.Map.of(), SessionsGetEventFilePathResult.class);
+    public CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath(SessionsGetEventFilePathParams params) {
+        return caller.invoke("sessions.getEventFilePath", params, SessionsGetEventFilePathResult.class);
     }
 
     /**
@@ -143,8 +143,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable() {
-        return caller.invoke("sessions.getPersistedRemoteSteerable", java.util.Map.of(), SessionsGetPersistedRemoteSteerableResult.class);
+    public CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable(SessionsGetPersistedRemoteSteerableParams params) {
+        return caller.invoke("sessions.getPersistedRemoteSteerable", params, SessionsGetPersistedRemoteSteerableResult.class);
     }
 
     /**
@@ -154,8 +154,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> close() {
-        return caller.invoke("sessions.close", java.util.Map.of(), Void.class);
+    public CompletableFuture<Void> close(SessionsCloseParams params) {
+        return caller.invoke("sessions.close", params, Void.class);
     }
 
     /**
@@ -187,8 +187,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> save() {
-        return caller.invoke("sessions.save", java.util.Map.of(), Void.class);
+    public CompletableFuture<Void> save(SessionsSaveParams params) {
+        return caller.invoke("sessions.save", params, Void.class);
     }
 
     /**
@@ -198,8 +198,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<Void> releaseLock() {
-        return caller.invoke("sessions.releaseLock", java.util.Map.of(), Void.class);
+    public CompletableFuture<Void> releaseLock(SessionsReleaseLockParams params) {
+        return caller.invoke("sessions.releaseLock", params, Void.class);
     }
 
     /**
@@ -231,8 +231,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsLoadDeferredRepoHooksResult> loadDeferredRepoHooks() {
-        return caller.invoke("sessions.loadDeferredRepoHooks", java.util.Map.of(), SessionsLoadDeferredRepoHooksResult.class);
+    public CompletableFuture<SessionsLoadDeferredRepoHooksResult> loadDeferredRepoHooks(SessionsLoadDeferredRepoHooksParams params) {
+        return caller.invoke("sessions.loadDeferredRepoHooks", params, SessionsLoadDeferredRepoHooksResult.class);
     }
 
     /**
@@ -253,8 +253,8 @@ public final class ServerSessionsApi {
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionsGetBoardEntryCountResult> getBoardEntryCount() {
-        return caller.invoke("sessions.getBoardEntryCount", java.util.Map.of(), SessionsGetBoardEntryCountResult.class);
+    public CompletableFuture<SessionsGetBoardEntryCountResult> getBoardEntryCount(SessionsGetBoardEntryCountParams params) {
+        return caller.invoke("sessions.getBoardEntryCount", params, SessionsGetBoardEntryCountResult.class);
     }
 
     /**

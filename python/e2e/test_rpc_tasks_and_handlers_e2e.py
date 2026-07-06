@@ -14,6 +14,9 @@ import pytest
 from copilot.rpc import (
     CommandsHandlePendingCommandRequest,
     HandlePendingToolCallRequest,
+    MCPHeadersHandlePendingHeadersRefreshRequest,
+    MCPHeadersHandlePendingHeadersRefreshRequestKind,
+    MCPHeadersHandlePendingHeadersRefreshRequestRequest,
     PermissionDecisionApproveForLocation,
     PermissionDecisionApproveForLocationApprovalCustomTool,
     PermissionDecisionApproveForSession,
@@ -41,7 +44,10 @@ from copilot.rpc import (
     UIHandlePendingElicitationRequest,
     UIHandlePendingExitPlanModeRequest,
     UIHandlePendingSamplingRequest,
+    UIHandlePendingSessionLimitsExhaustedRequest,
     UIHandlePendingUserInputRequest,
+    UISessionLimitsExhaustedResponse,
+    UISessionLimitsExhaustedResponseAction,
     UIUnregisterDirectAutoModeSwitchHandlerRequest,
     UIUserInputResponse,
 )
@@ -253,6 +259,37 @@ class TestRpcTasksAndHandlers:
                 )
             )
             assert location_approval.success is False
+
+            session_limits = await session.rpc.ui.handle_pending_session_limits_exhausted(
+                UIHandlePendingSessionLimitsExhaustedRequest(
+                    request_id="missing-session-limits-request",
+                    response=UISessionLimitsExhaustedResponse(
+                        action=UISessionLimitsExhaustedResponseAction.CANCEL
+                    ),
+                )
+            )
+            assert session_limits.success is False
+
+            headers = await session.rpc.mcp.headers.handle_pending_headers_refresh_request(
+                MCPHeadersHandlePendingHeadersRefreshRequestRequest(
+                    request_id="missing-headers-refresh-request",
+                    result=MCPHeadersHandlePendingHeadersRefreshRequest(
+                        kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.HEADERS,
+                        headers={"X-SDK-Test": "missing"},
+                    ),
+                )
+            )
+            assert headers.success is False
+
+            no_headers = await session.rpc.mcp.headers.handle_pending_headers_refresh_request(
+                MCPHeadersHandlePendingHeadersRefreshRequestRequest(
+                    request_id="missing-headers-refresh-none-request",
+                    result=MCPHeadersHandlePendingHeadersRefreshRequest(
+                        kind=MCPHeadersHandlePendingHeadersRefreshRequestKind.NONE,
+                    ),
+                )
+            )
+            assert no_headers.success is False
         finally:
             await session.disconnect()
 

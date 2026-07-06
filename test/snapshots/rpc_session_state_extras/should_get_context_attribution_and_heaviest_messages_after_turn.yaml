@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say CONTEXT_METADATA_OK exactly.
+      - role: assistant
+        content: CONTEXT_METADATA_OK

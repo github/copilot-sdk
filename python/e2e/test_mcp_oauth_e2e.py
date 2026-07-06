@@ -7,7 +7,13 @@ from typing import Any
 import httpx
 import pytest
 
-from copilot.generated.rpc import MCPAppsCallToolRequest, MCPListToolsRequest
+from copilot.generated.rpc import (
+    MCPAppsCallToolRequest,
+    MCPListToolsRequest,
+    MCPOauthHandlePendingRequest,
+    MCPOauthPendingRequestResponse,
+    MCPOauthPendingRequestResponseKind,
+)
 from copilot.session import MCPServerConfig, PermissionHandler
 from copilot.session_events import McpServerStatus
 
@@ -150,6 +156,75 @@ class TestMcpOAuth:
             assert any(
                 request["authorization"] == f"Bearer {EXPECTED_TOKEN}" for request in requests
             )
+        finally:
+            await _stop_process(process)
+
+    async def test_should_resolve_pending_mcp_oauth_request_with_direct_rpc(
+        self, ctx: E2ETestContext
+    ):
+        url, process = await _start_oauth_mcp_server()
+        server_name = "oauth-direct-rpc-mcp"
+        loop = asyncio.get_running_loop()
+        observed_request = loop.create_future()
+        release_handler = asyncio.Event()
+
+        async def on_mcp_auth_request(request, _invocation):
+            if not observed_request.done():
+                observed_request.set_result(request)
+            await release_handler.wait()
+            return {"kind": "token", "accessToken": EXPECTED_TOKEN}
+
+        try:
+            mcp_servers: dict[str, MCPServerConfig] = {
+                server_name: {
+                    "type": "http",
+                    "url": f"{url}/mcp",
+                    "tools": ["*"],
+                    "oauthClientId": "sdk-e2e-client",
+                    "oauthPublicClient": True,
+                }
+            }
+            async with await ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_mcp_auth_request=on_mcp_auth_request,
+                mcp_servers=mcp_servers,
+                enable_mcp_apps=True,
+            ) as session:
+                connected = asyncio.create_task(_wait_for_mcp_server_status(session, server_name))
+                try:
+                    request = await asyncio.wait_for(observed_request, timeout=30.0)
+                    assert request["serverName"] == server_name
+                    assert request["serverUrl"] == f"{url}/mcp"
+                    assert request["reason"] == "initial"
+                    assert request["wwwAuthenticateParams"] == {
+                        "resourceMetadataUrl": f"{url}/.well-known/oauth-protected-resource",
+                        "scope": "mcp.read",
+                        "error": "invalid_token",
+                    }
+
+                    handled = await session.rpc.mcp.oauth.handle_pending_request(
+                        MCPOauthHandlePendingRequest(
+                            request_id=request["requestId"],
+                            result=MCPOauthPendingRequestResponse(
+                                kind=MCPOauthPendingRequestResponseKind.TOKEN,
+                                access_token=EXPECTED_TOKEN,
+                                token_type="Bearer",
+                                expires_in=3600,
+                            ),
+                        )
+                    )
+                    assert handled.success is True
+
+                    connected_result = await asyncio.wait_for(connected, timeout=60.0)
+                    assert connected_result is None
+                    tools = await session.rpc.mcp.list_tools(
+                        MCPListToolsRequest(server_name=server_name)
+                    )
+                    assert [tool.name for tool in tools.tools] == ["whoami"]
+                finally:
+                    release_handler.set()
+                    if not connected.done():
+                        connected.cancel()
         finally:
             await _stop_process(process)
 

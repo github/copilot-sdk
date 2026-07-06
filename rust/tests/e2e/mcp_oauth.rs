@@ -14,6 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
+use tokio::sync::Notify;
 
 use super::support::{wait_for_condition, with_e2e_context_no_snapshot};
 
@@ -98,11 +99,9 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
                     .iter()
                     .any(|request| request.authorization.is_none())
             );
-            assert!(
-                requests.iter().any(
-                    |request| request.authorization.as_deref() == Some("Bearer sdk-host-token")
-                )
-            );
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {EXPECTED_TOKEN}"))
+            }));
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
@@ -160,24 +159,15 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
             );
 
             let requests = oauth_server.requests().await;
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some("Bearer sdk-host-token-refresh"))
-            );
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some("Bearer sdk-host-token-upscope"))
-            );
-            assert!(
-                requests
-                    .iter()
-                    .any(|request| request.authorization.as_deref()
-                        == Some("Bearer sdk-host-token-reauth"))
-            );
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {REFRESH_TOKEN}"))
+            }));
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {UPSCOPE_TOKEN}"))
+            }));
+            assert!(requests.iter().any(|request| {
+                request.authorization.as_deref() == Some(&format!("Bearer {REAUTH_TOKEN}"))
+            }));
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
@@ -226,6 +216,119 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .expect("MCP auth handler should be invoked");
             assert_eq!(request.server_name, server_name);
             assert_eq!(request.reason, McpOauthRequestReason::Initial);
+
+            session.disconnect().await.expect("disconnect session");
+            client.stop().await.expect("stop client");
+            oauth_server.stop().await;
+        })
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            ctx.set_default_copilot_user();
+            let mut oauth_server = OAuthMcpServer::start(
+                ctx.repo_root()
+                    .join("test/harness/test-mcp-oauth-server.mjs"),
+            )
+            .await;
+            let server_name = "oauth-direct-rpc-mcp";
+            let observed_request = Arc::new(Mutex::new(None));
+            let request_observed = Arc::new(Notify::new());
+            let release_handler = Arc::new(Notify::new());
+            let handler = Arc::new(BlockingAuthHandler {
+                request: observed_request.clone(),
+                request_observed: request_observed.clone(),
+                release: release_handler.clone(),
+            });
+            let client = ctx.start_client().await;
+            let session = client
+                .create_session(
+                    ctx.approve_all_session_config()
+                        .with_enable_mcp_apps(true)
+                        .with_mcp_auth_handler(handler)
+                        .with_mcp_servers(HashMap::from([(
+                            server_name.to_string(),
+                            McpServerConfig::Http(McpHttpServerConfig {
+                                tools: Some(vec!["*".to_string()]),
+                                timeout: None,
+                                url: format!("{}/mcp", oauth_server.url),
+                                headers: HashMap::new(),
+                            }),
+                        )])),
+                )
+                .await
+                .expect("create session");
+
+            let connected =
+                wait_for_mcp_server_status(&session, server_name, McpServerStatus::Connected);
+            tokio::pin!(connected);
+            tokio::select! {
+                () = request_observed.notified() => {}
+                () = &mut connected => panic!("MCP server connected before OAuth request was observed"),
+            }
+            let request = observed_request
+                .lock()
+                .clone()
+                .expect("MCP auth request");
+            assert_eq!(request.server_name, server_name);
+            assert_eq!(request.server_url, format!("{}/mcp", oauth_server.url));
+            assert_eq!(request.reason, McpOauthRequestReason::Initial);
+            let www_authenticate = request
+                .www_authenticate_params
+                .as_ref()
+                .expect("WWW-Authenticate params");
+            assert_eq!(
+                www_authenticate.resource_metadata_url,
+                Some(format!(
+                    "{}/.well-known/oauth-protected-resource",
+                    oauth_server.url
+                ))
+            );
+            assert_eq!(www_authenticate.scope.as_deref(), Some("mcp.read"));
+            assert_eq!(www_authenticate.error.as_deref(), Some("invalid_token"));
+
+            let handled = session
+                .rpc()
+                .mcp()
+                .oauth()
+                .handle_pending_request(github_copilot_sdk::rpc::McpOauthHandlePendingRequest {
+                    request_id: request.request_id,
+                    result: github_copilot_sdk::rpc::McpOauthPendingRequestResponse::Token(
+                        github_copilot_sdk::rpc::McpOauthPendingRequestResponseToken {
+                            access_token: EXPECTED_TOKEN.to_string(),
+                            expires_in: Some(3600),
+                            kind: github_copilot_sdk::rpc::McpOauthPendingRequestResponseTokenKind::Token,
+                            token_type: Some("Bearer".to_string()),
+                        },
+                    ),
+                })
+                .await
+                .expect("handle pending MCP OAuth request");
+            assert!(handled.success);
+
+            release_handler.notify_one();
+            connected.await;
+            let tools = session
+                .rpc()
+                .mcp()
+                .list_tools(McpListToolsRequest {
+                    server_name: server_name.to_string(),
+                })
+                .await
+                .expect("list MCP tools");
+            assert!(tools.tools.iter().any(|tool| tool.name == "whoami"));
+            let requests = oauth_server.requests().await;
+            assert!(
+                requests
+                    .iter()
+                    .any(|request| {
+                        request.authorization.as_deref() == Some(&format!("Bearer {EXPECTED_TOKEN}"))
+                    })
+            );
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
@@ -335,6 +438,32 @@ impl McpAuthHandler for CancelAuthHandler {
         assert_eq!(request.request_id, request_id);
         *self.request.lock() = Some(request);
         McpAuthResult::Cancelled
+    }
+}
+
+struct BlockingAuthHandler {
+    request: Arc<Mutex<Option<McpAuthRequest>>>,
+    request_observed: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl McpAuthHandler for BlockingAuthHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        request_id: RequestId,
+        request: McpAuthRequest,
+    ) -> McpAuthResult {
+        assert_eq!(request.request_id, request_id);
+        *self.request.lock() = Some(request);
+        self.request_observed.notify_one();
+        self.release.notified().await;
+        McpAuthResult::Token {
+            access_token: EXPECTED_TOKEN.to_string(),
+            token_type: Some("Bearer".to_string()),
+            expires_in: Some(3600),
+        }
     }
 }
 

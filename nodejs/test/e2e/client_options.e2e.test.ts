@@ -6,8 +6,8 @@ import * as fs from "fs";
 import * as net from "net";
 import * as path from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { approveAll, CopilotClient, createCanvas, RuntimeConnection } from "../../src/index.js";
+import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 
 const FAKE_STDIO_CLI_SCRIPT = `const fs = require("fs");
 
@@ -99,6 +99,17 @@ function handleMessage(message) {
     return;
   }
 
+  if (message.method === "session.resume") {
+    const sessionId = message.params?.sessionId ?? message.params?.[0]?.sessionId ?? "fake-session";
+    writeResponse(message.id, {
+      sessionId,
+      workspacePath: null,
+      capabilities: null,
+      openCanvases: message.params?.openCanvases ?? []
+    });
+    return;
+  }
+
   writeResponse(message.id, {});
 }
 
@@ -138,6 +149,27 @@ function assertArgumentValue(
     expect(args[index + 1]).toBe(expectedValue);
 }
 
+function getCapturedRequest(capturePath: string, method: string): Record<string, unknown> {
+    const raw = fs.readFileSync(capturePath, "utf8");
+    const capture = JSON.parse(raw) as {
+        requests: { method: string; params: Record<string, unknown> }[];
+    };
+    const request = capture.requests.find((r) => r.method === method);
+    expect(request, `Expected ${method} request in capture`).toBeDefined();
+    return request!.params;
+}
+
+function getObject(value: unknown): Record<string, unknown> {
+    expect(value).toBeTypeOf("object");
+    expect(value).not.toBeNull();
+    return value as Record<string, unknown>;
+}
+
+function getArray(value: unknown): unknown[] {
+    expect(Array.isArray(value)).toBe(true);
+    return value as unknown[];
+}
+
 describe("Client options", async () => {
     const { copilotClient: defaultClient, env, workDir } = await createSdkTestContext();
 
@@ -146,6 +178,7 @@ describe("Client options", async () => {
             workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
         onTestFinished(async () => {
             try {
@@ -200,7 +233,7 @@ describe("Client options", async () => {
             workingDirectory: clientCwd,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-            gitHubToken: process.env.CI ? "fake-token-for-e2e-tests" : undefined,
+            gitHubToken: DEFAULT_GITHUB_TOKEN,
         });
         onTestFinished(async () => {
             try {
@@ -314,6 +347,315 @@ describe("Client options", async () => {
         expect(createRequests[0].params.enableConfigDiscovery).toBe(true);
         expect(createRequests[0].params.enableOnDemandInstructionDiscovery).toBe(true);
         expect(createRequests[0].params.includeSubAgentStreamingEvents).toBe(false);
+
+        await session.disconnect();
+    });
+
+    it("should forward advanced session options in create wire request", async () => {
+        const cliPath = path.join(
+            workDir,
+            `fake-cli-advanced-create-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+        );
+        const capturePath = path.join(
+            workDir,
+            `fake-cli-advanced-create-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+        );
+        const outputDirectory = path.join(workDir, "large-output-create");
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        const client = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            useLoggedInUser: false,
+        });
+        onTestFinished(async () => {
+            try {
+                await client.forceStop();
+            } catch {
+                // Ignore cleanup errors
+            }
+        });
+
+        await client.start();
+
+        const canvas = createCanvas({
+            id: "advanced-create-canvas",
+            displayName: "Advanced Create Canvas",
+            description: "Covers create-time canvas options.",
+            open: () => ({ url: "https://example.test/advanced-create-canvas" }),
+        });
+        const session = await client.createSession({
+            clientName: "advanced-create-client",
+            model: "claude-sonnet-4.5",
+            reasoningEffort: "medium",
+            reasoningSummary: "detailed",
+            contextTier: "long_context",
+            enableCitations: true,
+            capi: { enableWebSocketResponses: false },
+            mcpOAuthTokenStorage: "persistent",
+            customAgents: [
+                {
+                    name: "agent-one",
+                    displayName: "Agent One",
+                    description: "Handles agent-one tasks.",
+                    prompt: "Be agent one.",
+                    tools: ["view"],
+                    infer: true,
+                    skills: ["create-skill"],
+                    model: "claude-haiku-4.5",
+                },
+            ],
+            defaultAgent: { excludedTools: ["edit"] },
+            agent: "agent-one",
+            skillDirectories: ["skills-create"],
+            disabledSkills: ["disabled-create-skill"],
+            pluginDirectories: ["plugins-create"],
+            infiniteSessions: {
+                enabled: false,
+                backgroundCompactionThreshold: 0.5,
+                bufferExhaustionThreshold: 0.9,
+            },
+            largeOutput: {
+                enabled: true,
+                maxSizeBytes: 4096,
+                outputDirectory,
+            },
+            memory: { enabled: true },
+            gitHubToken: "session-create-token",
+            remoteSession: "export",
+            cloud: {
+                repository: {
+                    owner: "github",
+                    name: "copilot-sdk",
+                    branch: "main",
+                },
+            },
+            enableMcpApps: true,
+            requestCanvasRenderer: true,
+            requestExtensions: true,
+            extensionSdkPath: "custom-extension-sdk",
+            extensionInfo: { source: "typescript-sdk-tests", name: "advanced-create-extension" },
+            canvases: [canvas],
+            providers: [
+                {
+                    name: "create-provider",
+                    type: "openai",
+                    wireApi: "responses",
+                    baseUrl: "https://create-provider.example.test/v1",
+                    apiKey: "create-provider-key",
+                    headers: { "X-Create-Provider": "yes" },
+                },
+            ],
+            models: [
+                {
+                    provider: "create-provider",
+                    id: "create-model",
+                    name: "Create Model",
+                    modelId: "claude-sonnet-4.5",
+                    wireModel: "create-wire-model",
+                    maxContextWindowTokens: 12_000,
+                    maxPromptTokens: 10_000,
+                    maxOutputTokens: 2_000,
+                },
+            ],
+            onPermissionRequest: approveAll,
+        });
+
+        const createRequest = getCapturedRequest(capturePath, "session.create");
+        expect(createRequest.clientName).toBe("advanced-create-client");
+        expect(createRequest.model).toBe("claude-sonnet-4.5");
+        expect(createRequest.reasoningEffort).toBe("medium");
+        expect(createRequest.reasoningSummary).toBe("detailed");
+        expect(createRequest.contextTier).toBe("long_context");
+        expect(createRequest.enableCitations).toBe(true);
+        expect(getObject(createRequest.capi).enableWebSocketResponses).toBe(false);
+        expect(createRequest.mcpOAuthTokenStorage).toBe("persistent");
+        expect(createRequest.agent).toBe("agent-one");
+        expect(getArray(getObject(createRequest.defaultAgent).excludedTools)[0]).toBe("edit");
+        expect(getObject(getArray(createRequest.customAgents)[0]).name).toBe("agent-one");
+        expect(getArray(createRequest.pluginDirectories)[0]).toBe("plugins-create");
+        expect(getArray(createRequest.disabledSkills)[0]).toBe("disabled-create-skill");
+        expect(getObject(createRequest.infiniteSessions).enabled).toBe(false);
+        expect(getObject(createRequest.largeOutput).enabled).toBe(true);
+        expect(getObject(createRequest.largeOutput).maxSizeBytes).toBe(4096);
+        expect(getObject(createRequest.largeOutput).outputDir).toBe(outputDirectory);
+        expect(getObject(createRequest.memory).enabled).toBe(true);
+        expect(createRequest.gitHubToken).toBe("session-create-token");
+        expect(createRequest.remoteSession).toBe("export");
+        expect(getObject(getObject(createRequest.cloud).repository).owner).toBe("github");
+        expect(createRequest.requestMcpApps).toBe(true);
+        expect(createRequest.requestCanvasRenderer).toBe(true);
+        expect(createRequest.requestExtensions).toBe(true);
+        expect(createRequest.extensionSdkPath).toBe("custom-extension-sdk");
+        expect(getObject(createRequest.extensionInfo).name).toBe("advanced-create-extension");
+        expect(getObject(getArray(createRequest.canvases)[0]).id).toBe("advanced-create-canvas");
+        expect(getObject(getArray(createRequest.providers)[0]).name).toBe("create-provider");
+        expect(getObject(getArray(createRequest.providers)[0]).wireApi).toBe("responses");
+        expect(getObject(getArray(createRequest.models)[0]).id).toBe("create-model");
+        expect(getObject(getArray(createRequest.models)[0]).maxContextWindowTokens).toBe(12_000);
+
+        await session.disconnect();
+    });
+
+    it("should forward singular provider options in create wire request", async () => {
+        const cliPath = path.join(
+            workDir,
+            `fake-cli-provider-create-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+        );
+        const capturePath = path.join(
+            workDir,
+            `fake-cli-provider-create-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+        );
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        const client = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            useLoggedInUser: false,
+        });
+        onTestFinished(async () => {
+            try {
+                await client.forceStop();
+            } catch {
+                // Ignore cleanup errors
+            }
+        });
+
+        await client.start();
+
+        const session = await client.createSession({
+            model: "claude-sonnet-4.5",
+            provider: {
+                type: "azure",
+                wireApi: "responses",
+                transport: "http",
+                baseUrl: "https://azure-provider.example.test/openai",
+                apiKey: "provider-api-key",
+                bearerToken: "provider-bearer-token",
+                azure: { apiVersion: "2024-02-15-preview" },
+                headers: { "X-Provider-Wire": "yes" },
+                modelId: "claude-sonnet-4.5",
+                wireModel: "azure-deployment",
+                maxPromptTokens: 8192,
+                maxOutputTokens: 1024,
+            },
+            onPermissionRequest: approveAll,
+        });
+
+        const provider = getObject(getCapturedRequest(capturePath, "session.create").provider);
+        expect(provider.type).toBe("azure");
+        expect(provider.wireApi).toBe("responses");
+        expect(provider.transport).toBe("http");
+        expect(provider.baseUrl).toBe("https://azure-provider.example.test/openai");
+        expect(provider.apiKey).toBe("provider-api-key");
+        expect(provider.bearerToken).toBe("provider-bearer-token");
+        expect(getObject(provider.azure).apiVersion).toBe("2024-02-15-preview");
+        expect(getObject(provider.headers)["X-Provider-Wire"]).toBe("yes");
+        expect(provider.modelId).toBe("claude-sonnet-4.5");
+        expect(provider.wireModel).toBe("azure-deployment");
+        expect(provider.maxPromptTokens).toBe(8192);
+        expect(provider.maxOutputTokens).toBe(1024);
+
+        await session.disconnect();
+    });
+
+    it("should forward advanced session options in resume wire request", async () => {
+        const cliPath = path.join(
+            workDir,
+            `fake-cli-advanced-resume-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+        );
+        const capturePath = path.join(
+            workDir,
+            `fake-cli-advanced-resume-capture-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+        );
+        const outputDirectory = path.join(workDir, "large-output-resume");
+        fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
+
+        const client = new CopilotClient({
+            workingDirectory: workDir,
+            env,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            useLoggedInUser: false,
+        });
+        onTestFinished(async () => {
+            try {
+                await client.forceStop();
+            } catch {
+                // Ignore cleanup errors
+            }
+        });
+
+        await client.start();
+
+        const session = await client.resumeSession("advanced-resume-session", {
+            clientName: "advanced-resume-client",
+            model: "claude-haiku-4.5",
+            reasoningEffort: "low",
+            reasoningSummary: "none",
+            contextTier: "default",
+            suppressResumeEvent: true,
+            continuePendingWork: true,
+            mcpOAuthTokenStorage: "persistent",
+            pluginDirectories: ["plugins-resume"],
+            largeOutput: {
+                enabled: false,
+                maxSizeBytes: 2048,
+                outputDirectory,
+            },
+            memory: { enabled: false },
+            remoteSession: "on",
+            openCanvases: [
+                {
+                    canvasId: "resume-canvas",
+                    extensionId: "typescript-sdk-tests/resume-extension",
+                    extensionName: "Resume Extension",
+                    instanceId: "resume-canvas-1",
+                    input: { start: 41 },
+                    status: "ready",
+                    title: "Resume Canvas",
+                    url: "https://example.com/resume-canvas",
+                },
+            ],
+            onPermissionRequest: approveAll,
+        });
+
+        const resumeRequest = getCapturedRequest(capturePath, "session.resume");
+        expect(resumeRequest.sessionId).toBe("advanced-resume-session");
+        expect(resumeRequest.clientName).toBe("advanced-resume-client");
+        expect(resumeRequest.model).toBe("claude-haiku-4.5");
+        expect(resumeRequest.reasoningEffort).toBe("low");
+        expect(resumeRequest.reasoningSummary).toBe("none");
+        expect(resumeRequest.contextTier).toBe("default");
+        expect(resumeRequest.disableResume).toBe(true);
+        expect(resumeRequest.continuePendingWork).toBe(true);
+        expect(resumeRequest.mcpOAuthTokenStorage).toBe("persistent");
+        expect(getArray(resumeRequest.pluginDirectories)[0]).toBe("plugins-resume");
+        expect(getObject(resumeRequest.largeOutput).enabled).toBe(false);
+        expect(getObject(resumeRequest.largeOutput).maxSizeBytes).toBe(2048);
+        expect(getObject(resumeRequest.largeOutput).outputDir).toBe(outputDirectory);
+        expect(getObject(resumeRequest.memory).enabled).toBe(false);
+        expect(resumeRequest.remoteSession).toBe("on");
+
+        const openCanvas = getObject(getArray(resumeRequest.openCanvases)[0]);
+        expect(openCanvas.canvasId).toBe("resume-canvas");
+        expect(openCanvas.extensionId).toBe("typescript-sdk-tests/resume-extension");
+        expect(openCanvas.extensionName).toBe("Resume Extension");
+        expect(openCanvas.instanceId).toBe("resume-canvas-1");
+        expect(getObject(openCanvas.input).start).toBe(41);
+        expect(openCanvas.status).toBe("ready");
+        expect(openCanvas.title).toBe("Resume Canvas");
+        expect(openCanvas.url).toBe("https://example.com/resume-canvas");
 
         await session.disconnect();
     });

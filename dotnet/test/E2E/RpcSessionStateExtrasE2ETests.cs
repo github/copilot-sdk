@@ -11,8 +11,10 @@ namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// E2E coverage for session-scoped RPC methods that were previously untested:
-/// model.list, metadata.activity, permissions.getAllowAll/setAllowAll, plan.readSqlTodos,
-/// telemetry.getEngagementId, tools.getCurrentMetadata, and the session-scoped plugins.reload.
+/// completions, model.list, metadata.activity/context attribution/heaviest messages,
+/// permissions.getAllowAll/setAllowAll, plan.readSqlTodos, provider.add,
+/// telemetry.getEngagementId, tools.getCurrentMetadata/updateSubagentSettings,
+/// session visibility, and the session-scoped plugins.reload.
 /// </summary>
 public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_session_state_extras", output)
@@ -42,6 +44,69 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
     }
 
     [Fact]
+    public async Task Should_Add_Byok_Provider_And_Model_At_Runtime()
+    {
+        await using var session = await CreateSessionAsync();
+        var providerName = $"sdk-runtime-provider-{Guid.NewGuid():N}";
+        var modelId = "sdk-runtime-model";
+        var selectionId = $"{providerName}/{modelId}";
+
+        var added = await session.Rpc.Provider.AddAsync(
+            providers:
+            [
+                new GitHub.Copilot.Rpc.NamedProviderConfig
+                {
+                    Name = providerName,
+                    Type = ProviderConfigType.Openai,
+                    WireApi = ProviderConfigWireApi.Completions,
+                    BaseUrl = "https://api.example.test/v1",
+                    ApiKey = "runtime-provider-secret",
+                    Headers = new Dictionary<string, string> { ["X-SDK-Provider"] = "runtime" },
+                },
+            ],
+            models:
+            [
+                new GitHub.Copilot.Rpc.ProviderModelConfig
+                {
+                    Provider = providerName,
+                    Id = modelId,
+                    Name = "SDK Runtime Model",
+                    ModelId = "claude-sonnet-4.5",
+                    WireModel = "wire-sdk-runtime-model",
+                    MaxContextWindowTokens = 4_096,
+                    MaxPromptTokens = 3_072,
+                    MaxOutputTokens = 1_024,
+                    Capabilities = new GitHub.Copilot.Rpc.ModelCapabilitiesOverride
+                    {
+                        Limits = new GitHub.Copilot.Rpc.ModelCapabilitiesOverrideLimits
+                        {
+                            MaxContextWindowTokens = 4_096,
+                            MaxPromptTokens = 3_072,
+                            MaxOutputTokens = 1_024,
+                        },
+                        Supports = new GitHub.Copilot.Rpc.ModelCapabilitiesOverrideSupports
+                        {
+                            ReasoningEffort = false,
+                            Vision = false,
+                        },
+                    },
+                },
+            ]);
+
+        var addedModel = Assert.Single(added.Models);
+        var addedModelJson = addedModel.GetRawText();
+        Assert.Contains(selectionId, addedModelJson, StringComparison.Ordinal);
+        Assert.Contains("SDK Runtime Model", addedModelJson, StringComparison.Ordinal);
+
+        var listed = await session.Rpc.Model.ListAsync();
+        Assert.Contains(listed.List, model => model.GetRawText().Contains(selectionId, StringComparison.Ordinal));
+
+        var switched = await session.Rpc.Model.SwitchToAsync(selectionId);
+        Assert.Equal(selectionId, switched.ModelId);
+        Assert.Equal(selectionId, (await session.Rpc.Model.GetCurrentAsync()).ModelId);
+    }
+
+    [Fact]
     public async Task Should_Report_Session_Activity_When_Idle()
     {
         await using var session = await CreateSessionAsync();
@@ -52,6 +117,36 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
         // tasks, and nothing to abort.
         Assert.False(activity.HasActiveWork, "Expected a freshly created session to report no active work.");
         Assert.False(activity.Abortable, "Expected a freshly created session to have nothing abortable.");
+    }
+
+    [Fact]
+    public async Task Should_Return_Empty_Completions_When_Host_Does_Not_Provide_Them()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var triggers = await session.Rpc.Completions.GetTriggerCharactersAsync();
+        Assert.NotNull(triggers.TriggerCharacters);
+        Assert.Empty(triggers.TriggerCharacters);
+
+        var completions = await session.Rpc.Completions.RequestAsync("Use @", offset: 5);
+        Assert.NotNull(completions.Items);
+        Assert.Empty(completions.Items);
+    }
+
+    [Fact]
+    public async Task Should_Report_Visibility_As_Unsynced_For_Local_Session()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var initial = await session.Rpc.Visibility.GetAsync();
+        Assert.False(initial.Synced);
+        Assert.Null(initial.Status);
+        Assert.Null(initial.ShareUrl);
+
+        var set = await session.Rpc.Visibility.SetAsync(SessionVisibilityStatus.Repo);
+        Assert.False(set.Synced);
+        Assert.Null(set.Status);
+        Assert.Null(set.ShareUrl);
     }
 
     [Fact]
@@ -125,6 +220,74 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
             Assert.False(string.IsNullOrWhiteSpace(tool.Name));
             Assert.NotNull(tool.Description);
         });
+    }
+
+    [Fact]
+    public async Task Should_Get_Context_Attribution_And_Heaviest_Messages_After_Turn()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var answer = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Say CONTEXT_METADATA_OK exactly.",
+        });
+        Assert.Contains("CONTEXT_METADATA_OK", answer?.Data.Content ?? string.Empty, StringComparison.Ordinal);
+
+        var attribution = await session.Rpc.Metadata.GetContextAttributionAsync();
+        var contextAttribution = Assert.IsType<MetadataContextAttributionResultContextAttribution>(
+            attribution.ContextAttribution);
+        Assert.True(contextAttribution.TotalTokens > 0);
+        Assert.True(contextAttribution.Compactions.Count >= 0);
+        Assert.NotEmpty(contextAttribution.Entries);
+        Assert.All(contextAttribution.Entries, entry =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(entry.Id));
+            Assert.False(string.IsNullOrWhiteSpace(entry.Kind));
+            Assert.False(string.IsNullOrWhiteSpace(entry.Label));
+            Assert.True(entry.Tokens >= 0);
+            if (entry.Attributes is not null)
+            {
+                Assert.All(entry.Attributes, attribute => Assert.False(string.IsNullOrWhiteSpace(attribute.Key)));
+            }
+        });
+
+        var heaviest = await session.Rpc.Metadata.GetContextHeaviestMessagesAsync(limit: 2);
+        Assert.True(heaviest.TotalTokens > 0);
+        Assert.NotNull(heaviest.Messages);
+        Assert.True(heaviest.Messages.Count <= 2);
+        Assert.All(heaviest.Messages, message =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(message.Id));
+            Assert.False(string.IsNullOrWhiteSpace(message.Label));
+            Assert.False(string.IsNullOrWhiteSpace(message.Role));
+            Assert.True(message.Tokens > 0);
+        });
+    }
+
+    [Fact]
+    public async Task Should_Update_And_Clear_Live_Subagent_Settings()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var update = await session.Rpc.Tools.UpdateSubagentSettingsAsync(new UpdateSubagentSettingsRequestSubagents
+        {
+            Agents = new Dictionary<string, SubagentSettingsEntry>
+            {
+                ["general-purpose"] = new()
+                {
+                    Model = "claude-sonnet-4.5",
+                    EffortLevel = "high",
+                    ContextTier = SubagentSettingsEntryContextTier.Default,
+                },
+            },
+            DisabledSubagents = ["explore"],
+            MaxConcurrency = 2,
+            MaxDepth = 1,
+        });
+        Assert.NotNull(update);
+
+        var clear = await session.Rpc.Tools.UpdateSubagentSettingsAsync();
+        Assert.NotNull(clear);
     }
 
     [Fact]

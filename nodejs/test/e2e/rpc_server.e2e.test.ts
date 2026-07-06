@@ -103,6 +103,39 @@ describe("Server-scoped RPC", async () => {
         expect(Date.parse(result.timestamp)).not.toBeNaN();
     });
 
+    it("should reject llm inference response frames for missing request", async () => {
+        await client.start();
+
+        const start = await client.rpc.llmInference.httpResponseStart({
+            requestId: "missing-llm-inference-request",
+            status: 200,
+            headers: {
+                "content-type": ["text/event-stream"],
+            },
+            statusText: "OK",
+        });
+        expect(start.accepted).toBe(false);
+
+        const chunk = await client.rpc.llmInference.httpResponseChunk({
+            requestId: "missing-llm-inference-request",
+            data: "data: {}\n\n",
+            binary: false,
+            end: false,
+        });
+        expect(chunk.accepted).toBe(false);
+
+        const error = await client.rpc.llmInference.httpResponseChunk({
+            requestId: "missing-llm-inference-request",
+            data: "",
+            end: true,
+            error: {
+                code: "missing_request",
+                message: "No pending LLM inference request.",
+            },
+        });
+        expect(error.accepted).toBe(false);
+    });
+
     it("should call rpc models list with typed result", async () => {
         const token = "rpc-models-token";
         await configureAuthenticatedUser(token);
@@ -400,6 +433,59 @@ describe("Server-scoped RPC", async () => {
         expect(discovered[0].description).toBe("Skill discovered by server-scoped RPC tests.");
         expect(discovered[0].enabled).toBe(true);
         expect(discovered[0].path.endsWith(path.join(skillName, "SKILL.md"))).toBe(true);
+
+        const skillPaths = await client.rpc.skills.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostSkills: true,
+        });
+        const projectSkillPath = skillPaths.paths.find(
+            (p) => p.projectPath && pathsEqual(p.projectPath, workDir) && p.preferredForCreation
+        );
+        if (!projectSkillPath) {
+            throw new Error(`Expected skill discovery paths to include ${workDir}`);
+        }
+        expect(projectSkillPath.path.trim()).not.toBe("");
+
+        const agents = await client.rpc.agents.discover({
+            projectPaths: [workDir],
+            excludeHostAgents: true,
+        });
+        expect(agents.agents.every((agent) => agent.name.trim() !== "")).toBe(true);
+
+        const agentPaths = await client.rpc.agents.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostAgents: true,
+        });
+        const projectAgentPath = agentPaths.paths.find(
+            (p) => p.projectPath && pathsEqual(p.projectPath, workDir) && p.preferredForCreation
+        );
+        if (!projectAgentPath) {
+            throw new Error(`Expected agent discovery paths to include ${workDir}`);
+        }
+        expect(projectAgentPath.path.trim()).not.toBe("");
+
+        const instructions = await client.rpc.instructions.discover({
+            projectPaths: [workDir],
+            excludeHostInstructions: true,
+        });
+        expect(
+            instructions.sources.every(
+                (source) =>
+                    source.id.trim() !== "" &&
+                    source.label.trim() !== "" &&
+                    source.sourcePath.trim() !== ""
+            )
+        ).toBe(true);
+
+        const instructionPaths = await client.rpc.instructions.getDiscoveryPaths({
+            projectPaths: [workDir],
+            excludeHostInstructions: true,
+        });
+        expect(instructionPaths.paths.length).toBeGreaterThan(0);
+        expect(
+            instructionPaths.paths.some((p) => p.projectPath && pathsEqual(p.projectPath, workDir))
+        ).toBe(true);
+        expect(instructionPaths.paths.every((p) => p.path.trim() !== "")).toBe(true);
 
         try {
             await client.rpc.skills.config.setDisabledSkills({ disabledSkills: [skillName] });
