@@ -75,7 +75,7 @@ All 6 (or 8) `runtime.node` binaries are bundled inside the single `copilot-sdk-
 
 **Drawbacks:**
 - Every user downloads every platform regardless of their target. A developer on Apple Silicon downloads 105+ MB of Linux and Windows binaries they will never use.
-- Build tooling (thin Docker layers, incremental CI caches, artifact registries) penalises large JARs. A single 134–182 MB JAR invalidates the entire cache whenever any platform's binary changes.
+- Build tooling (thin Docker layers, incremental CI caches, artifact registries) penalises large JARs. A single 132–180 MB JAR invalidates the entire cache whenever any platform's binary changes.
 - Maven's dependency resolution has no mechanism to supply platform-appropriate variants automatically; platform selection must happen entirely at runtime inside the JAR.
 - Conflicts with the principle that Maven artifacts should be reproducible and minimal.
 
