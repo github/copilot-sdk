@@ -81,8 +81,11 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
 
+      - name: Select inprocess transport
+        if: matrix.transport == 'inprocess'
+        run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
+
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
         run: dotnet test --no-build -v n
