@@ -11,29 +11,12 @@ namespace GitHub.Copilot.Test.E2E;
 // Other test classes should instead inherit from E2ETestBase
 public class ClientE2ETests
 {
-    // When the run selects the in-process transport
-    // (COPILOT_SDK_DEFAULT_CONNECTION=inprocess, set by the in-process CI cell),
-    // these transport-parametrized tests exercise the in-process FFI connection
-    // instead of spawning a stdio/tcp CLI subprocess. Those subprocesses are
-    // unproxied and would reach the real Copilot API (e.g. models.list), which is
-    // unreachable on CI runners; in the in-process cell we run over the host instead.
-    private static bool IsInProcessMode()
-        => string.Equals(
-            Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION"),
-            "inprocess",
-            StringComparison.OrdinalIgnoreCase);
-
-    private static RuntimeConnection TransportConnection(bool useStdio)
-        => IsInProcessMode()
-            ? RuntimeConnection.ForInProcess()
-            : useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp();
-
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
     public async Task Should_Start_And_Connect_To_Server(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -81,7 +64,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
@@ -92,7 +75,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -116,7 +99,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Auth_Status(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -143,7 +126,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_List_Models_When_Authenticated(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -181,7 +164,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
         await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
@@ -235,7 +218,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = TransportConnection(useStdio) });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
         await using var session = await client.CreateSessionAsync(new SessionConfig());
 
         Assert.NotNull(session.SessionId);
@@ -287,7 +270,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            Connection = TransportConnection(useStdio),
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -324,7 +307,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            Connection = TransportConnection(useStdio),
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -360,7 +343,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            Connection = TransportConnection(useStdio),
+            Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
