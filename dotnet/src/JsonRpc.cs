@@ -206,14 +206,12 @@ internal sealed partial class JsonRpc : IDisposable
 
     private async Task SendMessageAsync<T>(T message, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
-        // "Content-Length: " (16) + max int digits (10) + "\r\n\r\n" (4)
-        const int MaxHeaderLength = 30;
-
         var json = JsonSerializer.SerializeToUtf8Bytes(message, typeInfo);
 
-        var headerBuf = ArrayPool<byte>.Shared.Rent(MaxHeaderLength);
-        bool wrote = Utf8.TryWrite(headerBuf, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen);
-        Debug.Assert(wrote && headerLen > 0);
+        // Format the LSP header and body into a single pooled buffer so the framed
+        // message is written in one call — over the FFI transport that is one native
+        // boundary crossing per message instead of two.
+        var frame = BuildFrame(json, out int frameLen);
 
         // Cancellation only applies to *waiting* for the write lock. Once we hold the lock
         // and start writing a framed message, we must finish it — cancelling between the
@@ -223,15 +221,40 @@ internal sealed partial class JsonRpc : IDisposable
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _sendStream.WriteAsync(headerBuf.AsMemory(0, headerLen), CancellationToken.None).ConfigureAwait(false);
-            await _sendStream.WriteAsync(json, CancellationToken.None).ConfigureAwait(false);
+            await _sendStream.WriteAsync(frame.AsMemory(0, frameLen), CancellationToken.None).ConfigureAwait(false);
             await _sendStream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
         }
         finally
         {
             _writeLock.Release();
-            ArrayPool<byte>.Shared.Return(headerBuf);
+            ArrayPool<byte>.Shared.Return(frame);
         }
+    }
+
+    /// <summary>
+    /// Writes <c>Content-Length: N\r\n\r\n</c> followed by <paramref name="json"/> into a
+    /// single buffer rented from <see cref="ArrayPool{T}"/>. The caller owns the returned
+    /// buffer and must return it to the shared pool.
+    /// </summary>
+    private static byte[] BuildFrame(ReadOnlySpan<byte> json, out int frameLen)
+    {
+        // "Content-Length: " (16) + max int digits (10) + "\r\n\r\n" (4)
+        const int MaxHeaderLength = 30;
+
+        // Over-rent by the (fixed, tiny) header bound so the header can be written
+        // straight into the frame — no scratch buffer or header copy. The JSON is
+        // already UTF-8, so the only copy is placing it after the header, which is
+        // unavoidable since Content-Length needs its length up front.
+        var frame = ArrayPool<byte>.Shared.Rent(MaxHeaderLength + json.Length);
+        if (!Utf8.TryWrite(frame, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen))
+        {
+            ArrayPool<byte>.Shared.Return(frame);
+            throw new InvalidOperationException("Failed to write JSON-RPC frame header.");
+        }
+
+        json.CopyTo(frame.AsSpan(headerLen));
+        frameLen = headerLen + json.Length;
+        return frame;
     }
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)

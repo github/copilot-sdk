@@ -1563,7 +1563,7 @@ class AssistantUsageData:
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.time_to_first_token is not None:
-            result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta_int], self.time_to_first_token)
+            result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta], self.time_to_first_token)
         return result
 
 

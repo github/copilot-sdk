@@ -423,7 +423,7 @@ public sealed class ClientSessionLifetimeTests
         var rpc = connectionType.GetProperty("Rpc")!.GetValue(connection);
         var networkStream = connectionType.GetProperty("NetworkStream")!.GetValue(connection);
         var constructor = connectionType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).Single();
-        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null]);
+        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null, null]);
         var fromResult = typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(connectionType);
         field.SetValue(client, fromResult.Invoke(null, [updatedConnection]));
     }

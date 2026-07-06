@@ -33,6 +33,32 @@ public class ClientE2ETests
         }
     }
 
+    [Fact]
+    public async Task Should_Start_And_Connect_Over_InProcess_Ffi()
+    {
+        // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
+        // bundled CLI binary) and its sibling native runtime library itself; if neither
+        // is available, StartAsync throws and the test fails hard.
+        using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForInProcess(),
+        });
+
+        try
+        {
+            await client.StartAsync();
+            var pong = await client.PingAsync("ffi message");
+            Assert.Equal("pong: ffi message", pong.Message);
+            Assert.NotEqual(default, pong.Timestamp);
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport

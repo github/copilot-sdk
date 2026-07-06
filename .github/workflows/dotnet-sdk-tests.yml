@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
@@ -36,6 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -79,6 +80,10 @@ jobs:
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: Select inprocess transport
+        if: matrix.transport == 'inprocess'
+        run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
 
       - name: Run .NET SDK tests
         env:

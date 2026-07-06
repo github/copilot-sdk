@@ -79,6 +79,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
 
     private Task<Connection>? _connectionTask;
+    private FfiRuntimeHost? _ffiHost;
     private bool _disposed;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
@@ -135,11 +136,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
-        _connection = _options.Connection ?? RuntimeConnection.ForStdio();
+        _connection = _options.Connection ?? ResolveDefaultConnection(_options);
 
         switch (_connection)
         {
             case StdioRuntimeConnection:
+                break;
+
+            case InProcessRuntimeConnection:
                 break;
 
             case TcpRuntimeConnection tcp:
@@ -199,6 +203,38 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Environment variable that overrides the transport used when the caller does not
+    /// specify <see cref="CopilotClientOptions.Connection"/>. Accepts <c>"inprocess"</c>
+    /// or <c>"stdio"</c> (case-insensitive); unset preserves the default stdio transport.
+    /// Any other value is an error. Ignored when a <see cref="RuntimeConnection"/> is set
+    /// explicitly.
+    /// </summary>
+    internal const string DefaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION";
+
+    /// <summary>
+    /// Resolves the default <see cref="RuntimeConnection"/> for the no-Connection case,
+    /// honoring <see cref="DefaultConnectionEnvVar"/>.
+    /// </summary>
+    private static RuntimeConnection ResolveDefaultConnection(CopilotClientOptions options)
+    {
+        var value = options.Environment is not null
+            && options.Environment.TryGetValue(DefaultConnectionEnvVar, out var fromOptions)
+                ? fromOptions
+                : Environment.GetEnvironmentVariable(DefaultConnectionEnvVar);
+
+        if (string.IsNullOrEmpty(value) || string.Equals(value, "stdio", StringComparison.OrdinalIgnoreCase))
+        {
+            return RuntimeConnection.ForStdio();
+        }
+        if (string.Equals(value, "inprocess", StringComparison.OrdinalIgnoreCase))
+        {
+            return RuntimeConnection.ForInProcess();
+        }
+        throw new ArgumentException(
+            $"Invalid {DefaultConnectionEnvVar} value '{value}'. Expected 'inprocess', 'stdio', or unset.");
+    }
+
+    /// <summary>
     /// Parses a runtime URL into a URI with host and port.
     /// </summary>
     /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
@@ -251,7 +287,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                if (_connection is UriRuntimeConnection)
+                if (_connection is InProcessRuntimeConnection)
+                {
+                    // In-process FFI hosting: load the Rust cdylib and let it spawn
+                    // the CLI worker, instead of the SDK launching a CLI child process.
+                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), _options.Environment, _logger);
+                    _ffiHost = ffiHost;
+                    await ffiHost.StartAsync(ct);
+                    connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
+                }
+                else if (_connection is UriRuntimeConnection)
                 {
                     // External runtime
                     _actualPort = _optionsPort;
@@ -438,7 +483,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
+        if (gracefulRuntimeShutdown && (ctx.CliProcess is not null || ctx.FfiHost is not null))
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
             try
@@ -477,6 +522,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (ctx.CliProcess is { } childProcess)
         {
             await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
+        }
+
+        if (ctx.FfiHost is { } ffiHost)
+        {
+            try { ffiHost.Dispose(); }
+            catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
+            _ffiHost = null;
         }
     }
 
@@ -1795,12 +1847,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         int? serverVersion;
         try
         {
-            var token = _connection switch
-            {
-                TcpRuntimeConnection tcp => tcp.ConnectionToken,
-                UriRuntimeConnection uri => uri.ConnectionToken,
-                _ => null,
-            };
+            var token = _ffiHost is not null
+                ? null // FFI hosting is an ungated in-process connection; no token.
+                : _connection switch
+                {
+                    TcpRuntimeConnection tcp => tcp.ConnectionToken,
+                    UriRuntimeConnection uri => uri.ConnectionToken,
+                    _ => null,
+                };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
                 connection.Rpc,
                 "connect",
@@ -2087,6 +2141,57 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return arch != null ? $"{os}-{arch}" : null;
     }
 
+    private string ResolveCliPathForFfi()
+    {
+        var envCliPath = _options.Environment is not null && _options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue)
+            ? envValue
+            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        if (!string.IsNullOrEmpty(envCliPath))
+        {
+            return envCliPath;
+        }
+
+        // Fall back to the bundled single-file CLI the same way stdio discovers it.
+        // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
+        // with the sibling cdylib loaded in-process (FfiRuntimeHost.Create prefers the
+        // flat `libcopilot_runtime.so`/`copilot_runtime.dll` next to the CLI, falling
+        // back to the dev `prebuilds/<folder>/runtime.node` layout).
+        var bundled = GetBundledCliPath(out var searchedPath);
+        return bundled
+            ?? throw new InvalidOperationException(
+                "In-process FFI hosting requires the Copilot CLI. Set the COPILOT_CLI_PATH "
+                + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
+    }
+
+    /// <summary>
+    /// Returns the napi-rs prebuilds folder name for the current host — the
+    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> convention (e.g. <c>win32-x64</c>,
+    /// <c>darwin-arm64</c>, <c>linux-x64</c>) under which the runtime ships
+    /// <c>prebuilds/&lt;folder&gt;/runtime.node</c>. This differs from the .NET RID
+    /// (<c>win-x64</c>/<c>osx-x64</c>) for Windows and macOS.
+    /// </summary>
+    private static string? GetNapiPrebuildsFolder()
+    {
+        string platform;
+        if (OperatingSystem.IsWindows()) platform = "win32";
+        else if (OperatingSystem.IsLinux()) platform = "linux";
+        else if (OperatingSystem.IsMacOS()) platform = "darwin";
+        else return null;
+
+        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+        {
+            System.Runtime.InteropServices.Architecture.X64 => "x64",
+            System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+            _ => null,
+        };
+
+        return arch != null ? $"{platform}-{arch}" : null;
+    }
+
+    private static string GetNapiPrebuildsFolderOrThrow() =>
+        GetNapiPrebuildsFolder()
+        ?? throw new InvalidOperationException("Could not determine a napi-rs prebuilds folder for FFI hosting.");
+
     private static (string FileName, IEnumerable<string> Args) ResolveCliCommand(string cliPath, IEnumerable<string> args)
     {
         var isJsFile = cliPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
@@ -2099,7 +2204,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken, FfiRuntimeHost? ffiHost = null)
     {
         var setupTimestamp = Stopwatch.GetTimestamp();
         NetworkStream? networkStream = null;
@@ -2109,7 +2214,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             Stream inputStream, outputStream;
 
-            if (_connection is StdioRuntimeConnection)
+            if (ffiHost is not null)
+            {
+                inputStream = ffiHost.ReceiveStream;
+                outputStream = ffiHost.SendStream;
+            }
+            else if (_connection is StdioRuntimeConnection)
             {
                 if (cliProcess == null)
                 {
@@ -2175,7 +2285,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
 
-            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump);
+            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump, ffiHost);
             _serverRpc = connection.Server;
 
             return connection;
@@ -2378,7 +2488,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonRpc rpc,
         Process? cliProcess, // Set if we created the child process
         NetworkStream? networkStream, // Set if using TCP
-        ProcessStderrPump? stderrPump = null) // Captures stderr for error messages
+        ProcessStderrPump? stderrPump = null, // Captures stderr for error messages
+        FfiRuntimeHost? ffiHost = null) // Set if using in-process FFI hosting
     {
         public Process? CliProcess => cliProcess;
         public JsonRpc Rpc => rpc;
@@ -2386,6 +2497,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         public NetworkStream? NetworkStream => networkStream;
         public ProcessStderrPump? StderrPump => stderrPump;
         public StringBuilder? StderrBuffer => stderrPump?.Buffer;
+        public FfiRuntimeHost? FfiHost => ffiHost;
     }
 
     private sealed class ProcessStderrPump
