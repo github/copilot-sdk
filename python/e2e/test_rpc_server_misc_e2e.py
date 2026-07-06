@@ -16,9 +16,9 @@ import pytest
 
 from copilot import CopilotClient, RuntimeConnection
 from copilot.rpc import (
-    AgentRegistrySpawnRequest,
     AccountLoginRequest,
     AccountLogoutRequest,
+    AgentRegistrySpawnRequest,
     SendAttachmentsToMessageParams,
     SessionsOpenResumeLast,
     SessionsOpenStatus,
