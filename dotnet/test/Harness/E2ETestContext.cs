@@ -261,6 +261,15 @@ public sealed class E2ETestContext : IAsyncDisposable
         BestFitMapping = false, ThrowOnUnmappableChar = true)]
     private static extern int NativeSetEnv(string name, string value, int overwrite);
 
+    [DllImport("libc", EntryPoint = "unsetenv", CharSet = CharSet.Ansi,
+        BestFitMapping = false, ThrowOnUnmappableChar = true)]
+    private static extern int NativeUnsetEnv(string name);
+
+    // Records the original process-env value of each variable the in-process
+    // mirror overwrites, so it can be restored after the test. A null entry
+    // means the variable was unset. Guarded by _clientsLock.
+    private readonly Dictionary<string, string?> _mirroredEnvBackup = new();
+
     // Sets an environment variable on both the managed cache and (on Unix) the
     // libc environment block, so native getenv/std::env::var readers in the loaded
     // cdylib observe it. On Windows the managed setter already reaches native
@@ -271,6 +280,67 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             _ = NativeSetEnv(name, value, 1);
+        }
+    }
+
+    // Restores (or unsets) an environment variable on both the managed cache and
+    // (on Unix) the libc environment block.
+    private static void RestoreProcessEnvironmentVariable(string name, string? value)
+    {
+        Environment.SetEnvironmentVariable(name, value);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            if (value is null)
+            {
+                _ = NativeUnsetEnv(name);
+            }
+            else
+            {
+                _ = NativeSetEnv(name, value, 1);
+            }
+        }
+    }
+
+    // Mirrors a variable onto the shared process environment for the duration of
+    // the current test, backing up its original value on first mutation so
+    // RestoreMirroredEnvironment can undo it afterward. Without this, clearing
+    // HMAC / redirecting the GitHub API URL for an in-process test would leak into
+    // later tests (e.g. ClientE2ETests' direct-construction stdio/tcp cases that
+    // rely on the ambient CI HMAC credential), whose fixtures use a different,
+    // possibly already-disposed replay proxy.
+    private void MirrorProcessEnvironmentVariable(string name, string value)
+    {
+        lock (_clientsLock)
+        {
+            if (!_mirroredEnvBackup.ContainsKey(name))
+            {
+                _mirroredEnvBackup[name] = Environment.GetEnvironmentVariable(name);
+            }
+        }
+
+        SetProcessEnvironmentVariable(name, value);
+    }
+
+    // Restores every process-env variable mutated by the in-process mirror back to
+    // its pre-test value. Called after each test so cross-test/cross-class env
+    // pollution cannot occur.
+    private void RestoreMirroredEnvironment()
+    {
+        KeyValuePair<string, string?>[] backup;
+        lock (_clientsLock)
+        {
+            if (_mirroredEnvBackup.Count == 0)
+            {
+                return;
+            }
+
+            backup = [.. _mirroredEnvBackup];
+            _mirroredEnvBackup.Clear();
+        }
+
+        foreach (var (name, value) in backup)
+        {
+            RestoreProcessEnvironmentVariable(name, value);
         }
     }
 
@@ -358,7 +428,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             {
                 if (options.Environment.TryGetValue(name, out var value))
                 {
-                    SetProcessEnvironmentVariable(name, value);
+                    MirrorProcessEnvironmentVariable(name, value);
                 }
             }
         }
@@ -420,6 +490,9 @@ public sealed class E2ETestContext : IAsyncDisposable
                 errors.Add(ex);
             }
         }
+
+        // Undo any in-process env mirroring so it cannot leak into the next test.
+        RestoreMirroredEnvironment();
 
         if (errors.Count == 1)
         {
