@@ -217,6 +217,16 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         env["GITHUB_TOKEN"] = env["GH_TOKEN"] = DefaultGitHubToken;
 
+        // Disable HMAC auth for E2E runs. CI sets COPILOT_HMAC_KEY at the job
+        // level as an ambient credential, but the replay snapshots are captured
+        // against Bearer/OAuth (SDK-token) requests. In stdio the SDK token
+        // outranks HMAC so this is a no-op, but in-process auth resolution runs
+        // host-side in this process and would otherwise pick HMAC (which ranks
+        // above the GitHub token) and fail provider.getEndpoint. An empty value
+        // disables the method (runtime filters out empty HMAC keys).
+        env["COPILOT_HMAC_KEY"] = "";
+        env["CAPI_HMAC_KEY"] = "";
+
         return env!;
     }
 
@@ -240,6 +250,11 @@ public sealed class E2ETestContext : IAsyncDisposable
         "GH_TOKEN",
         "GITHUB_TOKEN",
         "GH_CONFIG_DIR",
+        // Cleared (empty) by GetEnvironment so host-side auth resolution skips
+        // HMAC and falls through to the GitHub token; must be mirrored so the
+        // empty value reaches this process where in-proc auth resolves.
+        "COPILOT_HMAC_KEY",
+        "CAPI_HMAC_KEY",
     };
 
     [DllImport("libc", EntryPoint = "setenv", CharSet = CharSet.Ansi,
@@ -316,27 +331,28 @@ public sealed class E2ETestContext : IAsyncDisposable
                 break;
         }
 
-        // In-process hosting workaround (applies only when this session actually
-        // uses the in-process FFI transport): several auth code paths run
+        // In-process hosting workaround (applies whenever the in-process FFI
+        // transport is the default for this run): several auth code paths run
         // host-side in this process (the loaded cdylib) and read the ambient
         // process environment rather than the environment passed to
         // copilot_runtime_host_start — e.g. native fetch_copilot_user reads
-        // COPILOT_DEBUG_GITHUB_API_URL via std::env::var, and the gh-CLI fallback
-        // spawns `gh auth token`, which inherits this process's GH_TOKEN /
-        // GITHUB_TOKEN / GH_CONFIG_DIR. So our per-test redirects and
-        // cleared tokens in options.Environment are invisible to them and auth
-        // escapes the replay proxy -> 401. Mirror just the auth-relevant vars onto
-        // this process's real environment block so those host-side reads observe
-        // them. Gated to in-process only (and to a narrow var set) so stdio/tcp
-        // tests never mutate the shared process environment. Note .NET's
-        // Environment.SetEnvironmentVariable does NOT reach libc getenv on Unix, so
-        // we also call setenv directly. Safe because E2E tests run serially
-        // (DisableTestParallelization) and in-process is single-runtime-per-process.
-        // Remove once the runtime threads the host_start environment into these
-        // host-side reads instead of the global process env.
-        var isInProcess = options.Connection is InProcessRuntimeConnection
-            || (options.Connection is null && IsDefaultConnectionInProcess(options.Environment));
-        if (isInProcess)
+        // COPILOT_DEBUG_GITHUB_API_URL via std::env::var, the gh-CLI fallback
+        // spawns `gh auth token` (inheriting this process's GH_TOKEN /
+        // GITHUB_TOKEN / GH_CONFIG_DIR), and auth-method selection reads the
+        // HMAC keys. So our per-test redirects, cleared tokens, and cleared HMAC
+        // keys in options.Environment are invisible to them, and auth either
+        // escapes the replay proxy (-> 401) or wrongly selects HMAC over the
+        // GitHub token. Mirror just the auth-relevant vars onto this process's
+        // real environment block so those host-side reads observe them. Gated to
+        // the in-process default (and to a narrow var set); we deliberately do
+        // not account for individual tests that pin a non-in-process transport,
+        // since those still resolve auth against this same mirrored env harmlessly.
+        // Note .NET's Environment.SetEnvironmentVariable does NOT reach libc
+        // getenv on Unix, so we also call setenv directly. Safe because E2E tests
+        // run serially (DisableTestParallelization) and in-process is
+        // single-runtime-per-process. Remove once the runtime stops relying on
+        // the ambient process environment for these host-side reads.
+        if (IsDefaultConnectionInProcess(options.Environment))
         {
             foreach (var name in HostSideAuthEnvVars)
             {
