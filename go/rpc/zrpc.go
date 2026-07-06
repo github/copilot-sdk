@@ -3550,25 +3550,6 @@ func (MCPOauthPendingRequestResponseToken) Kind() MCPOauthPendingRequestResponse
 	return MCPOauthPendingRequestResponseKindToken
 }
 
-// MCP OAuth request id and optional provider response.
-// Experimental: MCPOauthRespondRequest is part of an experimental API and may change or be
-// removed.
-type MCPOauthRespondRequest struct {
-	// In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be
-	// serialized across the JSON-RPC boundary.
-	// Internal: Provider is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Provider any `json:"provider,omitempty"`
-	// OAuth request identifier from mcp.oauth_required
-	RequestID string `json:"requestId"`
-}
-
-// Empty result after recording the MCP OAuth response.
-// Experimental: MCPOauthRespondResult is part of an experimental API and may change or be
-// removed.
-type MCPOauthRespondResult struct {
-}
-
 // Registration parameters for an external MCP client.
 // Experimental: MCPRegisterExternalClientRequest is part of an experimental API and may
 // change or be removed.
@@ -18882,46 +18863,6 @@ func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *M
 		return nil, err
 	}
 	return &result, nil
-}
-
-// Experimental: InternalMCPOauthAPI contains experimental APIs that may change or be
-// removed.
-type InternalMCPOauthAPI internalSessionAPI
-
-// Responds to a pending MCP OAuth request with an in-process provider. This internal
-// CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK
-// JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public
-// SDK-safe response path.
-//
-// RPC method: session.mcp.oauth.respond.
-//
-// Parameters: MCP OAuth request id and optional provider response.
-//
-// Returns: Empty result after recording the MCP OAuth response.
-// Internal: Respond is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalMCPOauthAPI) Respond(ctx context.Context, params *MCPOauthRespondRequest) (*MCPOauthRespondResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		if params.Provider != nil {
-			req["provider"] = params.Provider
-		}
-		req["requestId"] = params.RequestID
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.oauth.respond", req)
-	if err != nil {
-		return nil, err
-	}
-	var result MCPOauthRespondResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Experimental: Oauth returns experimental APIs that may change or be removed.
-func (s *InternalMCPAPI) Oauth() *InternalMCPOauthAPI {
-	return (*InternalMCPOauthAPI)(s)
 }
 
 // Experimental: InternalSettingsAPI contains experimental APIs that may change or be

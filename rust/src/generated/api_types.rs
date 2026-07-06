@@ -324,8 +324,6 @@ pub mod rpc_methods {
     pub const SESSION_MCP_UNREGISTEREXTERNALCLIENT: &str = "session.mcp.unregisterExternalClient";
     /// `session.mcp.isServerRunning`
     pub const SESSION_MCP_ISSERVERRUNNING: &str = "session.mcp.isServerRunning";
-    /// `session.mcp.oauth.respond`
-    pub const SESSION_MCP_OAUTH_RESPOND: &str = "session.mcp.oauth.respond";
     /// `session.mcp.oauth.handlePendingRequest`
     pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
         "session.mcp.oauth.handlePendingRequest";
@@ -5580,37 +5578,6 @@ pub struct McpOauthLoginResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_url: Option<String>,
 }
-
-/// MCP OAuth request id and optional provider response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthRespondRequest {
-    /// In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) provider: Option<serde_json::Value>,
-    /// OAuth request identifier from mcp.oauth_required
-    pub request_id: RequestId,
-}
-
-/// Empty result after recording the MCP OAuth response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpOauthRespondResult {}
 
 /// Registration parameters for an external MCP client.
 ///
@@ -17233,18 +17200,6 @@ pub struct SessionMcpIsServerRunningResult {
     /// True if the server has an active client and transport.
     pub running: bool,
 }
-
-/// Empty result after recording the MCP OAuth response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMcpOauthRespondResult {}
 
 /// Indicates whether the pending MCP OAuth response was accepted.
 ///
