@@ -59,7 +59,7 @@ Measured from `github/copilot-agent-runtime` release `cli-1.0.69-2` (2026-07-06)
 | `win32-x64` | 55.9 MB | ~22.4 MB |
 | `win32-arm64` | 48.4 MB | ~19.4 MB |
 
-The published Java SDK JAR (`copilot-sdk-java-1.0.6-preview.1.jar`) is currently **1.53 MB**. A monolithic JAR containing all 6 common-case native binaries would be approximately **134 MB** compressed; all 8 including musl would be approximately **182 MB** compressed.
+The published Java SDK JAR (`copilot-sdk-java-1.0.6-preview.1.jar`) is currently **1.53 MB**. A monolithic JAR containing all 6 common-case native binaries would be approximately **132 MB** compressed; all 8 including musl would be approximately **180 MB** compressed.
 
 All native dependencies within the runtime (`rustls`/`aws-lc-rs` for TLS, `rusqlite` with `bundled` feature for SQLite, `zlib-rs` for compression) are statically compiled into the binary. There are no dependencies on system OpenSSL, libgit2, or libz.
 
