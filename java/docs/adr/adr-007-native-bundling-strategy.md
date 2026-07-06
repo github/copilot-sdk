@@ -105,7 +105,7 @@ Build tools can be configured to resolve the correct classifier automatically:
 - **Uber-jar builds**: include all classifiers; the coordination artifact picks the right one at runtime.
 
 **Advantages:**
-- Default download is the tiny coordination artifact (~1.5 MB) plus one platform JAR (~20–26 MB compressed) — approximately **22–28 MB total** vs. 134–182 MB for a monolithic JAR.
+- Default download is the tiny coordination artifact (~1.5 MB) plus one platform JAR (~20–26 MB compressed) — approximately **22–28 MB total** vs. 132–180 MB for a monolithic JAR.
 - Each platform JAR changes independently; CI caches and Docker layers for unchanged platforms are preserved across releases.
 - Users building for a single known platform (most production deployments) pay exactly the cost of that platform.
 - Follows well-established Maven ecosystem conventions; standard tooling ([os-maven-plugin](#references), Gradle variant resolution) handles classifier selection.
