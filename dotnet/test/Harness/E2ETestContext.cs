@@ -5,6 +5,7 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -226,6 +227,50 @@ public sealed class E2ETestContext : IAsyncDisposable
             : Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     }
 
+    // Auth-relevant environment variables that host-side native code in the
+    // loaded cdylib reads from this process's environment (directly via
+    // std::env::var, or indirectly via the `gh auth token` subprocess it spawns)
+    // rather than from the environment passed to copilot_runtime_host_start.
+    // Deliberately limited to vars that GetEnvironment() re-sets on every call, so
+    // mirroring them onto the shared process env cannot leak stale values into a
+    // later test that copies the process env.
+    private static readonly string[] HostSideAuthEnvVars =
+    {
+        "COPILOT_DEBUG_GITHUB_API_URL",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GH_CONFIG_DIR",
+    };
+
+    [DllImport("libc", EntryPoint = "setenv", CharSet = CharSet.Ansi,
+        BestFitMapping = false, ThrowOnUnmappableChar = true)]
+    private static extern int NativeSetEnv(string name, string value, int overwrite);
+
+    // Sets an environment variable on both the managed cache and (on Unix) the
+    // libc environment block, so native getenv/std::env::var readers in the loaded
+    // cdylib observe it. On Windows the managed setter already reaches native
+    // GetEnvironmentVariableW, so setenv is not needed.
+    private static void SetProcessEnvironmentVariable(string name, string value)
+    {
+        Environment.SetEnvironmentVariable(name, value);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            _ = NativeSetEnv(name, value, 1);
+        }
+    }
+
+    // Mirrors CopilotClient's default-connection resolution: the no-Connection
+    // case honors COPILOT_SDK_DEFAULT_CONNECTION (from options.Environment, else
+    // the process env), defaulting to stdio.
+    private static bool IsDefaultConnectionInProcess(IReadOnlyDictionary<string, string>? environment)
+    {
+        var value = environment is not null
+            && environment.TryGetValue("COPILOT_SDK_DEFAULT_CONNECTION", out var fromOptions)
+                ? fromOptions
+                : Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION");
+        return string.Equals(value, "inprocess", StringComparison.OrdinalIgnoreCase);
+    }
+
     public CopilotClient CreateClient(
         bool? useStdio = null,
         CopilotClientOptions? options = null,
@@ -269,6 +314,37 @@ public sealed class E2ETestContext : IAsyncDisposable
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
                 break;
+        }
+
+        // In-process hosting workaround (applies only when this session actually
+        // uses the in-process FFI transport): several auth code paths run
+        // host-side in this process (the loaded cdylib) and read the ambient
+        // process environment rather than the environment passed to
+        // copilot_runtime_host_start — e.g. native fetch_copilot_user reads
+        // COPILOT_DEBUG_GITHUB_API_URL via std::env::var, and the gh-CLI fallback
+        // spawns `gh auth token`, which inherits this process's GH_TOKEN /
+        // GITHUB_TOKEN / GH_CONFIG_DIR. So our per-test redirects and
+        // cleared tokens in options.Environment are invisible to them and auth
+        // escapes the replay proxy -> 401. Mirror just the auth-relevant vars onto
+        // this process's real environment block so those host-side reads observe
+        // them. Gated to in-process only (and to a narrow var set) so stdio/tcp
+        // tests never mutate the shared process environment. Note .NET's
+        // Environment.SetEnvironmentVariable does NOT reach libc getenv on Unix, so
+        // we also call setenv directly. Safe because E2E tests run serially
+        // (DisableTestParallelization) and in-process is single-runtime-per-process.
+        // Remove once the runtime threads the host_start environment into these
+        // host-side reads instead of the global process env.
+        var isInProcess = options.Connection is InProcessRuntimeConnection
+            || (options.Connection is null && IsDefaultConnectionInProcess(options.Environment));
+        if (isInProcess)
+        {
+            foreach (var name in HostSideAuthEnvVars)
+            {
+                if (options.Environment.TryGetValue(name, out var value))
+                {
+                    SetProcessEnvironmentVariable(name, value);
+                }
+            }
         }
 
         // Auto-inject auth token unless connecting to an existing runtime via URI.
