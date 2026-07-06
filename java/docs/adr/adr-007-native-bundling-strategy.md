@@ -166,6 +166,8 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 - https://github.com/github/copilot-sdk/issues/1917 — Epic: Embed Rust-based Copilot CLI Runtime and cease requiring Node.js
 - https://devdiv.visualstudio.com/DevDiv/_workitems/edit/3028097
+- https://github.com/github/copilot-sdk/pull/1901 dotnet: in-process FFI runtime hosting (InProcess transport)
+- https://github.com/github/copilot-sdk/pull/1915 Add in-process FFI transport for Rust and TypeScript SDKs
 
 ### References
 
