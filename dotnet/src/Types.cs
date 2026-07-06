@@ -153,7 +153,8 @@ public abstract class RuntimeConnection
     /// entrypoint, set the <c>COPILOT_CLI_PATH</c> environment variable.
     /// </summary>
     /// <remarks>
-    /// Only supported on .NET 8.0 or later (requires <c>NativeLibrary</c>).
+    /// Works across the SDK's target frameworks: modern .NET uses <c>NativeLibrary</c>,
+    /// while <c>netstandard2.0</c> consumers use a built-in fallback native loader.
     /// </remarks>
     public static InProcessRuntimeConnection ForInProcess()
         => new();
@@ -185,8 +186,9 @@ public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 /// <summary>
 /// Hosts the runtime in-process by loading its native library and communicating
 /// over the C ABI (FFI). Construct via <see cref="RuntimeConnection.ForInProcess()"/>.
-/// Only supported on .NET 8.0 or later. To point at a non-default runtime entrypoint,
-/// set the <c>COPILOT_CLI_PATH</c> environment variable.
+/// Works across the SDK's target frameworks (modern .NET and <c>netstandard2.0</c>).
+/// To point at a non-default runtime entrypoint, set the <c>COPILOT_CLI_PATH</c>
+/// environment variable.
 /// </summary>
 public sealed class InProcessRuntimeConnection : RuntimeConnection
 {

@@ -36,16 +36,9 @@ public class ClientE2ETests
     [Fact]
     public async Task Should_Start_And_Connect_Over_InProcess_Ffi()
     {
-        // In-process FFI hosting requires a JavaScript CLI entrypoint (dist-cli/index.js)
-        // with the sibling native runtime library. Skip when not available locally.
-        var cliJsPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (string.IsNullOrEmpty(cliJsPath) || !cliJsPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
-        {
-            // In-process FFI hosting requires a JavaScript CLI entrypoint (dist-cli/index.js)
-            // with the sibling native runtime library; not available in this environment.
-            return;
-        }
-
+        // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
+        // bundled CLI binary) and its sibling native runtime library itself; if neither
+        // is available, StartAsync throws and the test fails hard.
         using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForInProcess(),

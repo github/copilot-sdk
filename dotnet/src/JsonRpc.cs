@@ -246,8 +246,11 @@ internal sealed partial class JsonRpc : IDisposable
         // already UTF-8, so the only copy is placing it after the header, which is
         // unavoidable since Content-Length needs its length up front.
         var frame = ArrayPool<byte>.Shared.Rent(MaxHeaderLength + json.Length);
-        bool wrote = Utf8.TryWrite(frame, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen);
-        Debug.Assert(wrote && headerLen > 0);
+        if (!Utf8.TryWrite(frame, $"Content-Length: {json.Length}\r\n\r\n", out int headerLen))
+        {
+            ArrayPool<byte>.Shared.Return(frame);
+            throw new InvalidOperationException("Failed to write JSON-RPC frame header.");
+        }
 
         json.CopyTo(frame.AsSpan(headerLen));
         frameLen = headerLen + json.Length;

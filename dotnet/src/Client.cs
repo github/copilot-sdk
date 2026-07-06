@@ -2153,7 +2153,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Fall back to the bundled single-file CLI the same way stdio discovers it.
         // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
-        // with the sibling `prebuilds/<rid>/runtime.node` cdylib loaded in-process.
+        // with the sibling cdylib loaded in-process (FfiRuntimeHost.Create prefers the
+        // flat `libcopilot_runtime.so`/`copilot_runtime.dll` next to the CLI, falling
+        // back to the dev `prebuilds/<folder>/runtime.node` layout).
         var bundled = GetBundledCliPath(out var searchedPath);
         return bundled
             ?? throw new InvalidOperationException(

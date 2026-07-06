@@ -277,6 +277,12 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     {
         lock (ResolverLock)
         {
+            if (s_resolvedLibraryPath is not null && s_resolvedLibraryPath != libraryPath)
+            {
+                throw new InvalidOperationException(
+                    $"An in-process FFI runtime library is already loaded from '{s_resolvedLibraryPath}'; "
+                    + $"loading a different library from '{libraryPath}' in the same process is not supported.");
+            }
             s_resolvedLibraryPath = libraryPath;
             if (!s_resolverRegistered)
             {
@@ -408,6 +414,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static readonly object NativeLock = new();
     private static bool s_loaded;
+    private static string? s_loadedPath;
     private static HostStartDelegate? s_hostStart;
     private static HostShutdownDelegate? s_hostShutdown;
     private static ConnectionOpenDelegate? s_connectionOpen;
@@ -424,6 +431,12 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         {
             if (s_loaded)
             {
+                if (s_loadedPath != libraryPath)
+                {
+                    throw new InvalidOperationException(
+                        $"An in-process FFI runtime library is already loaded from '{s_loadedPath}'; "
+                        + $"loading a different library from '{libraryPath}' in the same process is not supported.");
+                }
                 return;
             }
 
@@ -439,6 +452,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             s_connectionWrite = Bind<ConnectionWriteDelegate>(handle, "copilot_runtime_connection_write");
             s_connectionClose = Bind<ConnectionCloseDelegate>(handle, "copilot_runtime_connection_close");
             s_loaded = true;
+            s_loadedPath = libraryPath;
         }
     }
 
@@ -575,15 +589,20 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         {
             if (_leftover.IsEmpty)
             {
-                if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                while (true)
                 {
-                    return 0; // EOF
+                    if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        return 0; // EOF: channel completed.
+                    }
+                    if (_channel.Reader.TryRead(out var chunk))
+                    {
+                        _leftover = chunk;
+                        break;
+                    }
+                    // Data was signalled but lost a race for it; wait again rather
+                    // than reporting a spurious EOF.
                 }
-                if (!_channel.Reader.TryRead(out var chunk))
-                {
-                    return 0;
-                }
-                _leftover = chunk;
             }
 
             var n = Math.Min(buffer.Length, _leftover.Length);
@@ -615,21 +634,29 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// </summary>
     private sealed class CallbackSendStream(FrameWriter write) : Stream
     {
-        public override void Write(byte[] buffer, int offset, int count) => write(buffer.AsSpan(offset, count));
+        private void WriteFrame(ReadOnlySpan<byte> frame)
+        {
+            if (!write(frame))
+            {
+                throw new IOException("Failed to write a frame to the in-process runtime connection.");
+            }
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => WriteFrame(buffer.AsSpan(offset, count));
 
 #if !NETSTANDARD2_0
-        public override void Write(ReadOnlySpan<byte> buffer) => write(buffer);
+        public override void Write(ReadOnlySpan<byte> buffer) => WriteFrame(buffer);
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            write(buffer.Span);
+            WriteFrame(buffer.Span);
             return ValueTask.CompletedTask;
         }
 #endif
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            write(buffer.AsSpan(offset, count));
+            WriteFrame(buffer.AsSpan(offset, count));
             return Task.CompletedTask;
         }
 
