@@ -11,7 +11,7 @@ permissions:
 jobs:
   check-paths:
     name: "No remove-before-merge directories"
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Check for remove-before-merge paths in PR
