@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests"
+    name: ".NET SDK Tests (${{ matrix.transport }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
@@ -36,6 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -83,4 +84,5 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_SDK_DEFAULT_CONNECTION: ${{ matrix.transport == 'inprocess' && 'inprocess' || '' }}
         run: dotnet test --no-build -v n
