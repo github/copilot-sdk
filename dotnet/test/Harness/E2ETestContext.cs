@@ -245,10 +245,15 @@ public sealed class E2ETestContext : IAsyncDisposable
         BestFitMapping = false, ThrowOnUnmappableChar = true)]
     private static extern int NativeUnsetEnv(string name);
 
-    // Records the original process-env value of each variable the in-process
-    // mirror overwrites, so it can be restored after the test. A null entry
-    // means the variable was unset. Guarded by _clientsLock.
-    private readonly Dictionary<string, string?> _mirroredEnvBackup = new();
+    // Process-wide, permanent record of the PRISTINE (pre-any-mirror) value of
+    // every variable the in-process mirror has ever overwritten. A null entry
+    // means the variable was originally unset. Captured once per name and never
+    // overwritten, so it is immune to a cascade in which a skipped restore would
+    // otherwise let a later test back up an already-polluted value as its
+    // baseline. Static because the shared process env is itself process-global
+    // and E2E tests run serially. Guarded by s_mirroredEnvLock.
+    private static readonly object s_mirroredEnvLock = new();
+    private static readonly Dictionary<string, string?> s_pristineEnvByName = new();
 
     // Sets an environment variable on both the managed cache and (on Unix) the
     // libc environment block, so native getenv/std::env::var readers in the loaded
@@ -281,44 +286,45 @@ public sealed class E2ETestContext : IAsyncDisposable
         }
     }
 
-    // Mirrors a variable onto the shared process environment for the duration of
-    // the current test, backing up its original value on first mutation so
-    // RestoreMirroredEnvironment can undo it afterward. Without this, clearing
-    // HMAC / redirecting the GitHub API URL for an in-process test would leak into
-    // later tests (e.g. ClientE2ETests' direct-construction stdio/tcp cases that
-    // rely on the ambient CI HMAC credential), whose fixtures use a different,
-    // possibly already-disposed replay proxy.
-    private void MirrorProcessEnvironmentVariable(string name, string value)
+    // Mirrors a variable onto the shared process environment for the in-process
+    // host-side runtime to observe. On the first-ever mutation of a given name
+    // (process-wide) it permanently records that name's pristine value, so
+    // RestoreMirroredEnvironment can always revert to the true original. Without
+    // this, clearing HMAC / redirecting the GitHub API URL for an in-process test
+    // would leak into later tests (e.g. ClientE2ETests' direct-construction
+    // stdio/tcp cases that rely on the ambient CI HMAC credential).
+    private static void MirrorProcessEnvironmentVariable(string name, string value)
     {
-        lock (_clientsLock)
+        lock (s_mirroredEnvLock)
         {
-            if (!_mirroredEnvBackup.ContainsKey(name))
+            if (!s_pristineEnvByName.ContainsKey(name))
             {
-                _mirroredEnvBackup[name] = Environment.GetEnvironmentVariable(name);
+                s_pristineEnvByName[name] = Environment.GetEnvironmentVariable(name);
             }
         }
 
         SetProcessEnvironmentVariable(name, value);
     }
 
-    // Restores every process-env variable mutated by the in-process mirror back to
-    // its pre-test value. Called after each test so cross-test/cross-class env
-    // pollution cannot occur.
-    private void RestoreMirroredEnvironment()
+    // Reverts every variable ever touched by the in-process mirror back to its
+    // permanently-recorded pristine value (or unsets it). Idempotent and
+    // cascade-proof: because pristine values are never overwritten, calling this
+    // always restores the true ambient environment even if a previous restore was
+    // skipped. Called after every test and at fixture teardown.
+    private static void RestoreMirroredEnvironment()
     {
-        KeyValuePair<string, string?>[] backup;
-        lock (_clientsLock)
+        KeyValuePair<string, string?>[] pristine;
+        lock (s_mirroredEnvLock)
         {
-            if (_mirroredEnvBackup.Count == 0)
+            if (s_pristineEnvByName.Count == 0)
             {
                 return;
             }
 
-            backup = [.. _mirroredEnvBackup];
-            _mirroredEnvBackup.Clear();
+            pristine = [.. s_pristineEnvByName];
         }
 
-        foreach (var (name, value) in backup)
+        foreach (var (name, value) in pristine)
         {
             RestoreProcessEnvironmentVariable(name, value);
         }
@@ -460,20 +466,28 @@ public sealed class E2ETestContext : IAsyncDisposable
             _transientClients.Clear();
         }
 
-        foreach (var client in transientClients)
+        try
         {
-            try
+            foreach (var client in transientClients)
             {
-                await client.ForceStopAsync();
-            }
-            catch (Exception ex) when (IsTransientCleanupException(ex))
-            {
-                errors.Add(ex);
+                try
+                {
+                    await client.ForceStopAsync();
+                }
+                catch (Exception ex) when (IsTransientCleanupException(ex))
+                {
+                    errors.Add(ex);
+                }
             }
         }
-
-        // Undo any in-process env mirroring so it cannot leak into the next test.
-        RestoreMirroredEnvironment();
+        finally
+        {
+            // Undo any in-process env mirroring so it cannot leak into the next
+            // test. In a finally so a non-transient force-stop failure above can
+            // never skip it (a skipped restore would otherwise strand the shared
+            // process env in its cleared/redirected state until the next mirror).
+            RestoreMirroredEnvironment();
+        }
 
         if (errors.Count == 1)
         {
@@ -508,6 +522,11 @@ public sealed class E2ETestContext : IAsyncDisposable
                 errors.Add(ex);
             }
         }
+
+        // Backstop: revert any in-process env mirroring at fixture teardown too,
+        // so a class's mutations cannot survive into the next class even if a
+        // per-test cleanup was bypassed.
+        RestoreMirroredEnvironment();
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
