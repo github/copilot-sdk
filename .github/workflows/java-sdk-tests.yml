@@ -76,12 +76,12 @@ jobs:
         if: matrix.test-jdk == '25'
         run: |
           max_attempts=3
-          for attempt in $(seq 1 $max_attempts); do
+          for ((attempt=1; attempt<=max_attempts; attempt++)); do
             if mvn spotless:check; then
               echo "✅ spotless:check passed"
               exit 0
             fi
-            if [ $attempt -lt $max_attempts ]; then
+            if [ "$attempt" -lt "$max_attempts" ]; then
               echo "⚠️ spotless:check failed (attempt $attempt/$max_attempts), retrying in 10s..."
               sleep 10
             fi
