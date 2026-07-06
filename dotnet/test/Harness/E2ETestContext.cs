@@ -238,9 +238,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         options.Environment ??= GetEnvironment();
         options.Logger ??= Logger;
 
-        // Build the connection. If the caller supplied one, just ensure the runtime path is set;
-        // otherwise default to Stdio with the bundled runtime (matches CopilotClient's own default).
-        // useStdio is a convenience shortcut for the no-Connection case; passing both is ambiguous.
+        // Build the connection. If the caller supplied one, just ensure the runtime path is set.
+        // When neither a Connection nor useStdio is specified, leave Connection null so
+        // CopilotClient honors COPILOT_SDK_DEFAULT_CONNECTION (defaulting to stdio); useStdio
+        // is a convenience shortcut to pin stdio/tcp. Passing both a Connection and useStdio is ambiguous.
         if (useStdio is not null && options.Connection is not null)
         {
             throw new ArgumentException(
@@ -252,10 +253,18 @@ public sealed class E2ETestContext : IAsyncDisposable
         var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {
+            case null when useStdio == true:
+                options.Connection = RuntimeConnection.ForStdio(path: cliPath);
+                break;
+            case null when useStdio == false:
+                options.Connection = RuntimeConnection.ForTcp(path: cliPath);
+                break;
             case null:
-                options.Connection = useStdio == false
-                    ? RuntimeConnection.ForTcp(path: cliPath)
-                    : RuntimeConnection.ForStdio(path: cliPath);
+                // useStdio is null: leave Connection unset so CopilotClient's
+                // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION
+                // (stdio by default, or in-process). The CLI path flows through
+                // options.Environment["COPILOT_CLI_PATH"] (GetEnvironment copies
+                // the process env, where CI's setup-copilot sets it).
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
