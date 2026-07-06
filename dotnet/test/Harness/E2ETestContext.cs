@@ -5,7 +5,6 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -237,111 +236,6 @@ public sealed class E2ETestContext : IAsyncDisposable
             : Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     }
 
-    [DllImport("libc", EntryPoint = "setenv", CharSet = CharSet.Ansi,
-        BestFitMapping = false, ThrowOnUnmappableChar = true)]
-    private static extern int NativeSetEnv(string name, string value, int overwrite);
-
-    [DllImport("libc", EntryPoint = "unsetenv", CharSet = CharSet.Ansi,
-        BestFitMapping = false, ThrowOnUnmappableChar = true)]
-    private static extern int NativeUnsetEnv(string name);
-
-    // Process-wide, permanent record of the PRISTINE (pre-any-mirror) value of
-    // every variable the in-process mirror has ever overwritten. A null entry
-    // means the variable was originally unset. Captured once per name and never
-    // overwritten, so it is immune to a cascade in which a skipped restore would
-    // otherwise let a later test back up an already-polluted value as its
-    // baseline. Static because the shared process env is itself process-global
-    // and E2E tests run serially. Guarded by s_mirroredEnvLock.
-    private static readonly object s_mirroredEnvLock = new();
-    private static readonly Dictionary<string, string?> s_pristineEnvByName = new();
-
-    // Sets an environment variable on both the managed cache and (on Unix) the
-    // libc environment block, so native getenv/std::env::var readers in the loaded
-    // cdylib observe it. On Windows the managed setter already reaches native
-    // GetEnvironmentVariableW, so setenv is not needed.
-    private static void SetProcessEnvironmentVariable(string name, string value)
-    {
-        Environment.SetEnvironmentVariable(name, value);
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            _ = NativeSetEnv(name, value, 1);
-        }
-    }
-
-    // Restores (or unsets) an environment variable on both the managed cache and
-    // (on Unix) the libc environment block.
-    private static void RestoreProcessEnvironmentVariable(string name, string? value)
-    {
-        Environment.SetEnvironmentVariable(name, value);
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            if (value is null)
-            {
-                _ = NativeUnsetEnv(name);
-            }
-            else
-            {
-                _ = NativeSetEnv(name, value, 1);
-            }
-        }
-    }
-
-    // Mirrors a variable onto the shared process environment for the in-process
-    // host-side runtime to observe. On the first-ever mutation of a given name
-    // (process-wide) it permanently records that name's pristine value, so
-    // RestoreMirroredEnvironment can always revert to the true original. Without
-    // this, clearing HMAC / redirecting the GitHub API URL for an in-process test
-    // would leak into later tests (e.g. ClientE2ETests' direct-construction
-    // stdio/tcp cases that rely on the ambient CI HMAC credential).
-    private static void MirrorProcessEnvironmentVariable(string name, string value)
-    {
-        lock (s_mirroredEnvLock)
-        {
-            if (!s_pristineEnvByName.ContainsKey(name))
-            {
-                s_pristineEnvByName[name] = Environment.GetEnvironmentVariable(name);
-            }
-        }
-
-        SetProcessEnvironmentVariable(name, value);
-    }
-
-    // Reverts every variable ever touched by the in-process mirror back to its
-    // permanently-recorded pristine value (or unsets it). Idempotent and
-    // cascade-proof: because pristine values are never overwritten, calling this
-    // always restores the true ambient environment even if a previous restore was
-    // skipped. Called after every test and at fixture teardown.
-    private static void RestoreMirroredEnvironment()
-    {
-        KeyValuePair<string, string?>[] pristine;
-        lock (s_mirroredEnvLock)
-        {
-            if (s_pristineEnvByName.Count == 0)
-            {
-                return;
-            }
-
-            pristine = [.. s_pristineEnvByName];
-        }
-
-        foreach (var (name, value) in pristine)
-        {
-            RestoreProcessEnvironmentVariable(name, value);
-        }
-    }
-
-    // Mirrors CopilotClient's default-connection resolution: the no-Connection
-    // case honors COPILOT_SDK_DEFAULT_CONNECTION (from options.Environment, else
-    // the process env), defaulting to stdio.
-    private static bool IsDefaultConnectionInProcess(IReadOnlyDictionary<string, string>? environment)
-    {
-        var value = environment is not null
-            && environment.TryGetValue("COPILOT_SDK_DEFAULT_CONNECTION", out var fromOptions)
-                ? fromOptions
-                : Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION");
-        return string.Equals(value, "inprocess", StringComparison.OrdinalIgnoreCase);
-    }
-
     public CopilotClient CreateClient(
         bool? useStdio = null,
         CopilotClientOptions? options = null,
@@ -387,36 +281,19 @@ public sealed class E2ETestContext : IAsyncDisposable
                 break;
         }
 
-        // In-process hosting workaround (applies whenever the in-process FFI
-        // transport is the default for this run): several runtime code paths run
-        // host-side in this process (the loaded cdylib) and read the ambient
-        // process environment rather than the environment passed to
-        // copilot_runtime_host_start — e.g. native fetch_copilot_user reads
-        // COPILOT_DEBUG_GITHUB_API_URL via std::env::var, the gh-CLI fallback
-        // spawns `gh auth token` (inheriting this process's GH_TOKEN /
-        // GITHUB_TOKEN / GH_CONFIG_DIR), auth-method selection reads the HMAC
-        // keys, and session state/config reads COPILOT_HOME / XDG_*. So our
-        // per-test redirects, cleared tokens, cleared HMAC keys, and isolated
-        // home in options.Environment are invisible to them, and auth either
-        // escapes the replay proxy (-> 401) or wrongly selects HMAC over the
-        // GitHub token. Mirror the whole intended test environment onto this
-        // process's real environment block so every host-side read observes it;
-        // there is no benefit to a narrower allowlist since in-process mode is
-        // mutating the shared host env regardless, and RestoreMirroredEnvironment
-        // reverts every mutation after the test. Gated to the in-process default;
-        // we deliberately do not account for individual tests that pin a
-        // non-in-process transport, since those still resolve auth against this
-        // same mirrored env harmlessly.
-        // Note .NET's Environment.SetEnvironmentVariable does NOT reach libc
-        // getenv on Unix, so we also call setenv directly. Safe because E2E tests
-        // run serially (DisableTestParallelization) and in-process is
-        // single-runtime-per-process. Remove once the runtime stops relying on
-        // the ambient process environment for these host-side reads.
-        if (IsDefaultConnectionInProcess(options.Environment))
+        // In-process hosting workaround: several runtime code paths run host-side
+        // in this process (the loaded cdylib) and read the ambient process
+        // environment rather than the environment passed to
+        // copilot_runtime_host_start, so our per-test redirects, cleared tokens,
+        // cleared HMAC keys, and isolated home in options.Environment are
+        // invisible to them unless mirrored onto this process's real environment.
+        // All of this hackery lives in InProcessEnvIsolation so it can be deleted
+        // in one place once the runtime stops reading the ambient process env.
+        if (InProcessEnvIsolation.IsActive(options.Environment))
         {
             foreach (var (name, value) in options.Environment)
             {
-                MirrorProcessEnvironmentVariable(name, value);
+                InProcessEnvIsolation.Mirror(name, value);
             }
         }
 
@@ -486,7 +363,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             // test. In a finally so a non-transient force-stop failure above can
             // never skip it (a skipped restore would otherwise strand the shared
             // process env in its cleared/redirected state until the next mirror).
-            RestoreMirroredEnvironment();
+            InProcessEnvIsolation.Restore();
         }
 
         if (errors.Count == 1)
@@ -526,7 +403,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         // Backstop: revert any in-process env mirroring at fixture teardown too,
         // so a class's mutations cannot survive into the next class even if a
         // per-test cleanup was bypassed.
-        RestoreMirroredEnvironment();
+        InProcessEnvIsolation.Restore();
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
