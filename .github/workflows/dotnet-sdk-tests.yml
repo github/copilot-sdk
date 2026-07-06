@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests (${{ matrix.transport }})"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
