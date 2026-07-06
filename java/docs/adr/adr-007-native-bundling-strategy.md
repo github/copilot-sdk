@@ -59,11 +59,7 @@ Measured from `github/copilot-agent-runtime` release `cli-1.0.69-2` (2026-07-06)
 | `win32-x64` | 55.9 MB | ~22.4 MB |
 | `win32-arm64` | 48.4 MB | ~19.4 MB |
 
-<<<<<<< HEAD
 The published Java SDK JAR (`copilot-sdk-java-1.0.6-preview.1.jar`) is currently **1.53 MB**. A monolithic JAR containing all 6 common-case native binaries would be approximately **132 MB** compressed; all 8 including musl would be approximately **180 MB** compressed.
-=======
-The published Java SDK JAR (`copilot-sdk-java-1.0.6-preview.1.jar`) is currently **1.53 MB**. A monolithic JAR containing all 6 common-case native binaries would be approximately **134 MB** compressed; all 8 including musl would be approximately **182 MB** compressed.
->>>>>>> c26cd7b28 (docs(java): add ADR-007 native runtime bundling strategy)
 
 All native dependencies within the runtime (`rustls`/`aws-lc-rs` for TLS, `rusqlite` with `bundled` feature for SQLite, `zlib-rs` for compression) are statically compiled into the binary. There are no dependencies on system OpenSSL, libgit2, or libz.
 
@@ -79,11 +75,7 @@ All 6 (or 8) `runtime.node` binaries are bundled inside the single `copilot-sdk-
 
 **Drawbacks:**
 - Every user downloads every platform regardless of their target. A developer on Apple Silicon downloads 105+ MB of Linux and Windows binaries they will never use.
-<<<<<<< HEAD
 - Build tooling (thin Docker layers, incremental CI caches, artifact registries) penalises large JARs. A single 132–180 MB JAR invalidates the entire cache whenever any platform's binary changes.
-=======
-- Build tooling (thin Docker layers, incremental CI caches, artifact registries) penalises large JARs. A single 134–182 MB JAR invalidates the entire cache whenever any platform's binary changes.
->>>>>>> c26cd7b28 (docs(java): add ADR-007 native runtime bundling strategy)
 - Maven's dependency resolution has no mechanism to supply platform-appropriate variants automatically; platform selection must happen entirely at runtime inside the JAR.
 - Conflicts with the principle that Maven artifacts should be reproducible and minimal.
 
@@ -113,11 +105,7 @@ Build tools can be configured to resolve the correct classifier automatically:
 - **Uber-jar builds**: include all classifiers; the coordination artifact picks the right one at runtime.
 
 **Advantages:**
-<<<<<<< HEAD
 - Default download is the tiny coordination artifact (~1.5 MB) plus one platform JAR (~20–26 MB compressed) — approximately **22–28 MB total** vs. 132–180 MB for a monolithic JAR.
-=======
-- Default download is the tiny coordination artifact (~1.5 MB) plus one platform JAR (~20–26 MB compressed) — approximately **22–28 MB total** vs. 134–182 MB for a monolithic JAR.
->>>>>>> c26cd7b28 (docs(java): add ADR-007 native runtime bundling strategy)
 - Each platform JAR changes independently; CI caches and Docker layers for unchanged platforms are preserved across releases.
 - Users building for a single known platform (most production deployments) pay exactly the cost of that platform.
 - Follows well-established Maven ecosystem conventions; standard tooling ([os-maven-plugin](#references), Gradle variant resolution) handles classifier selection.
@@ -149,11 +137,7 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 ### Rationale
 
-<<<<<<< HEAD
 1. **User download cost matches actual need.** Most users run on one OS and architecture. Option 2 makes their download approximately 22–28 MB (coordination JAR + one platform JAR), versus 132–180 MB for Option 1 and an unbounded deferred network cost for Option 3.
-=======
-1. **User download cost matches actual need.** Most users run on one OS and architecture. Option 2 makes their download approximately 22–28 MB (coordination JAR + one platform JAR), versus 134–182 MB for Option 1 and an unbounded deferred network cost for Option 3.
->>>>>>> c26cd7b28 (docs(java): add ADR-007 native runtime bundling strategy)
 
 2. **Proven ecosystem pattern.** DJL, Netty, and others have established the per-classifier pattern as the correct Maven idiom for large native binaries. Build tooling already knows how to handle it; users and framework integrations (Spring Boot, Quarkus, Micronaut) are familiar with it.
 
@@ -182,11 +166,8 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 - https://github.com/github/copilot-sdk/issues/1917 — Epic: Embed Rust-based Copilot CLI Runtime and cease requiring Node.js
 - https://devdiv.visualstudio.com/DevDiv/_workitems/edit/3028097
-<<<<<<< HEAD
 - https://github.com/github/copilot-sdk/pull/1901 dotnet: in-process FFI runtime hosting (InProcess transport)
 - https://github.com/github/copilot-sdk/pull/1915 Add in-process FFI transport for Rust and TypeScript SDKs
-=======
->>>>>>> c26cd7b28 (docs(java): add ADR-007 native runtime bundling strategy)
 
 ### References
 
