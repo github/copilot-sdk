@@ -19,7 +19,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.ExtensionInfo;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -50,9 +49,7 @@ class ClientOptionsE2ETest {
                         .setEnableHostGitOperations(false).setEnableSessionStore(true).setEnableSkills(false)
                         .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-session-token")
                         .setRemoteSession("export").setSkipCustomInstructions(true).setCustomAgentsLocalOnly(false)
-                        .setCoauthorEnabled(true).setManageScheduleEnabled(true).setRequestExtensions(true)
-                        .setExtensionSdkPath("java-create-extension-sdk")
-                        .setExtensionInfo(new ExtensionInfo("github-app", "java-create-extension"))
+                        .setCoauthorEnabled(true).setManageScheduleEnabled(true)
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
                 session.close();
             }
@@ -85,10 +82,6 @@ class ClientOptionsE2ETest {
             assertEquals("in-memory", create.path("embeddingCacheStorage").asText());
             assertEquals("java-session-token", create.path("gitHubToken").asText());
             assertEquals("export", create.path("remoteSession").asText());
-            assertTrue(create.path("requestExtensions").asBoolean());
-            assertEquals("java-create-extension-sdk", create.path("extensionSdkPath").asText());
-            assertEquals("github-app", create.path("extensionInfo").path("source").asText());
-            assertEquals("java-create-extension", create.path("extensionInfo").path("name").asText());
             assertEquals("direct", create.path("envValueMode").asText());
             assertTrue(create.path("requestPermission").asBoolean());
 
@@ -150,8 +143,6 @@ class ClientOptionsE2ETest {
                                 .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-resume-token")
                                 .setRemoteSession("export").setSkipCustomInstructions(false)
                                 .setCustomAgentsLocalOnly(true).setCoauthorEnabled(false).setManageScheduleEnabled(true)
-                                .setRequestExtensions(true).setExtensionSdkPath("java-resume-extension-sdk")
-                                .setExtensionInfo(new ExtensionInfo("github-app", "java-resume-extension"))
                                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS);
                 session.close();
@@ -179,10 +170,6 @@ class ClientOptionsE2ETest {
             assertEquals("in-memory", resume.path("embeddingCacheStorage").asText());
             assertEquals("java-resume-token", resume.path("gitHubToken").asText());
             assertEquals("export", resume.path("remoteSession").asText());
-            assertTrue(resume.path("requestExtensions").asBoolean());
-            assertEquals("java-resume-extension-sdk", resume.path("extensionSdkPath").asText());
-            assertEquals("github-app", resume.path("extensionInfo").path("source").asText());
-            assertEquals("java-resume-extension", resume.path("extensionInfo").path("name").asText());
             assertEquals("direct", resume.path("envValueMode").asText());
             assertTrue(resume.path("requestPermission").asBoolean());
 

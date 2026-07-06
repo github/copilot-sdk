@@ -175,9 +175,6 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
-        config.getRequestExtensions().ifPresent(request::setRequestExtensions);
-        request.setExtensionSdkPath(config.getExtensionSdkPath());
-        request.setExtensionInfo(config.getExtensionInfo());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }
@@ -300,9 +297,6 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
-        config.getRequestExtensions().ifPresent(request::setRequestExtensions);
-        request.setExtensionSdkPath(config.getExtensionSdkPath());
-        request.setExtensionInfo(config.getExtensionInfo());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }

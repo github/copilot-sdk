@@ -99,9 +99,6 @@ public class ResumeSessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
-    private Boolean requestExtensions;
-    private String extensionSdkPath;
-    private ExtensionInfo extensionInfo;
     private String gitHubToken;
     private String remoteSession;
     private JsonNode expAssignments;
@@ -1616,89 +1613,6 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets whether the runtime should enable extension-host callbacks on resume.
-     *
-     * @return an {@link Optional} containing {@code true} to request extensions or
-     *         {@code false} to disable them, or {@link Optional#empty()} to use the
-     *         runtime default
-     * @since 1.5.0
-     */
-    @JsonIgnore
-    public Optional<Boolean> getRequestExtensions() {
-        return Optional.ofNullable(requestExtensions);
-    }
-
-    /**
-     * Sets whether the runtime should enable extension-host callbacks on resume.
-     *
-     * @param requestExtensions
-     *            {@code true} to request extension callbacks
-     * @return this config for method chaining
-     * @since 1.5.0
-     */
-    public ResumeSessionConfig setRequestExtensions(boolean requestExtensions) {
-        this.requestExtensions = requestExtensions;
-        return this;
-    }
-
-    /**
-     * Clears the requestExtensions setting, reverting to the default behavior.
-     *
-     * @return this config for method chaining
-     * @since 1.5.0
-     */
-    public ResumeSessionConfig clearRequestExtensions() {
-        this.requestExtensions = null;
-        return this;
-    }
-
-    /**
-     * Gets the extension SDK path advertised to the runtime on resume.
-     *
-     * @return the extension SDK path, or {@code null} if not set
-     * @since 1.5.0
-     */
-    public String getExtensionSdkPath() {
-        return extensionSdkPath;
-    }
-
-    /**
-     * Sets the extension SDK path advertised to the runtime on resume.
-     *
-     * @param extensionSdkPath
-     *            the extension SDK path
-     * @return this config for method chaining
-     * @since 1.5.0
-     */
-    public ResumeSessionConfig setExtensionSdkPath(String extensionSdkPath) {
-        this.extensionSdkPath = extensionSdkPath;
-        return this;
-    }
-
-    /**
-     * Gets the stable extension identity associated with the resumed session.
-     *
-     * @return the extension info, or {@code null} if not set
-     * @since 1.5.0
-     */
-    public ExtensionInfo getExtensionInfo() {
-        return extensionInfo;
-    }
-
-    /**
-     * Sets the stable extension identity associated with the resumed session.
-     *
-     * @param extensionInfo
-     *            the extension info
-     * @return this config for method chaining
-     * @since 1.5.0
-     */
-    public ResumeSessionConfig setExtensionInfo(ExtensionInfo extensionInfo) {
-        this.extensionInfo = extensionInfo;
-        return this;
-    }
-
-    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1902,9 +1816,6 @@ public class ResumeSessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
-        copy.requestExtensions = this.requestExtensions;
-        copy.extensionSdkPath = this.extensionSdkPath;
-        copy.extensionInfo = this.extensionInfo;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
