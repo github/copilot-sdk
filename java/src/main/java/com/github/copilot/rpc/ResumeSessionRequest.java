@@ -214,6 +214,10 @@ public final class ResumeSessionRequest {
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
 
+    @JsonProperty("selfFetchManagedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean selfFetchManagedSettings;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -980,5 +984,29 @@ public final class ResumeSessionRequest {
      */
     public void setExpAssignments(JsonNode expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /**
+     * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
+     * if not set
+     */
+    public Boolean getSelfFetchManagedSettings() {
+        return selfFetchManagedSettings;
+    }
+
+    /**
+     * Sets the self-fetch managed settings flag. @param selfFetchManagedSettings
+     * the flag
+     */
+    public void setSelfFetchManagedSettings(boolean selfFetchManagedSettings) {
+        this.selfFetchManagedSettings = selfFetchManagedSettings;
+    }
+
+    /**
+     * Clears the selfFetchManagedSettings setting, reverting to the default
+     * behavior.
+     */
+    public void clearSelfFetchManagedSettings() {
+        this.selfFetchManagedSettings = null;
     }
 }
