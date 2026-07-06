@@ -137,7 +137,7 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 ### Rationale
 
-1. **User download cost matches actual need.** Most users run on one OS and architecture. Option 2 makes their download approximately 22–28 MB (coordination JAR + one platform JAR), versus 134–182 MB for Option 1 and an unbounded deferred network cost for Option 3.
+1. **User download cost matches actual need.** Most users run on one OS and architecture. Option 2 makes their download approximately 22–28 MB (coordination JAR + one platform JAR), versus 132–180 MB for Option 1 and an unbounded deferred network cost for Option 3.
 
 2. **Proven ecosystem pattern.** DJL, Netty, and others have established the per-classifier pattern as the correct Maven idiom for large native binaries. Build tooling already knows how to handle it; users and framework integrations (Spring Boot, Quarkus, Micronaut) are familiar with it.
 
