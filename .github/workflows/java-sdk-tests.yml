@@ -72,99 +72,22 @@ jobs:
       - name: Verify CLI works
         run: node ../nodejs/node_modules/@github/copilot/npm-loader.js --version
 
-      - name: Prime Spotless Eclipse formatter cache
-        if: matrix.test-jdk == '25'
-        run: |
-          set -euo pipefail
-
-          p2_data="$HOME/.m2/repository/dev/equo/p2-data"
-          bundle_dir="$p2_data/bundle-pool/https-download.eclipse.org-eclipse-updates-4.33-R-4.33-202409030240-"
-          query_dir="$p2_data/queries/1.8.1-1468712279"
-          jna_jar="$bundle_dir/com.sun.jna_5.14.0.v20231211-1200.jar"
-
-          mkdir -p "$bundle_dir" "$query_dir"
-          printf '1' > "$p2_data/queries/version"
-          printf 'https://download.eclipse.org/eclipse/updates/4.33/R-4.33-202409030240/' > "$bundle_dir/.url"
-
-          mvn -q dependency:get -Dartifact=net.java.dev.jna:jna:5.14.0 -Dtransitive=false
-          cp "$HOME/.m2/repository/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar" "$jna_jar"
-
-          helper_dir="$(mktemp -d)"
-          trap 'rm -rf "$helper_dir"' EXIT
-          mkdir -p "$helper_dir/dev/equo/solstice/p2"
-          cat > "$helper_dir/dev/equo/solstice/p2/P2QueryResult.java" <<'JAVA'
-          package dev.equo.solstice.p2;
-
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.ObjectOutputStream;
-          import java.io.Serializable;
-          import java.util.ArrayList;
-          import java.util.Collections;
-          import java.util.List;
-
-          public class P2QueryResult implements Serializable {
-              private static final long serialVersionUID = 1L;
-
-              private final List<String> mavenCoordinates;
-              private final List<File> downloadedP2Jars;
-
-              private P2QueryResult(List<String> mavenCoordinates, List<File> downloadedP2Jars) {
-                  this.mavenCoordinates = mavenCoordinates;
-                  this.downloadedP2Jars = downloadedP2Jars;
-              }
-
-              public static void main(String[] args) throws Exception {
-                  var coordinates = new ArrayList<String>();
-                  Collections.addAll(
-                          coordinates,
-                          "net.java.dev.jna:jna-platform:5.14.0",
-                          "org.apache.felix:org.apache.felix.scr:2.2.12",
-                          "org.eclipse.platform:org.eclipse.core.commands:3.12.200",
-                          "org.eclipse.platform:org.eclipse.core.contenttype:3.9.500",
-                          "org.eclipse.platform:org.eclipse.core.expressions:3.9.400",
-                          "org.eclipse.platform:org.eclipse.core.filesystem:1.11.0",
-                          "org.eclipse.platform:org.eclipse.core.jobs:3.15.400",
-                          "org.eclipse.platform:org.eclipse.core.resources:3.21.0",
-                          "org.eclipse.platform:org.eclipse.core.runtime:3.31.100",
-                          "org.eclipse.platform:org.eclipse.equinox.app:1.7.200",
-                          "org.eclipse.platform:org.eclipse.equinox.common:3.19.100",
-                          "org.eclipse.platform:org.eclipse.equinox.event:1.7.100",
-                          "org.eclipse.platform:org.eclipse.equinox.preferences:3.11.100",
-                          "org.eclipse.platform:org.eclipse.equinox.registry:3.12.100",
-                          "org.eclipse.platform:org.eclipse.equinox.supplement:1.11.0",
-                          "org.eclipse.jdt:org.eclipse.jdt.core:3.39.0",
-                          "org.eclipse.jdt:ecj:3.39.0",
-                          "org.eclipse.platform:org.eclipse.osgi:3.21.0",
-                          "org.eclipse.platform:org.eclipse.text:3.14.100",
-                          "org.osgi:org.osgi.service.cm:1.6.1",
-                          "org.osgi:org.osgi.service.component:1.5.1",
-                          "org.osgi:org.osgi.service.event:1.4.1",
-                          "org.osgi:org.osgi.service.metatype:1.4.1",
-                          "org.osgi:org.osgi.service.prefs:1.1.2",
-                          "org.osgi:org.osgi.util.function:1.2.0",
-                          "org.osgi:org.osgi.util.promise:1.3.0");
-
-                  var result = new P2QueryResult(coordinates, List.of(new File(args[1])));
-                  try (var out = new ObjectOutputStream(new FileOutputStream(args[0]))) {
-                      out.writeObject(result);
-                  }
-              }
-          }
-          JAVA
-
-          javac "$helper_dir/dev/equo/solstice/p2/P2QueryResult.java"
-          java -cp "$helper_dir" dev.equo.solstice.p2.P2QueryResult "$query_dir/content" "$jna_jar"
-
       - name: Run spotless check
         if: matrix.test-jdk == '25'
         run: |
-          mvn spotless:check
-          if [ $? -ne 0 ]; then
-            echo "❌ spotless:check failed. Please run 'mvn spotless:apply' in java"
-            exit 1
-          fi
-          echo "✅ spotless:check passed"
+          max_attempts=3
+          for ((attempt=1; attempt<=max_attempts; attempt++)); do
+            if mvn spotless:check; then
+              echo "✅ spotless:check passed"
+              exit 0
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "⚠️ spotless:check failed (attempt $attempt/$max_attempts), retrying in 10s..."
+              sleep 10
+            fi
+          done
+          echo "❌ spotless:check failed after $max_attempts attempts. Please run 'mvn spotless:apply' in java/"
+          exit 1
 
       - name: Run Java SDK tests (JDK 25)
         if: matrix.test-jdk == '25'
