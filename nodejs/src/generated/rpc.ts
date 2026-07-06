@@ -6715,36 +6715,6 @@ export interface McpOauthLoginResult {
   authorizationUrl?: string;
 }
 /**
- * MCP OAuth request id and optional provider response.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpOauthRespondRequest".
- */
-/** @experimental */
-/** @internal */
-export interface McpOauthRespondRequest {
-  /**
-   * OAuth request identifier from mcp.oauth_required
-   */
-  requestId: string;
-  /**
-   * In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.
-   *
-   * @internal
-   */
-  provider?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Empty result after recording the MCP OAuth response.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpOauthRespondResult".
- */
-/** @experimental */
-export interface McpOauthRespondResult {}
-/**
  * Registration parameters for an external MCP client.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17560,18 +17530,6 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             unregisterExternalClient: async (params: McpUnregisterExternalClientRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.unregisterExternalClient", { sessionId, ...params }),
-            /** @experimental */
-            oauth: {
-                /**
-                 * Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
-                 *
-                 * @param params MCP OAuth request id and optional provider response.
-                 *
-                 * @returns Empty result after recording the MCP OAuth response.
-                 */
-                respond: async (params: McpOauthRespondRequest): Promise<McpOauthRespondResult> =>
-                    connection.sendRequest("session.mcp.oauth.respond", { sessionId, ...params }),
-            },
         },
         /** @experimental */
         settings: {

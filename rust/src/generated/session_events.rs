@@ -1836,7 +1836,7 @@ pub struct AssistantUsageData {
     pub service_request_id: Option<String>,
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub time_to_first_token_ms: Option<i64>,
+    pub time_to_first_token_ms: Option<f64>,
 }
 
 /// Content-free structural summary of the failing request for diagnosing malformed 4xx calls

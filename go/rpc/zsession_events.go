@@ -753,7 +753,7 @@ type AssistantUsageData struct {
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
-	TimeToFirstTokenMs *int64 `json:"timeToFirstTokenMs,omitempty"`
+	TimeToFirstTokenMs *float64 `json:"timeToFirstTokenMs,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}

@@ -5002,39 +5002,6 @@ pub struct SessionRpcMcpOauth<'a> {
 }
 
 impl<'a> SessionRpcMcpOauth<'a> {
-    /// Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
-    ///
-    /// Wire method: `session.mcp.oauth.respond`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - MCP OAuth request id and optional provider response.
-    ///
-    /// # Returns
-    ///
-    /// Empty result after recording the MCP OAuth response.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn respond(
-        &self,
-        params: McpOauthRespondRequest,
-    ) -> Result<McpOauthRespondResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_MCP_OAUTH_RESPOND, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
     ///
     /// Wire method: `session.mcp.oauth.handlePendingRequest`.
