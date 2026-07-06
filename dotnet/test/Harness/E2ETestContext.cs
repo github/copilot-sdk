@@ -237,26 +237,6 @@ public sealed class E2ETestContext : IAsyncDisposable
             : Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     }
 
-    // Auth-relevant environment variables that host-side native code in the
-    // loaded cdylib reads from this process's environment (directly via
-    // std::env::var, or indirectly via the `gh auth token` subprocess it spawns)
-    // rather than from the environment passed to copilot_runtime_host_start.
-    // Deliberately limited to vars that GetEnvironment() re-sets on every call, so
-    // mirroring them onto the shared process env cannot leak stale values into a
-    // later test that copies the process env.
-    private static readonly string[] HostSideAuthEnvVars =
-    {
-        "COPILOT_DEBUG_GITHUB_API_URL",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
-        "GH_CONFIG_DIR",
-        // Cleared (empty) by GetEnvironment so host-side auth resolution skips
-        // HMAC and falls through to the GitHub token; must be mirrored so the
-        // empty value reaches this process where in-proc auth resolves.
-        "COPILOT_HMAC_KEY",
-        "CAPI_HMAC_KEY",
-    };
-
     [DllImport("libc", EntryPoint = "setenv", CharSet = CharSet.Ansi,
         BestFitMapping = false, ThrowOnUnmappableChar = true)]
     private static extern int NativeSetEnv(string name, string value, int overwrite);
@@ -402,21 +382,25 @@ public sealed class E2ETestContext : IAsyncDisposable
         }
 
         // In-process hosting workaround (applies whenever the in-process FFI
-        // transport is the default for this run): several auth code paths run
+        // transport is the default for this run): several runtime code paths run
         // host-side in this process (the loaded cdylib) and read the ambient
         // process environment rather than the environment passed to
         // copilot_runtime_host_start — e.g. native fetch_copilot_user reads
         // COPILOT_DEBUG_GITHUB_API_URL via std::env::var, the gh-CLI fallback
         // spawns `gh auth token` (inheriting this process's GH_TOKEN /
-        // GITHUB_TOKEN / GH_CONFIG_DIR), and auth-method selection reads the
-        // HMAC keys. So our per-test redirects, cleared tokens, and cleared HMAC
-        // keys in options.Environment are invisible to them, and auth either
+        // GITHUB_TOKEN / GH_CONFIG_DIR), auth-method selection reads the HMAC
+        // keys, and session state/config reads COPILOT_HOME / XDG_*. So our
+        // per-test redirects, cleared tokens, cleared HMAC keys, and isolated
+        // home in options.Environment are invisible to them, and auth either
         // escapes the replay proxy (-> 401) or wrongly selects HMAC over the
-        // GitHub token. Mirror just the auth-relevant vars onto this process's
-        // real environment block so those host-side reads observe them. Gated to
-        // the in-process default (and to a narrow var set); we deliberately do
-        // not account for individual tests that pin a non-in-process transport,
-        // since those still resolve auth against this same mirrored env harmlessly.
+        // GitHub token. Mirror the whole intended test environment onto this
+        // process's real environment block so every host-side read observes it;
+        // there is no benefit to a narrower allowlist since in-process mode is
+        // mutating the shared host env regardless, and RestoreMirroredEnvironment
+        // reverts every mutation after the test. Gated to the in-process default;
+        // we deliberately do not account for individual tests that pin a
+        // non-in-process transport, since those still resolve auth against this
+        // same mirrored env harmlessly.
         // Note .NET's Environment.SetEnvironmentVariable does NOT reach libc
         // getenv on Unix, so we also call setenv directly. Safe because E2E tests
         // run serially (DisableTestParallelization) and in-process is
@@ -424,12 +408,9 @@ public sealed class E2ETestContext : IAsyncDisposable
         // the ambient process environment for these host-side reads.
         if (IsDefaultConnectionInProcess(options.Environment))
         {
-            foreach (var name in HostSideAuthEnvVars)
+            foreach (var (name, value) in options.Environment)
             {
-                if (options.Environment.TryGetValue(name, out var value))
-                {
-                    MirrorProcessEnvironmentVariable(name, value);
-                }
+                MirrorProcessEnvironmentVariable(name, value);
             }
         }
 
