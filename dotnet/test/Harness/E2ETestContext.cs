@@ -287,14 +287,11 @@ public sealed class E2ETestContext : IAsyncDisposable
         // copilot_runtime_host_start, so our per-test redirects, cleared tokens,
         // cleared HMAC keys, and isolated home in options.Environment are
         // invisible to them unless mirrored onto this process's real environment.
-        // All of this hackery lives in InProcessEnvIsolation so it can be deleted
-        // in one place once the runtime stops reading the ambient process env.
-        if (InProcessEnvIsolation.IsActive(options.Environment))
+        // Restored after each test by InProcessEnvIsolationAttribute. Harmless for
+        // child-process transports, which configure their child's environment.
+        foreach (var (name, value) in options.Environment)
         {
-            foreach (var (name, value) in options.Environment)
-            {
-                InProcessEnvIsolation.Mirror(name, value);
-            }
+            InProcessEnvIsolation.Apply(name, value);
         }
 
         // Auto-inject auth token unless connecting to an existing runtime via URI.
@@ -343,27 +340,16 @@ public sealed class E2ETestContext : IAsyncDisposable
             _transientClients.Clear();
         }
 
-        try
+        foreach (var client in transientClients)
         {
-            foreach (var client in transientClients)
+            try
             {
-                try
-                {
-                    await StopClientForCleanupAsync(client);
-                }
-                catch (Exception ex) when (IsTransientCleanupException(ex))
-                {
-                    errors.Add(ex);
-                }
+                await StopClientForCleanupAsync(client);
             }
-        }
-        finally
-        {
-            // Undo any in-process env mirroring so it cannot leak into the next
-            // test. In a finally so a non-transient force-stop failure above can
-            // never skip it (a skipped restore would otherwise strand the shared
-            // process env in its cleared/redirected state until the next mirror).
-            InProcessEnvIsolation.Restore();
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
         }
 
         if (errors.Count == 1)
@@ -399,11 +385,6 @@ public sealed class E2ETestContext : IAsyncDisposable
                 errors.Add(ex);
             }
         }
-
-        // Backstop: revert any in-process env mirroring at fixture teardown too,
-        // so a class's mutations cannot survive into the next class even if a
-        // per-test cleanup was bypassed.
-        InProcessEnvIsolation.Restore();
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
@@ -462,7 +443,11 @@ public sealed class E2ETestContext : IAsyncDisposable
     // Inproc holds the session-store SQLite handle in-process; graceful StopAsync releases it so the temp-dir delete succeeds on Windows.
     private static async Task StopClientForCleanupAsync(CopilotClient client)
     {
-        if (InProcessEnvIsolation.IsActive())
+        var isInProcess = string.Equals(
+            Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION"),
+            "inprocess",
+            StringComparison.OrdinalIgnoreCase);
+        if (isInProcess)
         {
             await client.StopAsync();
         }
