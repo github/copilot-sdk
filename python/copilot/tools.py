@@ -39,7 +39,6 @@ class ToolResult:
     session_log: str | None = None
     tool_telemetry: dict[str, Any] | None = None
     tool_references: list[str] | None = None
-    """Names of tools returned by a tool-search tool."""
     _from_exception: bool = field(default=False, repr=False)
 
 

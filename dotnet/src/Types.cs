@@ -2711,7 +2711,7 @@ public sealed class LargeToolOutputConfig
 
 /// <summary>
 /// Overrides the runtime's built-in tool-search behavior.
-/// Defers toolsto keep the model's active tool set small.
+/// Defers tools to keep the model's active tool set small.
 /// To override the tool-search tool's implementation, register a tool
 /// named "tool_search_tool" with <c>OverridesBuiltInTool</c> set to
 /// <see langword="true"/>.
