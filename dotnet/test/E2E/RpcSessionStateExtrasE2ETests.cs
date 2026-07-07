@@ -313,9 +313,8 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
 
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Environment = env,
             GitHubToken = token,
-        });
+        }, environment: env);
     }
 
     private async Task ConfigureAuthenticatedUserAsync(string token)

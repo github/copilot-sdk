@@ -302,7 +302,7 @@ public class RpcServerPluginsE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         env["XDG_CONFIG_HOME"] = home;
         env["XDG_STATE_HOME"] = home;
 
-        var client = Ctx.CreateClient(options: new CopilotClientOptions { Environment = env });
+        var client = Ctx.CreateClient(environment: env);
         await client.StartAsync();
         return (client, home);
     }
