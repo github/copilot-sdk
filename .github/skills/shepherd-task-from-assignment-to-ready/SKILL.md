@@ -27,89 +27,47 @@ Automate the lifecycle of a child **Task** issue from "assigned to Copilot" thro
 
 ### Step 1: Assign the task to @Copilot
 
-Perform three actions **in order** to maximize the chance Copilot uses the correct base branch. This is critical because the issue description references plan files that only exist on `$BASE_BRANCH`, not on `main`.
+Use the GitHub Issues REST API with the `agent_assignment.base_branch` parameter. This is the **only 100% reliable method** — it passes `BASE_BRANCH` directly to CCA as a first-class input, so it cannot default to `main`.
 
-#### 1a. Prepend a prominent base-branch instruction to the issue body
-
-This must happen **before** assignment to avoid a race condition where Copilot targets `main` instead.
-
-**Idempotency:** If the issue body already starts with `> [!IMPORTANT]`, skip the prepend (it was already done in a prior run).
+> [!NOTE]
+> Do **not** use `gh issue edit --add-assignee "@copilot"` here. That command uses the plain assignees endpoint which has no `base_branch` parameter; CCA will default to `main`.
 
 ```bash
-# Check if already prepended (idempotency guard)
-CURRENT_BODY=$(gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body')
-if echo "$CURRENT_BODY" | head -1 | grep -q '^\> \[!IMPORTANT\]'; then
-  echo "Base branch instruction already present — skipping prepend."
-else
-  # Prepend base branch instruction (use --body-file to preserve markdown formatting)
-  gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' > /tmp/issue-body-$TASK_ISSUE.md
-  cat > /tmp/issue-body-$TASK_ISSUE-new.md <<HEADER
-> [!IMPORTANT]
-> ## You MUST branch from \`$BASE_BRANCH\`
-> **Do NOT use \`main\` as your base branch.** The plan files and context referenced below exist ONLY on \`$BASE_BRANCH\`.
-> - Create your topic branch from: \`$BASE_BRANCH\`
-> - Your PR must target: \`$BASE_BRANCH\`
-> - The first line of your PR description must be: \`Fixes #$TASK_ISSUE\`
-
---------
-
-HEADER
-  cat /tmp/issue-body-$TASK_ISSUE.md >> /tmp/issue-body-$TASK_ISSUE-new.md
-  gh issue edit $TASK_ISSUE -R $REPO --body-file /tmp/issue-body-$TASK_ISSUE-new.md
-  rm -f /tmp/issue-body-$TASK_ISSUE.md /tmp/issue-body-$TASK_ISSUE-new.md
-fi
+gh api \
+  --method POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  /repos/$REPO/issues/$TASK_ISSUE/assignees \
+  --input - <<< "{
+    \"assignees\": [\"copilot-swe-agent[bot]\"],
+    \"agent_assignment\": {
+      \"target_repo\": \"$REPO\",
+      \"base_branch\": \"$BASE_BRANCH\"
+    }
+  }"
 ```
 
 > **PowerShell equivalent** (when running on Windows):
 > ```powershell
-> $body = gh issue view $TASK_ISSUE -R $REPO --json body --jq '.body' | Out-String
-> if ($body.TrimStart().StartsWith("> [!IMPORTANT]")) {
->     Write-Host "Base branch instruction already present - skipping prepend."
-> } else {
->     $instruction = @"
-> > [!IMPORTANT]
-> > ## You MUST branch from ``$BASE_BRANCH``
-> > **Do NOT use ``main`` as your base branch.** The plan files and context referenced below exist ONLY on ``$BASE_BRANCH``.
-> > - Create your topic branch from: ``$BASE_BRANCH``
-> > - Your PR must target: ``$BASE_BRANCH``
-> > - The first line of your PR description must be: ``Fixes #$TASK_ISSUE``
->
-> --------
->
-> "@
->     $newBody = $instruction + $body
->     $tmpFile = [System.IO.Path]::GetTempFileName()
->     Set-Content -Path $tmpFile -Value $newBody -NoNewline
->     gh issue edit $TASK_ISSUE -R $REPO --body-file $tmpFile
->     Remove-Item $tmpFile
-> }
-> ```
-
-#### 1b. Assign Copilot
-
-```bash
-gh issue edit $TASK_ISSUE --add-assignee "@copilot" -R $REPO
-```
-
-#### 1c. Post a reinforcing comment immediately after assignment
-
-This comment acts as a second signal. Copilot reads both the issue body and comments when starting work.
-
-```bash
-gh issue comment $TASK_ISSUE -R $REPO --body "@copilot IMPORTANT: You MUST create your branch from \`$BASE_BRANCH\` and target your PR at \`$BASE_BRANCH\`. Do NOT use \`main\`. The plan files referenced in this issue only exist on \`$BASE_BRANCH\`."
-```
-
-> **PowerShell equivalent:**
-> ```powershell
-> gh issue comment $TASK_ISSUE -R $REPO --body "@copilot IMPORTANT: You MUST create your branch from ``$BASE_BRANCH`` and target your PR at ``$BASE_BRANCH``. Do NOT use ``main``. The plan files referenced in this issue only exist on ``$BASE_BRANCH``."
+> $body = @{
+>     assignees        = @("copilot-swe-agent[bot]")
+>     agent_assignment = @{
+>         target_repo = $REPO
+>         base_branch = $BASE_BRANCH
+>     }
+> } | ConvertTo-Json -Depth 3
+> gh api `
+>   --method POST `
+>   -H "Accept: application/vnd.github+json" `
+>   -H "X-GitHub-Api-Version: 2022-11-28" `
+>   /repos/$REPO/issues/$TASK_ISSUE/assignees `
+>   --input - <<< $body
 > ```
 
 This triggers Copilot to:
 1. Create a topic branch from `$BASE_BRANCH`.
 2. Open a draft PR targeting `$BASE_BRANCH`.
 3. Push initial commits.
-
-**Fallback (applied in Step 2 after PR is found):** Verify the PR targets `$BASE_BRANCH`. If Copilot ignored the instructions, fix the base and request a rebase — see Step 2.
 
 ### Step 2: Find the corresponding PR
 
@@ -179,18 +137,18 @@ done
 
 If no PR is found after timeout, report failure and stop.
 
-Once the PR is found, verify and fix the base branch if needed. This is **critical** — if Copilot branched from `main`, its working tree won't contain the plan files referenced in the issue.
+Once the PR is found, verify the base branch as a sanity check (the `agent_assignment.base_branch` API call in Step 1 guarantees this, but confirm):
 
 ```bash
-# Check the PR targets the correct base branch
+# Sanity-check: confirm PR targets the correct base branch
 ACTUAL_BASE=$(gh pr view $PR_NUMBER -R $REPO --json baseRefName --jq '.baseRefName')
 if [ "$ACTUAL_BASE" != "$BASE_BRANCH" ]; then
-  echo "WARNING: PR #$PR_NUMBER targets '$ACTUAL_BASE' instead of '$BASE_BRANCH'. Fixing..."
-  gh pr edit $PR_NUMBER -R $REPO --base "$BASE_BRANCH"
-
-  # Tell Copilot to rebase onto the correct base so it picks up the plan files
-  gh pr review $PR_NUMBER -R $REPO --request-changes --body "@copilot CRITICAL: Your branch was created from the wrong base. You MUST rebase your branch onto \`$BASE_BRANCH\` immediately. The plan files and context referenced in issue #$TASK_ISSUE only exist on \`$BASE_BRANCH\`. Run: \`git rebase origin/$BASE_BRANCH\` and force-push. Do this BEFORE any other work."
+  echo "ERROR: PR #$PR_NUMBER targets '$ACTUAL_BASE' instead of '$BASE_BRANCH'."
+  echo "This should not happen when Step 1 used the agent_assignment.base_branch API."
+  echo "Manual intervention required — stop here."
+  exit 1
 fi
+echo "Base branch confirmed: $ACTUAL_BASE"
 ```
 
 ### Step 3: Wait for initial commits and workflow trigger
