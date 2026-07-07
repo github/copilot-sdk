@@ -5979,8 +5979,13 @@ mod tests {
 
         // Regression: `mcp_servers` was a `HashMap`, so the server keys (and
         // thus the `session.create` payload) serialized in a per-process
-        // random order. `IndexMap` pins them to insertion order.
-        let order = ["zebra", "alpha", "mango", "beta"];
+        // random order; `IndexMap` pins them to insertion order. The long
+        // sequence makes a `HashMap` regression reproduce this exact order by
+        // chance only 1/N!, avoiding a flaky false pass.
+        let order = [
+            "zebra", "quartz", "delta", "ivy", "mango", "bravo", "xenon", "amber", "falcon",
+            "ceres", "nova", "kelp", "otter", "yodel", "plum", "garnet",
+        ];
         let mut servers = IndexMap::new();
         for name in order {
             servers.insert(
