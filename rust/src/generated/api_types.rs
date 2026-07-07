@@ -8726,6 +8726,9 @@ pub struct PluginsReloadRequest {
     /// Re-run custom-agent discovery after refreshing plugins. Defaults to true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_custom_agents: Option<bool>,
+    /// Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reload_extensions: Option<bool>,
     /// Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_hooks: Option<bool>,
