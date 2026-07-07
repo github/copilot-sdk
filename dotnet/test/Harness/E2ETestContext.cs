@@ -263,7 +263,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         // redirect, isolated home, cleared HMAC/tokens, etc.) unless the test
         // supplied a complete replacement.
         var env = environment is not null
-            ? new Dictionary<string, string>(environment)
+            ? environment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
             : GetEnvironment();
 
         // When the test doesn't pin a transport, leave Connection null so
