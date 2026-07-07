@@ -11,9 +11,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Overrides the runtime's built-in tool-search behavior.
  * <p>
- * Tool search defers tools to keep the model's active tool set small.
- * To override the tool-search tool's implementation, register a tool named
- * {@code "tool_search_tool"} with {@code overridesBuiltInTool} set to {@code true}.
+ * Tool search defers tools to keep the model's active tool set small. To
+ * override the tool-search tool's implementation, register a tool named
+ * {@code "tool_search_tool"} with {@code overridesBuiltInTool} set to
+ * {@code true}.
+ *
  * @since 1.3.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
