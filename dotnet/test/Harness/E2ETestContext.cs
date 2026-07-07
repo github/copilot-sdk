@@ -344,7 +344,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         {
             try
             {
-                await StopClientForCleanupAsync(client);
+                await client.StopAsync();
             }
             catch (Exception ex) when (IsTransientCleanupException(ex))
             {
@@ -378,7 +378,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         {
             try
             {
-                await StopClientForCleanupAsync(client);
+                await client.StopAsync();
             }
             catch (Exception ex) when (IsTransientCleanupException(ex))
             {
@@ -437,23 +437,6 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (Directory.Exists(path))
         {
             throw new IOException($"Failed to delete directory '{path}' after {maxAttempts} attempts.", lastException);
-        }
-    }
-
-    // Inproc holds the session-store SQLite handle in-process; graceful StopAsync releases it so the temp-dir delete succeeds on Windows.
-    private static async Task StopClientForCleanupAsync(CopilotClient client)
-    {
-        var isInProcess = string.Equals(
-            Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION"),
-            "inprocess",
-            StringComparison.OrdinalIgnoreCase);
-        if (isInProcess)
-        {
-            await client.StopAsync();
-        }
-        else
-        {
-            await client.ForceStopAsync();
         }
     }
 
