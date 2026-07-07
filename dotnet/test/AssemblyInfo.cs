@@ -15,9 +15,4 @@ using GitHub.Copilot.Test.Harness;
 // semaphore that limits concurrent fixtures to a small number (e.g. 2-3).
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-// TEMPORARY: isolate the ambient process environment around every test in the
-// in-process job so directly-constructed clients cannot pick up ambient CI
-// credentials and reach the live API. No-op outside the in-process job. Delete
-// together with InProcessEnvIsolation.cs once the runtime stops reading the
-// ambient process environment host-side.
 [assembly: InProcessEnvIsolation]
