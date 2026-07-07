@@ -20,7 +20,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // Create a client with the session-based subagents feature flag
         var env = new Dictionary<string, string>(Ctx.GetEnvironment());
         env["COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS"] = "true";
-        var client = Ctx.CreateClient(options: new CopilotClientOptions { Environment = env });
+        var client = Ctx.CreateClient(environment: env);
 
         var session = await client.CreateSessionAsync(new SessionConfig
         {

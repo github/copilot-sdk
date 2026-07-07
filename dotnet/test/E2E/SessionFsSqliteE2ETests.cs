@@ -117,9 +117,9 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     private CopilotClient CreateSessionFsClient()
     {
         return Ctx.CreateClient(
-            useStdio: true,
             options: new CopilotClientOptions
             {
+                Connection = RuntimeConnection.ForStdio(),
                 SessionFs = SessionFsConfig,
             });
     }

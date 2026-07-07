@@ -398,10 +398,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         environment["COPILOT_MCP_APPS"] = "true";
         environment["MCP_APPS"] = "true";
 
-        return Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            Environment = environment,
-        });
+        return Ctx.CreateClient(environment: environment);
     }
 
     private static void CreateSkill(string skillsDir, string skillName, string description)

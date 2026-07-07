@@ -173,6 +173,16 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 
     /// <summary>Extra command-line arguments to pass to the runtime process.</summary>
     public IList<string>? Args { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment variables passed to the spawned runtime process,
+    /// replacing the inherited environment.
+    /// </summary>
+    /// <remarks>
+    /// Cannot be combined with <see cref="CopilotClientOptions.Environment"/>; setting both throws
+    /// an <see cref="ArgumentException"/> when the client is constructed.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string>? Environment { get; set; }
 }
 
 /// <summary>
@@ -358,7 +368,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
 
-    /// <summary>Environment variables to pass to the runtime process.</summary>
+    /// <summary>
+    /// Gets or sets environment variables passed to the runtime process.
+    /// </summary>
+    /// <remarks>
+    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
+    /// which runs the runtime in the host process; setting this option there throws an
+    /// <see cref="ArgumentException"/>. For child-process transports, prefer
+    /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
+    /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
 
     /// <summary>Logger instance for SDK diagnostic output.</summary>

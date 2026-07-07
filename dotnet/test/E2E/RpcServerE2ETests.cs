@@ -37,9 +37,8 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Environment = env,
             GitHubToken = token,
-        });
+        }, environment: env);
     }
 
     private async Task ConfigureAuthenticatedUserAsync(
@@ -237,10 +236,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var environment = Ctx.GetEnvironment();
         environment["COPILOT_ENABLE_SECRET_FILTERING"] = "true";
-        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            Environment = environment,
-        });
+        await using var client = Ctx.CreateClient(environment: environment);
         await client.StartAsync();
         var secret = $"rpc-secret-{Guid.NewGuid():N}";
 
@@ -381,7 +377,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var sessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-in-use");
-        await using var otherClient = Ctx.CreateClient(useStdio: true);
+        await using var otherClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForStdio() });
         await using var otherSession = await otherClient.CreateSessionAsync(new SessionConfig
         {
             SessionId = sessionId,

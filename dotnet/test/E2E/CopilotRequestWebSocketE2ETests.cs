@@ -51,8 +51,7 @@ public class CopilotRequestWebSocketE2ETests(E2ETestFixture fixture, ITestOutput
         {
             Connection = RuntimeConnection.ForStdio(),
             RequestHandler = handler,
-            Environment = env,
-        });
+        }, environment: env);
         await client.StartAsync();
 
         var session = await client.CreateSessionAsync(new SessionConfig

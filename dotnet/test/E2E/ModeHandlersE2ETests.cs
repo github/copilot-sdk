@@ -155,7 +155,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
         };
 
-        return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env });
+        return Ctx.CreateClient(environment: env);
     }
 
     private Task ConfigureAuthenticatedUserAsync()
