@@ -2444,13 +2444,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous dispose operation.</returns>
     /// <remarks>
-    /// This method calls <see cref="ForceStopAsync"/> to immediately release all resources.
+    /// This method calls <see cref="StopAsync"/> to gracefully shut down the runtime and
+    /// release all resources. Use <see cref="ForceStopAsync"/> for an immediate hard stop
+    /// that skips graceful runtime shutdown.
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
         _disposed = true;
-        await ForceStopAsync();
+        await StopAsync();
     }
 
     private class RpcHandler(CopilotClient client)
