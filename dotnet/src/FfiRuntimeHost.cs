@@ -74,6 +74,14 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     // write dereference half-freed shared state and crash the whole process with
     // an AccessViolationException.
     private static readonly ReaderWriterLockSlim s_nativeGate = new(LockRecursionPolicy.NoRecursion);
+
+    // Serializes StartAsync's publish of the native ids against Dispose. host_start
+    // blocks until the embedded child has fully started (or times out), so if a
+    // Dispose races an in-flight StartAsync we must not tear the child down while
+    // it is still booting (that closes the napi-oop provider mid-startup and the
+    // child aborts the shared process with "peer is closed"). Instead, whichever
+    // of the two runs second performs the teardown of the fully-started host.
+    private readonly object _startStopLock = new();
     private static volatile ILogger? s_diagnosticLogger;
     private int _outboundToken;
 
@@ -194,23 +202,44 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             var argvJson = BuildArgvJson(_cliEntrypoint);
             var envJson = BuildEnvJson(_environment);
 
-            _serverId = NativeHostStart(argvJson, envJson);
-            if (_serverId == 0)
+            // host_start blocks until the child signals readiness, so on return the
+            // child has finished loading and its provider is safe to close cleanly.
+            var serverId = NativeHostStart(argvJson, envJson);
+            if (serverId == 0)
             {
                 throw new InvalidOperationException(
                     $"copilot_runtime_host_start failed (library '{_libraryPath}', entrypoint '{_cliEntrypoint}').");
             }
 
-            _connectionId = NativeOpenConnection(_serverId);
-            if (_connectionId == 0)
+            var connectionId = NativeOpenConnection(serverId);
+            if (connectionId == 0)
             {
                 DisposeNativeCallback();
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
+                NativeHostShutdown(serverId);
                 throw new InvalidOperationException("copilot_runtime_connection_open failed.");
             }
 
-            _sendStream = new CallbackSendStream(SendFrame);
+            var sendStream = new CallbackSendStream(SendFrame);
+
+            bool disposedWhileStarting;
+            lock (_startStopLock)
+            {
+                disposedWhileStarting = _disposed;
+                if (!disposedWhileStarting)
+                {
+                    _serverId = serverId;
+                    _connectionId = connectionId;
+                    _sendStream = sendStream;
+                }
+            }
+
+            if (disposedWhileStarting)
+            {
+                // Disposed while host_start was blocking. The child is fully started
+                // now, so tear it down cleanly here (Dispose saw no ids to close).
+                TeardownNative(connectionId, serverId);
+                throw new OperationCanceledException("FfiRuntimeHost was disposed during startup.");
+            }
         }, cancellationToken).ConfigureAwait(false);
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -297,29 +326,53 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        uint connectionId;
+        uint serverId;
+        lock (_startStopLock)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+
+            // Claim the native ids. If StartAsync hasn't published them yet, these
+            // are 0 and its still-running publish will observe _disposed and perform
+            // the teardown itself once the child has finished starting.
+            connectionId = _connectionId;
+            serverId = _serverId;
+            _connectionId = 0;
+            _serverId = 0;
         }
-        _disposed = true;
 
         // Stop routing outbound callbacks to this instance before we ask the
         // native side to close, so any callback the runtime fires during/after
         // teardown is logged and dropped instead of touching disposed state.
         UnregisterOutboundToken();
 
-        // Hold the exclusive gate across the native teardown so no other host's
-        // connection_write can be executing in native code while this host tears
-        // down the shared runtime/provider state.
+        TeardownNative(connectionId, serverId);
+
+        _receiveStream.Complete();
+    }
+
+    // Closes the connection and shuts the host down under the exclusive native
+    // gate so no other host's connection_write can be executing in native code
+    // while this host tears down the shared runtime/provider state.
+    private void TeardownNative(uint connectionId, uint serverId)
+    {
+        if (connectionId == 0 && serverId == 0)
+        {
+            return;
+        }
+
         s_nativeGate.EnterWriteLock();
         try
         {
             try
             {
-                if (_connectionId != 0)
+                if (connectionId != 0)
                 {
-                    NativeConnectionClose(_connectionId);
-                    _connectionId = 0;
+                    NativeConnectionClose(connectionId);
                 }
             }
             catch (Exception ex)
@@ -329,10 +382,9 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
             try
             {
-                if (_serverId != 0)
+                if (serverId != 0)
                 {
-                    NativeHostShutdown(_serverId);
-                    _serverId = 0;
+                    NativeHostShutdown(serverId);
                 }
             }
             catch (Exception ex)
@@ -344,9 +396,6 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         {
             s_nativeGate.ExitWriteLock();
         }
-
-        _receiveStream.Complete();
-        DisposeNativeCallback();
     }
 
     /// <summary>Length as the native pointer-sized unsigned integer the ABI expects.</summary>
