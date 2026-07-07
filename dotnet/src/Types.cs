@@ -156,6 +156,7 @@ public abstract class RuntimeConnection
     /// Works across the SDK's target frameworks: modern .NET uses <c>NativeLibrary</c>,
     /// while <c>netstandard2.0</c> consumers use a built-in fallback native loader.
     /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
     public static InProcessRuntimeConnection ForInProcess()
         => new();
 }
@@ -190,6 +191,7 @@ public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 /// To point at a non-default runtime entrypoint, set the <c>COPILOT_CLI_PATH</c>
 /// environment variable.
 /// </summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class InProcessRuntimeConnection : RuntimeConnection
 {
     internal InProcessRuntimeConnection() { }
