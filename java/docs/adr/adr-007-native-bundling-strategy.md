@@ -1,4 +1,4 @@
-# ADR-007: Native runtime bundling strategy — per-platform classifier JARs
+# ADR-007: DRAFT: Native runtime bundling strategy — per-platform classifier JARs
 
 ## Context and Problem Statement
 
