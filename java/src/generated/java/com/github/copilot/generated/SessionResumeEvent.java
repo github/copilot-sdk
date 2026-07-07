@@ -47,6 +47,8 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+        /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */
+        @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier currently selected at resume time; null when no tier is active */
         @JsonProperty("contextTier") ContextTier contextTier,
         /** Session limits currently configured at resume time; null when no limits are active */

@@ -36,6 +36,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode for supported model clients. */
     @JsonProperty("reasoningSummary") OptionsUpdateReasoningSummary reasoningSummary,
+    /** Output verbosity level for supported models. */
+    @JsonProperty("verbosity") Verbosity verbosity,
     /** Identifier of the client driving the session. */
     @JsonProperty("clientName") String clientName,
     /** Identifier sent to LSP-style integrations. */

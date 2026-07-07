@@ -89,6 +89,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantToolCallDelta:
+		var d AssistantToolCallDeltaData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantTurnEnd:
 		var d AssistantTurnEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

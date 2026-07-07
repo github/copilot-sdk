@@ -33,6 +33,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantReasoningEvent), "assistant.reasoning")]
 [JsonDerivedType(typeof(AssistantReasoningDeltaEvent), "assistant.reasoning_delta")]
 [JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
+[JsonDerivedType(typeof(AssistantToolCallDeltaEvent), "assistant.tool_call_delta")]
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
@@ -621,6 +622,19 @@ public sealed partial class AssistantReasoningDeltaEvent : SessionEvent
     /// <summary>The <c>assistant.reasoning_delta</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantReasoningDeltaData Data { get; set; }
+}
+
+/// <summary>Streaming tool-call input delta for incremental tool-call updates.</summary>
+/// <remarks>Represents the <c>assistant.tool_call_delta</c> event.</remarks>
+public sealed partial class AssistantToolCallDeltaEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.tool_call_delta";
+
+    /// <summary>The <c>assistant.tool_call_delta</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantToolCallDeltaData Data { get; set; }
 }
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
@@ -1565,6 +1579,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("startTime")]
     public required DateTimeOffset StartTime { get; set; }
 
+    /// <summary>Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
+
     /// <summary>Schema version number for the session event format.</summary>
     [JsonPropertyName("version")]
     public required long Version { get; set; }
@@ -1635,6 +1654,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("sessionWasActive")]
     public bool? SessionWasActive { get; set; }
+
+    /// <summary>Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 }
 
 /// <summary>Notifies that the session's remote steering capability has changed.</summary>
@@ -1866,6 +1890,11 @@ public sealed partial class SessionModelChangeData
     [JsonPropertyName("previousReasoningSummary")]
     public ReasoningSummary? PreviousReasoningSummary { get; set; }
 
+    /// <summary>Output verbosity level before the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousVerbosity")]
+    public Verbosity? PreviousVerbosity { get; set; }
+
     /// <summary>Reasoning effort level after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
@@ -1875,6 +1904,11 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningSummary")]
     public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Output verbosity level after the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -2443,6 +2477,28 @@ public sealed partial class AssistantReasoningDeltaData
     /// <summary>Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event.</summary>
     [JsonPropertyName("reasoningId")]
     public required string ReasoningId { get; set; }
+}
+
+/// <summary>Streaming tool-call input delta for incremental tool-call updates.</summary>
+public sealed partial class AssistantToolCallDeltaData
+{
+    /// <summary>Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.</summary>
+    [JsonPropertyName("inputDelta")]
+    public required string InputDelta { get; set; }
+
+    /// <summary>Tool call ID this delta belongs to, matching the corresponding assistant.message tool request.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Name of the tool being invoked, when known from the stream.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+
+    /// <summary>Tool call type, when known from the stream.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolType")]
+    public AssistantMessageToolRequestType? ToolType { get; set; }
 }
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
@@ -6325,6 +6381,16 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
 
+    /// <summary>True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -6409,6 +6475,16 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     /// <summary>Human-readable description of why the URL is being accessed.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
+
+    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6765,6 +6841,16 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     /// <summary>Human-readable description of why the URL is being accessed.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
+
+    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7810,6 +7896,70 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
     }
 }
 
+/// <summary>Output verbosity level used for supported model calls (e.g. "low", "medium", "high").</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct Verbosity : IEquatable<Verbosity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="Verbosity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="Verbosity"/>.</param>
+    [JsonConstructor]
+    public Verbosity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="Verbosity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A terse response was requested.</summary>
+    public static Verbosity Low { get; } = new("low");
+
+    /// <summary>A medium amount of response detail was requested.</summary>
+    public static Verbosity Medium { get; } = new("medium");
+
+    /// <summary>A more detailed response was requested.</summary>
+    public static Verbosity High { get; } = new("high");
+
+    /// <summary>Returns a value indicating whether two <see cref="Verbosity"/> instances are equivalent.</summary>
+    public static bool operator ==(Verbosity left, Verbosity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="Verbosity"/> instances are not equivalent.</summary>
+    public static bool operator !=(Verbosity left, Verbosity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is Verbosity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(Verbosity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{Verbosity}"/> for serializing <see cref="Verbosity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<Verbosity>
+    {
+        /// <inheritdoc />
+        public override Verbosity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, Verbosity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(Verbosity));
+        }
+    }
+}
+
 /// <summary>The type of operation performed on the autopilot objective state file.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -8573,6 +8723,67 @@ public readonly struct UserMessageDelivery : IEquatable<UserMessageDelivery>
     }
 }
 
+/// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMessageToolRequestType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
+    [JsonConstructor]
+    public AssistantMessageToolRequestType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Standard function-style tool call.</summary>
+    public static AssistantMessageToolRequestType Function { get; } = new("function");
+
+    /// <summary>Custom grammar-based tool call.</summary>
+    public static AssistantMessageToolRequestType Custom { get; } = new("custom");
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AssistantMessageToolRequestType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistantMessageToolRequestType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestType}"/> for serializing <see cref="AssistantMessageToolRequestType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AssistantMessageToolRequestType>
+    {
+        /// <inheritdoc />
+        public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
+        }
+    }
+}
+
 /// <summary>The system that produced a citation.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -8634,67 +8845,6 @@ public readonly struct CitationProvider : IEquatable<CitationProvider>
         public override void Write(Utf8JsonWriter writer, CitationProvider value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CitationProvider));
-        }
-    }
-}
-
-/// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMessageToolRequestType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
-    [JsonConstructor]
-    public AssistantMessageToolRequestType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Standard function-style tool call.</summary>
-    public static AssistantMessageToolRequestType Function { get; } = new("function");
-
-    /// <summary>Custom grammar-based tool call.</summary>
-    public static AssistantMessageToolRequestType Custom { get; } = new("custom");
-
-    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
-    public static bool operator ==(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are not equivalent.</summary>
-    public static bool operator !=(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AssistantMessageToolRequestType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(AssistantMessageToolRequestType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestType}"/> for serializing <see cref="AssistantMessageToolRequestType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AssistantMessageToolRequestType>
-    {
-        /// <inheritdoc />
-        public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
         }
     }
 }
@@ -10843,6 +10993,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantReasoningEvent))]
 [JsonSerializable(typeof(AssistantStreamingDeltaData))]
 [JsonSerializable(typeof(AssistantStreamingDeltaEvent))]
+[JsonSerializable(typeof(AssistantToolCallDeltaData))]
+[JsonSerializable(typeof(AssistantToolCallDeltaEvent))]
 [JsonSerializable(typeof(AssistantTurnEndData))]
 [JsonSerializable(typeof(AssistantTurnEndEvent))]
 [JsonSerializable(typeof(AssistantTurnStartData))]

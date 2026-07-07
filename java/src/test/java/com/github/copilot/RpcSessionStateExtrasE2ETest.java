@@ -65,7 +65,7 @@ class RpcSessionStateExtrasE2ETest {
 
                 var selectionId = "java-e2e-provider/small";
                 session.getRpc().model
-                        .switchTo(new SessionModelSwitchToParams(null, selectionId, null, null, null, null))
+                        .switchTo(new SessionModelSwitchToParams(null, selectionId, null, null, null, null, null))
                         .get(30, TimeUnit.SECONDS);
                 var current = session.getRpc().model.getCurrent().get(30, TimeUnit.SECONDS);
                 assertEquals(selectionId, current.modelId());

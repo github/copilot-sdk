@@ -1927,7 +1927,7 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
         return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null))
+                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null))
                 .thenApply(r -> null);
     }
 
@@ -2008,7 +2008,7 @@ public final class CopilotSession implements AutoCloseable {
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, generatedCapabilities, null)).thenApply(r -> null);
+                generatedReasoningSummary, null, generatedCapabilities, null)).thenApply(r -> null);
     }
 
     /**

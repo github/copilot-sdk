@@ -319,6 +319,7 @@ async fn should_add_byok_provider_and_model_at_runtime() {
                         model_id: selection_id.to_string(),
                         reasoning_effort: None,
                         reasoning_summary: None,
+                        verbosity: None,
                     })
                     .await
                     .expect("switch to added model");

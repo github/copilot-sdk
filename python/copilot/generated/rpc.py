@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from .session_events import AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval
+from .session_events import AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval, Verbosity
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -6062,16 +6062,16 @@ class RegisterEventInterestParams:
     """The event type the consumer wants the runtime to treat as 'observed' for
     behavior-switching gating. Some runtime code paths inspect whether any consumer is
     interested in a specific event type and choose a different implementation accordingly
-    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full
-    interactive OAuth flow to the consumer; when no interest is registered the runtime
-    installs a browserless fallback that silently reuses cached tokens). SDK clients that
-    long-poll events do NOT automatically appear as listeners to these gating checks — they
-    must explicitly call `registerInterest` for each event type they want the runtime to
-    count as having a consumer. Multiple registrations for the same event type from the same
-    or different consumers are tracked independently and must each be released. See:
-    `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
-    `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
-    `command.queued`, `exit_plan_mode.requested`.
+    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token
+    acquisition to the consumer; when no interest is registered OAuth-required servers become
+    needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners
+    to these gating checks — they must explicitly call `registerInterest` for each event type
+    they want the runtime to count as having a consumer. Multiple registrations for the same
+    event type from the same or different consumers are tracked independently and must each
+    be released. See: `mcp.oauth_required`, `sampling.requested`,
+    `auto_mode_switch.requested`, `session_limits_exhausted.requested`,
+    `user_input.requested`, `elicitation.requested`, `command.queued`,
+    `exit_plan_mode.requested`.
     """
 
     @staticmethod
@@ -15501,6 +15501,12 @@ class RemoteControlStatusActive:
     state: ClassVar[str] = "active"
     """Remote control state tag: active."""
 
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    awaiting_first_message: bool | None = None
+    """True while a read-only/session-sync export is deferred, awaiting the first `user.message`
+    before its MC session exists. Marked internal: this field is excluded from the public SDK
+    surface and is populated only on the CLI in-process path.
+    """
     frontend_url: str | None = None
     """MC frontend URL for this session, when known."""
 
@@ -15517,15 +15523,18 @@ class RemoteControlStatusActive:
         assert isinstance(obj, dict)
         attached_session_id = from_str(obj.get("attachedSessionId"))
         is_steerable = from_bool(obj.get("isSteerable"))
+        awaiting_first_message = from_union([from_bool, from_none], obj.get("awaitingFirstMessage"))
         frontend_url = from_union([from_str, from_none], obj.get("frontendUrl"))
         prompt_manager = obj.get("promptManager")
-        return RemoteControlStatusActive(attached_session_id, is_steerable, frontend_url, prompt_manager)
+        return RemoteControlStatusActive(attached_session_id, is_steerable, awaiting_first_message, frontend_url, prompt_manager)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["attachedSessionId"] = from_str(self.attached_session_id)
         result["isSteerable"] = from_bool(self.is_steerable)
         result["state"] = self.state
+        if self.awaiting_first_message is not None:
+            result["awaitingFirstMessage"] = from_union([from_bool, from_none], self.awaiting_first_message)
         if self.frontend_url is not None:
             result["frontendUrl"] = from_union([from_str, from_none], self.frontend_url)
         if self.prompt_manager is not None:
@@ -21136,6 +21145,9 @@ class SessionOpenOptions:
     `assistant.message` event. Off by default; may change or be removed while the citations
     surface is experimental.
     """
+    enable_managed_settings: bool | None = None
+    """Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap."""
+
     enable_on_demand_instruction_discovery: bool | None = None
     """Whether on-demand custom instruction discovery is enabled."""
 
@@ -21232,9 +21244,6 @@ class SessionOpenOptions:
     sandbox_config: SandboxConfig | None = None
     """Resolved sandbox configuration."""
 
-    self_fetch_managed_settings: bool | None = None
-    """Opt-in: self-fetch enterprise managed settings at session bootstrap."""
-
     session_capabilities: list[SessionCapability] | None = None
     """Capabilities enabled for this session."""
 
@@ -21258,6 +21267,9 @@ class SessionOpenOptions:
 
     trajectory_file: str | None = None
     """Optional trajectory output file path."""
+
+    verbosity: Verbosity | None = None
+    """Initial output verbosity level for supported models."""
 
     working_directory: str | None = None
     """Working directory to anchor the session."""
@@ -21287,6 +21299,7 @@ class SessionOpenOptions:
         disabled_instruction_sources = from_union([lambda x: from_list(from_str, x), from_none], obj.get("disabledInstructionSources"))
         disabled_skills = from_union([lambda x: from_list(from_str, x), from_none], obj.get("disabledSkills"))
         enable_citations = from_union([from_bool, from_none], obj.get("enableCitations"))
+        enable_managed_settings = from_union([from_bool, from_none], obj.get("enableManagedSettings"))
         enable_on_demand_instruction_discovery = from_union([from_bool, from_none], obj.get("enableOnDemandInstructionDiscovery"))
         enable_script_safety = from_union([from_bool, from_none], obj.get("enableScriptSafety"))
         enable_streaming = from_union([from_bool, from_none], obj.get("enableStreaming"))
@@ -21316,7 +21329,6 @@ class SessionOpenOptions:
         remote_steerable = from_union([from_bool, from_none], obj.get("remoteSteerable"))
         running_in_interactive_mode = from_union([from_bool, from_none], obj.get("runningInInteractiveMode"))
         sandbox_config = from_union([SandboxConfig.from_dict, from_none], obj.get("sandboxConfig"))
-        self_fetch_managed_settings = from_union([from_bool, from_none], obj.get("selfFetchManagedSettings"))
         session_capabilities = from_union([lambda x: from_list(SessionCapability, x), from_none], obj.get("sessionCapabilities"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         session_limits = from_union([SessionLimitsConfig.from_dict, from_none], obj.get("sessionLimits"))
@@ -21325,9 +21337,10 @@ class SessionOpenOptions:
         skill_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("skillDirectories"))
         skip_custom_instructions = from_union([from_bool, from_none], obj.get("skipCustomInstructions"))
         trajectory_file = from_union([from_str, from_none], obj.get("trajectoryFile"))
+        verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
         working_directory_context = from_union([SessionContext.from_dict, from_none], obj.get("workingDirectoryContext"))
-        return SessionOpenOptions(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_skills, enable_citations, enable_on_demand_instruction_discovery, enable_script_safety, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, self_fetch_managed_settings, session_capabilities, session_id, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, working_directory, working_directory_context)
+        return SessionOpenOptions(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_skills, enable_citations, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, session_capabilities, session_id, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -21369,6 +21382,8 @@ class SessionOpenOptions:
             result["disabledSkills"] = from_union([lambda x: from_list(from_str, x), from_none], self.disabled_skills)
         if self.enable_citations is not None:
             result["enableCitations"] = from_union([from_bool, from_none], self.enable_citations)
+        if self.enable_managed_settings is not None:
+            result["enableManagedSettings"] = from_union([from_bool, from_none], self.enable_managed_settings)
         if self.enable_on_demand_instruction_discovery is not None:
             result["enableOnDemandInstructionDiscovery"] = from_union([from_bool, from_none], self.enable_on_demand_instruction_discovery)
         if self.enable_script_safety is not None:
@@ -21427,8 +21442,6 @@ class SessionOpenOptions:
             result["runningInInteractiveMode"] = from_union([from_bool, from_none], self.running_in_interactive_mode)
         if self.sandbox_config is not None:
             result["sandboxConfig"] = from_union([lambda x: to_class(SandboxConfig, x), from_none], self.sandbox_config)
-        if self.self_fetch_managed_settings is not None:
-            result["selfFetchManagedSettings"] = from_union([from_bool, from_none], self.self_fetch_managed_settings)
         if self.session_capabilities is not None:
             result["sessionCapabilities"] = from_union([lambda x: from_list(lambda x: to_enum(SessionCapability, x), x), from_none], self.session_capabilities)
         if self.session_id is not None:
@@ -21445,6 +21458,8 @@ class SessionOpenOptions:
             result["skipCustomInstructions"] = from_union([from_bool, from_none], self.skip_custom_instructions)
         if self.trajectory_file is not None:
             result["trajectoryFile"] = from_union([from_str, from_none], self.trajectory_file)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([lambda x: to_enum(Verbosity, x), from_none], self.verbosity)
         if self.working_directory is not None:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         if self.working_directory_context is not None:
@@ -21635,6 +21650,9 @@ class SessionUpdateOptionsParams:
     trajectory_file: str | None = None
     """Optional path for trajectory output."""
 
+    verbosity: Verbosity | None = None
+    """Output verbosity level for supported models."""
+
     working_directory: str | None = None
     """Absolute working-directory path for shell tools."""
 
@@ -21693,8 +21711,9 @@ class SessionUpdateOptionsParams:
         suppress_custom_agent_prompt = from_union([from_bool, from_none], obj.get("suppressCustomAgentPrompt"))
         tool_filter_precedence = from_union([OptionsUpdateToolFilterPrecedence, from_none], obj.get("toolFilterPrecedence"))
         trajectory_file = from_union([from_str, from_none], obj.get("trajectoryFile"))
+        verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
-        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, available_tools, capi, client_name, coauthor_enabled, context_tier, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, max_inline_binary_bytes, model, model_capabilities_overrides, organization_custom_instructions, provider, reasoning_effort, reasoning_summary, running_in_interactive_mode, sandbox_config, session_capabilities, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, suppress_custom_agent_prompt, tool_filter_precedence, trajectory_file, working_directory)
+        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, available_tools, capi, client_name, coauthor_enabled, context_tier, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, max_inline_binary_bytes, model, model_capabilities_overrides, organization_custom_instructions, provider, reasoning_effort, reasoning_summary, running_in_interactive_mode, sandbox_config, session_capabilities, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, suppress_custom_agent_prompt, tool_filter_precedence, trajectory_file, verbosity, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -21802,6 +21821,8 @@ class SessionUpdateOptionsParams:
             result["toolFilterPrecedence"] = from_union([lambda x: to_enum(OptionsUpdateToolFilterPrecedence, x), from_none], self.tool_filter_precedence)
         if self.trajectory_file is not None:
             result["trajectoryFile"] = from_union([from_str, from_none], self.trajectory_file)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([lambda x: to_enum(Verbosity, x), from_none], self.verbosity)
         if self.working_directory is not None:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
@@ -23017,6 +23038,9 @@ class ModelSwitchToRequest:
     reasoning_summary: ReasoningSummary | None = None
     """Reasoning summary mode to request for supported model clients"""
 
+    verbosity: Verbosity | None = None
+    """Output verbosity level to request for supported models"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'ModelSwitchToRequest':
         assert isinstance(obj, dict)
@@ -23025,7 +23049,8 @@ class ModelSwitchToRequest:
         model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         reasoning_summary = from_union([ReasoningSummary, from_none], obj.get("reasoningSummary"))
-        return ModelSwitchToRequest(model_id, context_tier, model_capabilities, reasoning_effort, reasoning_summary)
+        verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
+        return ModelSwitchToRequest(model_id, context_tier, model_capabilities, reasoning_effort, reasoning_summary, verbosity)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -23038,6 +23063,8 @@ class ModelSwitchToRequest:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         if self.reasoning_summary is not None:
             result["reasoningSummary"] = from_union([lambda x: to_enum(ReasoningSummary, x), from_none], self.reasoning_summary)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([lambda x: to_enum(Verbosity, x), from_none], self.verbosity)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -23220,6 +23247,15 @@ class SessionsOpenHandoff:
     `sessions.list` with `source: "remote"`).
     """
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    on_confirm: Any = None
+    """In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when
+    the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch
+    between the current working directory and the remote session). Returning `true` proceeds
+    with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal
+    because a function reference cannot cross the JSON-RPC boundary, for the same reasons as
+    `onProgress`.
+    """
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     on_progress: Any = None
     """In-process progress callback `(update) => void` invoked for each handoff step. Marked
     internal because a function reference cannot cross the JSON-RPC boundary. The host-side
@@ -23240,15 +23276,18 @@ class SessionsOpenHandoff:
     def from_dict(obj: Any) -> 'SessionsOpenHandoff':
         assert isinstance(obj, dict)
         metadata = RemoteSessionMetadataValue.from_dict(obj.get("metadata"))
+        on_confirm = obj.get("onConfirm")
         on_progress = obj.get("onProgress")
         options = from_union([SessionOpenOptions.from_dict, from_none], obj.get("options"))
         task_type = from_union([TaskType, from_none], obj.get("taskType"))
-        return SessionsOpenHandoff(metadata, on_progress, options, task_type)
+        return SessionsOpenHandoff(metadata, on_confirm, on_progress, options, task_type)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["kind"] = self.kind
         result["metadata"] = to_class(RemoteSessionMetadataValue, self.metadata)
+        if self.on_confirm is not None:
+            result["onConfirm"] = self.on_confirm
         if self.on_progress is not None:
             result["onProgress"] = self.on_progress
         if self.options is not None:

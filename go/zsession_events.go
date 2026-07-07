@@ -20,6 +20,7 @@ type (
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
+	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
@@ -332,6 +333,7 @@ type (
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
 	UserToolSessionApprovalWrite                                   = rpc.UserToolSessionApprovalWrite
+	Verbosity                                                      = rpc.Verbosity
 	WorkingDirectoryContext                                        = rpc.WorkingDirectoryContext
 	WorkingDirectoryContextHostType                                = rpc.WorkingDirectoryContextHostType
 	WorkspaceFileChangedOperation                                  = rpc.WorkspaceFileChangedOperation
@@ -507,6 +509,7 @@ const (
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
+	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
 	SessionEventTypeAssistantTurnStart                                 = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                     = rpc.SessionEventTypeAssistantUsage
@@ -657,6 +660,9 @@ const (
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
+	VerbosityHigh                                                      = rpc.VerbosityHigh
+	VerbosityLow                                                       = rpc.VerbosityLow
+	VerbosityMedium                                                    = rpc.VerbosityMedium
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
 	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

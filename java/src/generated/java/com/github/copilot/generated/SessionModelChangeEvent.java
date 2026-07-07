@@ -46,6 +46,10 @@ public final class SessionModelChangeEvent extends SessionEvent {
         @JsonProperty("previousReasoningSummary") ReasoningSummary previousReasoningSummary,
         /** Reasoning summary mode after the model change, if applicable */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+        /** Output verbosity level before the model change, if applicable */
+        @JsonProperty("previousVerbosity") Verbosity previousVerbosity,
+        /** Output verbosity level after the model change, if applicable */
+        @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier after the model change; null explicitly clears a previously selected tier */
         @JsonProperty("contextTier") ContextTier contextTier,
         /** Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy. */

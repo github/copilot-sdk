@@ -157,6 +157,7 @@ class SessionEventType(Enum):
     ASSISTANT_INTENT = "assistant.intent"
     ASSISTANT_REASONING = "assistant.reasoning"
     ASSISTANT_REASONING_DELTA = "assistant.reasoning_delta"
+    ASSISTANT_TOOL_CALL_DELTA = "assistant.tool_call_delta"
     ASSISTANT_STREAMING_DELTA = "assistant.streaming_delta"
     ASSISTANT_MESSAGE = "assistant.message"
     ASSISTANT_MESSAGE_START = "assistant.message_start"
@@ -1348,6 +1349,39 @@ class AssistantStreamingDeltaData:
     def to_dict(self) -> dict:
         result: dict = {}
         result["totalResponseSizeBytes"] = to_int(self.total_response_size_bytes)
+        return result
+
+
+@dataclass
+class AssistantToolCallDeltaData:
+    "Streaming tool-call input delta for incremental tool-call updates"
+    input_delta: str
+    tool_call_id: str
+    tool_name: str | None = None
+    tool_type: AssistantMessageToolRequestType | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantToolCallDeltaData":
+        assert isinstance(obj, dict)
+        input_delta = from_str(obj.get("inputDelta"))
+        tool_call_id = from_str(obj.get("toolCallId"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        tool_type = from_union([from_none, lambda x: parse_enum(AssistantMessageToolRequestType, x)], obj.get("toolType"))
+        return AssistantToolCallDeltaData(
+            input_delta=input_delta,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            tool_type=tool_type,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["inputDelta"] = from_str(self.input_delta)
+        result["toolCallId"] = from_str(self.tool_call_id)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.tool_type is not None:
+            result["toolType"] = from_union([from_none, lambda x: to_enum(AssistantMessageToolRequestType, x)], self.tool_type)
         return result
 
 
@@ -4328,6 +4362,8 @@ class PermissionPromptRequestUrl:
     url: str
     # Experimental: this field is part of an experimental API and may change or be removed.
     auto_approval: PermissionAutoApproval | None = None
+    request_sandbox_bypass: bool | None = None
+    request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4336,11 +4372,15 @@ class PermissionPromptRequestUrl:
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
         auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
+        request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionPromptRequestUrl(
             intention=intention,
             url=url,
             auto_approval=auto_approval,
+            request_sandbox_bypass=request_sandbox_bypass,
+            request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
         )
 
@@ -4351,6 +4391,10 @@ class PermissionPromptRequestUrl:
         result["url"] = from_str(self.url)
         if self.auto_approval is not None:
             result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.request_sandbox_bypass is not None:
+            result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
+        if self.request_sandbox_bypass_reason is not None:
+            result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4784,6 +4828,8 @@ class PermissionRequestUrl:
     intention: str
     kind: ClassVar[str] = "url"
     url: str
+    request_sandbox_bypass: bool | None = None
+    request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4791,10 +4837,14 @@ class PermissionRequestUrl:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
+        request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
+        request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestUrl(
             intention=intention,
             url=url,
+            request_sandbox_bypass=request_sandbox_bypass,
+            request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
         )
 
@@ -4803,6 +4853,10 @@ class PermissionRequestUrl:
         result["intention"] = from_str(self.intention)
         result["kind"] = self.kind
         result["url"] = from_str(self.url)
+        if self.request_sandbox_bypass is not None:
+            result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
+        if self.request_sandbox_bypass_reason is not None:
+            result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -4817,6 +4871,8 @@ class PermissionRequestWrite:
     intention: str
     kind: ClassVar[str] = "write"
     new_file_contents: str | None = None
+    request_sandbox_bypass: bool | None = None
+    request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4827,6 +4883,8 @@ class PermissionRequestWrite:
         file_name = from_str(obj.get("fileName"))
         intention = from_str(obj.get("intention"))
         new_file_contents = from_union([from_none, from_str], obj.get("newFileContents"))
+        request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
+        request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestWrite(
             can_offer_session_approval=can_offer_session_approval,
@@ -4834,6 +4892,8 @@ class PermissionRequestWrite:
             file_name=file_name,
             intention=intention,
             new_file_contents=new_file_contents,
+            request_sandbox_bypass=request_sandbox_bypass,
+            request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
         )
 
@@ -4846,6 +4906,10 @@ class PermissionRequestWrite:
         result["kind"] = self.kind
         if self.new_file_contents is not None:
             result["newFileContents"] = from_union([from_none, from_str], self.new_file_contents)
+        if self.request_sandbox_bypass is not None:
+            result["requestSandboxBypass"] = from_union([from_none, from_bool], self.request_sandbox_bypass)
+        if self.request_sandbox_bypass_reason is not None:
+            result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5708,8 +5772,10 @@ class SessionModelChangeData:
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
     previous_reasoning_summary: ReasoningSummary | None = None
+    previous_verbosity: Verbosity | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
+    verbosity: Verbosity | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionModelChangeData":
@@ -5720,8 +5786,10 @@ class SessionModelChangeData:
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
+        previous_verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("previousVerbosity"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
+        verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("verbosity"))
         return SessionModelChangeData(
             new_model=new_model,
             cause=cause,
@@ -5729,8 +5797,10 @@ class SessionModelChangeData:
             previous_model=previous_model,
             previous_reasoning_effort=previous_reasoning_effort,
             previous_reasoning_summary=previous_reasoning_summary,
+            previous_verbosity=previous_verbosity,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
+            verbosity=verbosity,
         )
 
     def to_dict(self) -> dict:
@@ -5746,10 +5816,14 @@ class SessionModelChangeData:
             result["previousReasoningEffort"] = from_union([from_none, from_str], self.previous_reasoning_effort)
         if self.previous_reasoning_summary is not None:
             result["previousReasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.previous_reasoning_summary)
+        if self.previous_verbosity is not None:
+            result["previousVerbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.previous_verbosity)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_summary is not None:
             result["reasoningSummary"] = from_union([from_none, lambda x: to_enum(ReasoningSummary, x)], self.reasoning_summary)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.verbosity)
         return result
 
 
@@ -5842,6 +5916,7 @@ class SessionResumeData:
     selected_model: str | None = None
     session_limits: SessionLimitsConfig | None = None
     session_was_active: bool | None = None
+    verbosity: Verbosity | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionResumeData":
@@ -5859,6 +5934,7 @@ class SessionResumeData:
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         session_limits = from_union([from_none, SessionLimitsConfig.from_dict], obj.get("sessionLimits"))
         session_was_active = from_union([from_none, from_bool], obj.get("sessionWasActive"))
+        verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("verbosity"))
         return SessionResumeData(
             event_count=event_count,
             resume_time=resume_time,
@@ -5873,6 +5949,7 @@ class SessionResumeData:
             selected_model=selected_model,
             session_limits=session_limits,
             session_was_active=session_was_active,
+            verbosity=verbosity,
         )
 
     def to_dict(self) -> dict:
@@ -5901,6 +5978,8 @@ class SessionResumeData:
             result["sessionLimits"] = from_union([from_none, lambda x: to_class(SessionLimitsConfig, x)], self.session_limits)
         if self.session_was_active is not None:
             result["sessionWasActive"] = from_union([from_none, from_bool], self.session_was_active)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.verbosity)
         return result
 
 
@@ -6169,6 +6248,7 @@ class SessionStartData:
     remote_steerable: bool | None = None
     selected_model: str | None = None
     session_limits: SessionLimitsConfig | None = None
+    verbosity: Verbosity | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionStartData":
@@ -6187,6 +6267,7 @@ class SessionStartData:
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
         selected_model = from_union([from_none, from_str], obj.get("selectedModel"))
         session_limits = from_union([from_none, SessionLimitsConfig.from_dict], obj.get("sessionLimits"))
+        verbosity = from_union([from_none, lambda x: parse_enum(Verbosity, x)], obj.get("verbosity"))
         return SessionStartData(
             copilot_version=copilot_version,
             producer=producer,
@@ -6202,6 +6283,7 @@ class SessionStartData:
             remote_steerable=remote_steerable,
             selected_model=selected_model,
             session_limits=session_limits,
+            verbosity=verbosity,
         )
 
     def to_dict(self) -> dict:
@@ -6229,6 +6311,8 @@ class SessionStartData:
             result["selectedModel"] = from_union([from_none, from_str], self.selected_model)
         if self.session_limits is not None:
             result["sessionLimits"] = from_union([from_none, lambda x: to_class(SessionLimitsConfig, x)], self.session_limits)
+        if self.verbosity is not None:
+            result["verbosity"] = from_union([from_none, lambda x: to_enum(Verbosity, x)], self.verbosity)
         return result
 
 
@@ -9080,6 +9164,16 @@ class UserMessageDelivery(Enum):
     QUEUED = "queued"
 
 
+class Verbosity(Enum):
+    "Output verbosity level used for supported model calls (e.g. \"low\", \"medium\", \"high\")"
+    # A terse response was requested.
+    LOW = "low"
+    # A medium amount of response detail was requested.
+    MEDIUM = "medium"
+    # A more detailed response was requested.
+    HIGH = "high"
+
+
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
     # Repository is hosted on GitHub.
@@ -9096,7 +9190,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -9157,6 +9251,7 @@ class SessionEvent:
             case SessionEventType.ASSISTANT_INTENT: data = AssistantIntentData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_REASONING: data = AssistantReasoningData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_REASONING_DELTA: data = AssistantReasoningDeltaData.from_dict(data_obj)
+            case SessionEventType.ASSISTANT_TOOL_CALL_DELTA: data = AssistantToolCallDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_STREAMING_DELTA: data = AssistantStreamingDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_MESSAGE: data = AssistantMessageData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_MESSAGE_START: data = AssistantMessageStartData.from_dict(data_obj)
@@ -9271,6 +9366,7 @@ __all__ = [
     "AssistantReasoningData",
     "AssistantReasoningDeltaData",
     "AssistantStreamingDeltaData",
+    "AssistantToolCallDeltaData",
     "AssistantTurnEndData",
     "AssistantTurnStartData",
     "AssistantUsageApiEndpoint",
@@ -9564,6 +9660,7 @@ __all__ = [
     "UserToolSessionApprovalMemory",
     "UserToolSessionApprovalRead",
     "UserToolSessionApprovalWrite",
+    "Verbosity",
     "WorkingDirectoryContext",
     "WorkingDirectoryContextHostType",
     "WorkspaceFileChangedOperation",

@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -7572,6 +7572,7 @@ export interface ModelSwitchToRequest {
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
+  verbosity?: Verbosity;
   modelCapabilities?: ModelCapabilitiesOverride;
   contextTier?: ContextTier;
 }
@@ -10212,7 +10213,7 @@ export interface QueueRemoveMostRecentResult {
 /** @experimental */
 export interface RegisterEventInterestParams {
   /**
-   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
    */
   eventType: string;
 }
@@ -10413,6 +10414,12 @@ export interface RemoteControlStatusActive {
   promptManager?: {
     [k: string]: unknown | undefined;
   };
+  /**
+   * True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
+   *
+   * @internal
+   */
+  awaitingFirstMessage?: boolean;
 }
 /**
  * The last setup attempt failed. The singleton is otherwise off.
@@ -11765,6 +11772,7 @@ export interface SessionOpenOptions {
    */
   reasoningEffort?: string;
   reasoningSummary?: SessionOpenOptionsReasoningSummary;
+  verbosity?: Verbosity;
   /**
    * Identifier of the client driving the session.
    */
@@ -11790,9 +11798,9 @@ export interface SessionOpenOptions {
     [k: string]: unknown | undefined;
   };
   /**
-   * Opt-in: self-fetch enterprise managed settings at session bootstrap.
+   * Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
    */
-  selfFetchManagedSettings?: boolean;
+  enableManagedSettings?: boolean;
   /**
    * Feature-flag values resolved by the host.
    */
@@ -12152,6 +12160,14 @@ export interface SessionsOpenHandoff {
    * @internal
    */
   onProgress?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
+   *
+   * @internal
+   */
+  onConfirm?: {
     [k: string]: unknown | undefined;
   };
 }
@@ -12906,6 +12922,7 @@ export interface SessionUpdateOptionsParams {
    */
   reasoningEffort?: string;
   reasoningSummary?: OptionsUpdateReasoningSummary;
+  verbosity?: Verbosity;
   /**
    * Identifier of the client driving the session.
    */
