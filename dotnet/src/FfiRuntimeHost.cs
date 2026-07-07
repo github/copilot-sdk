@@ -64,6 +64,16 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static readonly ConcurrentDictionary<int, FfiRuntimeHost> s_outboundTargets = new();
     private static int s_nextOutboundToken;
     private static int s_orphanedOutboundCount;
+
+    // Process-global gate protecting the shared native state (the single loaded
+    // runtime.node, its process-global tokio runtime, and the napi-oop provider
+    // bridge) that ALL in-process hosts share. Inbound writes take the read lock;
+    // a host's native teardown (connection_close + host_shutdown) takes the write
+    // lock. This guarantees no connection_write P/Invoke is executing in native
+    // code while any host tears that shared state down, which otherwise let a live
+    // write dereference half-freed shared state and crash the whole process with
+    // an AccessViolationException.
+    private static readonly ReaderWriterLockSlim s_nativeGate = new(LockRecursionPolicy.NoRecursion);
     private static volatile ILogger? s_diagnosticLogger;
     private int _outboundToken;
 
@@ -259,11 +269,22 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private bool SendFrame(ReadOnlySpan<byte> frame)
     {
-        if (_disposed || _connectionId == 0)
+        // The read lock lets writes from independent connections proceed
+        // concurrently but blocks while any host holds the exclusive write lock
+        // for its native teardown, so a write can never race a teardown.
+        s_nativeGate.EnterReadLock();
+        try
         {
-            return false;
+            if (_disposed || _connectionId == 0)
+            {
+                return false;
+            }
+            return NativeConnectionWrite(_connectionId, frame);
         }
-        return NativeConnectionWrite(_connectionId, frame);
+        finally
+        {
+            s_nativeGate.ExitReadLock();
+        }
     }
 
     private void FeedInbound(IntPtr bytesPtr, UIntPtr bytesLen)
@@ -287,30 +308,41 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         // teardown is logged and dropped instead of touching disposed state.
         UnregisterOutboundToken();
 
+        // Hold the exclusive gate across the native teardown so no other host's
+        // connection_write can be executing in native code while this host tears
+        // down the shared runtime/provider state.
+        s_nativeGate.EnterWriteLock();
         try
         {
-            if (_connectionId != 0)
+            try
             {
-                NativeConnectionClose(_connectionId);
-                _connectionId = 0;
+                if (_connectionId != 0)
+                {
+                    NativeConnectionClose(_connectionId);
+                    _connectionId = 0;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
-        }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: connection_close failed");
+            }
 
-        try
-        {
-            if (_serverId != 0)
+            try
             {
-                NativeHostShutdown(_serverId);
-                _serverId = 0;
+                if (_serverId != 0)
+                {
+                    NativeHostShutdown(_serverId);
+                    _serverId = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
             }
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogDebug(ex, "FfiRuntimeHost: host_shutdown failed");
+            s_nativeGate.ExitWriteLock();
         }
 
         _receiveStream.Complete();
