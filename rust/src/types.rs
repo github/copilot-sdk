@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -332,8 +333,8 @@ pub struct Tool {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instructions: Option<String>,
     /// JSON Schema for the tool's input parameters.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub parameters: HashMap<String, Value>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub parameters: IndexMap<String, Value>,
     /// When `true`, this tool replaces a built-in tool of the same name
     /// (e.g. supplying a custom `grep` that the agent uses in place of the
     /// CLI's built-in implementation).
@@ -614,7 +615,7 @@ pub struct CustomAgentConfig {
     pub prompt: String,
     /// MCP servers specific to this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Whether the agent is available for model inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub infer: Option<bool>,
@@ -668,7 +669,7 @@ impl CustomAgentConfig {
     }
 
     /// Configure agent-specific MCP servers.
-    pub fn with_mcp_servers(mut self, mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, mcp_servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(mcp_servers);
         self
     }
@@ -929,8 +930,8 @@ impl ExtensionInfo {
 ///
 /// ```
 /// # use github_copilot_sdk::types::{McpServerConfig, McpStdioServerConfig, McpHttpServerConfig};
-/// # use std::collections::HashMap;
-/// let mut servers = HashMap::new();
+/// # use github_copilot_sdk::IndexMap;
+/// let mut servers = IndexMap::new();
 /// servers.insert(
 ///     "playwright".to_string(),
 ///     McpServerConfig::Stdio(McpStdioServerConfig {
@@ -1609,7 +1610,7 @@ pub struct SessionConfig {
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -2057,7 +2058,7 @@ impl SessionConfig {
     ///
     /// Wire-format flags are derived from handler presence and the policy
     /// field; runtime fields are moved out into the returned runtime so
-    /// the deep `Vec<Tool>` / `HashMap<String, Value>` clones the previous
+    /// the deep `Vec<Tool>` / `IndexMap<String, Value>` clones the previous
     /// `&self`-based shape required are eliminated, and the order of
     /// reading-vs-moving is enforced at compile time.
     ///
@@ -2421,7 +2422,7 @@ impl SessionConfig {
     }
 
     /// Set MCP server configurations passed through to the CLI.
-    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
         self
     }
@@ -2793,7 +2794,7 @@ pub struct ResumeSessionConfig {
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -3505,7 +3506,7 @@ impl ResumeSessionConfig {
     }
 
     /// Re-supply MCP server configurations on resume.
-    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
         self
     }
@@ -5168,10 +5169,11 @@ mod tests {
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
         CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
-        LargeToolOutputConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig,
-        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
+        NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
+        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
+        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
+        ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -5720,7 +5722,7 @@ mod tests {
 
     #[test]
     fn session_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = SessionConfig::default()
             .with_session_id(SessionId::from("sess-1"))
@@ -5733,7 +5735,7 @@ mod tests {
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_enable_on_demand_instruction_discovery(true)
@@ -5794,7 +5796,7 @@ mod tests {
 
     #[test]
     fn resume_session_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
@@ -5804,7 +5806,7 @@ mod tests {
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_enable_on_demand_instruction_discovery(false)
@@ -5942,13 +5944,13 @@ mod tests {
 
     #[test]
     fn custom_agent_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = CustomAgentConfig::new("researcher", "You are a research assistant.")
             .with_display_name("Research Assistant")
             .with_description("Investigates technical questions.")
             .with_tools(["bash", "view"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_infer(true)
             .with_skills(["rust-coding-skill"]);
 
@@ -5968,6 +5970,46 @@ mod tests {
         assert_eq!(
             cfg.skills.as_deref(),
             Some(&["rust-coding-skill".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn mcp_servers_serialize_in_insertion_order() {
+        use indexmap::IndexMap;
+
+        // Regression: `mcp_servers` was a `HashMap`, so the server keys (and
+        // thus the `session.create` payload) serialized in a per-process
+        // random order. `IndexMap` pins them to insertion order.
+        let order = ["zebra", "alpha", "mango", "beta"];
+        let mut servers = IndexMap::new();
+        for name in order {
+            servers.insert(
+                name.to_string(),
+                McpServerConfig::Stdio(McpStdioServerConfig {
+                    command: "run".to_string(),
+                    ..Default::default()
+                }),
+            );
+        }
+
+        let (wire, _runtime) = SessionConfig::default()
+            .with_mcp_servers(servers)
+            .into_wire(None)
+            .expect("into_wire should succeed");
+        let json = serde_json::to_string(&wire).expect("serialize wire");
+
+        let positions: Vec<usize> = order
+            .iter()
+            .map(|name| {
+                json.find(&format!("\"{name}\""))
+                    .unwrap_or_else(|| panic!("server {name} missing from wire JSON"))
+            })
+            .collect();
+        let mut ascending = positions.clone();
+        ascending.sort_unstable();
+        assert_eq!(
+            positions, ascending,
+            "mcp server keys must serialize in insertion order: {json}"
         );
     }
 

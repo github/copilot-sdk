@@ -81,6 +81,11 @@ pub(crate) use jsonrpc::{
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 
+/// Re-export of [`indexmap::IndexMap`], used for order-preserving maps in the
+/// public API (e.g. [`Tool::parameters`](types::Tool::parameters) and
+/// `SessionConfig::mcp_servers`) so serialized key order stays deterministic.
+pub use indexmap::IndexMap;
+
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
 pub mod test_support {
