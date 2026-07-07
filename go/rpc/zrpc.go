@@ -4259,6 +4259,8 @@ type ModelSwitchToRequest struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode to request for supported model clients
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Output verbosity level to request for supported models
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
 // The model identifier active on the session after the switch.
@@ -6422,16 +6424,16 @@ type RegisterEventInterestParams struct {
 	// The event type the consumer wants the runtime to treat as 'observed' for
 	// behavior-switching gating. Some runtime code paths inspect whether any consumer is
 	// interested in a specific event type and choose a different implementation accordingly
-	// (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full
-	// interactive OAuth flow to the consumer; when no interest is registered the runtime
-	// installs a browserless fallback that silently reuses cached tokens). SDK clients that
-	// long-poll events do NOT automatically appear as listeners to these gating checks — they
-	// must explicitly call `registerInterest` for each event type they want the runtime to
-	// count as having a consumer. Multiple registrations for the same event type from the same
-	// or different consumers are tracked independently and must each be released. See:
-	// `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
-	// `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
-	// `command.queued`, `exit_plan_mode.requested`.
+	// (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token
+	// acquisition to the consumer; when no interest is registered OAuth-required servers become
+	// needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners
+	// to these gating checks — they must explicitly call `registerInterest` for each event type
+	// they want the runtime to count as having a consumer. Multiple registrations for the same
+	// event type from the same or different consumers are tracked independently and must each
+	// be released. See: `mcp.oauth_required`, `sampling.requested`,
+	// `auto_mode_switch.requested`, `session_limits_exhausted.requested`,
+	// `user_input.requested`, `elicitation.requested`, `command.queued`,
+	// `exit_plan_mode.requested`.
 	EventType string `json:"eventType"`
 }
 
@@ -6541,6 +6543,12 @@ func (r RawRemoteControlStatusData) State() RemoteControlStatusState {
 type RemoteControlStatusActive struct {
 	// Session id remote control is pointed at.
 	AttachedSessionID string `json:"attachedSessionId"`
+	// True while a read-only/session-sync export is deferred, awaiting the first `user.message`
+	// before its MC session exists. Marked internal: this field is excluded from the public SDK
+	// surface and is populated only on the CLI in-process path.
+	// Internal: AwaitingFirstMessage is part of the SDK's internal API surface and is not
+	// intended for external use.
+	AwaitingFirstMessage *bool `json:"awaitingFirstMessage,omitempty"`
 	// MC frontend URL for this session, when known.
 	FrontendURL *string `json:"frontendUrl,omitempty"`
 	// Whether the MC session may steer this session.
@@ -7751,6 +7759,8 @@ type SessionOpenOptions struct {
 	// surface is experimental.
 	// Experimental: EnableCitations is part of an experimental API and may change or be removed.
 	EnableCitations *bool `json:"enableCitations,omitempty"`
+	// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+	EnableManagedSettings *bool `json:"enableManagedSettings,omitempty"`
 	// Whether on-demand custom instruction discovery is enabled.
 	EnableOnDemandInstructionDiscovery *bool `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
@@ -7821,8 +7831,6 @@ type SessionOpenOptions struct {
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Resolved sandbox configuration.
 	SandboxConfig *SandboxConfig `json:"sandboxConfig,omitempty"`
-	// Opt-in: self-fetch enterprise managed settings at session bootstrap.
-	SelfFetchManagedSettings *bool `json:"selfFetchManagedSettings,omitempty"`
 	// Capabilities enabled for this session.
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
 	// Optional stable session identifier to use for a new session.
@@ -7839,6 +7847,8 @@ type SessionOpenOptions struct {
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
 	// Optional trajectory output file path.
 	TrajectoryFile *string `json:"trajectoryFile,omitempty"`
+	// Initial output verbosity level for supported models.
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 	// Working directory to anchor the session.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 	// Pre-resolved working-directory context for session startup.
@@ -7956,6 +7966,15 @@ type SessionsOpenHandoff struct {
 	// Remote session metadata for the session to hand off (typically obtained from
 	// `sessions.list` with `source: "remote"`).
 	Metadata RemoteSessionMetadataValue `json:"metadata"`
+	// In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when
+	// the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch
+	// between the current working directory and the remote session). Returning `true` proceeds
+	// with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal
+	// because a function reference cannot cross the JSON-RPC boundary, for the same reasons as
+	// `onProgress`.
+	// Internal: OnConfirm is part of the SDK's internal API surface and is not intended for
+	// external use.
+	OnConfirm any `json:"onConfirm,omitempty"`
 	// In-process progress callback `(update) => void` invoked for each handoff step. Marked
 	// internal because a function reference cannot cross the JSON-RPC boundary. The host-side
 	// `handoffSession` is already declared as `AsyncGenerator<HandoffProgress, HandoffResult>`;
@@ -8763,6 +8782,8 @@ type SessionUpdateOptionsParams struct {
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	// Optional path for trajectory output.
 	TrajectoryFile *string `json:"trajectoryFile,omitempty"`
+	// Output verbosity level for supported models.
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 	// Absolute working-directory path for shell tools.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
@@ -12556,6 +12577,19 @@ const (
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
+// Output verbosity level for supported models
+// Experimental: Verbosity is part of an experimental API and may change or be removed.
+type Verbosity string
+
+const (
+	// Request a more detailed response.
+	VerbosityHigh Verbosity = "high"
+	// Request a terse response.
+	VerbosityLow Verbosity = "low"
+	// Request a medium amount of response detail.
+	VerbosityMedium Verbosity = "medium"
+)
+
 // Type of change represented by this file diff.
 // Experimental: WorkspaceDiffFileChangeType is part of an experimental API and may change
 // or be removed.
@@ -16073,6 +16107,9 @@ func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 		if params.ReasoningSummary != nil {
 			req["reasoningSummary"] = *params.ReasoningSummary
 		}
+		if params.Verbosity != nil {
+			req["verbosity"] = *params.Verbosity
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.model.switchTo", req)
 	if err != nil {
@@ -16320,6 +16357,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.TrajectoryFile != nil {
 			req["trajectoryFile"] = *params.TrajectoryFile
+		}
+		if params.Verbosity != nil {
+			req["verbosity"] = *params.Verbosity
 		}
 		if params.WorkingDirectory != nil {
 			req["workingDirectory"] = *params.WorkingDirectory

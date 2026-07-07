@@ -3329,6 +3329,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
+		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
@@ -3358,7 +3359,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
-		SelfFetchManagedSettings               *bool                                                `json:"selfFetchManagedSettings,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
 		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
@@ -3367,6 +3367,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
 		SkipCustomInstructions                 *bool                                                `json:"skipCustomInstructions,omitempty"`
 		TrajectoryFile                         *string                                              `json:"trajectoryFile,omitempty"`
+		Verbosity                              *Verbosity                                           `json:"verbosity,omitempty"`
 		WorkingDirectory                       *string                                              `json:"workingDirectory,omitempty"`
 		WorkingDirectoryContext                *SessionContext                                      `json:"workingDirectoryContext,omitempty"`
 	}
@@ -3399,6 +3400,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
+	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming
@@ -3428,7 +3430,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteSteerable = raw.RemoteSteerable
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
-	r.SelfFetchManagedSettings = raw.SelfFetchManagedSettings
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
 	r.SessionLimits = raw.SessionLimits
@@ -3437,6 +3438,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.SkillDirectories = raw.SkillDirectories
 	r.SkipCustomInstructions = raw.SkipCustomInstructions
 	r.TrajectoryFile = raw.TrajectoryFile
+	r.Verbosity = raw.Verbosity
 	r.WorkingDirectory = raw.WorkingDirectory
 	r.WorkingDirectoryContext = raw.WorkingDirectoryContext
 	return nil
