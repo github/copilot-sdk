@@ -291,7 +291,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     // In-process FFI hosting: load the Rust cdylib and let it spawn
                     // the CLI worker, instead of the SDK launching a CLI child process.
-                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), _options.Environment, _logger);
+                    // The worker reads its configuration (telemetry export, etc.) from
+                    // the environment passed here, so apply the same telemetry-derived
+                    // vars the child-process path sets on its startInfo.Environment.
+                    var ffiEnvironment = _options.Environment?.ToDictionary(kvp => kvp.Key, kvp => (string?)kvp.Value)
+                        ?? new Dictionary<string, string?>();
+                    ApplyTelemetryEnvironment(ffiEnvironment, _options.Telemetry);
+                    var resolvedFfiEnvironment = ffiEnvironment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
+                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), resolvedFfiEnvironment, _logger);
                     _ffiHost = ffiHost;
                     await ffiHost.StartAsync(ct);
                     connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
@@ -1909,6 +1916,25 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
+    // Applies the telemetry-derived environment variables the runtime reads to
+    // enable OTLP export. Shared by the stdio/tcp child-process path and the
+    // in-process FFI path so telemetry behaves identically across transports.
+    private static void ApplyTelemetryEnvironment(IDictionary<string, string?> environment, TelemetryConfig? telemetry)
+    {
+        if (telemetry is null)
+        {
+            return;
+        }
+
+        environment["COPILOT_OTEL_ENABLED"] = "true";
+        if (telemetry.OtlpEndpoint is not null) environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
+        if (telemetry.OtlpProtocol is not null) environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry.OtlpProtocol;
+        if (telemetry.FilePath is not null) environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
+        if (telemetry.ExporterType is not null) environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
+        if (telemetry.SourceName is not null) environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
+        if (telemetry.CaptureContent is { } capture) environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
+    }
+
     private async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CancellationToken cancellationToken)
     {
         var options = _options;
@@ -2023,16 +2049,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Set telemetry environment variables if configured
-        if (options.Telemetry is { } telemetry)
-        {
-            startInfo.Environment["COPILOT_OTEL_ENABLED"] = "true";
-            if (telemetry.OtlpEndpoint is not null) startInfo.Environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
-            if (telemetry.OtlpProtocol is not null) startInfo.Environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry.OtlpProtocol;
-            if (telemetry.FilePath is not null) startInfo.Environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
-            if (telemetry.ExporterType is not null) startInfo.Environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
-            if (telemetry.SourceName is not null) startInfo.Environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
-            if (telemetry.CaptureContent is { } capture) startInfo.Environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
-        }
+        ApplyTelemetryEnvironment(startInfo.Environment, options.Telemetry);
 
         var cliProcess = new Process { StartInfo = startInfo };
         try

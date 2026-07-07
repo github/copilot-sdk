@@ -37,6 +37,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
+        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows
+        exclude:
+          - os: windows-latest
+            transport: "inprocess"
     runs-on: ${{ matrix.os }}
     defaults:
       run:

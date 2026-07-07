@@ -216,6 +216,16 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         env["GITHUB_TOKEN"] = env["GH_TOKEN"] = DefaultGitHubToken;
 
+        // Disable HMAC auth for E2E runs. CI sets COPILOT_HMAC_KEY at the job
+        // level as an ambient credential, but the replay snapshots are captured
+        // against Bearer/OAuth (SDK-token) requests. In stdio the SDK token
+        // outranks HMAC so this is a no-op, but in-process auth resolution runs
+        // host-side in this process and would otherwise pick HMAC (which ranks
+        // above the GitHub token) and fail provider.getEndpoint. An empty value
+        // disables the method (runtime filters out empty HMAC keys).
+        env["COPILOT_HMAC_KEY"] = "";
+        env["CAPI_HMAC_KEY"] = "";
+
         return env!;
     }
 
@@ -238,9 +248,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         options.Environment ??= GetEnvironment();
         options.Logger ??= Logger;
 
-        // Build the connection. If the caller supplied one, just ensure the runtime path is set;
-        // otherwise default to Stdio with the bundled runtime (matches CopilotClient's own default).
-        // useStdio is a convenience shortcut for the no-Connection case; passing both is ambiguous.
+        // Build the connection. If the caller supplied one, just ensure the runtime path is set.
+        // When neither a Connection nor useStdio is specified, leave Connection null so
+        // CopilotClient honors COPILOT_SDK_DEFAULT_CONNECTION (defaulting to stdio); useStdio
+        // is a convenience shortcut to pin stdio/tcp. Passing both a Connection and useStdio is ambiguous.
         if (useStdio is not null && options.Connection is not null)
         {
             throw new ArgumentException(
@@ -252,14 +263,38 @@ public sealed class E2ETestContext : IAsyncDisposable
         var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {
+            case null when useStdio == true:
+                options.Connection = RuntimeConnection.ForStdio(path: cliPath);
+                break;
+            case null when useStdio == false:
+                options.Connection = RuntimeConnection.ForTcp(path: cliPath);
+                break;
             case null:
-                options.Connection = useStdio == false
-                    ? RuntimeConnection.ForTcp(path: cliPath)
-                    : RuntimeConnection.ForStdio(path: cliPath);
+                // useStdio is null: leave Connection unset so CopilotClient's
+                // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION
+                // (stdio by default, or in-process). The CLI path flows through
+                // options.Environment["COPILOT_CLI_PATH"] (GetEnvironment copies
+                // the process env, where CI's setup-copilot sets it).
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
                 break;
+        }
+
+        // In-process hosting workaround: several runtime code paths run host-side
+        // in this process (the loaded cdylib) and read the ambient process
+        // environment rather than the environment passed to
+        // copilot_runtime_host_start, so our per-test redirects, cleared tokens,
+        // cleared HMAC keys, and isolated home in options.Environment are
+        // invisible to them unless mirrored onto this process's real environment.
+        // All of this hackery lives in InProcessEnvIsolation so it can be deleted
+        // in one place once the runtime stops reading the ambient process env.
+        if (InProcessEnvIsolation.IsActive(options.Environment))
+        {
+            foreach (var (name, value) in options.Environment)
+            {
+                InProcessEnvIsolation.Mirror(name, value);
+            }
         }
 
         // Auto-inject auth token unless connecting to an existing runtime via URI.
@@ -308,16 +343,27 @@ public sealed class E2ETestContext : IAsyncDisposable
             _transientClients.Clear();
         }
 
-        foreach (var client in transientClients)
+        try
         {
-            try
+            foreach (var client in transientClients)
             {
-                await client.ForceStopAsync();
+                try
+                {
+                    await StopClientForCleanupAsync(client);
+                }
+                catch (Exception ex) when (IsTransientCleanupException(ex))
+                {
+                    errors.Add(ex);
+                }
             }
-            catch (Exception ex) when (IsTransientCleanupException(ex))
-            {
-                errors.Add(ex);
-            }
+        }
+        finally
+        {
+            // Undo any in-process env mirroring so it cannot leak into the next
+            // test. In a finally so a non-transient force-stop failure above can
+            // never skip it (a skipped restore would otherwise strand the shared
+            // process env in its cleared/redirected state until the next mirror).
+            InProcessEnvIsolation.Restore();
         }
 
         if (errors.Count == 1)
@@ -346,13 +392,18 @@ public sealed class E2ETestContext : IAsyncDisposable
         {
             try
             {
-                await client.ForceStopAsync();
+                await StopClientForCleanupAsync(client);
             }
             catch (Exception ex) when (IsTransientCleanupException(ex))
             {
                 errors.Add(ex);
             }
         }
+
+        // Backstop: revert any in-process env mirroring at fixture teardown too,
+        // so a class's mutations cannot survive into the next class even if a
+        // per-test cleanup was bypassed.
+        InProcessEnvIsolation.Restore();
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
@@ -405,6 +456,19 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (Directory.Exists(path))
         {
             throw new IOException($"Failed to delete directory '{path}' after {maxAttempts} attempts.", lastException);
+        }
+    }
+
+    // Inproc holds the session-store SQLite handle in-process; graceful StopAsync releases it so the temp-dir delete succeeds on Windows.
+    private static async Task StopClientForCleanupAsync(CopilotClient client)
+    {
+        if (InProcessEnvIsolation.IsActive())
+        {
+            await client.StopAsync();
+        }
+        else
+        {
+            await client.ForceStopAsync();
         }
     }
 
