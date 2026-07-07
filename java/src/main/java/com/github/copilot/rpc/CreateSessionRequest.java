@@ -212,9 +212,9 @@ public final class CreateSessionRequest {
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
 
-    @JsonProperty("selfFetchManagedSettings")
+    @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private Boolean selfFetchManagedSettings;
+    private Boolean enableManagedSettings;
 
     /** Gets the model name. @return the model */
     public String getModel() {
@@ -975,23 +975,22 @@ public final class CreateSessionRequest {
      * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
      * if not set
      */
-    public Boolean getSelfFetchManagedSettings() {
-        return selfFetchManagedSettings;
+    public Boolean getEnableManagedSettings() {
+        return enableManagedSettings;
     }
 
     /**
-     * Sets the self-fetch managed settings flag. @param selfFetchManagedSettings
-     * the flag
+     * Sets the self-fetch managed settings flag. @param enableManagedSettings the
+     * flag
      */
-    public void setSelfFetchManagedSettings(boolean selfFetchManagedSettings) {
-        this.selfFetchManagedSettings = selfFetchManagedSettings;
+    public void setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
     }
 
     /**
-     * Clears the selfFetchManagedSettings setting, reverting to the default
-     * behavior.
+     * Clears the enableManagedSettings setting, reverting to the default behavior.
      */
-    public void clearSelfFetchManagedSettings() {
-        this.selfFetchManagedSettings = null;
+    public void clearEnableManagedSettings() {
+        this.enableManagedSettings = null;
     }
 }

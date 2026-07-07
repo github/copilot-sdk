@@ -2861,7 +2861,7 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
-        SelfFetchManagedSettings = other.SelfFetchManagedSettings;
+        EnableManagedSettings = other.EnableManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3292,9 +3292,9 @@ public abstract class SessionConfigBase
     /// session's <see cref="GitHubToken"/>. Requires <see cref="GitHubToken"/> to
     /// be set; if omitted, the runtime is expected to reject session creation
     /// (fail-closed). When unset, behaves exactly as before. Serialized on the
-    /// wire as <c>selfFetchManagedSettings</c>.
+    /// wire as <c>enableManagedSettings</c>.
     /// </summary>
-    public bool? SelfFetchManagedSettings { get; set; }
+    public bool? EnableManagedSettings { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

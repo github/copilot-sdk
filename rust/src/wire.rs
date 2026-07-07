@@ -170,7 +170,7 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub self_fetch_managed_settings: Option<bool>,
+    pub enable_managed_settings: Option<bool>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -305,5 +305,5 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub self_fetch_managed_settings: Option<bool>,
+    pub enable_managed_settings: Option<bool>,
 }

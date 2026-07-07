@@ -103,7 +103,7 @@ public class SessionConfig {
     private String remoteSession;
     private CloudSessionOptions cloud;
     private JsonNode expAssignments;
-    private Boolean selfFetchManagedSettings;
+    private Boolean enableManagedSettings;
 
     /**
      * Gets the custom session ID.
@@ -1886,8 +1886,8 @@ public class SessionConfig {
      *         to use the default behavior
      */
     @JsonIgnore
-    public Optional<Boolean> getSelfFetchManagedSettings() {
-        return Optional.ofNullable(selfFetchManagedSettings);
+    public Optional<Boolean> getEnableManagedSettings() {
+        return Optional.ofNullable(enableManagedSettings);
     }
 
     /**
@@ -1898,14 +1898,14 @@ public class SessionConfig {
      * the session's {@link #getGitHubToken() gitHubToken}. Requires
      * {@code gitHubToken} to be set; if omitted, the runtime is expected to reject
      * session creation (fail-closed). When unset, behaves exactly as before.
-     * Serialized on the wire as {@code selfFetchManagedSettings}.
+     * Serialized on the wire as {@code enableManagedSettings}.
      *
-     * @param selfFetchManagedSettings
+     * @param enableManagedSettings
      *            {@code true} to opt into self-fetching managed settings
      * @return this config instance for method chaining
      */
-    public SessionConfig setSelfFetchManagedSettings(boolean selfFetchManagedSettings) {
-        this.selfFetchManagedSettings = selfFetchManagedSettings;
+    public SessionConfig setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
         return this;
     }
 
@@ -1988,7 +1988,7 @@ public class SessionConfig {
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
-        copy.selfFetchManagedSettings = this.selfFetchManagedSettings;
+        copy.enableManagedSettings = this.enableManagedSettings;
         return copy;
     }
 }

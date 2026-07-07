@@ -102,7 +102,7 @@ public class ResumeSessionConfig {
     private String gitHubToken;
     private String remoteSession;
     private JsonNode expAssignments;
-    private Boolean selfFetchManagedSettings;
+    private Boolean enableManagedSettings;
 
     /**
      * Gets the AI model to use.
@@ -1755,24 +1755,24 @@ public class ResumeSessionConfig {
      *         to use the default behavior
      */
     @JsonIgnore
-    public Optional<Boolean> getSelfFetchManagedSettings() {
-        return Optional.ofNullable(selfFetchManagedSettings);
+    public Optional<Boolean> getEnableManagedSettings() {
+        return Optional.ofNullable(enableManagedSettings);
     }
 
     /**
      * Opts the runtime into self-fetching enterprise managed settings on resume.
      * <p>
-     * See {@link SessionConfig#setSelfFetchManagedSettings(boolean)} for details.
+     * See {@link SessionConfig#setEnableManagedSettings(boolean)} for details.
      * Re-supply on resume so the runtime re-applies the managed-settings self-fetch
      * after a CLI process restart. Serialized on the wire as
-     * {@code selfFetchManagedSettings}.
+     * {@code enableManagedSettings}.
      *
-     * @param selfFetchManagedSettings
+     * @param enableManagedSettings
      *            {@code true} to opt into self-fetching managed settings
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setSelfFetchManagedSettings(boolean selfFetchManagedSettings) {
-        this.selfFetchManagedSettings = selfFetchManagedSettings;
+    public ResumeSessionConfig setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
         return this;
     }
 
@@ -1850,7 +1850,7 @@ public class ResumeSessionConfig {
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
-        copy.selfFetchManagedSettings = this.selfFetchManagedSettings;
+        copy.enableManagedSettings = this.enableManagedSettings;
         return copy;
     }
 }

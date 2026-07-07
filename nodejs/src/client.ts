@@ -1472,7 +1472,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
-                selfFetchManagedSettings: config.selfFetchManagedSettings,
+                enableManagedSettings: config.enableManagedSettings,
             });
 
             const {
@@ -1684,7 +1684,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
-                selfFetchManagedSettings: config.selfFetchManagedSettings,
+                enableManagedSettings: config.enableManagedSettings,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {

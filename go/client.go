@@ -732,7 +732,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
-	req.SelfFetchManagedSettings = config.SelfFetchManagedSettings
+	req.EnableManagedSettings = config.EnableManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -1096,7 +1096,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
-	req.SelfFetchManagedSettings = config.SelfFetchManagedSettings
+	req.EnableManagedSettings = config.EnableManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}

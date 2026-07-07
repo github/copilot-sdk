@@ -2195,7 +2195,7 @@ export interface SessionConfigBase {
      * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
      * if omitted, the runtime is expected to reject session creation (fail-closed).
      */
-    selfFetchManagedSettings?: boolean;
+    enableManagedSettings?: boolean;
 
     /**
      * When true, skips embedding-based retrieval for this session.
