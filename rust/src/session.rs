@@ -1515,6 +1515,7 @@ fn tool_failure_result(message: impl Into<String>) -> ToolResult {
         session_log: None,
         error: Some(message),
         tool_telemetry: None,
+        tool_references: None,
     })
 }
 

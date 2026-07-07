@@ -174,6 +174,7 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
         session_log: None,
         error: None,
         tool_telemetry: None,
+        tool_references: None,
     }))
 }
 

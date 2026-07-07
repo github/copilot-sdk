@@ -106,6 +106,7 @@ from .session import (
     SessionHooks,
     SessionLimitsConfig,
     SystemMessageConfig,
+    ToolSearchConfig,
     UserInputHandler,
     _capabilities_to_dict,
     _PermissionHandlerFn,
@@ -251,6 +252,16 @@ def _session_limits_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     wire: dict[str, Any] = {}
     if "max_ai_credits" in config:
         wire["maxAiCredits"] = config["max_ai_credits"]
+    return wire
+
+
+def _tool_search_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``ToolSearchConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "enabled" in config:
+        wire["enabled"] = config["enabled"]
+    if "defer_threshold" in config:
+        wire["deferThreshold"] = config["defer_threshold"]
     return wire
 
 
@@ -1696,6 +1707,7 @@ class CopilotClient:
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
+        tool_search: ToolSearchConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
@@ -1969,6 +1981,9 @@ class CopilotClient:
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
         if wire_system_message:
             payload["systemMessage"] = wire_system_message
+
+        if tool_search is not None:
+            payload["toolSearch"] = _tool_search_to_wire(tool_search)
 
         if available_tools is not None:
             payload["availableTools"] = available_tools
@@ -2347,6 +2362,7 @@ class CopilotClient:
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
+        tool_search: ToolSearchConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
@@ -2621,6 +2637,8 @@ class CopilotClient:
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
         if wire_system_message:
             payload["systemMessage"] = wire_system_message
+        if tool_search is not None:
+            payload["toolSearch"] = _tool_search_to_wire(tool_search)
         if available_tools is not None:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:

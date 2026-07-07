@@ -149,6 +149,7 @@ export type {
     ToolInvocation,
     ToolTelemetry,
     ToolResultObject,
+    ToolSearchConfig,
     TypedSessionEventHandler,
     TypedSessionLifecycleHandler,
     ZodSchema,

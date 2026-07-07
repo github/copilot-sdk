@@ -1542,6 +1542,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		TextResultForLlm: textResultForLLM,
 		ToolTelemetry:    result.ToolTelemetry,
 		ResultType:       &effectiveResultType,
+		ToolReferences:   result.ToolReferences,
 	}
 	if result.Error != "" {
 		rpcResult.Error = &result.Error

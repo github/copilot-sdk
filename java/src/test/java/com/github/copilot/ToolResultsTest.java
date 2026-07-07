@@ -68,7 +68,7 @@ public class ToolResultsTest {
                     toolHandlerCalled[0] = true;
                     return CompletableFuture.completedFuture(new ToolResultObject("rejected",
                             "Deployment rejected: policy violation - production deployments require approval", null,
-                            null, null, null));
+                            null, null, null, null));
                 });
 
         try (CopilotClient client = ctx.createClient()) {
@@ -116,7 +116,7 @@ public class ToolResultsTest {
                 (invocation) -> {
                     toolHandlerCalled[0] = true;
                     return CompletableFuture.completedFuture(new ToolResultObject("denied",
-                            "Access denied: insufficient permissions to read secrets", null, null, null, null));
+                            "Access denied: insufficient permissions to read secrets", null, null, null, null, null));
                 });
 
         try (CopilotClient client = ctx.createClient()) {

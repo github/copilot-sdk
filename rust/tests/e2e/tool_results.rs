@@ -220,6 +220,7 @@ fn expanded(text: impl Into<String>, result_type: impl Into<String>) -> ToolResu
         session_log: None,
         error: None,
         tool_telemetry: None,
+        tool_references: None,
     })
 }
 

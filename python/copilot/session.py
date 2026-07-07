@@ -1134,6 +1134,28 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class ToolSearchConfig(TypedDict, total=False):
+    """
+    Override for the runtime's built-in tool-search behavior.
+
+    Tool search lets the model discover tools on demand instead of loading every
+    tool definition up front. When the total tool count exceeds the deferral
+    threshold, MCP and external tools are marked as deferred and surfaced through
+    the built-in ``tool_search_tool``.
+
+    To override the tool-search tool's implementation, register a :class:`Tool`
+    named ``tool_search_tool`` with ``overrides_built_in_tool=True``. To customize
+    the in-prompt tool-search guidance, use the ``tool_instructions`` section of
+    the system message in ``"customize"`` mode.
+    """
+
+    # Toggle that enables or disables tool search.
+    enabled: bool
+    # Overrides the total tool count at which MCP and external tools are
+    # automatically deferred behind tool search.
+    defer_threshold: int
+
+
 class MemoryConfiguration(TypedDict):
     """
     Configuration for session memory.
@@ -1997,6 +2019,7 @@ class CopilotSession:
                             text_result_for_llm=tool_result.text_result_for_llm,
                             error=tool_result.error,
                             result_type=tool_result.result_type,
+                            tool_references=tool_result.tool_references,
                             tool_telemetry=tool_result.tool_telemetry,
                         ),
                     )

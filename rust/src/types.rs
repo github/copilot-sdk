@@ -758,6 +758,45 @@ impl LargeToolOutputConfig {
     }
 }
 
+/// Overrides the runtime's built-in tool-search behavior.
+///
+/// Tool search defers tools to keep the model's active tool set small.
+/// To override the tool-search tool's implementation, register a [`Tool`]
+/// named `"tool_search_tool"` with [`Tool::overrides_built_in_tool`] set to `true`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ToolSearchConfig {
+    /// Toggle to enable/disable tool search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// The tool count above which MCP and external tools are deferred behind
+    /// tool search. When unset, the runtime default (30) applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer_threshold: Option<u32>,
+}
+
+impl ToolSearchConfig {
+    /// Construct an empty [`ToolSearchConfig`]; all fields default to unset
+    /// (the runtime applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle that enables or disables tool search.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the tool count above which MCP and external tools are deferred
+    /// behind tool search.
+    pub fn with_defer_threshold(mut self, defer_threshold: u32) -> Self {
+        self.defer_threshold = Some(defer_threshold);
+        self
+    }
+}
+
 /// Configures infinite sessions: persistent workspaces with automatic
 /// context-window compaction.
 ///
@@ -1674,6 +1713,10 @@ pub struct SessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior, which defers
+    /// rarely used tools behind a searchable index. When unset, the runtime
+    /// default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
@@ -1878,6 +1921,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -1987,6 +2031,7 @@ impl Default for SessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -2143,6 +2188,7 @@ impl SessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -2546,6 +2592,13 @@ impl SessionConfig {
         self
     }
 
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on session create.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
+        self
+    }
+
     /// Set the names of skills to disable (overrides skill discovery).
     pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
     where
@@ -2830,6 +2883,9 @@ pub struct ResumeSessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI on resume.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior on resume. When
+    /// unset, the runtime default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
@@ -3002,6 +3058,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -3155,6 +3212,7 @@ impl ResumeSessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -3242,6 +3300,7 @@ impl ResumeSessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -3622,6 +3681,13 @@ impl ResumeSessionConfig {
     /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on resume.
     pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
         self.large_output = Some(config);
+        self
+    }
+
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on resume.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
         self
     }
 
@@ -4826,6 +4892,9 @@ pub struct ToolResultExpanded {
     /// Tool-specific telemetry emitted with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, Value>>,
+    /// Names of tools returned by a tool-search tool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_references: Option<Vec<String>>,
 }
 
 /// Result of a tool invocation — either a plain text string or an expanded result.
@@ -5255,6 +5324,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
@@ -5289,6 +5359,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
