@@ -164,14 +164,7 @@ internal static class InProcessEnvIsolation
         Environment.SetEnvironmentVariable(name, value);
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (value is null)
-            {
-                _ = NativeUnsetEnv(name);
-            }
-            else
-            {
-                _ = NativeSetEnv(name, value, 1);
-            }
+            _ = value is null ? NativeUnsetEnv(name) : NativeSetEnv(name, value, 1);
         }
     }
 }
