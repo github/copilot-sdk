@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -52,12 +53,70 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _connectionId;
     private bool _disposed;
 
+    // The native outbound callback used to receive `this` as a GCHandle in
+    // user_data and dereference it. Rust can invoke that callback from a tokio
+    // task that outlives Dispose (connection_close/host_shutdown don't join it),
+    // so dereferencing a freed GCHandle crashed the process with an
+    // AccessViolationException. Instead we mint our own integer token, keep a
+    // registry of live hosts, and pass the token as user_data. A callback for a
+    // token we've already removed is logged (visible in CI) and dropped rather
+    // than faulting.
+    private static readonly ConcurrentDictionary<int, FfiRuntimeHost> s_outboundTargets = new();
+    private static int s_nextOutboundToken;
+    private static int s_orphanedOutboundCount;
+    private static volatile ILogger? s_diagnosticLogger;
+    private int _outboundToken;
+
     private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, ILogger logger)
     {
         _libraryPath = libraryPath;
         _cliEntrypoint = cliEntrypoint;
         _environment = environment;
         _logger = logger;
+        s_diagnosticLogger = logger;
+    }
+
+    private int RegisterOutboundToken()
+    {
+        _outboundToken = Interlocked.Increment(ref s_nextOutboundToken);
+        s_outboundTargets[_outboundToken] = this;
+        return _outboundToken;
+    }
+
+    private void UnregisterOutboundToken()
+    {
+        var token = _outboundToken;
+        if (token != 0)
+        {
+            _outboundToken = 0;
+            s_outboundTargets.TryRemove(token, out _);
+        }
+    }
+
+    private static void RouteOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    {
+        if (bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
+        {
+            return;
+        }
+
+        var token = userData.ToInt32();
+        if (token != 0 && s_outboundTargets.TryGetValue(token, out var self))
+        {
+            self.FeedInbound(bytesPtr, bytesLen);
+            return;
+        }
+
+        var count = Interlocked.Increment(ref s_orphanedOutboundCount);
+        s_diagnosticLogger?.LogWarning(
+            "FfiRuntimeHost: dropped outbound frame for released connection token {Token} "
+            + "(orphaned callback #{Count} after dispose). This indicates the native runtime invoked "
+            + "the outbound callback after connection_close/host_shutdown returned.",
+            token, count);
+        Console.Error.WriteLine(
+            $"FfiRuntimeHost: dropped outbound frame for released connection token {token} "
+            + $"(orphaned callback #{count} after dispose). This indicates the native runtime invoked "
+            + "the outbound callback after connection_close/host_shutdown returned.");
     }
 
     /// <summary>The stream JSON-RPC reads server→client frames from.</summary>
@@ -223,6 +282,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
         _disposed = true;
 
+        // Stop routing outbound callbacks to this instance before we ask the
+        // native side to close, so any callback the runtime fires during/after
+        // teardown is logged and dropped instead of touching disposed state.
+        UnregisterOutboundToken();
+
         try
         {
             if (_connectionId != 0)
@@ -263,10 +327,6 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static bool s_resolverRegistered;
     private static string? s_resolvedLibraryPath;
 
-    // A normal (non-pinned) handle to this instance, passed to the native side as
-    // the callback's user_data so the static outbound callback can route back here.
-    private GCHandle _selfHandle;
-
     /// <summary>
     /// Registers (once) a process-wide <see cref="NativeLibrary.SetDllImportResolver"/>
     /// that maps <see cref="LibraryName"/> to the absolute <c>runtime.node</c> path so the
@@ -306,13 +366,13 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private uint NativeOpenConnection(uint serverId)
     {
-        _selfHandle = GCHandle.Alloc(this);
+        var token = RegisterOutboundToken();
         unsafe
         {
             return ConnectionOpen(
                 serverId,
                 &OnOutboundStatic,
-                GCHandle.ToIntPtr(_selfHandle),
+                (IntPtr)token,
                 null, UIntPtr.Zero,
                 null, UIntPtr.Zero,
                 null, UIntPtr.Zero);
@@ -325,25 +385,12 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static bool NativeConnectionClose(uint connectionId) => ConnectionClose(connectionId);
 
-    private void DisposeNativeCallback()
-    {
-        if (_selfHandle.IsAllocated)
-        {
-            _selfHandle.Free();
-        }
-    }
+    private void DisposeNativeCallback() => UnregisterOutboundToken();
 
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static void OnOutboundStatic(IntPtr userData, IntPtr bytesPtr, nuint bytesLen)
     {
-        if (userData == IntPtr.Zero || bytesPtr == IntPtr.Zero || bytesLen == 0)
-        {
-            return;
-        }
-        if (GCHandle.FromIntPtr(userData).Target is FfiRuntimeHost self)
-        {
-            self.FeedInbound(bytesPtr, bytesLen);
-        }
+        RouteOutbound(userData, bytesPtr, (UIntPtr)bytesLen);
     }
 
     [LibraryImport(LibraryName, EntryPoint = "copilot_runtime_host_start")]
@@ -421,9 +468,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private static ConnectionWriteDelegate? s_connectionWrite;
     private static ConnectionCloseDelegate? s_connectionClose;
 
-    // Held for the connection's lifetime so the marshaled function pointer handed to the
-    // native side is not collected while Rust may still invoke it.
-    private OutboundCallbackDelegate? _outboundDelegate;
+    // Held for the process lifetime so the marshaled function pointer handed to the
+    // native side is never collected while Rust may still invoke it. A single static
+    // delegate serves all connections; it routes to the target host by the integer
+    // token passed as user_data (see RouteOutbound).
+    private static readonly OutboundCallbackDelegate s_outboundDelegate = OnOutboundLegacy;
 
     private static void PrepareNativeLibrary(string libraryPath)
     {
@@ -471,11 +520,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private uint NativeOpenConnection(uint serverId)
     {
-        _outboundDelegate = OnOutbound;
+        var token = RegisterOutboundToken();
         return s_connectionOpen!(
             serverId,
-            _outboundDelegate,
-            IntPtr.Zero,
+            s_outboundDelegate,
+            (IntPtr)token,
             null, UIntPtr.Zero,
             null, UIntPtr.Zero,
             null, UIntPtr.Zero);
@@ -493,15 +542,11 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static bool NativeConnectionClose(uint connectionId) => s_connectionClose!(connectionId);
 
-    private void DisposeNativeCallback() => _outboundDelegate = null;
+    private void DisposeNativeCallback() => UnregisterOutboundToken();
 
-    private void OnOutbound(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
+    private static void OnOutboundLegacy(IntPtr userData, IntPtr bytesPtr, UIntPtr bytesLen)
     {
-        if (bytesPtr == IntPtr.Zero || bytesLen == UIntPtr.Zero)
-        {
-            return;
-        }
-        FeedInbound(bytesPtr, bytesLen);
+        RouteOutbound(userData, bytesPtr, bytesLen);
     }
 
     /// <summary>
