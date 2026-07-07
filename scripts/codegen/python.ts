@@ -2674,6 +2674,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`    def __init__(self, **kwargs: Any):`);
     out.push(`        self._values = {key: _compat_from_json_value(value) for key, value in kwargs.items()}`);
     out.push(`        self._json_keys: dict[str, str] = {}`);
+    out.push(`        self._json_values: dict[str, Any] | None = None`);
     out.push(`        for key, value in self._values.items():`);
     out.push(`            setattr(self, key, value)`);
     out.push(``);
@@ -2683,14 +2684,21 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`        data = Data()`);
     out.push(`        data._values = {}`);
     out.push(`        data._json_keys = {}`);
+    out.push(`        data._json_values = {}`);
     out.push(`        for key, value in obj.items():`);
     out.push(`            py_key = _compat_to_python_key(key)`);
-    out.push(`            data._values[py_key] = _compat_from_json_value(value)`);
+    out.push(`            json_value = _compat_from_json_value(value)`);
+    out.push(`            data._values[py_key] = json_value`);
     out.push(`            data._json_keys[py_key] = key`);
+    out.push(`            data._json_values[key] = json_value`);
     out.push(`            setattr(data, py_key, data._values[py_key])`);
     out.push(`        return data`);
     out.push(``);
     out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        if self._json_values is not None:`);
+    out.push(
+        `            return {key: _compat_to_json_value(value) for key, value in self._json_values.items() if value is not None}`
+    );
     out.push(
         `        return {(self._json_keys.get(key) or _compat_to_json_key(key)): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}`
     );

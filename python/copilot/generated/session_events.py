@@ -291,6 +291,7 @@ class Data:
     def __init__(self, **kwargs: Any):
         self._values = {key: _compat_from_json_value(value) for key, value in kwargs.items()}
         self._json_keys: dict[str, str] = {}
+        self._json_values: dict[str, Any] | None = None
         for key, value in self._values.items():
             setattr(self, key, value)
 
@@ -300,14 +301,19 @@ class Data:
         data = Data()
         data._values = {}
         data._json_keys = {}
+        data._json_values = {}
         for key, value in obj.items():
             py_key = _compat_to_python_key(key)
-            data._values[py_key] = _compat_from_json_value(value)
+            json_value = _compat_from_json_value(value)
+            data._values[py_key] = json_value
             data._json_keys[py_key] = key
+            data._json_values[key] = json_value
             setattr(data, py_key, data._values[py_key])
         return data
 
     def to_dict(self) -> dict:
+        if self._json_values is not None:
+            return {key: _compat_to_json_value(value) for key, value in self._json_values.items() if value is not None}
         return {(self._json_keys.get(key) or _compat_to_json_key(key)): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}
 
 
