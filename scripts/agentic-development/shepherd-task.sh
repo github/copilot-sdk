@@ -99,7 +99,7 @@ else
     echo "$PHASE1_PROMPT"
     PHASE1_SHARE="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
     PHASE1_JSON="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
-    echo "$PHASE1_PROMPT" | copilot --yolo --output-format json --share "$PHASE1_SHARE" | tee "$PHASE1_JSON"
+    echo "$PHASE1_PROMPT" | copilot --yolo --output-format json --share "$PHASE1_SHARE" > "$PHASE1_JSON"
 
     status "Phase 1: copilot exited. Verifying state..."
 
@@ -145,7 +145,7 @@ else
     echo "$PHASE2_PROMPT"
     PHASE2_SHARE="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
     PHASE2_JSON="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
-    echo "$PHASE2_PROMPT" | copilot --yolo --output-format json --share "$PHASE2_SHARE" | tee "$PHASE2_JSON"
+    echo "$PHASE2_PROMPT" | copilot --yolo --output-format json --share "$PHASE2_SHARE" > "$PHASE2_JSON"
 
     status "Phase 2: copilot exited. Verifying state..."
 

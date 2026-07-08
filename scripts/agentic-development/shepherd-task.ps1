@@ -130,7 +130,7 @@ Invoke skill ``shepherd-task-to-ready`` with these inputs:
     Write-Status "Phase 1 prompt: $phase1Prompt"
     $phase1Share = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
     $phase1Json = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
-    $phase1Prompt | copilot --yolo --output-format json --share $phase1Share | Tee-Object -FilePath $phase1Json
+    $phase1Prompt | copilot --yolo --output-format json --share $phase1Share > $phase1Json
 
     Write-Status "Phase 1: copilot exited. Verifying state..."
 
@@ -187,7 +187,7 @@ Invoke skill ``shepherd-task-from-ready-to-merged-to-base`` with these inputs:
     Write-Status "Phase 2 prompt: $phase2Prompt"
     $phase2Share = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
     $phase2Json = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
-    $phase2Prompt | copilot --yolo --output-format json --share $phase2Share | Tee-Object -FilePath $phase2Json
+    $phase2Prompt | copilot --yolo --output-format json --share $phase2Share > $phase2Json
 
     Write-Status "Phase 2: copilot exited. Verifying state..."
 
