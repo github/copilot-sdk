@@ -1827,12 +1827,12 @@ async fn handle_notification(
                             )
                             .await
                         {
-                            Ok(value) => serde_json::from_value::<ToolsGetCurrentMetadataResult>(
-                                value,
-                            )
-                            .ok()
-                            .and_then(|result| result.tools)
-                            .unwrap_or_default(),
+                            Ok(value) => {
+                                serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
+                                    .ok()
+                                    .and_then(|result| result.tools)
+                                    .unwrap_or_default()
+                            }
                             Err(_) => Vec::new(),
                         }
                     } else {

@@ -19,8 +19,7 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
-use crate::generated::api_types::OpenCanvasInstance;
-use crate::generated::api_types::CurrentToolMetadata;
+use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};

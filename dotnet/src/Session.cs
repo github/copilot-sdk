@@ -860,9 +860,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     var metadata = await Rpc.Tools.GetCurrentMetadataAsync();
                     invocation.AvailableTools = metadata.Tools;
                 }
-                catch
+                catch (Exception ex) when (ex is RemoteRpcException or IOException or ObjectDisposedException or JsonException)
                 {
-                    // Leave AvailableTools null on failure.
+                    // A failed metadata fetch is non-fatal: leave AvailableTools
+                    // null so the tool still runs without the snapshot.
+                    LogToolMetadataFetchFailed(ex, toolName);
                 }
             }
 
@@ -1930,6 +1932,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in session event handler")]
     private partial void LogEventHandlerError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
+    private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
 
     internal record SendMessageRequest
     {
