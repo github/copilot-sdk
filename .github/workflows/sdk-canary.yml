@@ -193,3 +193,123 @@ jobs:
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
         run: npm test
+
+  publish:
+    name: "Publish SDK canary (internal feed)"
+    needs: [resolve, test]
+    if: github.event.repository.fork == false
+    environment: cicd
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
+      # Org-scoped internal TEST feed. The SDK canary MUST only ever go here,
+      # never to public npm (@github/copilot-sdk is a live public package).
+      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Default public registry: installs build deps and the currently pinned
+      # runtime. Do NOT write any feed .npmrc or scoped @github:registry line
+      # here, or npm ci would try to fetch the runtime from the upstream-less
+      # feed and 404.
+      - name: Install SDK dependencies
+        run: npm ci
+
+      - name: Compute SDK canary version
+        id: sdkver
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${SHA:0:7}"
+          SDK_VERSION="0.0.0-canary.${RUN_NUMBER}.g${SHORT_SHA}"
+          if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
+            exit 1
+          fi
+          echo "SDK canary version: $SDK_VERSION"
+          echo "SDK_VERSION=$SDK_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set package version and pin runtime dependency
+        env:
+          SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
+        run: |
+          set -euo pipefail
+          npm version "$SDK_VERSION" --no-git-tag-version --allow-same-version
+          # Exact pin (no caret) so the published SDK canary depends on precisely
+          # the runtime version that was just tested by the e2e gate.
+          npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
+          echo "Pinned @github/copilot to $(npm pkg get dependencies.@github/copilot)"
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Azure Login (OIDC -> id-cpd-ci)
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
+          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
+          allow-no-subscriptions: true
+
+      # Auth-only .npmrc: just the two token lines, NO scoped registry line.
+      # The publish target is supplied explicitly via publishConfig + --registry.
+      - name: Configure feed auth (.npmrc)
+        run: |
+          set -euo pipefail
+          TOKEN="$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          cat > .npmrc <<EOF
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${TOKEN}
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${TOKEN}
+          EOF
+          echo "Wrote auth-only .npmrc to ./nodejs"
+
+      # Belt and suspenders (2 of 3): pin the publish target in the package too.
+      - name: Set publishConfig registry
+        run: npm pkg set "publishConfig.registry=$FEED_URL"
+
+      # Belt and suspenders (3 of 3): fail loudly unless the effective publish
+      # target is the internal feed. Guards against ever reaching public npm.
+      - name: Assert publish target is the internal feed
+        run: |
+          set -euo pipefail
+          EFFECTIVE="$(npm pkg get publishConfig.registry | tr -d '"')"
+          echo "Effective publishConfig.registry: $EFFECTIVE"
+          if [ "$EFFECTIVE" != "$FEED_URL" ]; then
+            echo "::error::publishConfig.registry ('$EFFECTIVE') is not the internal feed ('$FEED_URL'). Refusing to publish."
+            exit 1
+          fi
+
+      - name: Publish SDK canary to internal feed
+        run: npm publish --registry "$FEED_URL"
+
+      - name: Read-back verify published canary
+        env:
+          SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
+        run: |
+          set -euo pipefail
+          PUBLISHED="$(npm view "@github/copilot-sdk@${SDK_VERSION}" version --registry "$FEED_URL")"
+          PINNED="$(npm view "@github/copilot-sdk@${SDK_VERSION}" dependencies.@github/copilot --registry "$FEED_URL")"
+          echo "Published version: $PUBLISHED"
+          echo "Pinned @github/copilot: $PINNED"
+          if [ "$PUBLISHED" != "$SDK_VERSION" ]; then
+            echo "::error::Read-back version '$PUBLISHED' != published '$SDK_VERSION'."
+            exit 1
+          fi
+          if [ "$PINNED" != "$RUNTIME_VERSION" ]; then
+            echo "::error::Read-back runtime pin '$PINNED' != tested '$RUNTIME_VERSION'."
+            exit 1
+          fi
+          echo "Read-back OK: @github/copilot-sdk@${SDK_VERSION} exact-depends on @github/copilot@${RUNTIME_VERSION}"
