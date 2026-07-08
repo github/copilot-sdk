@@ -5,7 +5,7 @@
 package com.github.copilot.rpc.fixtures;
 
 import com.github.copilot.tool.CopilotTool;
-import com.github.copilot.tool.Param;
+import com.github.copilot.tool.CopilotToolParam;
 
 /**
  * Tool fixture with a static {@code @CopilotTool} method, used to test
@@ -14,7 +14,7 @@ import com.github.copilot.tool.Param;
 public class StaticTools {
 
     @CopilotTool("Returns a greeting for the given name")
-    public static String greet(@Param(value = "The name to greet", required = true) String name) {
+    public static String greet(@CopilotToolParam(value = "The name to greet", required = true) String name) {
         return "Hi, " + name + "!";
     }
 }

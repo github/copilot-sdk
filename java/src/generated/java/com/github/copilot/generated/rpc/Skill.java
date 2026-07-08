@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Skill` type.
+ * Skill metadata available to a session, with name, description, source, enabled/invocable state, path, plugin, and argument hint.
  *
  * @since 1.0.0
  */

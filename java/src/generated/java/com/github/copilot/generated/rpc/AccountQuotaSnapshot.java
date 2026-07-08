@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `AccountQuotaSnapshot` type.
+ * Quota usage snapshot for a Copilot quota type, including entitlement, used requests, overage, reset date, and remaining percentage.
  *
  * @since 1.0.0
  */

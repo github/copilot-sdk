@@ -31,6 +31,8 @@ public final class SessionRpc {
 
     /** API methods for the {@code gitHubAuth} namespace. */
     public final SessionGitHubAuthApi gitHubAuth;
+    /** API methods for the {@code debug} namespace. */
+    public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
     /** API methods for the {@code model} namespace. */
@@ -43,6 +45,8 @@ public final class SessionRpc {
     public final SessionPlanApi plan;
     /** API methods for the {@code workspaces} namespace. */
     public final SessionWorkspacesApi workspaces;
+    /** API methods for the {@code completions} namespace. */
+    public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
     public final SessionInstructionsApi instructions;
     /** API methods for the {@code fleet} namespace. */
@@ -77,6 +81,8 @@ public final class SessionRpc {
     public final SessionPermissionsApi permissions;
     /** API methods for the {@code metadata} namespace. */
     public final SessionMetadataApi metadata;
+    /** API methods for the {@code settings} namespace. */
+    public final SessionSettingsApi settings;
     /** API methods for the {@code shell} namespace. */
     public final SessionShellApi shell;
     /** API methods for the {@code history} namespace. */
@@ -89,6 +95,8 @@ public final class SessionRpc {
     public final SessionUsageApi usage;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
+    /** API methods for the {@code visibility} namespace. */
+    public final SessionVisibilityApi visibility;
     /** API methods for the {@code schedule} namespace. */
     public final SessionScheduleApi schedule;
 
@@ -102,12 +110,14 @@ public final class SessionRpc {
         this.caller = caller;
         this.sessionId = sessionId;
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
+        this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);
         this.workspaces = new SessionWorkspacesApi(caller, sessionId);
+        this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.fleet = new SessionFleetApi(caller, sessionId);
         this.agent = new SessionAgentApi(caller, sessionId);
@@ -125,12 +135,14 @@ public final class SessionRpc {
         this.ui = new SessionUiApi(caller, sessionId);
         this.permissions = new SessionPermissionsApi(caller, sessionId);
         this.metadata = new SessionMetadataApi(caller, sessionId);
+        this.settings = new SessionSettingsApi(caller, sessionId);
         this.shell = new SessionShellApi(caller, sessionId);
         this.history = new SessionHistoryApi(caller, sessionId);
         this.queue = new SessionQueueApi(caller, sessionId);
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
+        this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
     }
 

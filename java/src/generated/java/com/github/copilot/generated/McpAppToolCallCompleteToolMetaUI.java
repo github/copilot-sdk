@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+ * MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
  *
  * @since 1.0.0
  */

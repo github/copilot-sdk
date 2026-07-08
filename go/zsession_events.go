@@ -20,6 +20,7 @@ type (
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
+	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
@@ -50,6 +51,7 @@ type (
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentType                                                 = rpc.AttachmentType
+	AutoApprovalRecommendation                                     = rpc.AutoApprovalRecommendation
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -132,9 +134,11 @@ type (
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
 	PendingMessagesModifiedData                                    = rpc.PendingMessagesModifiedData
+	PermissionAllowAllMode                                         = rpc.PermissionAllowAllMode
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
 	PermissionApprovedForSession                                   = rpc.PermissionApprovedForSession
+	PermissionAutoApproval                                         = rpc.PermissionAutoApproval
 	PermissionCancelled                                            = rpc.PermissionCancelled
 	PermissionCompletedData                                        = rpc.PermissionCompletedData
 	PermissionDeniedByContentExclusionPolicy                       = rpc.PermissionDeniedByContentExclusionPolicy
@@ -192,7 +196,6 @@ type (
 	RawSystemNotification                                          = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                                = rpc.RawToolExecutionCompleteContent
 	ReasoningSummary                                               = rpc.ReasoningSummary
-	ResponseBudgetConfig                                           = rpc.ResponseBudgetConfig
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
@@ -218,6 +221,11 @@ type (
 	SessionHandoffData                                             = rpc.SessionHandoffData
 	SessionIdleData                                                = rpc.SessionIdleData
 	SessionInfoData                                                = rpc.SessionInfoData
+	SessionLimitsConfig                                            = rpc.SessionLimitsConfig
+	SessionLimitsExhaustedCompletedData                            = rpc.SessionLimitsExhaustedCompletedData
+	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
+	SessionLimitsExhaustedResponse                                 = rpc.SessionLimitsExhaustedResponse
+	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
 	SessionMode                                                    = rpc.SessionMode
@@ -230,6 +238,7 @@ type (
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
 	SessionScheduleRearmedData                                     = rpc.SessionScheduleRearmedData
+	SessionSessionLimitsChangedData                                = rpc.SessionSessionLimitsChangedData
 	SessionShutdownData                                            = rpc.SessionShutdownData
 	SessionSkillsLoadedData                                        = rpc.SessionSkillsLoadedData
 	SessionSnapshotRewindData                                      = rpc.SessionSnapshotRewindData
@@ -239,6 +248,7 @@ type (
 	SessionTodosChangedData                                        = rpc.SessionTodosChangedData
 	SessionToolsUpdatedData                                        = rpc.SessionToolsUpdatedData
 	SessionTruncationData                                          = rpc.SessionTruncationData
+	SessionUsageCheckpointData                                     = rpc.SessionUsageCheckpointData
 	SessionUsageInfoData                                           = rpc.SessionUsageInfoData
 	SessionWarningData                                             = rpc.SessionWarningData
 	SessionWorkspaceFileChangedData                                = rpc.SessionWorkspaceFileChangedData
@@ -279,6 +289,7 @@ type (
 	ToolExecutionCompleteContentResourceLink                       = rpc.ToolExecutionCompleteContentResourceLink
 	ToolExecutionCompleteContentResourceLinkIcon                   = rpc.ToolExecutionCompleteContentResourceLinkIcon
 	ToolExecutionCompleteContentResourceLinkIconTheme              = rpc.ToolExecutionCompleteContentResourceLinkIconTheme
+	ToolExecutionCompleteContentShellExit                          = rpc.ToolExecutionCompleteContentShellExit
 	ToolExecutionCompleteContentTerminal                           = rpc.ToolExecutionCompleteContentTerminal
 	ToolExecutionCompleteContentText                               = rpc.ToolExecutionCompleteContentText
 	ToolExecutionCompleteContentType                               = rpc.ToolExecutionCompleteContentType
@@ -322,6 +333,7 @@ type (
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
 	UserToolSessionApprovalWrite                                   = rpc.UserToolSessionApprovalWrite
+	Verbosity                                                      = rpc.Verbosity
 	WorkingDirectoryContext                                        = rpc.WorkingDirectoryContext
 	WorkingDirectoryContextHostType                                = rpc.WorkingDirectoryContextHostType
 	WorkspaceFileChangedOperation                                  = rpc.WorkspaceFileChangedOperation
@@ -356,6 +368,10 @@ const (
 	AttachmentTypeGitHubTreeComparison                                 = rpc.AttachmentTypeGitHubTreeComparison
 	AttachmentTypeGitHubURL                                            = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
+	AutoApprovalRecommendationApprove                                  = rpc.AutoApprovalRecommendationApprove
+	AutoApprovalRecommendationError                                    = rpc.AutoApprovalRecommendationError
+	AutoApprovalRecommendationExcluded                                 = rpc.AutoApprovalRecommendationExcluded
+	AutoApprovalRecommendationRequireApproval                          = rpc.AutoApprovalRecommendationRequireApproval
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -434,6 +450,9 @@ const (
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
 	OmittedBinaryTypeResource                                          = rpc.OmittedBinaryTypeResource
+	PermissionAllowAllModeAuto                                         = rpc.PermissionAllowAllModeAuto
+	PermissionAllowAllModeOff                                          = rpc.PermissionAllowAllModeOff
+	PermissionAllowAllModeOn                                           = rpc.PermissionAllowAllModeOn
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
@@ -490,6 +509,7 @@ const (
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
+	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
 	SessionEventTypeAssistantTurnStart                                 = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                     = rpc.SessionEventTypeAssistantUsage
@@ -540,6 +560,8 @@ const (
 	SessionEventTypeSessionHandoff                                     = rpc.SessionEventTypeSessionHandoff
 	SessionEventTypeSessionIdle                                        = rpc.SessionEventTypeSessionIdle
 	SessionEventTypeSessionInfo                                        = rpc.SessionEventTypeSessionInfo
+	SessionEventTypeSessionLimitsExhaustedCompleted                    = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
+	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
@@ -551,6 +573,7 @@ const (
 	SessionEventTypeSessionScheduleCancelled                           = rpc.SessionEventTypeSessionScheduleCancelled
 	SessionEventTypeSessionScheduleCreated                             = rpc.SessionEventTypeSessionScheduleCreated
 	SessionEventTypeSessionScheduleRearmed                             = rpc.SessionEventTypeSessionScheduleRearmed
+	SessionEventTypeSessionSessionLimitsChanged                        = rpc.SessionEventTypeSessionSessionLimitsChanged
 	SessionEventTypeSessionShutdown                                    = rpc.SessionEventTypeSessionShutdown
 	SessionEventTypeSessionSkillsLoaded                                = rpc.SessionEventTypeSessionSkillsLoaded
 	SessionEventTypeSessionSnapshotRewind                              = rpc.SessionEventTypeSessionSnapshotRewind
@@ -560,6 +583,7 @@ const (
 	SessionEventTypeSessionTodosChanged                                = rpc.SessionEventTypeSessionTodosChanged
 	SessionEventTypeSessionToolsUpdated                                = rpc.SessionEventTypeSessionToolsUpdated
 	SessionEventTypeSessionTruncation                                  = rpc.SessionEventTypeSessionTruncation
+	SessionEventTypeSessionUsageCheckpoint                             = rpc.SessionEventTypeSessionUsageCheckpoint
 	SessionEventTypeSessionUsageInfo                                   = rpc.SessionEventTypeSessionUsageInfo
 	SessionEventTypeSessionWarning                                     = rpc.SessionEventTypeSessionWarning
 	SessionEventTypeSessionWorkspaceFileChanged                        = rpc.SessionEventTypeSessionWorkspaceFileChanged
@@ -579,6 +603,10 @@ const (
 	SessionEventTypeUserInputCompleted                                 = rpc.SessionEventTypeUserInputCompleted
 	SessionEventTypeUserInputRequested                                 = rpc.SessionEventTypeUserInputRequested
 	SessionEventTypeUserMessage                                        = rpc.SessionEventTypeUserMessage
+	SessionLimitsExhaustedResponseActionAdd                            = rpc.SessionLimitsExhaustedResponseActionAdd
+	SessionLimitsExhaustedResponseActionCancel                         = rpc.SessionLimitsExhaustedResponseActionCancel
+	SessionLimitsExhaustedResponseActionSet                            = rpc.SessionLimitsExhaustedResponseActionSet
+	SessionLimitsExhaustedResponseActionUnset                          = rpc.SessionLimitsExhaustedResponseActionUnset
 	SessionModeAutopilot                                               = rpc.SessionModeAutopilot
 	SessionModeInteractive                                             = rpc.SessionModeInteractive
 	SessionModePlan                                                    = rpc.SessionModePlan
@@ -610,6 +638,7 @@ const (
 	ToolExecutionCompleteContentTypeImage                              = rpc.ToolExecutionCompleteContentTypeImage
 	ToolExecutionCompleteContentTypeResource                           = rpc.ToolExecutionCompleteContentTypeResource
 	ToolExecutionCompleteContentTypeResourceLink                       = rpc.ToolExecutionCompleteContentTypeResourceLink
+	ToolExecutionCompleteContentTypeShellExit                          = rpc.ToolExecutionCompleteContentTypeShellExit
 	ToolExecutionCompleteContentTypeTerminal                           = rpc.ToolExecutionCompleteContentTypeTerminal
 	ToolExecutionCompleteContentTypeText                               = rpc.ToolExecutionCompleteContentTypeText
 	ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp            = rpc.ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp
@@ -631,6 +660,9 @@ const (
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
+	VerbosityHigh                                                      = rpc.VerbosityHigh
+	VerbosityLow                                                       = rpc.VerbosityLow
+	VerbosityMedium                                                    = rpc.VerbosityMedium
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
 	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

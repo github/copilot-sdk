@@ -21,13 +21,14 @@ describe("Extended session hooks", async () => {
 
     it("should invoke onSessionStart hook on new session", async () => {
         const sessionStartInputs: SessionStartHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onSessionStart: async (input, invocation) => {
                     sessionStartInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                 },
             },
         });
@@ -37,6 +38,9 @@ describe("Extended session hooks", async () => {
         });
 
         expect(sessionStartInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
         expect(sessionStartInputs[0].source).toBe("new");
         expect(sessionStartInputs[0].timestamp).toBeInstanceOf(Date);
         expect(sessionStartInputs[0].workingDirectory).toBeDefined();
@@ -46,13 +50,14 @@ describe("Extended session hooks", async () => {
 
     it("should invoke onUserPromptSubmitted hook when sending a message", async () => {
         const userPromptInputs: UserPromptSubmittedHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onUserPromptSubmitted: async (input, invocation) => {
                     userPromptInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                 },
             },
         });
@@ -62,6 +67,9 @@ describe("Extended session hooks", async () => {
         });
 
         expect(userPromptInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
         expect(userPromptInputs[0].prompt).toContain("Say hello");
         expect(userPromptInputs[0].timestamp).toBeInstanceOf(Date);
         expect(userPromptInputs[0].workingDirectory).toBeDefined();
@@ -71,13 +79,14 @@ describe("Extended session hooks", async () => {
 
     it("should invoke onSessionEnd hook when session is disconnected", async () => {
         const sessionEndInputs: SessionEndHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onSessionEnd: async (input, invocation) => {
                     sessionEndInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                 },
             },
         });
@@ -92,17 +101,21 @@ describe("Extended session hooks", async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(sessionEndInputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
     });
 
     it("should invoke onErrorOccurred hook when error occurs", async () => {
         const errorInputs: ErrorOccurredHookInput[] = [];
+        const invocationSessionIds: string[] = [];
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onErrorOccurred: async (input, invocation) => {
                     errorInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                     expect(input.timestamp).toBeInstanceOf(Date);
                     expect(input.workingDirectory).toBeDefined();
                     expect(input.error).toBeDefined();
@@ -121,20 +134,23 @@ describe("Extended session hooks", async () => {
         // onErrorOccurred is dispatched by the runtime for actual errors (model failures, system errors).
         // In a normal session it may not fire. Verify the hook is properly wired by checking
         // that the session works correctly with the hook registered.
-        // If the hook did fire, the assertions inside it would have run.
         expect(session.sessionId).toBeDefined();
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
 
         await session.disconnect();
     });
 
     it("should invoke userPromptSubmitted hook and modify prompt", async () => {
         const inputs: UserPromptSubmittedHookInput[] = [];
+        const invocationSessionIds: string[] = [];
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onUserPromptSubmitted: async (input, invocation) => {
                     inputs.push(input);
-                    expect(invocation.sessionId).toBeTruthy();
+                    invocationSessionIds.push(invocation.sessionId);
                     return { modifiedPrompt: "Reply with exactly: HOOKED_PROMPT" };
                 },
             },
@@ -143,6 +159,9 @@ describe("Extended session hooks", async () => {
         const response = await session.sendAndWait({ prompt: "Say something else" });
 
         expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
         expect(inputs[0].prompt).toContain("Say something else");
         expect(response?.data.content ?? "").toContain("HOOKED_PROMPT");
 
@@ -151,12 +170,13 @@ describe("Extended session hooks", async () => {
 
     it("should invoke sessionStart hook", async () => {
         const inputs: SessionStartHookInput[] = [];
+        const invocationSessionIds: string[] = [];
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onSessionStart: async (input, invocation) => {
                     inputs.push(input);
-                    expect(invocation.sessionId).toBeTruthy();
+                    invocationSessionIds.push(invocation.sessionId);
                     return { additionalContext: "Session start hook context." };
                 },
             },
@@ -165,6 +185,9 @@ describe("Extended session hooks", async () => {
         await session.sendAndWait({ prompt: "Say hi" });
 
         expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
         expect(inputs[0].source).toBe("new");
         expect(inputs[0].workingDirectory).toBeTruthy();
 
@@ -173,6 +196,7 @@ describe("Extended session hooks", async () => {
 
     it("should invoke sessionEnd hook", async () => {
         const inputs: SessionEndHookInput[] = [];
+        const invocationSessionIds: string[] = [];
         let resolveHook!: (value: SessionEndHookInput) => void;
         const hookInvoked = new Promise<SessionEndHookInput>((resolve) => {
             resolveHook = resolve;
@@ -183,7 +207,7 @@ describe("Extended session hooks", async () => {
             hooks: {
                 onSessionEnd: async (input, invocation) => {
                     inputs.push(input);
-                    expect(invocation.sessionId).toBeTruthy();
+                    invocationSessionIds.push(invocation.sessionId);
                     resolveHook(input);
                     return { sessionSummary: "session ended" };
                 },
@@ -206,16 +230,20 @@ describe("Extended session hooks", async () => {
         }
 
         expect(inputs.length).toBeGreaterThan(0);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
     });
 
     it("should register erroroccurred hook", async () => {
         const inputs: ErrorOccurredHookInput[] = [];
+        const invocationSessionIds: string[] = [];
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
                 onErrorOccurred: async (input, invocation) => {
                     inputs.push(input);
-                    expect(invocation.sessionId).toBeTruthy();
+                    invocationSessionIds.push(invocation.sessionId);
                     return { errorHandling: "skip" };
                 },
             },
@@ -226,6 +254,7 @@ describe("Extended session hooks", async () => {
         // OnErrorOccurred is dispatched only by genuine runtime errors. A normal turn
         // cannot deterministically trigger one; this test is registration-only.
         expect(inputs.length).toBe(0);
+        expect(invocationSessionIds).toHaveLength(0);
         expect(session.sessionId).toBeTruthy();
 
         await session.disconnect();
@@ -307,6 +336,7 @@ describe("Extended session hooks", async () => {
         // wasn't specified. Follow up with runtime team.
         const failureInputs: PostToolUseFailureHookInput[] = [];
         const postToolUseInputs: PostToolUseHookInput[] = [];
+        const invocationSessionIds: string[] = [];
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             hooks: {
@@ -315,7 +345,7 @@ describe("Extended session hooks", async () => {
                 },
                 onPostToolUseFailure: async (input, invocation) => {
                     failureInputs.push(input);
-                    expect(invocation.sessionId).toBe(session.sessionId);
+                    invocationSessionIds.push(invocation.sessionId);
                     return { additionalContext: "HOOK_FAILURE_GUIDANCE_APPLIED" };
                 },
             },
@@ -327,6 +357,9 @@ describe("Extended session hooks", async () => {
 
         expect(postToolUseInputs).toHaveLength(0);
         expect(failureInputs).toHaveLength(1);
+        expect(invocationSessionIds.every((sessionId) => sessionId === session.sessionId)).toBe(
+            true
+        );
         expect(failureInputs[0].toolName).toBe("view");
         expect(failureInputs[0].error).toContain("does not exist");
         expect((failureInputs[0].toolArgs as { path?: string }).path).toContain("missing.txt");

@@ -20,12 +20,12 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::OpenCanvasInstance;
-/// Context window tier for models that support tiered context windows.
-pub use crate::generated::session_events::ContextTier;
 use crate::generated::session_events::ReasoningSummary;
+/// Context window tier for models that support tiered context windows.
+pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::handler::{
-    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
-    UserInputHandler,
+    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
+    PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -1602,6 +1602,12 @@ pub struct SessionConfig {
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
     pub excluded_tools: Option<Vec<String>>,
+    /// Names of built-in agents to exclude from the session.
+    ///
+    /// Excluded built-in agents are hidden from discovery and cannot be
+    /// selected or invoked unless a custom agent with the same name is
+    /// configured.
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -1718,6 +1724,10 @@ pub struct SessionConfig {
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
+    /// **Experimental.** Enables native model citations for supported providers.
+    pub enable_citations: Option<bool>,
+    /// **Experimental.** Limits applied to this session's current accounting window.
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
@@ -1772,6 +1782,9 @@ pub struct SessionConfig {
     /// Optional elicitation-request handler. When `None`,
     /// `requestElicitation: false` goes on the wire.
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional MCP OAuth request handler. When set, the SDK can satisfy MCP
+    /// server OAuth requests with host-acquired token data or cancellation.
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. When `None`,
     /// `requestUserInput: false` goes on the wire and the `ask_user`
     /// tool is disabled.
@@ -1836,6 +1849,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
+            .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -1873,6 +1887,8 @@ impl std::fmt::Debug for SessionConfig {
             .field("provider", &self.provider)
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
+            .field("enable_citations", &self.enable_citations)
+            .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -1900,6 +1916,10 @@ impl std::fmt::Debug for SessionConfig {
             .field(
                 "elicitation_handler",
                 &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "mcp_auth_handler",
+                &self.mcp_auth_handler.as_ref().map(|_| "<set>"),
             )
             .field(
                 "user_input_handler",
@@ -1950,6 +1970,7 @@ impl Default for SessionConfig {
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
+            excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -1977,6 +1998,8 @@ impl Default for SessionConfig {
             providers: None,
             models: None,
             enable_session_telemetry: None,
+            enable_citations: None,
+            session_limits: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -1990,6 +2013,7 @@ impl Default for SessionConfig {
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
+            mcp_auth_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -2013,6 +2037,7 @@ pub(crate) struct SessionConfigRuntime {
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
     pub permission_policy: Option<crate::permission::Policy>,
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -2093,6 +2118,7 @@ impl SessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
@@ -2127,6 +2153,8 @@ impl SessionConfig {
             providers: self.providers,
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
+            enable_citations: self.enable_citations,
+            session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -2135,6 +2163,7 @@ impl SessionConfig {
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
         };
@@ -2143,6 +2172,7 @@ impl SessionConfig {
             permission_handler: self.permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
+            mcp_auth_handler: self.mcp_auth_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -2170,6 +2200,12 @@ impl SessionConfig {
     /// `requestElicitation: false` on the wire.
     pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
         self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
+        self.mcp_auth_handler = Some(handler);
         self
     }
 
@@ -2371,6 +2407,16 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the built-in agent names to exclude from the session.
+    pub fn with_excluded_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -2579,6 +2625,18 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** Enable native model citations for supported providers.
+    pub fn with_enable_citations(mut self, enable: bool) -> Self {
+        self.enable_citations = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Set limits for this session's current accounting window.
+    pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
+        self.session_limits = Some(limits);
+        self
+    }
+
     /// Set per-property overrides for model capabilities.
     pub fn with_model_capabilities(
         mut self,
@@ -2686,6 +2744,9 @@ impl SessionConfig {
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
+    /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
+    /// Can change the model when resuming.
+    pub model: Option<String>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -2725,6 +2786,12 @@ pub struct ResumeSessionConfig {
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
     pub excluded_tools: Option<Vec<String>>,
+    /// Names of built-in agents to exclude from the resumed session.
+    ///
+    /// Excluded built-in agents are hidden from discovery and cannot be
+    /// selected or invoked unless a custom agent with the same name is
+    /// configured.
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -2803,6 +2870,10 @@ pub struct ResumeSessionConfig {
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
+    /// **Experimental.** Enables native model citations for supported providers.
+    pub enable_citations: Option<bool>,
+    /// **Experimental.** Limits applied to this session's current accounting window.
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
@@ -2851,6 +2922,8 @@ pub struct ResumeSessionConfig {
     /// Optional elicitation handler. See
     /// [`SessionConfig::elicitation_handler`].
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional MCP OAuth handler. See [`SessionConfig::mcp_auth_handler`].
+    pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
@@ -2880,6 +2953,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
+            .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2899,6 +2973,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
+            .field("excluded_builtin_agents", &self.excluded_builtin_agents)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("embedding_cache_storage", &self.embedding_cache_storage)
@@ -2936,6 +3011,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("provider", &self.provider)
             .field("capi", &self.capi)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
+            .field("enable_citations", &self.enable_citations)
+            .field("session_limits", &self.session_limits)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
@@ -3037,6 +3114,7 @@ impl ResumeSessionConfig {
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
+            model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3052,6 +3130,7 @@ impl ResumeSessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            excluded_builtin_agents: self.excluded_builtin_agents,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
@@ -3086,6 +3165,8 @@ impl ResumeSessionConfig {
             providers: self.providers,
             models: self.models,
             enable_session_telemetry: self.enable_session_telemetry,
+            enable_citations: self.enable_citations,
+            session_limits: self.session_limits,
             model_capabilities: self.model_capabilities,
             memory: self.memory,
             config_dir: self.config_directory,
@@ -3093,6 +3174,7 @@ impl ResumeSessionConfig {
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             suppress_resume_event: self.suppress_resume_event,
@@ -3103,6 +3185,7 @@ impl ResumeSessionConfig {
             permission_handler: self.permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
+            mcp_auth_handler: self.mcp_auth_handler,
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
@@ -3125,6 +3208,7 @@ impl ResumeSessionConfig {
     pub fn new(session_id: SessionId) -> Self {
         Self {
             session_id,
+            model: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -3141,6 +3225,7 @@ impl ResumeSessionConfig {
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
+            excluded_builtin_agents: None,
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
@@ -3168,6 +3253,8 @@ impl ResumeSessionConfig {
             providers: None,
             models: None,
             enable_session_telemetry: None,
+            enable_citations: None,
+            session_limits: None,
             model_capabilities: None,
             memory: None,
             config_directory: None,
@@ -3182,6 +3269,7 @@ impl ResumeSessionConfig {
             continue_pending_work: None,
             permission_handler: None,
             elicitation_handler: None,
+            mcp_auth_handler: None,
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
@@ -3204,6 +3292,12 @@ impl ResumeSessionConfig {
     /// Install an [`ElicitationHandler`] for the resumed session.
     pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
         self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`McpAuthHandler`] for host-provided MCP OAuth tokens.
+    pub fn with_mcp_auth_handler(mut self, handler: Arc<dyn McpAuthHandler>) -> Self {
+        self.mcp_auth_handler = Some(handler);
         self
     }
 
@@ -3280,6 +3374,12 @@ impl ResumeSessionConfig {
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
         self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
+        self
+    }
+
+    /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 
@@ -3391,6 +3491,16 @@ impl ResumeSessionConfig {
         S: Into<String>,
     {
         self.excluded_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the built-in agent names to exclude from the resumed session.
+    pub fn with_excluded_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3589,6 +3699,18 @@ impl ResumeSessionConfig {
     /// See [`Self::enable_session_telemetry`] for default and BYOK behavior.
     pub fn with_enable_session_telemetry(mut self, enable: bool) -> Self {
         self.enable_session_telemetry = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Enable native model citations for supported providers on resume.
+    pub fn with_enable_citations(mut self, enable: bool) -> Self {
+        self.enable_citations = Some(enable);
+        self
+    }
+
+    /// **Experimental.** Set limits for this session's current accounting window.
+    pub fn with_session_limits(mut self, limits: SessionLimitsConfig) -> Self {
+        self.session_limits = Some(limits);
         self
     }
 
@@ -3956,6 +4078,55 @@ pub enum GitHubReferenceType {
     Discussion,
 }
 
+/// Pointer to a GitHub repository (owner/name plus optional numeric id).
+///
+/// Used by the GitHub-anchored [`Attachment`] variants. Mirrors the field
+/// shape of the generated `GitHubRepoRef`, but defined locally so it can
+/// derive `Eq` for use inside the `Attachment` enum.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRepoPointer {
+    /// Numeric GitHub repository id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// Repository name (without owner).
+    pub name: String,
+    /// Repository owner login (user or organization).
+    pub owner: String,
+}
+
+/// One side (head or base) of a GitHub single-file diff.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFileDiffSide {
+    /// Repository-relative path to the file.
+    pub path: String,
+    /// Git ref (branch, tag, or commit SHA) the file is read at.
+    pub r#ref: String,
+    /// Repository the file lives in.
+    pub repo: GitHubRepoPointer,
+}
+
+/// One side (head or base) of a GitHub tree comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTreeComparisonSide {
+    /// Repository the revision belongs to.
+    pub repo: GitHubRepoPointer,
+    /// Git revision (branch, tag, or commit SHA).
+    pub revision: String,
+}
+
+/// Line range covered by a GitHub snippet attachment (1-based, inclusive end).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubSnippetLineRange {
+    /// Start line number (1-based).
+    pub start: i64,
+    /// End line number (1-based, inclusive).
+    pub end: i64,
+}
+
 /// An attachment included with a user message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
@@ -4020,6 +4191,117 @@ pub enum Attachment {
         /// URL to the referenced item.
         url: String,
     },
+    /// A pointer to a GitHub commit.
+    #[serde(rename = "github_commit")]
+    GitHubCommit {
+        /// First line of the commit message.
+        message: String,
+        /// Full commit SHA.
+        oid: String,
+        /// Repository the commit belongs to.
+        repo: GitHubRepoPointer,
+        /// URL to the commit on GitHub.
+        url: String,
+    },
+    /// A pointer to a GitHub release.
+    #[serde(rename = "github_release")]
+    GitHubRelease {
+        /// Human-readable release name.
+        name: String,
+        /// Repository the release belongs to.
+        repo: GitHubRepoPointer,
+        /// Git tag the release is anchored to.
+        tag_name: String,
+        /// URL to the release on GitHub.
+        url: String,
+    },
+    /// A pointer to a GitHub Actions job.
+    #[serde(rename = "github_actions_job")]
+    GitHubActionsJob {
+        /// Terminal conclusion of the job when finished (e.g. "success",
+        /// "failure", "cancelled"). Absent for in-progress jobs.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        conclusion: Option<String>,
+        /// Job id within the workflow run.
+        job_id: i64,
+        /// Display name of the job.
+        job_name: String,
+        /// Repository the workflow run belongs to.
+        repo: GitHubRepoPointer,
+        /// URL to the job on GitHub.
+        url: String,
+        /// Display name of the workflow the job ran in.
+        workflow_name: String,
+    },
+    /// A pointer to a GitHub repository.
+    #[serde(rename = "github_repository")]
+    GitHubRepository {
+        /// Short description of the repository.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        /// Git ref this attachment is anchored at (branch, tag, or commit).
+        /// When absent the default branch is implied.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        r#ref: Option<String>,
+        /// Repository pointer.
+        repo: GitHubRepoPointer,
+        /// URL to the repository on GitHub.
+        url: String,
+    },
+    /// A pointer to a single-file diff. At least one of `head` and `base` is present.
+    #[serde(rename = "github_file_diff")]
+    GitHubFileDiff {
+        /// File location on the base side of the diff. Absent for additions.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        base: Option<GitHubFileDiffSide>,
+        /// File location on the head side of the diff. Absent for deletions.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        head: Option<GitHubFileDiffSide>,
+        /// URL to the diff on GitHub (e.g. a commit, compare, or PR-file URL).
+        url: String,
+    },
+    /// A pointer to a comparison between two git revisions.
+    #[serde(rename = "github_tree_comparison")]
+    GitHubTreeComparison {
+        /// Base side of the comparison.
+        base: GitHubTreeComparisonSide,
+        /// Head side of the comparison.
+        head: GitHubTreeComparisonSide,
+        /// URL to the comparison on GitHub.
+        url: String,
+    },
+    /// A generic GitHub URL reference.
+    #[serde(rename = "github_url")]
+    GitHubUrl {
+        /// URL to the GitHub resource.
+        url: String,
+    },
+    /// A pointer to a file in a GitHub repository at a specific ref.
+    #[serde(rename = "github_file")]
+    GitHubFile {
+        /// Repository-relative path to the file.
+        path: String,
+        /// Git ref the file is read at (branch, tag, or commit SHA).
+        r#ref: String,
+        /// Repository the file lives in.
+        repo: GitHubRepoPointer,
+        /// URL to the file on GitHub.
+        url: String,
+    },
+    /// A pointer to a line range inside a file in a GitHub repository.
+    #[serde(rename = "github_snippet")]
+    GitHubSnippet {
+        /// Line range the snippet covers.
+        line_range: GitHubSnippetLineRange,
+        /// Repository-relative path to the file.
+        path: String,
+        /// Git ref the file is read at (branch, tag, or commit SHA).
+        r#ref: String,
+        /// Repository the file lives in.
+        repo: GitHubRepoPointer,
+        /// URL to the snippet on GitHub (with line anchor).
+        url: String,
+    },
 }
 
 impl Attachment {
@@ -4030,7 +4312,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => display_name.as_deref(),
-            Self::GitHubReference { .. } => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 
@@ -4073,7 +4364,16 @@ impl Attachment {
             | Self::Directory { display_name, .. }
             | Self::Selection { display_name, .. }
             | Self::Blob { display_name, .. } => *display_name = Some(derived_display_name),
-            Self::GitHubReference { .. } => {}
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => {}
         }
     }
 
@@ -4084,7 +4384,16 @@ impl Attachment {
             }
             Self::Selection { file_path, .. } => Some(attachment_name_from_path(file_path)),
             Self::Blob { .. } => Some("attachment".to_string()),
-            Self::GitHubReference { .. } => None,
+            Self::GitHubReference { .. }
+            | Self::GitHubCommit { .. }
+            | Self::GitHubRelease { .. }
+            | Self::GitHubActionsJob { .. }
+            | Self::GitHubRepository { .. }
+            | Self::GitHubFileDiff { .. }
+            | Self::GitHubTreeComparison { .. }
+            | Self::GitHubUrl { .. }
+            | Self::GitHubFile { .. }
+            | Self::GitHubSnippet { .. } => None,
         }
     }
 }
@@ -6039,6 +6348,153 @@ mod tests {
             attachments[3].label(),
             Some("Track regressions".to_string())
         );
+    }
+
+    #[test]
+    fn github_anchored_attachment_variants_round_trip() {
+        let cases = vec![
+            (
+                "github_commit",
+                json!({
+                    "type": "github_commit",
+                    "message": "Fix the thing",
+                    "oid": "abc123",
+                    "repo": { "id": 1, "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/commit/abc123"
+                }),
+            ),
+            (
+                "github_release",
+                json!({
+                    "type": "github_release",
+                    "name": "v1.2.3",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "tagName": "v1.2.3",
+                    "url": "https://github.com/octocat/repo/releases/tag/v1.2.3"
+                }),
+            ),
+            (
+                "github_actions_job",
+                json!({
+                    "type": "github_actions_job",
+                    "conclusion": "failure",
+                    "jobId": 99,
+                    "jobName": "build",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/actions/runs/1/job/99",
+                    "workflowName": "CI"
+                }),
+            ),
+            (
+                "github_repository",
+                json!({
+                    "type": "github_repository",
+                    "description": "An example repository",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo"
+                }),
+            ),
+            (
+                "github_file_diff",
+                json!({
+                    "type": "github_file_diff",
+                    "base": {
+                        "path": "src/lib.rs",
+                        "ref": "main",
+                        "repo": { "name": "repo", "owner": "octocat" }
+                    },
+                    "head": {
+                        "path": "src/lib.rs",
+                        "ref": "feature",
+                        "repo": { "name": "repo", "owner": "octocat" }
+                    },
+                    "url": "https://github.com/octocat/repo/compare/main...feature"
+                }),
+            ),
+            (
+                "github_tree_comparison",
+                json!({
+                    "type": "github_tree_comparison",
+                    "base": {
+                        "repo": { "name": "repo", "owner": "octocat" },
+                        "revision": "main"
+                    },
+                    "head": {
+                        "repo": { "name": "repo", "owner": "octocat" },
+                        "revision": "feature"
+                    },
+                    "url": "https://github.com/octocat/repo/compare/main...feature"
+                }),
+            ),
+            (
+                "github_url",
+                json!({
+                    "type": "github_url",
+                    "url": "https://github.com/octocat/repo/wiki"
+                }),
+            ),
+            (
+                "github_file",
+                json!({
+                    "type": "github_file",
+                    "path": "src/main.rs",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/blob/main/src/main.rs"
+                }),
+            ),
+            (
+                "github_snippet",
+                json!({
+                    "type": "github_snippet",
+                    "lineRange": { "start": 10, "end": 20 },
+                    "path": "src/main.rs",
+                    "ref": "main",
+                    "repo": { "name": "repo", "owner": "octocat" },
+                    "url": "https://github.com/octocat/repo/blob/main/src/main.rs#L10-L20"
+                }),
+            ),
+        ];
+
+        for (expected_type, input) in cases {
+            let attachment: Attachment = serde_json::from_value(input.clone())
+                .unwrap_or_else(|err| panic!("{expected_type} should deserialize: {err}"));
+
+            // Serialize to a string first: parsing into `serde_json::Value` would
+            // silently dedupe a duplicate `type` key, hiding the exact regression
+            // this test guards against (e.g. a wrapped generated struct emitting its
+            // own `type` alongside the enum tag).
+            let serialized_string = serde_json::to_string(&attachment)
+                .unwrap_or_else(|err| panic!("{expected_type} should serialize: {err}"));
+
+            // Exactly one `type` key, carrying the expected discriminator.
+            assert_eq!(
+                serialized_string.matches("\"type\":").count(),
+                1,
+                "{expected_type} must serialize a single `type` key"
+            );
+
+            let serialized: serde_json::Value = serde_json::from_str(&serialized_string)
+                .unwrap_or_else(|err| panic!("{expected_type} should reparse: {err}"));
+            assert_eq!(
+                serialized.get("type").and_then(|value| value.as_str()),
+                Some(expected_type),
+                "{expected_type} must serialize the correct discriminator"
+            );
+
+            // Round-trips without dropping fields.
+            assert_eq!(
+                serialized, input,
+                "{expected_type} should round-trip without data loss"
+            );
+            let reparsed: Attachment = serde_json::from_value(serialized)
+                .unwrap_or_else(|err| panic!("{expected_type} should re-deserialize: {err}"));
+            assert_eq!(
+                reparsed, attachment,
+                "{expected_type} should re-deserialize to the same value"
+            );
+        }
     }
 }
 

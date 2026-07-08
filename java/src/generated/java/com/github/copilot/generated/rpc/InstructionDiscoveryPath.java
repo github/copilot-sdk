@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `InstructionDiscoveryPath` type.
+ * Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
  *
  * @since 1.0.0
  */

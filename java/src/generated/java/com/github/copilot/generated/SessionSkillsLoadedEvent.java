@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.skills_loaded".
+ * Session event "session.skills_loaded". Payload of `session.skills_loaded` listing resolved skill metadata.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

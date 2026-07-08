@@ -158,6 +158,18 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 	}
 }
 
+// ConfigureWithoutSnapshot initializes the replay proxy without loading a recorded CAPI
+// exchange file. Use this for tests that serve all model-layer behavior locally but
+// still need proxy-backed auth and GitHub API endpoints.
+func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
+	t.Helper()
+
+	dummySnapshotPath := filepath.Join(c.WorkDir, "__no_snapshot__.yaml")
+	if err := c.proxy.Configure(dummySnapshotPath, c.WorkDir); err != nil {
+		t.Fatalf("Failed to configure proxy without snapshot: %v", err)
+	}
+}
+
 // Close cleans up the test context resources.
 func (c *TestContext) Close(testFailed bool) {
 	if c.proxy != nil {
@@ -223,6 +235,8 @@ func (c *TestContext) Env() []string {
 		"GH_CONFIG_DIR="+c.HomeDir,
 		"GH_TOKEN="+defaultGitHubToken,
 		"GITHUB_TOKEN="+defaultGitHubToken,
+		"COPILOT_MCP_APPS=true",
+		"MCP_APPS=true",
 		"XDG_CONFIG_HOME="+c.HomeDir,
 		"XDG_STATE_HOME="+c.HomeDir,
 	)

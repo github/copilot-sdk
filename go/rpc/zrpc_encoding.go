@@ -669,6 +669,91 @@ func (r *CommandsRespondToQueuedCommandRequest) UnmarshalJSON(data []byte) error
 	return nil
 }
 
+func unmarshalDebugCollectLogsDestination(data []byte) (DebugCollectLogsDestination, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DebugCollectLogsDestinationKindArchive:
+		var d DebugCollectLogsDestinationArchive
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DebugCollectLogsDestinationKindDirectory:
+		var d DebugCollectLogsDestinationDirectory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDebugCollectLogsDestinationData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDebugCollectLogsDestinationData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DebugCollectLogsDestinationArchive) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationArchive
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DebugCollectLogsDestinationDirectory) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationDirectory
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *DebugCollectLogsRequest) UnmarshalJSON(data []byte) error {
+	type rawDebugCollectLogsRequest struct {
+		AdditionalEntries []DebugCollectLogsEntry  `json:"additionalEntries,omitzero"`
+		Destination       json.RawMessage          `json:"destination"`
+		Include           *DebugCollectLogsInclude `json:"include,omitempty"`
+	}
+	var raw rawDebugCollectLogsRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AdditionalEntries = raw.AdditionalEntries
+	if raw.Destination != nil {
+		value, err := unmarshalDebugCollectLogsDestination(raw.Destination)
+		if err != nil {
+			return err
+		}
+		r.Destination = value
+	}
+	r.Include = raw.Include
+	return nil
+}
+
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -734,6 +819,12 @@ func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolText
 		return &d, nil
 	case ExternalToolTextResultForLlmContentTypeResourceLink:
 		var d ExternalToolTextResultForLlmContentResourceLink
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeShellExit:
+		var d ExternalToolTextResultForLlmContentShellExit
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -884,6 +975,17 @@ func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, 
 	})
 }
 
+func (r ExternalToolTextResultForLlmContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentShellExit
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r ExternalToolTextResultForLlmContentTerminal) MarshalJSON() ([]byte, error) {
 	type alias ExternalToolTextResultForLlmContentTerminal
 	return json.Marshal(struct {
@@ -914,6 +1016,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 		ResultType          *string                                           `json:"resultType,omitempty"`
 		SessionLog          *string                                           `json:"sessionLog,omitempty"`
 		TextResultForLlm    string                                            `json:"textResultForLlm"`
+		ToolReferences      []string                                          `json:"toolReferences,omitzero"`
 		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitzero"`
 	}
 	var raw rawExternalToolTextResultForLlm
@@ -935,6 +1038,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	r.ResultType = raw.ResultType
 	r.SessionLog = raw.SessionLog
 	r.TextResultForLlm = raw.TextResultForLlm
+	r.ToolReferences = raw.ToolReferences
 	r.ToolTelemetry = raw.ToolTelemetry
 	return nil
 }
@@ -3225,11 +3329,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
+		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
+		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
@@ -3251,16 +3357,17 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteDefaultedOn                      *bool                                                `json:"remoteDefaultedOn,omitempty"`
 		RemoteExporting                        *bool                                                `json:"remoteExporting,omitempty"`
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
-		ResponseBudget                         *ResponseBudgetConfig                                `json:"responseBudget,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
+		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
 		ShellInitProfile                       *string                                              `json:"shellInitProfile,omitempty"`
 		ShellProcessFlags                      []string                                             `json:"shellProcessFlags,omitzero"`
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
 		SkipCustomInstructions                 *bool                                                `json:"skipCustomInstructions,omitempty"`
 		TrajectoryFile                         *string                                              `json:"trajectoryFile,omitempty"`
+		Verbosity                              *Verbosity                                           `json:"verbosity,omitempty"`
 		WorkingDirectory                       *string                                              `json:"workingDirectory,omitempty"`
 		WorkingDirectoryContext                *SessionContext                                      `json:"workingDirectoryContext,omitempty"`
 	}
@@ -3293,11 +3400,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
+	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
+	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
@@ -3319,16 +3428,17 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteDefaultedOn = raw.RemoteDefaultedOn
 	r.RemoteExporting = raw.RemoteExporting
 	r.RemoteSteerable = raw.RemoteSteerable
-	r.ResponseBudget = raw.ResponseBudget
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
+	r.SessionLimits = raw.SessionLimits
 	r.ShellInitProfile = raw.ShellInitProfile
 	r.ShellProcessFlags = raw.ShellProcessFlags
 	r.SkillDirectories = raw.SkillDirectories
 	r.SkipCustomInstructions = raw.SkipCustomInstructions
 	r.TrajectoryFile = raw.TrajectoryFile
+	r.Verbosity = raw.Verbosity
 	r.WorkingDirectory = raw.WorkingDirectory
 	r.WorkingDirectoryContext = raw.WorkingDirectoryContext
 	return nil

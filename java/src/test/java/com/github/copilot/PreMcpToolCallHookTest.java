@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,21 +54,25 @@ public class PreMcpToolCallHookTest {
         }
     }
 
+    private McpStdioServerConfig createMetaEchoServer() {
+        var harnessDir = ctx.getRepoRoot().resolve("test").resolve("harness");
+        return new McpStdioServerConfig().setCommand("node")
+                .setArgs(List.of(harnessDir.resolve("test-mcp-meta-echo-server.mjs").toString()))
+                .setWorkingDirectory(harnessDir.toString()).setTools(List.of("*"));
+    }
+
     /**
      * Verifies that preMcpToolCall hook can set metadata on the MCP request.
      *
      * @see Snapshot: pre_mcp_tool_call_hook/should_set_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires snapshot: pre_mcp_tool_call_hook/should_set_meta_via_premcptoolcall_hook")
     @Test
     void testShouldSetMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_set_meta_via_premcptoolcall_hook");
 
         var hookInputs = new java.util.ArrayList<PreMcpToolCallHookInput>();
-
         var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("meta-echo", new McpStdioServerConfig().setCommand("npx").setArgs(List.of("-y", "mcp-meta-echo"))
-                .setTools(List.of("*")).setWorkingDirectory(ctx.getWorkDir().toString()));
+        mcpServers.put("meta-echo", createMetaEchoServer());
 
         var hooks = new SessionHooks().setOnPreMcpToolCall((input, invocation) -> {
             hookInputs.add(input);
@@ -97,6 +100,7 @@ public class PreMcpToolCallHookTest {
 
             // Verify the response contains the injected metadata
             String content = response.getData().content();
+            assertTrue(content.contains("injected"), "Response should contain injected metadata: " + content);
             assertTrue(content.contains("by-hook"), "Response should contain injected metadata: " + content);
 
             session.close();
@@ -109,17 +113,17 @@ public class PreMcpToolCallHookTest {
      * @see Snapshot:
      *      pre_mcp_tool_call_hook/should_replace_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires snapshot: pre_mcp_tool_call_hook/should_replace_meta_via_premcptoolcall_hook")
     @Test
     void testShouldReplaceMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_replace_meta_via_premcptoolcall_hook");
 
+        var hookInputs = new java.util.ArrayList<PreMcpToolCallHookInput>();
         var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("meta-echo", new McpStdioServerConfig().setCommand("npx").setArgs(List.of("-y", "mcp-meta-echo"))
-                .setTools(List.of("*")).setWorkingDirectory(ctx.getWorkDir().toString()));
+        mcpServers.put("meta-echo", createMetaEchoServer());
 
         var hooks = new SessionHooks().setOnPreMcpToolCall((input, invocation) -> {
-            JsonNode metaNode = MAPPER.valueToTree(Map.of("replaced", "true", "original", "gone"));
+            hookInputs.add(input);
+            JsonNode metaNode = MAPPER.valueToTree(Map.of("completely", "replaced"));
             return CompletableFuture.completedFuture(PreMcpToolCallHookOutput.withMeta(metaNode));
         });
 
@@ -132,9 +136,13 @@ public class PreMcpToolCallHookTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
+            assertFalse(hookInputs.isEmpty(), "Should have received preMcpToolCall hook calls");
+            assertEquals("meta-echo", hookInputs.get(0).getServerName());
+            assertEquals("echo_meta", hookInputs.get(0).getToolName());
 
             // Verify the response contains the replaced metadata
             String content = response.getData().content();
+            assertTrue(content.contains("completely"), "Response should contain replaced metadata: " + content);
             assertTrue(content.contains("replaced"), "Response should contain replaced metadata: " + content);
 
             session.close();
@@ -147,17 +155,16 @@ public class PreMcpToolCallHookTest {
      * @see Snapshot:
      *      pre_mcp_tool_call_hook/should_remove_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires snapshot: pre_mcp_tool_call_hook/should_remove_meta_via_premcptoolcall_hook")
     @Test
     void testShouldRemoveMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_remove_meta_via_premcptoolcall_hook");
 
+        var hookInputs = new java.util.ArrayList<PreMcpToolCallHookInput>();
         var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("meta-echo", new McpStdioServerConfig().setCommand("npx").setArgs(List.of("-y", "mcp-meta-echo"))
-                .setTools(List.of("*")).setWorkingDirectory(ctx.getWorkDir().toString()));
+        mcpServers.put("meta-echo", createMetaEchoServer());
 
         var hooks = new SessionHooks().setOnPreMcpToolCall((input, invocation) -> {
-            // Return output with null metaToUse to remove metadata
+            hookInputs.add(input);
             return CompletableFuture.completedFuture(PreMcpToolCallHookOutput.removeMeta());
         });
 
@@ -170,6 +177,14 @@ public class PreMcpToolCallHookTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
+            assertFalse(hookInputs.isEmpty(), "Should have received preMcpToolCall hook calls");
+            assertEquals("meta-echo", hookInputs.get(0).getServerName());
+            assertEquals("echo_meta", hookInputs.get(0).getToolName());
+
+            String content = response.getData().content();
+            assertTrue(content.contains("\"meta\":null") || content.contains("\"meta\": null"),
+                    "Response should contain removed metadata: " + content);
+            assertTrue(content.contains("test-remove"), "Response should contain tool value: " + content);
 
             session.close();
         }

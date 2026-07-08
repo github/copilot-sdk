@@ -7,12 +7,12 @@ import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("session.provider.getEndpoint RPC", async () => {
-    const { copilotClient: client, env } = await createSdkTestContext();
-
-    // The provider endpoint API is gated behind an opt-in env var; the harness
-    // env object is the same one passed to the CLI subprocess, so mutating it
-    // here enables the API for this test file's client.
-    env.COPILOT_ALLOW_GET_PROVIDER_ENDPOINT = "true";
+    const { copilotClient: client } = await createSdkTestContext({
+        copilotClientOptions: {
+            // The provider endpoint API is gated behind an opt-in env var.
+            env: { COPILOT_ALLOW_GET_PROVIDER_ENDPOINT: "true" },
+        },
+    });
 
     it("returns the BYOK provider endpoint when a custom provider is configured", async () => {
         const session = await client.createSession({

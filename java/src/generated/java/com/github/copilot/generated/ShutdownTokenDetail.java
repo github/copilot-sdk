@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ShutdownTokenDetail` type.
+ * A session-wide shutdown token-type entry storing the accumulated token count.
  *
  * @since 1.0.0
  */

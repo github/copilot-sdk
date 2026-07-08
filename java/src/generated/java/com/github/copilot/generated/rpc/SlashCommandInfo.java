@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SlashCommandInfo` type.
+ * Slash-command metadata with name, aliases, description, kind, input hint, execution allowance, and schedulability.
  *
  * @since 1.0.0
  */

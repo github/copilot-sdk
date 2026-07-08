@@ -15,7 +15,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `AgentInfo` type.
+ * Custom agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
  *
  * @since 1.0.0
  */

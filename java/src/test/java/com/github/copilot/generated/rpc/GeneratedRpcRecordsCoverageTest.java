@@ -321,11 +321,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-4.5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
+        assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
     }
 
@@ -799,7 +800,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = new ModelCapabilitiesSupports(true, false);
+        var supports = new ModelCapabilitiesSupports(true, false, null);
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
@@ -834,9 +835,9 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionModelSwitchToParams_nested_records() {
         var limitsVision = new ModelCapabilitiesOverrideLimitsVision(List.of("image/png", "image/jpeg"), 10L, 5000000L);
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
-        var supports = new ModelCapabilitiesOverrideSupports(true, true);
+        var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, capabilities, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());

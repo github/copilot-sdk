@@ -18,10 +18,11 @@ class TestHooks:
     async def test_should_invoke_pretooluse_hook_when_model_runs_a_tool(self, ctx: E2ETestContext):
         """Test that preToolUse hook is invoked when model runs a tool"""
         pre_tool_use_inputs = []
+        invocation_session_ids = []
 
         async def on_pre_tool_use(input_data, invocation):
             pre_tool_use_inputs.append(input_data)
-            assert invocation["session_id"] == session.session_id
+            invocation_session_ids.append(invocation["session_id"])
             # Allow the tool to run
             return {"permissionDecision": "allow"}
 
@@ -37,6 +38,7 @@ class TestHooks:
 
         # Should have received at least one preToolUse hook call
         assert len(pre_tool_use_inputs) > 0
+        assert all(session_id == session.session_id for session_id in invocation_session_ids)
 
         # Should have received the tool name
         assert any(inp.get("toolName") for inp in pre_tool_use_inputs)
@@ -48,10 +50,11 @@ class TestHooks:
     ):
         """Test that postToolUse hook is invoked after model runs a tool"""
         post_tool_use_inputs = []
+        invocation_session_ids = []
 
         async def on_post_tool_use(input_data, invocation):
             post_tool_use_inputs.append(input_data)
-            assert invocation["session_id"] == session.session_id
+            invocation_session_ids.append(invocation["session_id"])
             return None
 
         session = await ctx.client.create_session(
@@ -66,6 +69,7 @@ class TestHooks:
 
         # Should have received at least one postToolUse hook call
         assert len(post_tool_use_inputs) > 0
+        assert all(session_id == session.session_id for session_id in invocation_session_ids)
 
         # Should have received the tool name and result
         assert any(inp.get("toolName") for inp in post_tool_use_inputs)

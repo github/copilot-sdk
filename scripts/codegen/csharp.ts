@@ -493,7 +493,9 @@ const COPYRIGHT = `/*-----------------------------------------------------------
 
 const EXPERIMENTAL_ATTRIBUTE = "[Experimental(Diagnostics.Experimental)]";
 const EDITOR_BROWSABLE_NEVER_ATTRIBUTE = "[EditorBrowsable(EditorBrowsableState.Never)]";
-const OBSOLETE_ATTRIBUTE = `[Obsolete("This member is deprecated and will be removed in a future version.")]`;
+const OBSOLETE_ATTRIBUTE = `#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif`;
 const STRING_ENUM_RESERVED_MEMBER_NAMES = new Set(["Value", "Equals", "GetHashCode", "ToString", "Converter"]);
 
 function experimentalAttribute(indent = ""): string {
@@ -507,7 +509,7 @@ function pushExperimentalAttribute(lines: string[], indent = ""): void {
 function obsoleteAttributes(indent = ""): string[] {
     return [
         `${indent}${EDITOR_BROWSABLE_NEVER_ATTRIBUTE}`,
-        `${indent}${OBSOLETE_ATTRIBUTE}`,
+        ...OBSOLETE_ATTRIBUTE.split("\n").map((line) => line.startsWith("#") ? line : `${indent}${line}`),
     ];
 }
 
@@ -1429,6 +1431,7 @@ let nonExperimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 let externalRpcValueTypes = new Set<string>();
+let rpcRootJsonSerializableTypes = new Set<string>();
 
 /** Schema definitions available during RPC generation (for $ref resolution). */
 let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
@@ -1701,7 +1704,11 @@ function emitRpcResultType(typeName: string, schema: JSONSchema7, visibility: "p
         return typeName;
     }
 
-    return resolveRpcType(schema, true, typeName, "", classes);
+    const resultType = resolveRpcType(schema, true, typeName, "", classes);
+    if (resultType.includes("<") || resultType.endsWith("[]")) {
+        rpcRootJsonSerializableTypes.add(resultType.replace(/\?$/, ""));
+    }
+    return resultType;
 }
 
 /**
@@ -2444,6 +2451,7 @@ function generateRpcCode(
     nonExperimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
+    rpcRootJsonSerializableTypes.clear();
     generatedEnums.clear(); // Clear shared enum deduplication map
     externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
@@ -2511,7 +2519,9 @@ namespace GitHub.Copilot.Rpc;
     if (clientGlobalParts.length > 0) lines.push(...clientGlobalParts, "");
 
     // Add JsonSerializerContext for AOT/trimming support
-    const typeNames = [...emittedRpcClassSchemas.keys(), ...emittedRpcEnumResultTypes].sort();
+    const typeNames = [
+        ...new Set([...emittedRpcClassSchemas.keys(), ...emittedRpcEnumResultTypes, ...rpcRootJsonSerializableTypes]),
+    ].sort();
     if (typeNames.length > 0) {
         lines.push(`[JsonSourceGenerationOptions(`);
         lines.push(`    JsonSerializerDefaults.Web,`);

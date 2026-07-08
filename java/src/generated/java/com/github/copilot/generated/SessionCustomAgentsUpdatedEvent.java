@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.custom_agents_updated".
+ * Session event "session.custom_agents_updated". Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

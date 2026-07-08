@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
@@ -78,6 +79,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
 
     private Task<Connection>? _connectionTask;
+    private FfiRuntimeHost? _ffiHost;
     private bool _disposed;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
@@ -134,11 +136,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
-        _connection = _options.Connection ?? RuntimeConnection.ForStdio();
+        _connection = _options.Connection ?? ResolveDefaultConnection(_options);
 
         switch (_connection)
         {
             case StdioRuntimeConnection:
+                break;
+
+            case InProcessRuntimeConnection:
                 break;
 
             case TcpRuntimeConnection tcp:
@@ -169,6 +174,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 throw new ArgumentException($"Unsupported RuntimeConnection type: {_connection.GetType().Name}", nameof(options));
         }
 
+        ValidateEnvironmentOptions(_options, _connection);
+
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
 
@@ -195,6 +202,85 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     nameof(options));
             }
         }
+    }
+
+    /// <summary>
+    /// Validates environment-variable options against the resolved transport.
+    /// Per-client environment is only representable for child-process transports
+    /// (each client owns its own OS process). The in-process (FFI) transport
+    /// loads the native runtime into the shared host process, whose single
+    /// environment block cannot carry per-client values, so environment and
+    /// telemetry options that lower to environment variables are rejected there.
+    /// </summary>
+    private static void ValidateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection)
+    {
+        if (connection is InProcessRuntimeConnection)
+        {
+            if (options.Environment is not null)
+            {
+                throw new ArgumentException(
+                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Environment)} is not supported with " +
+                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport " +
+                    "loads the native runtime into the shared host process, whose single environment block cannot carry " +
+                    "per-client values. Set the variables on the host process environment instead.",
+                    nameof(options));
+            }
+
+            if (options.Telemetry is not null)
+            {
+                throw new ArgumentException(
+                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Telemetry)} is not supported with " +
+                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): telemetry configuration is " +
+                    "lowered to environment variables read by native runtime code running in the shared host process, so " +
+                    "per-client telemetry cannot be honored in-process. Configure telemetry via the host process " +
+                    "environment, or use a child-process transport.",
+                    nameof(options));
+            }
+
+            return;
+        }
+
+        if (connection is ChildProcessRuntimeConnection { Environment: not null } && options.Environment is not null)
+        {
+            throw new ArgumentException(
+                $"Set environment variables via either {nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Environment)} " +
+                $"or {nameof(ChildProcessRuntimeConnection)}.{nameof(ChildProcessRuntimeConnection.Environment)}, not both. " +
+                $"Prefer {nameof(ChildProcessRuntimeConnection)}.{nameof(ChildProcessRuntimeConnection.Environment)} for " +
+                "child-process transports.",
+                nameof(options));
+        }
+    }
+
+    /// <summary>
+    /// Environment variable that overrides the transport used when the caller does not
+    /// specify <see cref="CopilotClientOptions.Connection"/>. Accepts <c>"inprocess"</c>
+    /// or <c>"stdio"</c> (case-insensitive); unset preserves the default stdio transport.
+    /// Any other value is an error. Ignored when a <see cref="RuntimeConnection"/> is set
+    /// explicitly.
+    /// </summary>
+    internal const string DefaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION";
+
+    /// <summary>
+    /// Resolves the default <see cref="RuntimeConnection"/> for the no-Connection case,
+    /// honoring <see cref="DefaultConnectionEnvVar"/>.
+    /// </summary>
+    private static RuntimeConnection ResolveDefaultConnection(CopilotClientOptions options)
+    {
+        var value = options.Environment is not null
+            && options.Environment.TryGetValue(DefaultConnectionEnvVar, out var fromOptions)
+                ? fromOptions
+                : Environment.GetEnvironmentVariable(DefaultConnectionEnvVar);
+
+        if (string.IsNullOrEmpty(value) || string.Equals(value, "stdio", StringComparison.OrdinalIgnoreCase))
+        {
+            return RuntimeConnection.ForStdio();
+        }
+        if (string.Equals(value, "inprocess", StringComparison.OrdinalIgnoreCase))
+        {
+            return RuntimeConnection.ForInProcess();
+        }
+        throw new ArgumentException(
+            $"Invalid {DefaultConnectionEnvVar} value '{value}'. Expected 'inprocess', 'stdio', or unset.");
     }
 
     /// <summary>
@@ -250,7 +336,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                if (_connection is UriRuntimeConnection)
+                if (_connection is InProcessRuntimeConnection)
+                {
+                    // In-process FFI hosting: load the Rust cdylib and let it spawn
+                    // the CLI worker, instead of the SDK launching a CLI child process.
+                    // The worker reads its configuration (telemetry export, etc.) from
+                    // the environment passed here, so apply the same telemetry-derived
+                    // vars the child-process path sets on its startInfo.Environment.
+                    var ffiEnvironment = _options.Environment?.ToDictionary(kvp => kvp.Key, kvp => (string?)kvp.Value)
+                        ?? new Dictionary<string, string?>();
+                    ApplyTelemetryEnvironment(ffiEnvironment, _options.Telemetry);
+                    var resolvedFfiEnvironment = ffiEnvironment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
+                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), resolvedFfiEnvironment, _logger);
+                    _ffiHost = ffiHost;
+                    await ffiHost.StartAsync(ct);
+                    connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
+                }
+                else if (_connection is UriRuntimeConnection)
                 {
                     // External runtime
                     _actualPort = _optionsPort;
@@ -437,7 +539,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
-        if (gracefulRuntimeShutdown && ctx.CliProcess is not null)
+        if (gracefulRuntimeShutdown && (ctx.CliProcess is not null || ctx.FfiHost is not null))
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
             try
@@ -476,6 +578,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (ctx.CliProcess is { } childProcess)
         {
             await CleanupCliProcessAsync(childProcess, ctx.StderrPump, errors, _logger);
+        }
+
+        if (ctx.FfiHost is { } ffiHost)
+        {
+            try { ffiHost.Dispose(); }
+            catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
+            _ffiHost = null;
         }
     }
 
@@ -630,6 +739,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             this);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
@@ -979,9 +1089,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1012,6 +1124,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1033,7 +1146,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1078,6 +1192,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 throw new InvalidOperationException(
                     $"session.create returned sessionId {response.SessionId} but the caller requested {localSessionId}.");
+            }
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
             }
 
             session.WorkspacePath = response.WorkspacePath;
@@ -1166,7 +1285,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             transformCallbacks,
             hasHooks,
             "CopilotClient.ResumeSessionAsync");
-
         try
         {
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
@@ -1179,9 +1297,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.EnableCitations,
                 wireSystemMessage,
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
+                config.ExcludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1213,6 +1333,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
+                config.SessionLimits,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
@@ -1235,7 +1356,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
-                ExpAssignments: config.ExpAssignments);
+                ExpAssignments: config.ExpAssignments,
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1248,6 +1370,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
+
+            if (config.OnMcpAuthRequest is not null)
+            {
+                await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
+            }
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
         }
@@ -1708,21 +1835,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Builds the client-global RPC handler bag at construction time. Currently
-    /// only the LLM inference provider adapter is registered; returns null when no
+    /// Builds the client-global RPC handler bag at construction time. Registers
+    /// the LLM inference provider adapter and/or the GitHub telemetry adapter
+    /// depending on which options are configured; returns null when no
     /// client-global API is configured so the registration is skipped entirely.
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
         var handler = _options.RequestHandler;
-        if (handler is null)
+        var onGitHubTelemetry = _options.OnGitHubTelemetry;
+        if (handler is null && onGitHubTelemetry is null)
         {
             return null;
         }
 
         return new ClientGlobalApiHandlers
         {
-            LlmInference = new LlmInferenceAdapter(handler, () => _serverRpc),
+            LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
+            GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
         };
     }
 
@@ -1773,14 +1903,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         int? serverVersion;
         try
         {
-            var token = _connection switch
-            {
-                TcpRuntimeConnection tcp => tcp.ConnectionToken,
-                UriRuntimeConnection uri => uri.ConnectionToken,
-                _ => null,
-            };
+            var token = _ffiHost is not null
+                ? null // FFI hosting is an ungated in-process connection; no token.
+                : _connection switch
+                {
+                    TcpRuntimeConnection tcp => tcp.ConnectionToken,
+                    UriRuntimeConnection uri => uri.ConnectionToken,
+                    _ => null,
+                };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = token }], connection.StderrBuffer, cancellationToken);
+                connection.Rpc,
+                "connect",
+                [new ConnectHandshakeRequest(
+                    token,
+                    // Opt in to GitHub telemetry forwarding at the connection level when a
+                    // handler is registered (mirrors the runtime, which reads this flag on the
+                    // `connect` handshake so the first session's un-replayable `session.start`
+                    // event is forwarded). Also sent on session.create/resume for older CLIs.
+                    _options.OnGitHubTelemetry != null ? true : null)],
+                connection.StderrBuffer,
+                cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
@@ -1823,6 +1965,25 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
+    // Applies the telemetry-derived environment variables the runtime reads to
+    // enable OTLP export. Shared by the stdio/tcp child-process path and the
+    // in-process FFI path so telemetry behaves identically across transports.
+    private static void ApplyTelemetryEnvironment(IDictionary<string, string?> environment, TelemetryConfig? telemetry)
+    {
+        if (telemetry is null)
+        {
+            return;
+        }
+
+        environment["COPILOT_OTEL_ENABLED"] = "true";
+        if (telemetry.OtlpEndpoint is not null) environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
+        if (telemetry.OtlpProtocol is not null) environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry.OtlpProtocol;
+        if (telemetry.FilePath is not null) environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
+        if (telemetry.ExporterType is not null) environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
+        if (telemetry.SourceName is not null) environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
+        if (telemetry.CaptureContent is { } capture) environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
+    }
+
     private async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CancellationToken cancellationToken)
     {
         var options = _options;
@@ -1831,9 +1992,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var tcpConnection = _connection as TcpRuntimeConnection;
         var useStdio = _connection is StdioRuntimeConnection;
 
-        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled runtime - no PATH fallback
-        var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
-            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        // Use explicit path, COPILOT_CLI_PATH env var (from the connection's
+        // Environment, options.Environment, or process env), or bundled runtime - no PATH fallback
+        var envCliPath =
+            (childProcessConnection.Environment is not null && childProcessConnection.Environment.TryGetValue("COPILOT_CLI_PATH", out var connEnvValue) ? connEnvValue : null)
+            ?? (options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue : null)
+            ?? System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
         var cliPath = childProcessConnection.Path
             ?? envCliPath
             ?? GetBundledCliPath(out var searchedPath)
@@ -1900,10 +2064,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             CreateNoWindow = true
         };
 
-        if (options.Environment != null)
+        var childEnvironment = options.Environment ?? childProcessConnection.Environment;
+        if (childEnvironment != null)
         {
             startInfo.Environment.Clear();
-            foreach (var (key, value) in options.Environment)
+            foreach (var (key, value) in childEnvironment)
             {
                 startInfo.Environment[key] = value;
             }
@@ -1937,16 +2102,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Set telemetry environment variables if configured
-        if (options.Telemetry is { } telemetry)
-        {
-            startInfo.Environment["COPILOT_OTEL_ENABLED"] = "true";
-            if (telemetry.OtlpEndpoint is not null) startInfo.Environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
-            if (telemetry.OtlpProtocol is not null) startInfo.Environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry.OtlpProtocol;
-            if (telemetry.FilePath is not null) startInfo.Environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
-            if (telemetry.ExporterType is not null) startInfo.Environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
-            if (telemetry.SourceName is not null) startInfo.Environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
-            if (telemetry.CaptureContent is { } capture) startInfo.Environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
-        }
+        ApplyTelemetryEnvironment(startInfo.Environment, options.Telemetry);
 
         var cliProcess = new Process { StartInfo = startInfo };
         try
@@ -2055,6 +2211,57 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return arch != null ? $"{os}-{arch}" : null;
     }
 
+    private string ResolveCliPathForFfi()
+    {
+        var envCliPath = _options.Environment is not null && _options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue)
+            ? envValue
+            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        if (!string.IsNullOrEmpty(envCliPath))
+        {
+            return envCliPath;
+        }
+
+        // Fall back to the bundled single-file CLI the same way stdio discovers it.
+        // It embeds its own Node and is spawned directly as `copilot --embedded-host`,
+        // with the sibling cdylib loaded in-process (FfiRuntimeHost.Create prefers the
+        // flat `libcopilot_runtime.so`/`copilot_runtime.dll` next to the CLI, falling
+        // back to the dev `prebuilds/<folder>/runtime.node` layout).
+        var bundled = GetBundledCliPath(out var searchedPath);
+        return bundled
+            ?? throw new InvalidOperationException(
+                "In-process FFI hosting requires the Copilot CLI. Set the COPILOT_CLI_PATH "
+                + $"environment variable, or ensure the bundled CLI is present (looked in '{searchedPath}').");
+    }
+
+    /// <summary>
+    /// Returns the napi-rs prebuilds folder name for the current host — the
+    /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> convention (e.g. <c>win32-x64</c>,
+    /// <c>darwin-arm64</c>, <c>linux-x64</c>) under which the runtime ships
+    /// <c>prebuilds/&lt;folder&gt;/runtime.node</c>. This differs from the .NET RID
+    /// (<c>win-x64</c>/<c>osx-x64</c>) for Windows and macOS.
+    /// </summary>
+    private static string? GetNapiPrebuildsFolder()
+    {
+        string platform;
+        if (OperatingSystem.IsWindows()) platform = "win32";
+        else if (OperatingSystem.IsLinux()) platform = "linux";
+        else if (OperatingSystem.IsMacOS()) platform = "darwin";
+        else return null;
+
+        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+        {
+            System.Runtime.InteropServices.Architecture.X64 => "x64",
+            System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+            _ => null,
+        };
+
+        return arch != null ? $"{platform}-{arch}" : null;
+    }
+
+    private static string GetNapiPrebuildsFolderOrThrow() =>
+        GetNapiPrebuildsFolder()
+        ?? throw new InvalidOperationException("Could not determine a napi-rs prebuilds folder for FFI hosting.");
+
     private static (string FileName, IEnumerable<string> Args) ResolveCliCommand(string cliPath, IEnumerable<string> args)
     {
         var isJsFile = cliPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
@@ -2067,7 +2274,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, ProcessStderrPump? stderrPump, CancellationToken cancellationToken, FfiRuntimeHost? ffiHost = null)
     {
         var setupTimestamp = Stopwatch.GetTimestamp();
         NetworkStream? networkStream = null;
@@ -2077,7 +2284,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             Stream inputStream, outputStream;
 
-            if (_connection is StdioRuntimeConnection)
+            if (ffiHost is not null)
+            {
+                inputStream = ffiHost.ReceiveStream;
+                outputStream = ffiHost.SendStream;
+            }
+            else if (_connection is StdioRuntimeConnection)
             {
                 if (cliProcess == null)
                 {
@@ -2143,7 +2355,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
 
-            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump);
+            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump, ffiHost);
             _serverRpc = connection.Server;
 
             return connection;
@@ -2232,13 +2444,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous dispose operation.</returns>
     /// <remarks>
-    /// This method calls <see cref="ForceStopAsync"/> to immediately release all resources.
+    /// This method calls <see cref="StopAsync"/> to gracefully shut down the runtime and
+    /// release all resources. Use <see cref="ForceStopAsync"/> for an immediate hard stop
+    /// that skips graceful runtime shutdown.
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
         _disposed = true;
-        await ForceStopAsync();
+        await StopAsync();
     }
 
     private class RpcHandler(CopilotClient client)
@@ -2346,7 +2560,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonRpc rpc,
         Process? cliProcess, // Set if we created the child process
         NetworkStream? networkStream, // Set if using TCP
-        ProcessStderrPump? stderrPump = null) // Captures stderr for error messages
+        ProcessStderrPump? stderrPump = null, // Captures stderr for error messages
+        FfiRuntimeHost? ffiHost = null) // Set if using in-process FFI hosting
     {
         public Process? CliProcess => cliProcess;
         public JsonRpc Rpc => rpc;
@@ -2354,6 +2569,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         public NetworkStream? NetworkStream => networkStream;
         public ProcessStderrPump? StderrPump => stderrPump;
         public StringBuilder? StderrBuffer => stderrPump?.Buffer;
+        public FfiRuntimeHost? FfiHost => ffiHost;
     }
 
     private sealed class ProcessStderrPump
@@ -2421,9 +2637,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2454,6 +2672,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2476,7 +2695,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2515,9 +2735,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
+        bool? EnableCitations,
         SystemMessageConfig? SystemMessage,
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
+        [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -2549,6 +2771,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        SessionLimitsConfig? SessionLimits,
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
@@ -2572,7 +2795,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null);
+        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -2609,6 +2833,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record GetSessionMetadataResponse(
         SessionMetadata? Session);
 
+    internal record ConnectHandshakeRequest(
+        string? Token,
+        [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null);
+
     internal record SetForegroundSessionRequest(
         string SessionId);
 
@@ -2643,6 +2871,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
+    [JsonSerializable(typeof(ConnectHandshakeRequest))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
@@ -2650,6 +2879,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(CapiSessionOptions))]
     [JsonSerializable(typeof(NamedProviderConfig))]
     [JsonSerializable(typeof(ProviderModelConfig))]
+    [JsonSerializable(typeof(SessionLimitsConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionCapabilities))]
@@ -2689,4 +2919,29 @@ public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
     /// Gets the underlying <see cref="ToolResultObject"/>.
     /// </summary>
     public ToolResultObject Result => toolResult;
+}
+
+/// <summary>
+/// Bridges the generated <see cref="Rpc.IGitHubTelemetryHandler"/> client-global handler to
+/// the public <c>OnGitHubTelemetry</c> callback, forwarding the generated
+/// <see cref="Rpc.GitHubTelemetryNotification"/> payload unchanged.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class GitHubTelemetryAdapter(Func<Rpc.GitHubTelemetryNotification, Task> callback, ILogger logger) : Rpc.IGitHubTelemetryHandler
+{
+    private readonly Func<Rpc.GitHubTelemetryNotification, Task> _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+    private readonly ILogger _logger = logger ?? NullLogger.Instance;
+
+    public async Task EventAsync(Rpc.GitHubTelemetryNotification request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        try
+        {
+            await _callback(request).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error handling gitHubTelemetry.event notification");
+        }
+    }
 }

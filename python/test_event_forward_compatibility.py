@@ -138,6 +138,22 @@ class TestEventForwardCompatibility:
         constructed = Data(arguments={"tool_call_id": "call-1"})
         assert constructed.to_dict() == {"arguments": {"tool_call_id": "call-1"}}
 
+    def test_data_shim_preserves_abbreviation_json_keys_on_round_trip(self):
+        """Data.from_dict(x).to_dict() should preserve JSON keys with abbreviations.
+
+        Regression test for github/copilot-sdk#1138: keys like userURL, sessionID,
+        and OAuthToken were rewritten on round-trip because _compat_to_json_key could
+        not reconstruct the original camelCase abbreviation casing.
+        """
+        for key in ["userURL", "sessionID", "XMLPayload", "serverIP", "OAuthToken"]:
+            incoming = {key: 42}
+            assert Data.from_dict(incoming).to_dict() == incoming
+
+    def test_data_shim_preserves_colliding_json_keys_on_round_trip(self):
+        """Data.from_dict(x).to_dict() should preserve keys with the same Python name."""
+        colliding_keys = {"userURL": 42, "userUrl": 43}
+        assert Data.from_dict(colliding_keys).to_dict() == colliding_keys
+
     def test_missing_optional_fields_remain_none_after_parsing(self):
         """Generated event models should leave missing optional fields as None.
 

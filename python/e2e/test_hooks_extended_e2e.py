@@ -28,10 +28,11 @@ class TestHooksExtended:
         self, ctx: E2ETestContext
     ):
         inputs: list[dict] = []
+        invocation_session_ids: list[str] = []
 
         async def on_user_prompt_submitted(input_data, invocation):
             inputs.append(input_data)
-            assert invocation["session_id"]
+            invocation_session_ids.append(invocation["session_id"])
             return {"modifiedPrompt": "Reply with exactly: HOOKED_PROMPT"}
 
         session = await ctx.client.create_session(
@@ -41,6 +42,7 @@ class TestHooksExtended:
         try:
             response = await session.send_and_wait("Say something else")
             assert inputs
+            assert all(session_id == session.session_id for session_id in invocation_session_ids)
             assert "Say something else" in inputs[0].get("prompt", "")
             assert "HOOKED_PROMPT" in (response.data.content or "")
         finally:
@@ -48,10 +50,11 @@ class TestHooksExtended:
 
     async def test_should_invoke_sessionstart_hook(self, ctx: E2ETestContext):
         inputs: list[dict] = []
+        invocation_session_ids: list[str] = []
 
         async def on_session_start(input_data, invocation):
             inputs.append(input_data)
-            assert invocation["session_id"]
+            invocation_session_ids.append(invocation["session_id"])
             return {"additionalContext": "Session start hook context."}
 
         session = await ctx.client.create_session(
@@ -61,6 +64,7 @@ class TestHooksExtended:
         try:
             await session.send_and_wait("Say hi")
             assert inputs
+            assert all(session_id == session.session_id for session_id in invocation_session_ids)
             assert inputs[0].get("source") == "new"
             assert inputs[0].get("workingDirectory")
         finally:
@@ -68,13 +72,14 @@ class TestHooksExtended:
 
     async def test_should_invoke_sessionend_hook(self, ctx: E2ETestContext):
         inputs: list[dict] = []
+        invocation_session_ids: list[str] = []
         hook_invoked: asyncio.Future = asyncio.get_event_loop().create_future()
 
         async def on_session_end(input_data, invocation):
             inputs.append(input_data)
+            invocation_session_ids.append(invocation["session_id"])
             if not hook_invoked.done():
                 hook_invoked.set_result(input_data)
-            assert invocation["session_id"]
             return {"sessionSummary": "session ended"}
 
         session = await ctx.client.create_session(
@@ -85,13 +90,15 @@ class TestHooksExtended:
         await session.disconnect()
         await asyncio.wait_for(hook_invoked, 10.0)
         assert inputs
+        assert all(session_id == session.session_id for session_id in invocation_session_ids)
 
     async def test_should_register_erroroccurred_hook(self, ctx: E2ETestContext):
         inputs: list[dict] = []
+        invocation_session_ids: list[str] = []
 
         async def on_error_occurred(input_data, invocation):
             inputs.append(input_data)
-            assert invocation["session_id"]
+            invocation_session_ids.append(invocation["session_id"])
             return {"errorHandling": "skip"}
 
         session = await ctx.client.create_session(
@@ -102,6 +109,7 @@ class TestHooksExtended:
             await session.send_and_wait("Say hi")
             # Registration-only test: a healthy turn shouldn't fire OnErrorOccurred.
             assert not inputs
+            assert not invocation_session_ids
             assert session.session_id
         finally:
             await session.disconnect()
@@ -195,6 +203,7 @@ class TestHooksExtended:
     ):
         failure_inputs: list[dict] = []
         post_tool_use_inputs: list[dict] = []
+        invocation_session_ids: list[str] = []
 
         async def on_post_tool_use(input_data, invocation):
             post_tool_use_inputs.append(input_data)
@@ -202,7 +211,7 @@ class TestHooksExtended:
 
         async def on_post_tool_use_failure(input_data, invocation):
             failure_inputs.append(input_data)
-            assert invocation["session_id"] == session.session_id
+            invocation_session_ids.append(invocation["session_id"])
             return {"additionalContext": "HOOK_FAILURE_GUIDANCE_APPLIED"}
 
         session = await ctx.client.create_session(
@@ -220,6 +229,7 @@ class TestHooksExtended:
             )
             assert not post_tool_use_inputs
             assert len(failure_inputs) == 1
+            assert all(session_id == session.session_id for session_id in invocation_session_ids)
             failure_input = failure_inputs[0]
             assert failure_input["toolName"] == "view"
             assert "does not exist" in failure_input["error"]

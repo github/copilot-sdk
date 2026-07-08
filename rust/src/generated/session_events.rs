@@ -1,5 +1,7 @@
 //! Auto-generated from session-events.schema.json — do not edit manually.
 
+#![allow(deprecated)]
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.session_limits_changed")]
+    SessionSessionLimitsChanged,
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
@@ -53,6 +57,8 @@ pub enum SessionEventType {
     SessionSnapshotRewind,
     #[serde(rename = "session.shutdown")]
     SessionShutdown,
+    #[serde(rename = "session.usage_checkpoint")]
+    SessionUsageCheckpoint,
     #[serde(rename = "session.context_changed")]
     SessionContextChanged,
     #[serde(rename = "session.usage_info")]
@@ -75,6 +81,8 @@ pub enum SessionEventType {
     AssistantReasoning,
     #[serde(rename = "assistant.reasoning_delta")]
     AssistantReasoningDelta,
+    #[serde(rename = "assistant.tool_call_delta")]
+    AssistantToolCallDelta,
     #[serde(rename = "assistant.streaming_delta")]
     AssistantStreamingDelta,
     #[serde(rename = "assistant.message")]
@@ -174,6 +182,10 @@ pub enum SessionEventType {
     AutoModeSwitchRequested,
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted,
+    #[serde(rename = "session_limits_exhausted.requested")]
+    SessionLimitsExhaustedRequested,
+    #[serde(rename = "session_limits_exhausted.completed")]
+    SessionLimitsExhaustedCompleted,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -294,6 +306,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.session_limits_changed")]
+    SessionSessionLimitsChanged(SessionSessionLimitsChangedData),
     #[serde(rename = "session.permissions_changed")]
     SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
@@ -310,6 +324,8 @@ pub enum SessionEventData {
     SessionSnapshotRewind(SessionSnapshotRewindData),
     #[serde(rename = "session.shutdown")]
     SessionShutdown(SessionShutdownData),
+    #[serde(rename = "session.usage_checkpoint")]
+    SessionUsageCheckpoint(SessionUsageCheckpointData),
     #[serde(rename = "session.context_changed")]
     SessionContextChanged(SessionContextChangedData),
     #[serde(rename = "session.usage_info")]
@@ -332,6 +348,8 @@ pub enum SessionEventData {
     AssistantReasoning(AssistantReasoningData),
     #[serde(rename = "assistant.reasoning_delta")]
     AssistantReasoningDelta(AssistantReasoningDeltaData),
+    #[serde(rename = "assistant.tool_call_delta")]
+    AssistantToolCallDelta(AssistantToolCallDeltaData),
     #[serde(rename = "assistant.streaming_delta")]
     AssistantStreamingDelta(AssistantStreamingDeltaData),
     #[serde(rename = "assistant.message")]
@@ -424,6 +442,10 @@ pub enum SessionEventData {
     AutoModeSwitchRequested(AutoModeSwitchRequestedData),
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted(AutoModeSwitchCompletedData),
+    #[serde(rename = "session_limits_exhausted.requested")]
+    SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
+    #[serde(rename = "session_limits_exhausted.completed")]
+    SessionLimitsExhaustedCompleted(SessionLimitsExhaustedCompletedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -562,16 +584,13 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
-/// Optional response budget limits.
+/// Optional session limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResponseBudgetConfig {
-    /// Maximum AI Credits allowed while responding to one top-level user message.
+pub struct SessionLimitsConfig {
+    /// Maximum AI Credits allowed across the session's current accounting window.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_ai_credits: Option<f64>,
-    /// Maximum model-call iterations allowed while responding to one top-level user message.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_model_iterations: Option<i64>,
 }
 
 /// Session event "session.start". Session initialization metadata including context and configuration
@@ -603,16 +622,19 @@ pub struct SessionStartData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response budget limits configured at session creation time, if any
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
     /// Model selected at session creation time, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     /// Unique identifier for the session
     pub session_id: SessionId,
+    /// Session limits configured at session creation time, if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp when the session was created
     pub start_time: String,
+    /// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Schema version number for the session event format
     pub version: i64,
 }
@@ -647,17 +669,20 @@ pub struct SessionResumeData {
     /// Whether this session supports remote steering via GitHub
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Response budget limits currently configured at resume time; null when no budget is active
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
     /// ISO 8601 timestamp when the session was resumed
     pub resume_time: String,
     /// Model currently selected at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
+    /// Session limits currently configured at resume time; null when no limits are active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_was_active: Option<bool>,
+    /// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
@@ -829,12 +854,18 @@ pub struct SessionModelChangeData {
     /// Reasoning summary mode before the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level before the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_verbosity: Option<Verbosity>,
     /// Reasoning effort level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level after the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -847,12 +878,40 @@ pub struct SessionModeChangedData {
     pub previous_mode: SessionMode,
 }
 
-/// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+/// Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSessionLimitsChangedData {
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
+}
+
+/// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPermissionsChangedData {
+    /// Allow-all mode after the change
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_all_permission_mode: Option<PermissionAllowAllMode>,
     /// Aggregate allow-all flag after the change
     pub allow_all_permissions: bool,
+    /// Allow-all mode before the change
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_allow_all_permission_mode: Option<PermissionAllowAllMode>,
     /// Aggregate allow-all flag before the change
     pub previous_allow_all_permissions: bool,
 }
@@ -988,7 +1047,7 @@ pub struct ShutdownModelMetricRequests {
     pub count: Option<i64>,
 }
 
-/// Schema for the `ShutdownModelMetricTokenDetail` type.
+/// A token-type entry in a shutdown model metric, storing the accumulated token count.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetricTokenDetail {
@@ -1013,7 +1072,7 @@ pub struct ShutdownModelMetricUsage {
     pub reasoning_tokens: Option<i64>,
 }
 
-/// Schema for the `ShutdownModelMetric` type.
+/// Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetric {
@@ -1036,7 +1095,7 @@ pub struct ShutdownModelMetric {
     pub usage: ShutdownModelMetricUsage,
 }
 
-/// Schema for the `ShutdownTokenDetail` type.
+/// A session-wide shutdown token-type entry storing the accumulated token count.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownTokenDetail {
@@ -1093,6 +1152,18 @@ pub struct SessionShutdownData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_nano_aiu: Option<f64>,
     /// Total number of premium API requests used during the session
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) total_premium_requests: Option<f64>,
+}
+
+/// Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsageCheckpointData {
+    /// Session-wide accumulated nano-AI units cost at checkpoint time
+    pub total_nano_aiu: f64,
+    /// Total number of premium API requests used at checkpoint time
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) total_premium_requests: Option<f64>,
@@ -1158,6 +1229,9 @@ pub struct SessionCompactionStartData {
     /// Token count from non-system messages (user, assistant, tool) at compaction start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation_tokens: Option<i64>,
+    /// Model identifier used for compaction, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Token count from system message(s) at compaction start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_tokens: Option<i64>,
@@ -1292,7 +1366,7 @@ pub struct SessionTaskCompleteData {
     pub summary: Option<String>,
 }
 
-/// Session event "user.message".
+/// Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMessageData {
@@ -1342,6 +1416,9 @@ pub struct AssistantTurnStartData {
     /// CAPI interaction ID for correlating this turn with upstream telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
+    /// Model identifier used for this turn, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Identifier for this turn within the agentic loop, typically a stringified turn number
     pub turn_id: String,
 }
@@ -1372,6 +1449,22 @@ pub struct AssistantReasoningDeltaData {
     pub delta_content: String,
     /// Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event
     pub reasoning_id: String,
+}
+
+/// Session event "assistant.tool_call_delta". Streaming tool-call input delta for incremental tool-call updates
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantToolCallDeltaData {
+    /// Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+    pub input_delta: String,
+    /// Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+    pub tool_call_id: String,
+    /// Name of the tool being invoked, when known from the stream
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+    /// Tool call type, when known from the stream
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_type: Option<AssistantMessageToolRequestType>,
 }
 
 /// Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
@@ -1565,6 +1658,9 @@ pub struct AssistantMessageData {
     /// Readable reasoning text from the model's extended thinking
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_text: Option<String>,
+    /// OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_wire_field: Option<String>,
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
@@ -1612,6 +1708,9 @@ pub struct AssistantMessageDeltaData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantTurnEndData {
+    /// Model identifier used for this turn, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
     pub turn_id: String,
 }
@@ -1651,7 +1750,7 @@ pub struct AssistantUsageCopilotUsage {
     pub total_nano_aiu: f64,
 }
 
-/// Schema for the `AssistantUsageQuotaSnapshot` type.
+/// Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssistantUsageQuotaSnapshot {
@@ -1769,7 +1868,7 @@ pub struct AssistantUsageData {
     pub service_request_id: Option<String>,
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub time_to_first_token_ms: Option<i64>,
+    pub time_to_first_token_ms: Option<f64>,
 }
 
 /// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
@@ -1872,7 +1971,7 @@ pub struct ToolExecutionStartShellToolInfo {
     pub possible_paths: Vec<String>,
 }
 
-/// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+/// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionStartToolDescriptionMetaUI {
@@ -1888,7 +1987,7 @@ pub struct ToolExecutionStartToolDescriptionMetaUI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionStartToolDescriptionMeta {
-    /// Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+    /// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<ToolExecutionStartToolDescriptionMetaUI>,
 }
@@ -2013,7 +2112,9 @@ pub struct ToolExecutionCompleteContentText {
     pub r#type: ToolExecutionCompleteContentTextType,
 }
 
-/// Terminal/shell output content block with optional exit code and working directory
+/// Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteContentTerminal {
@@ -2027,6 +2128,27 @@ pub struct ToolExecutionCompleteContentTerminal {
     pub text: String,
     /// Content block type discriminator
     pub r#type: ToolExecutionCompleteContentTerminalType,
+}
+
+/// Shell command exit metadata with optional output preview
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolExecutionCompleteContentShellExit {
+    /// Working directory where the shell command was executed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Exit code from the completed shell command
+    pub exit_code: i64,
+    /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<String>,
+    /// Whether outputPreview is known to be incomplete or truncated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_truncated: Option<bool>,
+    /// Shell id, as assigned by Copilot runtime
+    pub shell_id: String,
+    /// Content block type discriminator
+    pub r#type: ToolExecutionCompleteContentShellExitType,
 }
 
 /// Image content block with base64-encoded data
@@ -2097,7 +2219,7 @@ pub struct ToolExecutionCompleteContentResourceLink {
     pub uri: String,
 }
 
-/// Schema for the `EmbeddedTextResourceContents` type.
+/// Embedded text resource contents identified by a URI, with an optional MIME type and a text payload.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedTextResourceContents {
@@ -2110,7 +2232,7 @@ pub struct EmbeddedTextResourceContents {
     pub uri: String,
 }
 
-/// Schema for the `EmbeddedBlobResourceContents` type.
+/// Embedded binary resource contents identified by a URI, with an optional MIME type and a base64-encoded blob.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedBlobResourceContents {
@@ -2133,7 +2255,7 @@ pub struct ToolExecutionCompleteContentResource {
     pub r#type: ToolExecutionCompleteContentResourceType,
 }
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+/// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUICsp {
@@ -2147,54 +2269,54 @@ pub struct ToolExecutionCompleteUIResourceMetaUICsp {
     pub resource_domains: Option<Vec<String>>,
 }
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+/// Marker object for camera permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {}
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+/// Marker object for clipboard-write permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {}
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+/// Marker object for geolocation permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+/// Marker object for microphone permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+/// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUIPermissions {
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+    /// Marker object for camera permission on an MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub camera: Option<ToolExecutionCompleteUIResourceMetaUIPermissionsCamera>,
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+    /// Marker object for clipboard-write permission on an MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clipboard_write: Option<ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite>,
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+    /// Marker object for geolocation permission on an MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geolocation: Option<ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation>,
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+    /// Marker object for microphone permission on an MCP Apps UI resource.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub microphone: Option<ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone>,
 }
 
-/// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+/// MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUI {
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+    /// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub csp: Option<ToolExecutionCompleteUIResourceMetaUICsp>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+    /// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions: Option<ToolExecutionCompleteUIResourceMetaUIPermissions>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2205,7 +2327,7 @@ pub struct ToolExecutionCompleteUIResourceMetaUI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMeta {
-    /// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+    /// MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<ToolExecutionCompleteUIResourceMetaUI>,
 }
@@ -2269,7 +2391,7 @@ pub struct ToolExecutionCompleteResult {
     pub ui_resource: Option<ToolExecutionCompleteUIResource>,
 }
 
-/// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+/// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteToolDescriptionMetaUI {
@@ -2285,7 +2407,7 @@ pub struct ToolExecutionCompleteToolDescriptionMetaUI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteToolDescriptionMeta {
-    /// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+    /// MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<ToolExecutionCompleteToolDescriptionMetaUI>,
 }
@@ -2358,6 +2480,9 @@ pub struct SkillInvokedData {
     /// Description of the skill from its SKILL.md frontmatter
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Model identifier active when the skill was invoked, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Name of the invoked skill
     pub name: String,
     /// File path to the SKILL.md definition
@@ -2576,7 +2701,7 @@ pub struct SystemNotificationData {
     pub kind: serde_json::Value,
 }
 
-/// Schema for the `PermissionRequestShellCommand` type.
+/// A parsed command identifier in a shell permission request, including whether it is read-only.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestShellCommand {
@@ -2586,7 +2711,7 @@ pub struct PermissionRequestShellCommand {
     pub read_only: bool,
 }
 
-/// Schema for the `PermissionRequestShellPossibleUrl` type.
+/// A URL that may be accessed by a command in a shell permission request.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestShellPossibleUrl {
@@ -2645,6 +2770,12 @@ pub struct PermissionRequestWrite {
     /// Complete new file contents for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_file_contents: Option<String>,
+    /// True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2660,6 +2791,12 @@ pub struct PermissionRequestRead {
     pub kind: PermissionRequestReadKind,
     /// Path of the file or directory being read
     pub path: String,
+    /// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2695,6 +2832,12 @@ pub struct PermissionRequestUrl {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestUrlKind,
+    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2798,10 +2941,38 @@ pub struct PermissionRequestExtensionPermissionAccess {
     pub tool_call_id: Option<String>,
 }
 
+/// Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionAutoApproval {
+    /// Human-readable reason for the judge's recommendation, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// The auto-approval safety judge's outcome for this request.
+    pub recommendation: AutoApprovalRecommendation,
+}
+
 /// Shell command permission prompt
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestCommands {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Whether the UI can offer session-wide approval for this command pattern
     pub can_offer_session_approval: bool,
     /// Command identifiers covered by this approval prompt
@@ -2824,6 +2995,16 @@ pub struct PermissionPromptRequestCommands {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestWrite {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Whether the UI can offer session-wide approval for file write operations
     pub can_offer_session_approval: bool,
     /// Unified diff showing the proposed changes
@@ -2846,6 +3027,16 @@ pub struct PermissionPromptRequestWrite {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestRead {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Human-readable description of why the file is being read
     pub intention: String,
     /// Prompt kind discriminator
@@ -2864,6 +3055,16 @@ pub struct PermissionPromptRequestMcp {
     /// Arguments to pass to the MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestMcpKind,
     /// Name of the MCP server providing the tool
@@ -2881,10 +3082,26 @@ pub struct PermissionPromptRequestMcp {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestUrl {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Human-readable description of why the URL is being accessed
     pub intention: String,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestUrlKind,
+    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2899,6 +3116,16 @@ pub struct PermissionPromptRequestMemory {
     /// Whether this is a store or vote memory operation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<PermissionRequestMemoryAction>,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Source references for the stored fact (store only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<String>,
@@ -2927,6 +3154,16 @@ pub struct PermissionPromptRequestCustomTool {
     /// Arguments to pass to the custom tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestCustomToolKind,
     /// Tool call ID that triggered this permission request
@@ -2944,6 +3181,16 @@ pub struct PermissionPromptRequestCustomTool {
 pub struct PermissionPromptRequestPath {
     /// Underlying permission kind that needs path approval
     pub access_kind: PermissionPromptRequestPathAccessKind,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestPathKind,
     /// File paths that require explicit approval
@@ -2957,6 +3204,16 @@ pub struct PermissionPromptRequestPath {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestHook {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Optional message from the hook explaining why confirmation is needed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hook_message: Option<String>,
@@ -2976,6 +3233,16 @@ pub struct PermissionPromptRequestHook {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestExtensionManagement {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Name of the extension being managed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
@@ -2992,6 +3259,16 @@ pub struct PermissionPromptRequestExtensionManagement {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPromptRequestExtensionPermissionAccess {
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
     /// Capabilities the extension is requesting
     pub capabilities: Vec<String>,
     /// Name of the extension requesting permission access
@@ -3019,7 +3296,7 @@ pub struct PermissionRequestedData {
     pub resolved_by_hook: Option<bool>,
 }
 
-/// Schema for the `PermissionApproved` type.
+/// Permission response variant indicating the request was approved without persisting an approval rule.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApproved {
@@ -3027,7 +3304,7 @@ pub struct PermissionApproved {
     pub kind: PermissionApprovedKind,
 }
 
-/// Schema for the `UserToolSessionApprovalCommands` type.
+/// Session-scoped tool-approval rule for specific shell command identifiers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalCommands {
@@ -3037,7 +3314,7 @@ pub struct UserToolSessionApprovalCommands {
     pub kind: UserToolSessionApprovalCommandsKind,
 }
 
-/// Schema for the `UserToolSessionApprovalRead` type.
+/// Session-scoped tool-approval rule for read-only filesystem operations.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalRead {
@@ -3045,7 +3322,7 @@ pub struct UserToolSessionApprovalRead {
     pub kind: UserToolSessionApprovalReadKind,
 }
 
-/// Schema for the `UserToolSessionApprovalWrite` type.
+/// Session-scoped tool-approval rule for filesystem write operations.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalWrite {
@@ -3053,7 +3330,7 @@ pub struct UserToolSessionApprovalWrite {
     pub kind: UserToolSessionApprovalWriteKind,
 }
 
-/// Schema for the `UserToolSessionApprovalMcp` type.
+/// Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when `toolName` is null.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalMcp {
@@ -3065,7 +3342,7 @@ pub struct UserToolSessionApprovalMcp {
     pub tool_name: Option<String>,
 }
 
-/// Schema for the `UserToolSessionApprovalMemory` type.
+/// Session-scoped tool-approval rule for writes to long-term memory.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalMemory {
@@ -3073,7 +3350,7 @@ pub struct UserToolSessionApprovalMemory {
     pub kind: UserToolSessionApprovalMemoryKind,
 }
 
-/// Schema for the `UserToolSessionApprovalCustomTool` type.
+/// Session-scoped tool-approval rule for a custom tool, keyed by tool name.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalCustomTool {
@@ -3083,7 +3360,7 @@ pub struct UserToolSessionApprovalCustomTool {
     pub tool_name: String,
 }
 
-/// Schema for the `UserToolSessionApprovalExtensionManagement` type.
+/// Session-scoped tool-approval rule for extension-management operations, optionally narrowed by operation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalExtensionManagement {
@@ -3094,7 +3371,7 @@ pub struct UserToolSessionApprovalExtensionManagement {
     pub operation: Option<String>,
 }
 
-/// Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
+/// Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserToolSessionApprovalExtensionPermissionAccess {
@@ -3104,7 +3381,7 @@ pub struct UserToolSessionApprovalExtensionPermissionAccess {
     pub kind: UserToolSessionApprovalExtensionPermissionAccessKind,
 }
 
-/// Schema for the `PermissionApprovedForSession` type.
+/// Permission response variant that approves a request and remembers the provided approval for the rest of the session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApprovedForSession {
@@ -3114,7 +3391,7 @@ pub struct PermissionApprovedForSession {
     pub kind: PermissionApprovedForSessionKind,
 }
 
-/// Schema for the `PermissionApprovedForLocation` type.
+/// Permission response variant that approves a request and persists the provided approval to a project location key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionApprovedForLocation {
@@ -3126,7 +3403,7 @@ pub struct PermissionApprovedForLocation {
     pub location_key: String,
 }
 
-/// Schema for the `PermissionCancelled` type.
+/// Permission response variant indicating the request was cancelled before use, with an optional reason.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionCancelled {
@@ -3137,7 +3414,7 @@ pub struct PermissionCancelled {
     pub reason: Option<String>,
 }
 
-/// Schema for the `PermissionRule` type.
+/// A permission approval or denial rule matched against a tool request, identified by a rule kind with an optional argument value.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRule {
@@ -3147,7 +3424,7 @@ pub struct PermissionRule {
     pub kind: String,
 }
 
-/// Schema for the `PermissionDeniedByRules` type.
+/// Permission response variant denied because matching approval rules explicitly blocked the request.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByRules {
@@ -3157,7 +3434,7 @@ pub struct PermissionDeniedByRules {
     pub rules: Vec<PermissionRule>,
 }
 
-/// Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+/// Permission response variant denied because no approval rule matched and user confirmation was unavailable.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
@@ -3165,7 +3442,7 @@ pub struct PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
     pub kind: PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind,
 }
 
-/// Schema for the `PermissionDeniedInteractivelyByUser` type.
+/// Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedInteractivelyByUser {
@@ -3179,7 +3456,7 @@ pub struct PermissionDeniedInteractivelyByUser {
     pub kind: PermissionDeniedInteractivelyByUserKind,
 }
 
-/// Schema for the `PermissionDeniedByContentExclusionPolicy` type.
+/// Permission response variant denying a path under content exclusion policy, with the path and message.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByContentExclusionPolicy {
@@ -3191,7 +3468,7 @@ pub struct PermissionDeniedByContentExclusionPolicy {
     pub path: String,
 }
 
-/// Schema for the `PermissionDeniedByPermissionRequestHook` type.
+/// Permission response variant denied by a permission-request hook, with optional message and interrupt flag.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDeniedByPermissionRequestHook {
@@ -3520,7 +3797,43 @@ pub struct AutoModeSwitchCompletedData {
     pub response: AutoModeSwitchResponse,
 }
 
-/// Schema for the `CommandsChangedCommand` type.
+/// Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedRequestedData {
+    /// Configured max AI Credits for the current accounting window.
+    pub max_ai_credits: f64,
+    /// Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().
+    pub request_id: RequestId,
+    /// AI Credits already consumed in the current accounting window.
+    pub used_ai_credits: f64,
+}
+
+/// The user's selected action for an exhausted session limit.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedResponse {
+    /// Action selected by the user.
+    pub action: SessionLimitsExhaustedResponseAction,
+    /// AI Credits to add to the current max when action is 'add'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_ai_credits: Option<f64>,
+    /// New absolute max AI Credits when action is 'set'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+}
+
+/// Session event "session_limits_exhausted.completed". Session limit exhaustion prompt completion notification.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLimitsExhaustedCompletedData {
+    /// Request ID of the resolved request; clients should dismiss any UI for this request.
+    pub request_id: RequestId,
+    /// The user's selected session-limit action.
+    pub response: SessionLimitsExhaustedResponse,
+}
+
+/// A single slash command available in the session, as listed by the `commands.changed` event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandsChangedCommand {
@@ -3599,7 +3912,7 @@ pub struct ExitPlanModeCompletedData {
     pub selected_action: Option<ExitPlanModeAction>,
 }
 
-/// Session event "session.tools_updated".
+/// Session event "session.tools_updated". Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolsUpdatedData {
@@ -3607,12 +3920,12 @@ pub struct SessionToolsUpdatedData {
     pub model: String,
 }
 
-/// Session event "session.background_tasks_changed".
+/// Session event "session.background_tasks_changed". Empty payload for `session.background_tasks_changed`, indicating background task state changed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionBackgroundTasksChangedData {}
 
-/// Schema for the `SkillsLoadedSkill` type.
+/// A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsLoadedSkill {
@@ -3634,7 +3947,7 @@ pub struct SkillsLoadedSkill {
     pub user_invocable: bool,
 }
 
-/// Session event "session.skills_loaded".
+/// Session event "session.skills_loaded". Payload of `session.skills_loaded` listing resolved skill metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSkillsLoadedData {
@@ -3642,7 +3955,7 @@ pub struct SessionSkillsLoadedData {
     pub skills: Vec<SkillsLoadedSkill>,
 }
 
-/// Schema for the `CustomAgentsUpdatedAgent` type.
+/// A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomAgentsUpdatedAgent {
@@ -3665,7 +3978,7 @@ pub struct CustomAgentsUpdatedAgent {
     pub user_invocable: bool,
 }
 
-/// Session event "session.custom_agents_updated".
+/// Session event "session.custom_agents_updated". Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomAgentsUpdatedData {
@@ -3677,7 +3990,7 @@ pub struct SessionCustomAgentsUpdatedData {
     pub warnings: Vec<String>,
 }
 
-/// Schema for the `McpServersLoadedServer` type.
+/// A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServersLoadedServer {
@@ -3702,7 +4015,7 @@ pub struct McpServersLoadedServer {
     pub transport: Option<McpServerTransport>,
 }
 
-/// Session event "session.mcp_servers_loaded".
+/// Session event "session.mcp_servers_loaded". Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpServersLoadedData {
@@ -3710,7 +4023,7 @@ pub struct SessionMcpServersLoadedData {
     pub servers: Vec<McpServersLoadedServer>,
 }
 
-/// Session event "session.mcp_server_status_changed".
+/// Session event "session.mcp_server_status_changed". Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpServerStatusChangedData {
@@ -3723,7 +4036,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub status: McpServerStatus,
 }
 
-/// Schema for the `ExtensionsLoadedExtension` type.
+/// A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionsLoadedExtension {
@@ -3737,7 +4050,7 @@ pub struct ExtensionsLoadedExtension {
     pub status: ExtensionsLoadedExtensionStatus,
 }
 
-/// Session event "session.extensions_loaded".
+/// Session event "session.extensions_loaded". Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionExtensionsLoadedData {
@@ -3745,7 +4058,7 @@ pub struct SessionExtensionsLoadedData {
     pub extensions: Vec<ExtensionsLoadedExtension>,
 }
 
-/// Session event "session.canvas.opened".
+/// Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
 ///
 /// <div class="warning">
 ///
@@ -3779,7 +4092,7 @@ pub struct SessionCanvasOpenedData {
     pub url: Option<String>,
 }
 
-/// Schema for the `CanvasRegistryChangedCanvasAction` type.
+/// A single action within a canvas declaration, with its name, optional description, and optional input schema.
 ///
 /// <div class="warning">
 ///
@@ -3800,7 +4113,7 @@ pub struct CanvasRegistryChangedCanvasAction {
     pub name: String,
 }
 
-/// Schema for the `CanvasRegistryChangedCanvas` type.
+/// A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions.
 ///
 /// <div class="warning">
 ///
@@ -3830,7 +4143,7 @@ pub struct CanvasRegistryChangedCanvas {
     pub input_schema: Option<serde_json::Value>,
 }
 
-/// Session event "session.canvas.registry_changed".
+/// Session event "session.canvas.registry_changed". Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
 ///
 /// <div class="warning">
 ///
@@ -3845,7 +4158,7 @@ pub struct SessionCanvasRegistryChangedData {
     pub canvases: Vec<CanvasRegistryChangedCanvas>,
 }
 
-/// Session event "session.canvas.closed".
+/// Session event "session.canvas.closed". Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
 ///
 /// <div class="warning">
 ///
@@ -3927,7 +4240,7 @@ pub struct SessionCanvasRemovedData {
     pub instance_id: String,
 }
 
-/// Session event "session.extensions.attachments_pushed".
+/// Session event "session.extensions.attachments_pushed". Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionExtensionsAttachmentsPushedData {
@@ -3943,7 +4256,7 @@ pub struct McpAppToolCallCompleteError {
     pub message: String,
 }
 
-/// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+/// MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppToolCallCompleteToolMetaUI {
@@ -3959,7 +4272,7 @@ pub struct McpAppToolCallCompleteToolMetaUI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppToolCallCompleteToolMeta {
-    /// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+    /// MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<McpAppToolCallCompleteToolMetaUI>,
 }
@@ -4038,6 +4351,24 @@ pub enum ReasoningSummary {
     Unknown,
 }
 
+/// Output verbosity level used for supported model calls (e.g. "low", "medium", "high")
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Verbosity {
+    /// A terse response was requested.
+    #[serde(rename = "low")]
+    Low,
+    /// A medium amount of response detail was requested.
+    #[serde(rename = "medium")]
+    Medium,
+    /// A more detailed response was requested.
+    #[serde(rename = "high")]
+    High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The type of operation performed on the autopilot objective state file
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutopilotObjectiveChangedOperation {
@@ -4089,6 +4420,31 @@ pub enum SessionMode {
     /// The agent is working autonomously toward task completion.
     #[serde(rename = "autopilot")]
     Autopilot,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Allow-all mode for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionAllowAllMode {
+    /// Permission requests follow the normal approval flow.
+    #[serde(rename = "off")]
+    Off,
+    /// Tool, path, and URL permission requests are automatically approved.
+    #[serde(rename = "on")]
+    On,
+    /// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
+    #[serde(rename = "auto")]
+    Auto,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4197,6 +4553,21 @@ pub enum UserMessageDelivery {
     Unknown,
 }
 
+/// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestType {
+    /// Standard function-style tool call.
+    #[serde(rename = "function")]
+    Function,
+    /// Custom grammar-based tool call.
+    #[serde(rename = "custom")]
+    Custom,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The system that produced a citation.
 ///
 /// <div class="warning">
@@ -4216,21 +4587,6 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssistantMessageToolRequestType {
-    /// Standard function-style tool call.
-    #[serde(rename = "function")]
-    Function,
-    /// Custom grammar-based tool call.
-    #[serde(rename = "custom")]
-    Custom,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -4342,6 +4698,14 @@ pub enum ToolExecutionCompleteContentTerminalType {
 
 /// Content block type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolExecutionCompleteContentShellExitType {
+    #[serde(rename = "shell_exit")]
+    #[default]
+    ShellExit,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolExecutionCompleteContentImageType {
     #[serde(rename = "image")]
     #[default]
@@ -4401,6 +4765,7 @@ pub enum ToolExecutionCompleteContentResourceType {
 pub enum ToolExecutionCompleteContent {
     Text(ToolExecutionCompleteContentText),
     Terminal(ToolExecutionCompleteContentTerminal),
+    ShellExit(ToolExecutionCompleteContentShellExit),
     Image(ToolExecutionCompleteContentImage),
     Audio(ToolExecutionCompleteContentAudio),
     ResourceLink(ToolExecutionCompleteContentResourceLink),
@@ -4594,6 +4959,34 @@ pub enum PermissionRequest {
     Hook(PermissionRequestHook),
     ExtensionManagement(PermissionRequestExtensionManagement),
     ExtensionPermissionAccess(PermissionRequestExtensionPermissionAccess),
+}
+
+/// Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoApprovalRecommendation {
+    /// The judge evaluated the request and recommends automatically approving it.
+    #[serde(rename = "approve")]
+    Approve,
+    /// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
+    #[serde(rename = "requireApproval")]
+    RequireApproval,
+    /// Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.
+    #[serde(rename = "excluded")]
+    Excluded,
+    /// The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.
+    #[serde(rename = "error")]
+    Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Prompt kind discriminator
@@ -5019,6 +5412,27 @@ pub enum AutoModeSwitchResponse {
     /// Do not switch models.
     #[serde(rename = "no")]
     No,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// User action selected for an exhausted session limit.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionLimitsExhaustedResponseAction {
+    /// Increase the current max by an exact AI Credits amount.
+    #[serde(rename = "add")]
+    Add,
+    /// Set a new absolute max AI Credits value.
+    #[serde(rename = "set")]
+    Set,
+    /// Remove the current session limit.
+    #[serde(rename = "unset")]
+    Unset,
+    /// Leave the limit unchanged and cancel the blocked model request.
+    #[serde(rename = "cancel")]
+    Cancel,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

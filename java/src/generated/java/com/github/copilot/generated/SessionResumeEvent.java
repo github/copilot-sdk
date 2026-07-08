@@ -47,10 +47,12 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+        /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */
+        @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier currently selected at resume time; null when no tier is active */
         @JsonProperty("contextTier") ContextTier contextTier,
-        /** Response budget limits currently configured at resume time; null when no budget is active */
-        @JsonProperty("responseBudget") ResponseBudgetConfig responseBudget,
+        /** Session limits currently configured at resume time; null when no limits are active */
+        @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Updated working directory and git context at resume time */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at resume time */

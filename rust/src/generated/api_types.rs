@@ -1,6 +1,7 @@
 //! Auto-generated from api.schema.json — do not edit manually.
 
 #![allow(clippy::large_enum_variant)]
+#![allow(deprecated)]
 #![allow(dead_code)]
 #![allow(rustdoc::invalid_html_tags)]
 
@@ -10,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
-    PermissionRule, ReasoningSummary, ResponseBudgetConfig, SessionMode, ShutdownType, SkillSource,
-    UserToolSessionApproval,
+    PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -93,6 +94,10 @@ pub mod rpc_methods {
     pub const INSTRUCTIONS_GETDISCOVERYPATHS: &str = "instructions.getDiscoveryPaths";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
+    /// `user.settings.get`
+    pub const USER_SETTINGS_GET: &str = "user.settings.get";
+    /// `user.settings.set`
+    pub const USER_SETTINGS_SET: &str = "user.settings.set";
     /// `runtime.shutdown`
     pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`
@@ -155,8 +160,6 @@ pub mod rpc_methods {
     pub const SESSIONS_STOPREMOTECONTROL: &str = "sessions.stopRemoteControl";
     /// `sessions.getRemoteControlStatus`
     pub const SESSIONS_GETREMOTECONTROLSTATUS: &str = "sessions.getRemoteControlStatus";
-    /// `sessions.pollSpawnedSessions`
-    pub const SESSIONS_POLLSPAWNEDSESSIONS: &str = "sessions.pollSpawnedSessions";
     /// `sessions.registerExtensionToolsOnSession`
     pub const SESSIONS_REGISTEREXTENSIONTOOLSONSESSION: &str =
         "sessions.registerExtensionToolsOnSession";
@@ -176,6 +179,8 @@ pub mod rpc_methods {
     pub const SESSION_GITHUBAUTH_GETSTATUS: &str = "session.gitHubAuth.getStatus";
     /// `session.gitHubAuth.setCredentials`
     pub const SESSION_GITHUBAUTH_SETCREDENTIALS: &str = "session.gitHubAuth.setCredentials";
+    /// `session.debug.collectLogs`
+    pub const SESSION_DEBUG_COLLECTLOGS: &str = "session.debug.collectLogs";
     /// `session.canvas.list`
     pub const SESSION_CANVAS_LIST: &str = "session.canvas.list";
     /// `session.canvas.listOpen`
@@ -231,6 +236,11 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
     /// `session.workspaces.diff`
     pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
+    /// `session.completions.getTriggerCharacters`
+    pub const SESSION_COMPLETIONS_GETTRIGGERCHARACTERS: &str =
+        "session.completions.getTriggerCharacters";
+    /// `session.completions.request`
+    pub const SESSION_COMPLETIONS_REQUEST: &str = "session.completions.request";
     /// `session.instructions.getSources`
     pub const SESSION_INSTRUCTIONS_GETSOURCES: &str = "session.instructions.getSources";
     /// `session.fleet.start`
@@ -314,8 +324,6 @@ pub mod rpc_methods {
     pub const SESSION_MCP_UNREGISTEREXTERNALCLIENT: &str = "session.mcp.unregisterExternalClient";
     /// `session.mcp.isServerRunning`
     pub const SESSION_MCP_ISSERVERRUNNING: &str = "session.mcp.isServerRunning";
-    /// `session.mcp.oauth.respond`
-    pub const SESSION_MCP_OAUTH_RESPOND: &str = "session.mcp.oauth.respond";
     /// `session.mcp.oauth.handlePendingRequest`
     pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
         "session.mcp.oauth.handlePendingRequest";
@@ -397,6 +405,9 @@ pub mod rpc_methods {
     /// `session.ui.handlePendingAutoModeSwitch`
     pub const SESSION_UI_HANDLEPENDINGAUTOMODESWITCH: &str =
         "session.ui.handlePendingAutoModeSwitch";
+    /// `session.ui.handlePendingSessionLimitsExhausted`
+    pub const SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED: &str =
+        "session.ui.handlePendingSessionLimitsExhausted";
     /// `session.ui.handlePendingExitPlanMode`
     pub const SESSION_UI_HANDLEPENDINGEXITPLANMODE: &str = "session.ui.handlePendingExitPlanMode";
     /// `session.ui.registerDirectAutoModeSwitchHandler`
@@ -466,6 +477,12 @@ pub mod rpc_methods {
     pub const SESSION_METADATA_ACTIVITY: &str = "session.metadata.activity";
     /// `session.metadata.contextInfo`
     pub const SESSION_METADATA_CONTEXTINFO: &str = "session.metadata.contextInfo";
+    /// `session.metadata.getContextAttribution`
+    pub const SESSION_METADATA_GETCONTEXTATTRIBUTION: &str =
+        "session.metadata.getContextAttribution";
+    /// `session.metadata.getContextHeaviestMessages`
+    pub const SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES: &str =
+        "session.metadata.getContextHeaviestMessages";
     /// `session.metadata.recordContextChange`
     pub const SESSION_METADATA_RECORDCONTEXTCHANGE: &str = "session.metadata.recordContextChange";
     /// `session.metadata.setWorkingDirectory`
@@ -473,6 +490,10 @@ pub mod rpc_methods {
     /// `session.metadata.recomputeContextTokens`
     pub const SESSION_METADATA_RECOMPUTECONTEXTTOKENS: &str =
         "session.metadata.recomputeContextTokens";
+    /// `session.settings.snapshot`
+    pub const SESSION_SETTINGS_SNAPSHOT: &str = "session.settings.snapshot";
+    /// `session.settings.evaluatePredicate`
+    pub const SESSION_SETTINGS_EVALUATEPREDICATE: &str = "session.settings.evaluatePredicate";
     /// `session.shell.exec`
     pub const SESSION_SHELL_EXEC: &str = "session.shell.exec";
     /// `session.shell.kill`
@@ -514,6 +535,10 @@ pub mod rpc_methods {
     pub const SESSION_REMOTE_DISABLE: &str = "session.remote.disable";
     /// `session.remote.notifySteerableChanged`
     pub const SESSION_REMOTE_NOTIFYSTEERABLECHANGED: &str = "session.remote.notifySteerableChanged";
+    /// `session.visibility.get`
+    pub const SESSION_VISIBILITY_GET: &str = "session.visibility.get";
+    /// `session.visibility.set`
+    pub const SESSION_VISIBILITY_SET: &str = "session.visibility.set";
     /// `session.schedule.list`
     pub const SESSION_SCHEDULE_LIST: &str = "session.schedule.list";
     /// `session.schedule.stop`
@@ -586,7 +611,14 @@ pub struct AbortResult {
     pub success: bool,
 }
 
-/// Schema for the `AccountAllUsers` type.
+/// Authenticated account entry returned by `account.getAllUsers`, with auth info and an optional associated token.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountAllUsers {
@@ -598,6 +630,13 @@ pub struct AccountAllUsers {
 }
 
 /// Current authentication state
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountGetCurrentAuthResult {
@@ -610,6 +649,13 @@ pub struct AccountGetCurrentAuthResult {
 }
 
 /// Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountGetQuotaRequest {
@@ -618,7 +664,14 @@ pub struct AccountGetQuotaRequest {
     pub git_hub_token: Option<String>,
 }
 
-/// Schema for the `AccountQuotaSnapshot` type.
+/// Quota usage snapshot for a Copilot quota type, including entitlement, used requests, overage, reset date, and remaining percentage.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountQuotaSnapshot {
@@ -642,6 +695,13 @@ pub struct AccountQuotaSnapshot {
 }
 
 /// Quota usage snapshots for the resolved user, keyed by quota type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountGetQuotaResult {
@@ -650,6 +710,13 @@ pub struct AccountGetQuotaResult {
 }
 
 /// Credentials to store after successful authentication
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountLoginRequest {
@@ -662,6 +729,13 @@ pub struct AccountLoginRequest {
 }
 
 /// Result of a successful login; throws on failure
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountLoginResult {
@@ -670,6 +744,13 @@ pub struct AccountLoginResult {
 }
 
 /// User to log out
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountLogoutRequest {
@@ -678,6 +759,13 @@ pub struct AccountLogoutRequest {
 }
 
 /// Logout result indicating if more users remain
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountLogoutResult {
@@ -685,7 +773,7 @@ pub struct AccountLogoutResult {
     pub has_more_users: bool,
 }
 
-/// Schema for the `AgentDiscoveryPath` type.
+/// Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
 ///
 /// <div class="warning">
 ///
@@ -722,7 +810,7 @@ pub struct AgentDiscoveryPathList {
     pub paths: Vec<AgentDiscoveryPath>,
 }
 
-/// Schema for the `AgentInfo` type.
+/// Custom agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
 ///
 /// <div class="warning">
 ///
@@ -1097,13 +1185,16 @@ pub struct AgentsGetDiscoveryPathsRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AllowAllPermissionSetResult {
-    /// Authoritative allow-all state after the mutation
+    /// Authoritative full allow-all state after the mutation
     pub enabled: bool,
+    /// Authoritative allow-all mode after the mutation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionsAllowAllMode>,
     /// Whether the operation succeeded
     pub success: bool,
 }
 
-/// Current full allow-all permission state.
+/// Current allow-all permission mode.
 ///
 /// <div class="warning">
 ///
@@ -1116,9 +1207,19 @@ pub struct AllowAllPermissionSetResult {
 pub struct AllowAllPermissionState {
     /// Whether full allow-all permissions are currently active
     pub enabled: bool,
+    /// Current allow-all mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionsAllowAllMode>,
 }
 
-/// Schema for the `CopilotUserResponseEndpoints` type.
+/// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseEndpoints {
@@ -1132,116 +1233,180 @@ pub struct CopilotUserResponseEndpoints {
     pub telemetry: Option<String>,
 }
 
-/// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+/// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsChat {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
     #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
     pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
     #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
     pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
     #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
     pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
     #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
     pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
     #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
     pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
     #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
     pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
     #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
     pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
     )]
     pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlimited: Option<bool>,
 }
 
-/// Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+/// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsCompletions {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
     #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
     pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
     #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
     pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
     #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
     pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
     #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
     pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
     #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
     pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
     #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
     pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
     #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
     pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
     )]
     pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlimited: Option<bool>,
 }
 
-/// Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+/// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
+    /// Number of requests/units included in the entitlement for this period; `-1` denotes an unlimited entitlement.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entitlement: Option<f64>,
+    /// Whether the user currently has quota available; when `false` and not unlimited, further requests are blocked until the quota resets.
     #[serde(rename = "has_quota", skip_serializing_if = "Option::is_none")]
     pub has_quota: Option<bool>,
+    /// Count of additional pay-per-request usage consumed this period beyond the entitlement.
     #[serde(rename = "overage_count", skip_serializing_if = "Option::is_none")]
     pub overage_count: Option<f64>,
+    /// Whether usage may continue at pay-per-request rates once the entitlement is exhausted.
     #[serde(rename = "overage_permitted", skip_serializing_if = "Option::is_none")]
     pub overage_permitted: Option<bool>,
+    /// Percentage of the entitlement remaining at the snapshot timestamp.
     #[serde(rename = "percent_remaining", skip_serializing_if = "Option::is_none")]
     pub percent_remaining: Option<f64>,
+    /// Identifier of the quota bucket this snapshot describes.
     #[serde(rename = "quota_id", skip_serializing_if = "Option::is_none")]
     pub quota_id: Option<String>,
+    /// Amount of quota remaining at the snapshot timestamp.
     #[serde(rename = "quota_remaining", skip_serializing_if = "Option::is_none")]
     pub quota_remaining: Option<f64>,
+    /// Unix epoch time, in seconds, when this quota next resets.
     #[serde(rename = "quota_reset_at", skip_serializing_if = "Option::is_none")]
     pub quota_reset_at: Option<f64>,
+    /// Remaining entitlement/quota amount at the snapshot timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remaining: Option<f64>,
+    /// UTC timestamp when this snapshot was captured.
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
+    /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
     )]
     pub token_based_billing: Option<bool>,
+    /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlimited: Option<bool>,
 }
 
-/// Schema for the `CopilotUserResponseQuotaSnapshots` type.
+/// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponseQuotaSnapshots {
-    /// Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
+    /// Chat quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chat: Option<CopilotUserResponseQuotaSnapshotsChat>,
-    /// Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.
+    /// Completions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completions: Option<CopilotUserResponseQuotaSnapshotsCompletions>,
-    /// Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.
+    /// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
     #[serde(
         rename = "premium_interactions",
         skip_serializing_if = "Option::is_none"
@@ -1250,92 +1415,125 @@ pub struct CopilotUserResponseQuotaSnapshots {
 }
 
 /// Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotUserResponse {
+    /// Copilot access SKU identifier (e.g. `free_limited_copilot`, `copilot_for_business_seat_quota`) used to gate model and feature access.
     #[serde(rename = "access_type_sku", skip_serializing_if = "Option::is_none")]
     pub access_type_sku: Option<String>,
+    /// Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
     #[serde(
         rename = "analytics_tracking_id",
         skip_serializing_if = "Option::is_none"
     )]
     pub analytics_tracking_id: Option<String>,
+    /// Date the Copilot seat was assigned to the user, if applicable.
     #[serde(rename = "assigned_date", skip_serializing_if = "Option::is_none")]
     pub assigned_date: Option<serde_json::Value>,
+    /// Whether the user is eligible to sign up for the free/limited Copilot tier.
     #[serde(
         rename = "can_signup_for_limited",
         skip_serializing_if = "Option::is_none"
     )]
     pub can_signup_for_limited: Option<bool>,
+    /// Whether the user is able to upgrade their Copilot plan.
     #[serde(rename = "can_upgrade_plan", skip_serializing_if = "Option::is_none")]
     pub can_upgrade_plan: Option<bool>,
+    /// Whether Copilot chat is enabled for the user.
     #[serde(rename = "chat_enabled", skip_serializing_if = "Option::is_none")]
     pub chat_enabled: Option<bool>,
+    /// Whether CLI remote control is enabled for the user.
     #[serde(
         rename = "cli_remote_control_enabled",
         skip_serializing_if = "Option::is_none"
     )]
     pub cli_remote_control_enabled: Option<bool>,
+    /// Whether cloud session storage is enabled for the user.
     #[serde(
         rename = "cloud_session_storage_enabled",
         skip_serializing_if = "Option::is_none"
     )]
     pub cloud_session_storage_enabled: Option<bool>,
+    /// Whether the Codex agent is enabled for the user.
     #[serde(
         rename = "codex_agent_enabled",
         skip_serializing_if = "Option::is_none"
     )]
     pub codex_agent_enabled: Option<bool>,
+    /// Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
     #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
     pub copilot_plan: Option<String>,
+    /// Whether `.copilotignore` content-exclusion support is enabled for the user.
     #[serde(
         rename = "copilotignore_enabled",
         skip_serializing_if = "Option::is_none"
     )]
     pub copilotignore_enabled: Option<bool>,
-    /// Schema for the `CopilotUserResponseEndpoints` type.
+    /// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoints: Option<CopilotUserResponseEndpoints>,
+    /// Whether MCP (Model Context Protocol) support is enabled for the user.
     #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
     pub is_mcp_enabled: Option<serde_json::Value>,
+    /// Whether the user is a GitHub/Microsoft staff member.
     #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
     pub is_staff: Option<bool>,
+    /// Per-category quota allotments for free/limited-tier users, keyed by quota category.
     #[serde(
         rename = "limited_user_quotas",
         skip_serializing_if = "Option::is_none"
     )]
     pub limited_user_quotas: Option<HashMap<String, f64>>,
+    /// Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
     #[serde(
         rename = "limited_user_reset_date",
         skip_serializing_if = "Option::is_none"
     )]
     pub limited_user_reset_date: Option<String>,
+    /// GitHub login of the authenticated user.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
+    /// Per-category monthly quota allotments, keyed by quota category.
     #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
     pub monthly_quotas: Option<HashMap<String, f64>>,
+    /// Organizations the user belongs to, each with an optional login and display name.
     #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
     pub organization_list: Option<serde_json::Value>,
+    /// Logins of the organizations the user belongs to.
     #[serde(
         rename = "organization_login_list",
         skip_serializing_if = "Option::is_none"
     )]
     pub organization_login_list: Option<Vec<String>>,
+    /// Date the user's usage quota next resets, as a raw string from the Copilot API; see `quota_reset_date_utc` for the UTC-normalized value.
     #[serde(rename = "quota_reset_date", skip_serializing_if = "Option::is_none")]
     pub quota_reset_date: Option<String>,
+    /// UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
     #[serde(
         rename = "quota_reset_date_utc",
         skip_serializing_if = "Option::is_none"
     )]
     pub quota_reset_date_utc: Option<String>,
-    /// Schema for the `CopilotUserResponseQuotaSnapshots` type.
+    /// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
     #[serde(rename = "quota_snapshots", skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<CopilotUserResponseQuotaSnapshots>,
+    /// Whether the user's telemetry is subject to restricted-data handling.
     #[serde(
         rename = "restricted_telemetry",
         skip_serializing_if = "Option::is_none"
     )]
     pub restricted_telemetry: Option<bool>,
+    /// Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub te: Option<bool>,
+    /// Whether the account is on usage-based (token/AI-credit) billing rather than a fixed premium-request quota.
     #[serde(
         rename = "token_based_billing",
         skip_serializing_if = "Option::is_none"
@@ -1343,7 +1541,14 @@ pub struct CopilotUserResponse {
     pub token_based_billing: Option<bool>,
 }
 
-/// Schema for the `ApiKeyAuthInfo` type.
+/// Authentication-info variant for API-key authentication to a non-GitHub LLM provider, carrying the secret `apiKey` and host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiKeyAuthInfo {
@@ -2238,6 +2443,23 @@ pub struct CapiSessionOptions {
     pub enable_web_socket_responses: Option<bool>,
 }
 
+/// A literal choice the command input accepts, with a human-facing description
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandInputChoice {
+    /// Human-readable description shown alongside the choice
+    pub description: String,
+    /// The literal choice value (e.g. 'on', 'off', 'show')
+    pub name: String,
+}
+
 /// Optional unstructured input hint
 ///
 /// <div class="warning">
@@ -2249,6 +2471,9 @@ pub struct CapiSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlashCommandInput {
+    /// Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choices: Option<Vec<SlashCommandInputChoice>>,
     /// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completion: Option<SlashCommandInputCompletion>,
@@ -2262,7 +2487,7 @@ pub struct SlashCommandInput {
     pub required: Option<bool>,
 }
 
-/// Schema for the `SlashCommandInfo` type.
+/// Slash-command metadata with name, aliases, description, kind, input hint, execution allowance, and schedulability.
 ///
 /// <div class="warning">
 ///
@@ -2415,6 +2640,80 @@ pub struct CommandsRespondToQueuedCommandResult {
     pub success: bool,
 }
 
+/// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsGetTriggerCharactersResult {
+    /// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+    pub trigger_characters: Vec<String>,
+}
+
+/// Request host-driven completions for the current composer input.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsRequestRequest {
+    /// Cursor offset within `text`, in UTF-16 code units.
+    pub offset: i64,
+    /// The full composed composer input.
+    pub text: String,
+}
+
+/// A single host-driven completion. Accepting an item replaces `[rangeStart, rangeEnd)` (UTF-16 code units) in the composer with `insertText`; when the range is absent, the active token around the cursor is replaced.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionItem {
+    /// Text spliced into the composer when the item is accepted.
+    pub insert_text: String,
+    /// Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Primary display label for the picker row. Falls back to `insertText` when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// End (exclusive) of the replacement range in `text`, in UTF-16 code units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_end: Option<i64>,
+    /// Start of the replacement range in `text`, in UTF-16 code units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_start: Option<i64>,
+}
+
+/// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionsRequestResult {
+    /// Completion items in host-ranked order.
+    pub items: Vec<SessionCompletionItem>,
+}
+
 /// Params to attach or detach an in-process ExtensionController delegate.
 ///
 /// <div class="warning">
@@ -2509,16 +2808,33 @@ pub struct ConnectRemoteSessionParams {
     pub session_id: SessionId,
 }
 
-/// Optional connection token presented by the SDK client during the handshake.
+/// Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConnectRequest {
+    /// Opt this connection in to GitHub telemetry forwarding for its lifetime. When set, the runtime forwards every internal telemetry event it emits — across all sessions, plus sessionless events — to this connection over the `gitHubTelemetry.event` notification, in addition to the runtime's normal GitHub/CTS emission (dual-write). Intended for first-party hosts that re-emit the events into their own telemetry stores. Both unrestricted and restricted events are forwarded, each tagged with a `restricted` discriminator; a backstop drops restricted events when restricted telemetry is disabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_git_hub_telemetry_forwarding: Option<bool>,
     /// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
 }
 
 /// Handshake result reporting the server's protocol version and package version on success.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConnectResult {
@@ -2530,7 +2846,35 @@ pub(crate) struct ConnectResult {
     pub version: String,
 }
 
-/// Schema for the `CopilotApiTokenAuthInfo` type.
+/// A single large message currently in context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextHeaviestMessage {
+    /// Stable identifier for this message within the snapshot.
+    pub id: String,
+    /// Human-readable source label, e.g. `tool: bash` or `skill: tmux`. Presentation-only.
+    pub label: String,
+    /// Role of the chat message (`user`, `assistant`, or `tool`).
+    pub role: String,
+    /// Token count currently in context for this individual message.
+    pub tokens: i64,
+}
+
+/// Authentication-info variant for direct Copilot API token auth sourced from environment variables, with public GitHub host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotApiTokenAuthInfo {
@@ -2597,7 +2941,174 @@ pub struct CurrentToolMetadata {
     pub namespaced_name: Option<String>,
 }
 
-/// Schema for the `DiscoveredMcpServer` type.
+/// A file included in the redacted debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsCollectedEntry {
+    /// Relative path of the file in the staged bundle/archive.
+    pub bundle_path: String,
+    /// Redacted output size in bytes.
+    pub size_bytes: i64,
+    /// Source category for this entry.
+    pub source: DebugCollectLogsSource,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsDestinationArchive {
+    pub kind: DebugCollectLogsDestinationArchiveKind,
+    /// When true, create the archive atomically without overwriting an existing file by appending ` (N)` before the extension as needed. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_overwrite: Option<bool>,
+    /// Absolute or server-relative path for the .tgz archive to create.
+    pub output_path: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsDestinationDirectory {
+    pub kind: DebugCollectLogsDestinationDirectoryKind,
+    /// Directory where redacted files should be staged. The directory is created if needed.
+    pub output_directory: String,
+}
+
+/// A caller-provided server-local file or directory to include in the debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsEntry {
+    /// Relative path to use inside the staged bundle/archive.
+    pub bundle_path: String,
+    /// Kind of source path to include.
+    pub kind: DebugCollectLogsEntryKind,
+    /// Server-local source path to read.
+    pub path: String,
+    /// How text content from this entry should be redacted. Defaults to plain-text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redaction: Option<DebugCollectLogsRedaction>,
+    /// When true, collection fails if this entry cannot be read. Defaults to false, which records the entry in `skippedEntries`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
+}
+
+/// Built-in session diagnostics to include in the bundle. Omitted fields default to true.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsInclude {
+    /// Server-local path to the current process log. When set, it is included as `process.log` and its directory is searched for prior logs from the same session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_process_log_path: Option<String>,
+    /// Include the session event log (`events.jsonl`). Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub events: Option<bool>,
+    /// Server-local path to the session's events.jsonl file. Internal callers normally omit this and let the runtime derive it from the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub events_path: Option<String>,
+    /// Maximum number of previous process logs to include. Defaults to 5.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_process_log_limit: Option<i64>,
+    /// Server-local process log directory to search when `currentProcessLogPath` is unavailable, useful for collecting logs for inactive sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_log_directory: Option<String>,
+    /// Include process logs for the session. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_logs: Option<bool>,
+    /// Include interactive shell logs written under the session's `shell-logs` directory. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_logs: Option<bool>,
+}
+
+/// Options for collecting a redacted session debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsRequest {
+    /// Caller-provided server-local files or directories to include in addition to the runtime's built-in session diagnostics. This lets host applications add their own diagnostics without changing the API shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_entries: Option<Vec<DebugCollectLogsEntry>>,
+    /// Where the redacted bundle should be written. Use `archive` to produce a .tgz, or `directory` to stage redacted files for caller-managed upload/post-processing.
+    pub destination: DebugCollectLogsDestination,
+    /// Which built-in session diagnostics to include. Omitted fields default to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include: Option<DebugCollectLogsInclude>,
+}
+
+/// An optional debug bundle entry that could not be included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsSkippedEntry {
+    /// Relative path requested for this bundle entry.
+    pub bundle_path: String,
+    /// Server-local source path that could not be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Reason the entry was skipped.
+    pub reason: String,
+}
+
+/// Result of collecting a redacted debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCollectLogsResult {
+    /// Files included in the redacted bundle.
+    pub entries: Vec<DebugCollectLogsCollectedEntry>,
+    /// Destination kind that was written.
+    pub kind: DebugCollectLogsResultKind,
+    /// Actual archive path or staging directory path written. This may differ from the requested path when no-overwrite suffixing or fallback-to-temp-directory was needed.
+    pub path: String,
+    /// Optional files or directories that could not be included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skipped_entries: Option<Vec<DebugCollectLogsSkippedEntry>>,
+}
+
+/// MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredMcpServer {
@@ -2648,7 +3159,14 @@ pub struct EnqueueCommandResult {
     pub queued: bool,
 }
 
-/// Schema for the `EnvAuthInfo` type.
+/// Authentication-info variant for a token sourced from an environment variable, with host, optional login, token, and env var name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvAuthInfo {
@@ -2780,7 +3298,7 @@ pub struct ExecuteCommandResult {
     pub error: Option<String>,
 }
 
-/// Schema for the `Extension` type.
+/// Discovered extension metadata, including source-qualified ID, name, discovery source, status, and optional process ID.
 ///
 /// <div class="warning">
 ///
@@ -2921,6 +3439,9 @@ pub struct ExternalToolTextResultForLlm {
     pub session_log: Option<String>,
     /// Text result returned to the model
     pub text_result_for_llm: String,
+    /// Tool references returned by a tool-search override: names of deferred tools to surface to the model. When set, the tool result is materialized as `tool_reference` content blocks (rather than plain text) so the model knows which deferred tools are now available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_references: Option<Vec<String>>,
     /// Optional tool-specific telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, serde_json::Value>>,
@@ -3039,6 +3560,34 @@ pub struct ExternalToolTextResultForLlmContentResourceLink {
     pub uri: String,
 }
 
+/// Shell command exit metadata with optional output preview
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolTextResultForLlmContentShellExit {
+    /// Working directory where the shell command was executed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Exit code from the completed shell command
+    pub exit_code: i64,
+    /// Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<String>,
+    /// Whether outputPreview is known to be incomplete or truncated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_truncated: Option<bool>,
+    /// Shell id, as assigned by Copilot runtime
+    pub shell_id: String,
+    /// Content block type discriminator
+    pub r#type: ExternalToolTextResultForLlmContentShellExitType,
+}
+
 /// Terminal/shell output content block with optional exit code and working directory
 ///
 /// <div class="warning">
@@ -3155,7 +3704,14 @@ pub struct FolderTrustCheckResult {
     pub trusted: bool,
 }
 
-/// Schema for the `GhCliAuthInfo` type.
+/// Authentication-info variant for GitHub CLI credentials, carrying host, login, and the `gh auth token` value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GhCliAuthInfo {
@@ -3170,6 +3726,115 @@ pub struct GhCliAuthInfo {
     pub token: String,
     /// Authentication via the `gh` CLI's saved credentials.
     pub r#type: GhCliAuthInfoType,
+}
+
+/// Client environment metadata describing the process that produced a telemetry event.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryClientInfo {
+    /// Copilot CLI version string.
+    #[serde(rename = "cli_version")]
+    pub cli_version: String,
+    /// Name of the client application.
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Type of client.
+    #[serde(rename = "client_type", skip_serializing_if = "Option::is_none")]
+    pub client_type: Option<String>,
+    /// Copilot subscription plan, when known.
+    #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
+    pub copilot_plan: Option<String>,
+    /// Stable machine identifier for the device.
+    #[serde(rename = "dev_device_id", skip_serializing_if = "Option::is_none")]
+    pub dev_device_id: Option<String>,
+    /// Whether the user is a GitHub/Microsoft staff member.
+    #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
+    pub is_staff: Option<bool>,
+    /// Node.js runtime version string.
+    #[serde(rename = "node_version")]
+    pub node_version: String,
+    /// Operating system architecture (e.g. arm64, x64).
+    #[serde(rename = "os_arch")]
+    pub os_arch: String,
+    /// Operating system platform (e.g. darwin, linux, win32).
+    #[serde(rename = "os_platform")]
+    pub os_platform: String,
+    /// Operating system version string.
+    #[serde(rename = "os_version")]
+    pub os_version: String,
+}
+
+/// A single telemetry event in the runtime's native GitHub-shaped telemetry format, forwarded verbatim to opted-in hosts. The `restricted` flag on the enclosing GitHubTelemetryNotification distinguishes standard from restricted events; the payload shape is identical for both.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryEvent {
+    /// Client environment metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<GitHubTelemetryClientInfo>,
+    /// Copilot tracking ID for user-level attribution.
+    #[serde(
+        rename = "copilot_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub copilot_tracking_id: Option<String>,
+    /// Timestamp when the event was created (ISO 8601 format).
+    #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    /// Experiment assignment context.
+    #[serde(
+        rename = "exp_assignment_context",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub exp_assignment_context: Option<String>,
+    /// Feature flags enabled for this session, as a map from flag to value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub features: Option<HashMap<String, String>>,
+    /// Event type/kind (e.g. get_completion_with_tools_turn, tool_call_executed).
+    pub kind: String,
+    /// Numeric metrics as a map from key to value.
+    pub metrics: HashMap<String, f64>,
+    /// Reference to the model call that produced this event.
+    #[serde(rename = "model_call_id", skip_serializing_if = "Option::is_none")]
+    pub model_call_id: Option<String>,
+    /// String-valued properties as a map from key to value.
+    pub properties: HashMap<String, String>,
+    /// Session identifier the event belongs to.
+    #[serde(rename = "session_id", skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+/// Payload for a `gitHubTelemetry.event` notification: a single GitHub telemetry event the runtime forwards to a host connection that opted into telemetry forwarding during the `server.connect` handshake.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubTelemetryNotification {
+    /// The telemetry event, in the runtime's native GitHub-shaped telemetry format.
+    pub event: GitHubTelemetryEvent,
+    /// Whether this is a restricted telemetry event (cli.restricted_telemetry). Hosts must route restricted events to first-party Microsoft stores only.
+    pub restricted: bool,
+    /// Session the telemetry event belongs to, when it is session-scoped. Omitted for sessionless events (for example, `server.sendTelemetry` calls with no session id), which are still forwarded to opted-in connections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
 }
 
 /// Pending external tool call request ID, with the tool result or an error describing why it failed.
@@ -3352,7 +4017,14 @@ pub struct HistoryTruncateResult {
     pub events_removed: i64,
 }
 
-/// Schema for the `HMACAuthInfo` type.
+/// Authentication-info variant for GitHub-internal HMAC auth, carrying the public GitHub host and HMAC secret.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HMACAuthInfo {
@@ -3367,7 +4039,7 @@ pub struct HMACAuthInfo {
     pub r#type: HMACAuthInfoType,
 }
 
-/// Schema for the `InstalledPlugin` type.
+/// Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
 ///
 /// <div class="warning">
 ///
@@ -3423,7 +4095,7 @@ pub struct InstalledPluginInfo {
     pub version: Option<String>,
 }
 
-/// Schema for the `InstalledPluginSourceGitHub` type.
+/// Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref, and optional subpath.
 ///
 /// <div class="warning">
 ///
@@ -3443,7 +4115,7 @@ pub struct InstalledPluginSourceGitHub {
     pub source: InstalledPluginSourceGitHubSource,
 }
 
-/// Schema for the `InstalledPluginSourceLocal` type.
+/// Source descriptor for a direct local plugin install, with a local filesystem path.
 ///
 /// <div class="warning">
 ///
@@ -3459,7 +4131,7 @@ pub struct InstalledPluginSourceLocal {
     pub source: InstalledPluginSourceLocalSource,
 }
 
-/// Schema for the `InstalledPluginSourceUrl` type.
+/// Source descriptor for a direct URL plugin install, with URL, optional ref, and optional subpath.
 ///
 /// <div class="warning">
 ///
@@ -3479,7 +4151,7 @@ pub struct InstalledPluginSourceUrl {
     pub url: String,
 }
 
-/// Schema for the `InstructionDiscoveryPath` type.
+/// Canonical file or directory where custom instructions can be discovered or created, with location, kind, preference, and project path.
 ///
 /// <div class="warning">
 ///
@@ -3556,7 +4228,7 @@ pub struct InstructionsGetDiscoveryPathsRequest {
     pub project_paths: Option<Vec<String>>,
 }
 
-/// Schema for the `InstructionSource` type.
+/// Loaded instruction source for a session, including path, content, category, location, applicability, and optional description.
 ///
 /// <div class="warning">
 ///
@@ -3639,9 +4311,18 @@ pub struct LlmInferenceHttpRequestChunkResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmInferenceHttpRequestStartRequest {
+    /// Stable per-agent-instance id attributing this request to a specific agent trajectory. Present when the request originates from an agent turn; absent for requests issued outside any agent context (e.g. some SDK callers). A request with an `agentId` but no `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced from the runtime's per-request agent context and surfaced on the envelope independently of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header from this same context. Consumers routing each provider call to a training trajectory should key on this rather than on lifecycle events, since it is available on the request path before sampling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     pub headers: HashMap<String, Vec<String>>,
+    /// Coarse classification of the interaction that produced this request. Open string for forward-compatibility; known values include `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, and `conversation-user`. Absent when the runtime did not classify the request. Comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Interaction-Type` header from this same context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_type: Option<String>,
     /// HTTP method, e.g. GET, POST.
     pub method: String,
+    /// Id of the parent agent that spawned the agent issuing this request. Present only for subagent requests; absent for root-agent requests and non-agent requests. Combined with `agentId`, this lets consumers attribute a call to a child trajectory versus the root. Like `agentId`, it comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id` header from this same context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_agent_id: Option<String>,
     /// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies back to the runtime.
     pub request_id: RequestId,
     /// Id of the runtime session that triggered this request, when one is in scope. Absent for requests issued outside any session (e.g. startup model-catalog or capability resolution). This is a payload field — not a dispatch key — because the client-global API is registered process-wide rather than per session.
@@ -3796,7 +4477,7 @@ pub struct SessionContext {
     pub repository: Option<String>,
 }
 
-/// Schema for the `LocalSessionMetadataValue` type.
+/// Persisted local session metadata, including identifiers, timestamps, summary/name, client, context, detached state, and task ID.
 ///
 /// <div class="warning">
 ///
@@ -3985,7 +4666,7 @@ pub struct MarketplaceListResult {
     pub marketplaces: Vec<MarketplaceInfo>,
 }
 
-/// Schema for the `MarketplaceRefreshEntry` type.
+/// Per-marketplace refresh result, including marketplace name, success flag, and optional failure error.
 ///
 /// <div class="warning">
 ///
@@ -4038,7 +4719,7 @@ pub struct MarketplaceRemoveResult {
     pub removed: bool,
 }
 
-/// Schema for the `McpAllowedServer` type.
+/// MCP server allowed by policy, with server name and optional PII-free explanatory note.
 ///
 /// <div class="warning">
 ///
@@ -4248,7 +4929,7 @@ pub struct McpAppsReadResourceRequest {
     pub uri: String,
 }
 
-/// Schema for the `McpAppsResourceContent` type.
+/// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
 ///
 /// <div class="warning">
 ///
@@ -4370,6 +5051,13 @@ pub struct McpCancelSamplingExecutionResult {
 }
 
 /// MCP server name and configuration to add to user configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigAddRequest {
@@ -4380,6 +5068,13 @@ pub struct McpConfigAddRequest {
 }
 
 /// MCP server names to disable for new sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigDisableRequest {
@@ -4388,6 +5083,13 @@ pub struct McpConfigDisableRequest {
 }
 
 /// MCP server names to enable for new sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigEnableRequest {
@@ -4396,6 +5098,13 @@ pub struct McpConfigEnableRequest {
 }
 
 /// User-configured MCP servers, keyed by server name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigList {
@@ -4404,6 +5113,13 @@ pub struct McpConfigList {
 }
 
 /// MCP server name to remove from user configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigRemoveRequest {
@@ -4412,6 +5128,13 @@ pub struct McpConfigRemoveRequest {
 }
 
 /// MCP server name and replacement configuration to write to user configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigUpdateRequest {
@@ -4468,6 +5191,13 @@ pub struct McpDisableRequest {
 }
 
 /// Optional working directory used as context for MCP server discovery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpDiscoverRequest {
@@ -4477,6 +5207,13 @@ pub struct McpDiscoverRequest {
 }
 
 /// MCP servers discovered from user, workspace, plugin, and built-in sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpDiscoverResult {
@@ -4532,7 +5269,7 @@ pub struct McpExecuteSamplingParams {
     pub server_name: String,
 }
 
-/// Schema for the `McpFilteredServer` type.
+/// MCP server filtered by policy, with name, reason, optional redacted reason, and enterprise login.
 ///
 /// <div class="warning">
 ///
@@ -4705,7 +5442,7 @@ pub struct McpListToolsRequest {
     pub server_name: String,
 }
 
-/// Schema for the `McpTools` type.
+/// MCP tool metadata with tool name and optional description.
 ///
 /// <div class="warning">
 ///
@@ -4842,37 +5579,6 @@ pub struct McpOauthLoginResult {
     pub authorization_url: Option<String>,
 }
 
-/// MCP OAuth request id and optional provider response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthRespondRequest {
-    /// In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) provider: Option<serde_json::Value>,
-    /// OAuth request identifier from mcp.oauth_required
-    pub request_id: RequestId,
-}
-
-/// Empty result after recording the MCP OAuth response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpOauthRespondResult {}
-
 /// Registration parameters for an external MCP client.
 ///
 /// <div class="warning">
@@ -4967,7 +5673,7 @@ pub struct McpSamplingExecutionResult {
     pub result: Option<McpExecuteSamplingResult>,
 }
 
-/// Schema for the `McpServer` type.
+/// MCP server status entry, including config source/plugin source and any connection error.
 ///
 /// <div class="warning">
 ///
@@ -4997,6 +5703,13 @@ pub struct McpServer {
 }
 
 /// Authentication settings with optional redirect port configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerAuthConfigRedirectPort {
@@ -5006,6 +5719,13 @@ pub struct McpServerAuthConfigRedirectPort {
 }
 
 /// Remote MCP server configuration accessed over HTTP or SSE.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerConfigHttp {
@@ -5050,6 +5770,13 @@ pub struct McpServerConfigHttp {
 }
 
 /// Stdio MCP server configuration launched as a child process.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerConfigStdio {
@@ -5214,6 +5941,93 @@ pub(crate) struct McpUnregisterExternalClientRequest {
 pub struct MemoryConfiguration {
     /// Whether memory is enabled for the session.
     pub enabled: bool,
+}
+
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: MetadataContextAttributionResultContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<MetadataContextAttributionResultContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
+}
+
+/// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResult {
+    /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+    pub context_attribution: Option<MetadataContextAttributionResultContextAttribution>,
+}
+
+/// Parameters for the heaviest-messages query.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextHeaviestMessagesRequest {
+    /// Maximum number of messages to return, most-expensive first. Omit for the server default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+}
+
+/// The heaviest individual messages in the session's context window, most-expensive first.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextHeaviestMessagesResult {
+    /// Heaviest messages, most-expensive first.
+    pub messages: Vec<ContextHeaviestMessage>,
+    /// Total token count of the current context window, so callers can compute each message's share without a second call.
+    pub total_tokens: i64,
 }
 
 /// Model identifier and token limits used to compute the context-info breakdown.
@@ -5463,6 +6277,13 @@ pub struct MetadataSnapshotRemoteMetadata {
 }
 
 /// Long context tier pricing (available for models with extended context windows)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBillingTokenPricesLongContext {
@@ -5494,6 +6315,13 @@ pub struct ModelBillingTokenPricesLongContext {
 }
 
 /// Token-level pricing information for this model
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBillingTokenPrices {
@@ -5531,6 +6359,13 @@ pub struct ModelBillingTokenPrices {
 }
 
 /// Billing information
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelBilling {
@@ -5546,6 +6381,13 @@ pub struct ModelBilling {
 }
 
 /// Vision-specific limits
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesLimitsVision {
@@ -5561,6 +6403,13 @@ pub struct ModelCapabilitiesLimitsVision {
 }
 
 /// Token limits for prompts, outputs, and context window
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesLimits {
@@ -5582,9 +6431,19 @@ pub struct ModelCapabilitiesLimits {
 }
 
 /// Feature flags indicating what the model supports
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesSupports {
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
+    pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<bool>,
@@ -5594,6 +6453,13 @@ pub struct ModelCapabilitiesSupports {
 }
 
 /// Model capabilities and limits
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilities {
@@ -5606,6 +6472,13 @@ pub struct ModelCapabilities {
 }
 
 /// Policy state (if applicable)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelPolicy {
@@ -5616,7 +6489,14 @@ pub struct ModelPolicy {
     pub terms: Option<String>,
 }
 
-/// Schema for the `Model` type.
+/// Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
@@ -5713,6 +6593,9 @@ pub struct ModelCapabilitiesOverrideLimits {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesOverrideSupports {
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required. 'required' models reject thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8).
+    #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
+    pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
     /// Whether this model supports reasoning effort configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<bool>,
@@ -5741,6 +6624,13 @@ pub struct ModelCapabilitiesOverride {
 }
 
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelList {
@@ -5795,6 +6685,13 @@ pub struct ModelSetReasoningEffortResult {
 }
 
 /// Optional GitHub token used to list models for a specific user instead of the global auth context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelsListRequest {
@@ -5828,6 +6725,9 @@ pub struct ModelSwitchToRequest {
     /// Reasoning summary mode to request for supported model clients
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level to request for supported models
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// The model identifier active on the session after the switch.
@@ -5978,7 +6878,7 @@ pub struct NameSetRequest {
     pub name: String,
 }
 
-/// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+/// Source descriptor for a `session.options.update` content-exclusion rule, with source name and type.
 ///
 /// <div class="warning">
 ///
@@ -5993,7 +6893,7 @@ pub struct OptionsUpdateAdditionalContentExclusionPolicyRuleSource {
     pub r#type: String,
 }
 
-/// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRule` type.
+/// Single content-exclusion rule supplied to `session.options.update`, with paths, match conditions, and source.
 ///
 /// <div class="warning">
 ///
@@ -6009,11 +6909,11 @@ pub struct OptionsUpdateAdditionalContentExclusionPolicyRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub if_none_match: Option<Vec<String>>,
     pub paths: Vec<String>,
-    /// Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+    /// Source descriptor for a `session.options.update` content-exclusion rule, with source name and type.
     pub source: OptionsUpdateAdditionalContentExclusionPolicyRuleSource,
 }
 
-/// Schema for the `OptionsUpdateAdditionalContentExclusionPolicy` type.
+/// Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
 ///
 /// <div class="warning">
 ///
@@ -6031,7 +6931,7 @@ pub struct OptionsUpdateAdditionalContentExclusionPolicy {
     pub scope: OptionsUpdateAdditionalContentExclusionPolicyScope,
 }
 
-/// Schema for the `PendingPermissionRequest` type.
+/// Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
 ///
 /// <div class="warning">
 ///
@@ -6063,7 +6963,7 @@ pub struct PendingPermissionRequestList {
     pub items: Vec<PendingPermissionRequest>,
 }
 
-/// Schema for the `PermissionDecisionApproveOnce` type.
+/// Permission-decision request variant to approve only the current permission request.
 ///
 /// <div class="warning">
 ///
@@ -6078,7 +6978,7 @@ pub struct PermissionDecisionApproveOnce {
     pub kind: PermissionDecisionApproveOnceKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+/// Session-scoped approval details for specific command identifiers.
 ///
 /// <div class="warning">
 ///
@@ -6095,7 +6995,7 @@ pub struct PermissionDecisionApproveForSessionApprovalCommands {
     pub kind: PermissionDecisionApproveForSessionApprovalCommandsKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+/// Session-scoped approval details for read-only filesystem operations.
 ///
 /// <div class="warning">
 ///
@@ -6110,7 +7010,7 @@ pub struct PermissionDecisionApproveForSessionApprovalRead {
     pub kind: PermissionDecisionApproveForSessionApprovalReadKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+/// Session-scoped approval details for filesystem write operations.
 ///
 /// <div class="warning">
 ///
@@ -6125,7 +7025,7 @@ pub struct PermissionDecisionApproveForSessionApprovalWrite {
     pub kind: PermissionDecisionApproveForSessionApprovalWriteKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+/// Session-scoped approval details for an MCP server tool, or all tools on the server when `toolName` is null.
 ///
 /// <div class="warning">
 ///
@@ -6144,7 +7044,7 @@ pub struct PermissionDecisionApproveForSessionApprovalMcp {
     pub tool_name: Option<String>,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+/// Session-scoped approval details for MCP sampling requests from a server.
 ///
 /// <div class="warning">
 ///
@@ -6161,7 +7061,7 @@ pub struct PermissionDecisionApproveForSessionApprovalMcpSampling {
     pub server_name: String,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+/// Session-scoped approval details for writes to long-term memory.
 ///
 /// <div class="warning">
 ///
@@ -6176,7 +7076,7 @@ pub struct PermissionDecisionApproveForSessionApprovalMemory {
     pub kind: PermissionDecisionApproveForSessionApprovalMemoryKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+/// Session-scoped approval details for a custom tool, keyed by tool name.
 ///
 /// <div class="warning">
 ///
@@ -6193,7 +7093,7 @@ pub struct PermissionDecisionApproveForSessionApprovalCustomTool {
     pub tool_name: String,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+/// Session-scoped approval details for extension-management operations, optionally narrowed by operation.
 ///
 /// <div class="warning">
 ///
@@ -6211,7 +7111,7 @@ pub struct PermissionDecisionApproveForSessionApprovalExtensionManagement {
     pub operation: Option<String>,
 }
 
-/// Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess` type.
+/// Session-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
 ///
 /// <div class="warning">
 ///
@@ -6228,7 +7128,7 @@ pub struct PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess 
     pub kind: PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForSession` type.
+/// Permission-decision request variant to approve for the rest of the session, with optional tool approval or URL domain.
 ///
 /// <div class="warning">
 ///
@@ -6249,7 +7149,7 @@ pub struct PermissionDecisionApproveForSession {
     pub kind: PermissionDecisionApproveForSessionKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+/// Location-scoped approval details for specific command identifiers.
 ///
 /// <div class="warning">
 ///
@@ -6266,7 +7166,7 @@ pub struct PermissionDecisionApproveForLocationApprovalCommands {
     pub kind: PermissionDecisionApproveForLocationApprovalCommandsKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+/// Location-scoped approval details for read-only filesystem operations.
 ///
 /// <div class="warning">
 ///
@@ -6281,7 +7181,7 @@ pub struct PermissionDecisionApproveForLocationApprovalRead {
     pub kind: PermissionDecisionApproveForLocationApprovalReadKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+/// Location-scoped approval details for filesystem write operations.
 ///
 /// <div class="warning">
 ///
@@ -6296,7 +7196,7 @@ pub struct PermissionDecisionApproveForLocationApprovalWrite {
     pub kind: PermissionDecisionApproveForLocationApprovalWriteKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+/// Location-scoped approval details for an MCP server tool, or all tools on the server when `toolName` is null.
 ///
 /// <div class="warning">
 ///
@@ -6315,7 +7215,7 @@ pub struct PermissionDecisionApproveForLocationApprovalMcp {
     pub tool_name: Option<String>,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+/// Location-scoped approval details for MCP sampling requests from a server.
 ///
 /// <div class="warning">
 ///
@@ -6332,7 +7232,7 @@ pub struct PermissionDecisionApproveForLocationApprovalMcpSampling {
     pub server_name: String,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+/// Location-scoped approval details for writes to long-term memory.
 ///
 /// <div class="warning">
 ///
@@ -6347,7 +7247,7 @@ pub struct PermissionDecisionApproveForLocationApprovalMemory {
     pub kind: PermissionDecisionApproveForLocationApprovalMemoryKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+/// Location-scoped approval details for a custom tool, keyed by tool name.
 ///
 /// <div class="warning">
 ///
@@ -6364,7 +7264,7 @@ pub struct PermissionDecisionApproveForLocationApprovalCustomTool {
     pub tool_name: String,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+/// Location-scoped approval details for extension-management operations, optionally narrowed by operation.
 ///
 /// <div class="warning">
 ///
@@ -6382,7 +7282,7 @@ pub struct PermissionDecisionApproveForLocationApprovalExtensionManagement {
     pub operation: Option<String>,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess` type.
+/// Location-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
 ///
 /// <div class="warning">
 ///
@@ -6399,7 +7299,7 @@ pub struct PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
     pub kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind,
 }
 
-/// Schema for the `PermissionDecisionApproveForLocation` type.
+/// Permission-decision request variant to approve and persist a permission for a project location, with approval details and location key.
 ///
 /// <div class="warning">
 ///
@@ -6418,7 +7318,7 @@ pub struct PermissionDecisionApproveForLocation {
     pub location_key: String,
 }
 
-/// Schema for the `PermissionDecisionApprovePermanently` type.
+/// Permission-decision request variant to permanently approve a URL domain across sessions.
 ///
 /// <div class="warning">
 ///
@@ -6435,7 +7335,7 @@ pub struct PermissionDecisionApprovePermanently {
     pub kind: PermissionDecisionApprovePermanentlyKind,
 }
 
-/// Schema for the `PermissionDecisionReject` type.
+/// Permission-decision request variant to reject a pending permission request, with optional feedback.
 ///
 /// <div class="warning">
 ///
@@ -6453,7 +7353,7 @@ pub struct PermissionDecisionReject {
     pub kind: PermissionDecisionRejectKind,
 }
 
-/// Schema for the `PermissionDecisionUserNotAvailable` type.
+/// Permission-decision variant indicating no user was available to confirm the request.
 ///
 /// <div class="warning">
 ///
@@ -6468,7 +7368,7 @@ pub struct PermissionDecisionUserNotAvailable {
     pub kind: PermissionDecisionUserNotAvailableKind,
 }
 
-/// Schema for the `PermissionDecisionApproved` type.
+/// Permission-decision variant indicating the request was approved.
 ///
 /// <div class="warning">
 ///
@@ -6483,7 +7383,7 @@ pub struct PermissionDecisionApproved {
     pub kind: PermissionDecisionApprovedKind,
 }
 
-/// Schema for the `PermissionDecisionApprovedForSession` type.
+/// Permission-decision variant indicating approval was remembered for the session, with approval details.
 ///
 /// <div class="warning">
 ///
@@ -6500,7 +7400,7 @@ pub struct PermissionDecisionApprovedForSession {
     pub kind: PermissionDecisionApprovedForSessionKind,
 }
 
-/// Schema for the `PermissionDecisionApprovedForLocation` type.
+/// Permission-decision variant indicating approval was persisted for a project location, with approval details and location key.
 ///
 /// <div class="warning">
 ///
@@ -6519,7 +7419,7 @@ pub struct PermissionDecisionApprovedForLocation {
     pub location_key: String,
 }
 
-/// Schema for the `PermissionDecisionCancelled` type.
+/// Permission-decision variant indicating the request was cancelled before use, with an optional reason.
 ///
 /// <div class="warning">
 ///
@@ -6537,7 +7437,7 @@ pub struct PermissionDecisionCancelled {
     pub reason: Option<String>,
 }
 
-/// Schema for the `PermissionDecisionDeniedByRules` type.
+/// Permission-decision variant indicating explicit denial by permission rules, with the matching rules.
 ///
 /// <div class="warning">
 ///
@@ -6554,7 +7454,7 @@ pub struct PermissionDecisionDeniedByRules {
     pub rules: Vec<PermissionRule>,
 }
 
-/// Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+/// Permission-decision variant indicating no approval rule matched and user confirmation was unavailable.
 ///
 /// <div class="warning">
 ///
@@ -6569,7 +7469,7 @@ pub struct PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
     pub kind: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind,
 }
 
-/// Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.
+/// Permission-decision variant indicating the user denied an interactive prompt, with optional feedback and force-reject flag.
 ///
 /// <div class="warning">
 ///
@@ -6590,7 +7490,7 @@ pub struct PermissionDecisionDeniedInteractivelyByUser {
     pub kind: PermissionDecisionDeniedInteractivelyByUserKind,
 }
 
-/// Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.
+/// Permission-decision variant indicating denial by content-exclusion policy, with path and message.
 ///
 /// <div class="warning">
 ///
@@ -6609,7 +7509,7 @@ pub struct PermissionDecisionDeniedByContentExclusionPolicy {
     pub path: String,
 }
 
-/// Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.
+/// Permission-decision variant indicating denial by a permission request hook, with optional message and interrupt flag.
 ///
 /// <div class="warning">
 ///
@@ -6647,7 +7547,7 @@ pub struct PermissionDecisionRequest {
     pub result: PermissionDecision,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.
+/// Location-persisted tool approval details for specific command identifiers.
 ///
 /// <div class="warning">
 ///
@@ -6664,7 +7564,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsCommands {
     pub kind: PermissionsLocationsAddToolApprovalDetailsCommandsKind,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.
+/// Location-persisted tool approval details for read-only filesystem operations.
 ///
 /// <div class="warning">
 ///
@@ -6679,7 +7579,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsRead {
     pub kind: PermissionsLocationsAddToolApprovalDetailsReadKind,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.
+/// Location-persisted tool approval details for filesystem write operations.
 ///
 /// <div class="warning">
 ///
@@ -6694,7 +7594,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsWrite {
     pub kind: PermissionsLocationsAddToolApprovalDetailsWriteKind,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
+/// Location-persisted tool approval details for an MCP server tool, or all tools when `toolName` is null.
 ///
 /// <div class="warning">
 ///
@@ -6713,7 +7613,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsMcp {
     pub tool_name: Option<String>,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
+/// Location-persisted tool approval details for MCP sampling requests from a server.
 ///
 /// <div class="warning">
 ///
@@ -6730,7 +7630,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsMcpSampling {
     pub server_name: String,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
+/// Location-persisted tool approval details for writes to long-term memory.
 ///
 /// <div class="warning">
 ///
@@ -6745,7 +7645,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsMemory {
     pub kind: PermissionsLocationsAddToolApprovalDetailsMemoryKind,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.
+/// Location-persisted tool approval details for a custom tool, keyed by tool name.
 ///
 /// <div class="warning">
 ///
@@ -6762,7 +7662,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsCustomTool {
     pub tool_name: String,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.
+/// Location-persisted tool approval details for extension-management operations, optionally narrowed by operation.
 ///
 /// <div class="warning">
 ///
@@ -6780,7 +7680,7 @@ pub struct PermissionsLocationsAddToolApprovalDetailsExtensionManagement {
     pub operation: Option<String>,
 }
 
-/// Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.
+/// Location-persisted tool approval details for an extension's permission-gated capability access, keyed by extension name.
 ///
 /// <div class="warning">
 ///
@@ -7065,7 +7965,7 @@ pub struct PermissionRulesSet {
     pub denied: Vec<PermissionRule>,
 }
 
-/// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
+/// Source descriptor for a `session.permissions.configure` content-exclusion rule, with source name and type.
 ///
 /// <div class="warning">
 ///
@@ -7080,7 +7980,7 @@ pub struct PermissionsConfigureAdditionalContentExclusionPolicyRuleSource {
     pub r#type: String,
 }
 
-/// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
+/// Single content-exclusion rule supplied to `session.permissions.configure`, with paths, match conditions, and source.
 ///
 /// <div class="warning">
 ///
@@ -7096,11 +7996,11 @@ pub struct PermissionsConfigureAdditionalContentExclusionPolicyRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub if_none_match: Option<Vec<String>>,
     pub paths: Vec<String>,
-    /// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
+    /// Source descriptor for a `session.permissions.configure` content-exclusion rule, with source name and type.
     pub source: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource,
 }
 
-/// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.
+/// Content-exclusion policy supplied to `session.permissions.configure`, with rules, last-updated data, and scope.
 ///
 /// <div class="warning">
 ///
@@ -7361,7 +8261,7 @@ pub struct PermissionsResetSessionApprovalsResult {
     pub success: bool,
 }
 
-/// Whether to enable full allow-all permissions for the session.
+/// Allow-all mode to apply for the session.
 ///
 /// <div class="warning">
 ///
@@ -7372,8 +8272,15 @@ pub struct PermissionsResetSessionApprovalsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsSetAllowAllRequest {
-    /// Whether to enable full allow-all permissions
-    pub enabled: bool,
+    /// Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionsAllowAllMode>,
+    /// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<PermissionsSetAllowAllSource>,
@@ -7473,6 +8380,13 @@ pub struct PermissionUrlsSetUnrestrictedModeParams {
 }
 
 /// Optional message to echo back to the caller.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PingRequest {
@@ -7482,6 +8396,13 @@ pub struct PingRequest {
 }
 
 /// Server liveness response, including the echoed message, current server timestamp, and protocol version.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PingResult {
@@ -7601,7 +8522,7 @@ pub struct PlanUpdateRequest {
     pub content: String,
 }
 
-/// Schema for the `Plugin` type.
+/// Session plugin metadata, with name, marketplace, optional version, and enabled state.
 ///
 /// <div class="warning">
 ///
@@ -7846,7 +8767,7 @@ pub struct PluginsUpdateRequest {
     pub name: String,
 }
 
-/// Schema for the `PluginUpdateAllEntry` type.
+/// Per-plugin result from updating all plugins, with versions, skills installed, success flag, and optional error.
 ///
 /// <div class="warning">
 ///
@@ -7911,38 +8832,6 @@ pub struct PluginUpdateResult {
     pub previous_version: Option<String>,
     /// Number of skills discovered and installed after the update
     pub skills_installed: i64,
-}
-
-/// Schema for the `SessionsPollSpawnedSessionsEvent` type.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsEvent {
-    /// Session id of the newly-spawned session.
-    pub session_id: SessionId,
-}
-
-/// Batch of spawn events plus a cursor for follow-up polls.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PollSpawnedSessionsResult {
-    /// Opaque cursor to pass back to receive only events after this batch.
-    pub cursor: String,
-    /// Spawn events emitted since the supplied cursor.
-    pub events: Vec<SessionsPollSpawnedSessionsEvent>,
 }
 
 /// A BYOK model definition referencing a named provider.
@@ -8616,7 +9505,7 @@ pub struct PushAttachmentSelection {
     pub r#type: PushAttachmentSelectionType,
 }
 
-/// Schema for the `QueuedCommandHandled` type.
+/// Queued-command response indicating the host executed the command, with an optional flag to stop queue processing.
 ///
 /// <div class="warning">
 ///
@@ -8634,7 +9523,7 @@ pub struct QueuedCommandHandled {
     pub stop_processing_queue: Option<bool>,
 }
 
-/// Schema for the `QueuedCommandNotHandled` type.
+/// Queued-command response indicating the host did not execute the command and the queue may continue.
 ///
 /// <div class="warning">
 ///
@@ -8649,7 +9538,7 @@ pub struct QueuedCommandNotHandled {
     pub handled: bool,
 }
 
-/// Schema for the `QueuePendingItems` type.
+/// User-facing pending queue entry, with kind and display text for a queued message, slash command, or model change.
 ///
 /// <div class="warning">
 ///
@@ -8709,7 +9598,7 @@ pub struct QueueRemoveMostRecentResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterEventInterestParams {
-    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
     pub event_type: String,
 }
 
@@ -8854,6 +9743,10 @@ pub struct RemoteControlConfig {
 pub struct RemoteControlStatusActive {
     /// Session id remote control is pointed at.
     pub attached_session_id: String,
+    /// True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) awaiting_first_message: Option<bool>,
     /// MC frontend URL for this session, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
@@ -9202,18 +10095,12 @@ pub struct SandboxConfigUserPolicyFilesystem {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxConfigUserPolicyNetwork {
-    /// Hosts allowed in addition to the base policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_hosts: Option<Vec<String>>,
     /// Whether traffic to local/loopback addresses is allowed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_local_network: Option<bool>,
     /// Whether outbound network traffic is allowed at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_outbound: Option<bool>,
-    /// Hosts explicitly blocked.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocked_hosts: Option<Vec<String>>,
 }
 
 /// macOS seatbelt-specific options.
@@ -9278,7 +10165,7 @@ pub struct SandboxConfig {
     pub user_policy: Option<SandboxConfigUserPolicy>,
 }
 
-/// Schema for the `ScheduleEntry` type.
+/// Scheduled prompt entry with ID, timing (`intervalMs`, `cron`, or `at`), prompt text, recurrence, and next run time.
 ///
 /// <div class="warning">
 ///
@@ -9364,6 +10251,13 @@ pub struct ScheduleStopResult {
 }
 
 /// Secret values to add to the redaction filter.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretsAddFilterValuesRequest {
@@ -9372,6 +10266,13 @@ pub struct SecretsAddFilterValuesRequest {
 }
 
 /// Confirmation that the secret values were registered.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretsAddFilterValuesResult {
@@ -9494,7 +10395,14 @@ pub struct ServerInstructionSourceList {
     pub sources: Vec<InstructionSource>,
 }
 
-/// Schema for the `ServerSkill` type.
+/// Server-side skill metadata, including name, description, source, enabled/invocable state, path, project path, and argument hint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSkill {
@@ -9520,6 +10428,13 @@ pub struct ServerSkill {
 }
 
 /// Skills discovered across global and project sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSkillList {
@@ -9587,6 +10502,52 @@ pub struct SessionAuthStatus {
 pub struct SessionBulkDeleteResult {
     /// Map of sessionId -> bytes freed by removing the session's workspace directory. Sessions whose deletion failed are omitted from this map (failures are logged on the server but not surfaced per-id; check the map for absent IDs to detect them).
     pub freed_bytes: HashMap<String, i64>,
+}
+
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: SessionContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<SessionContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
 }
 
 /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
@@ -9767,7 +10728,7 @@ pub struct SessionFsReaddirResult {
     pub error: Option<SessionFsError>,
 }
 
-/// Schema for the `SessionFsReaddirWithTypesEntry` type.
+/// Directory entry returned by session filesystem `readdirWithTypes`, with name and entry type.
 ///
 /// <div class="warning">
 ///
@@ -9897,6 +10858,13 @@ pub struct SessionFsRmRequest {
 }
 
 /// Optional capabilities declared by the provider
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSetProviderCapabilities {
@@ -9906,6 +10874,13 @@ pub struct SessionFsSetProviderCapabilities {
 }
 
 /// Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSetProviderRequest {
@@ -9921,6 +10896,13 @@ pub struct SessionFsSetProviderRequest {
 }
 
 /// Indicates whether the calling client was registered as the session filesystem provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSetProviderResult {
@@ -10055,7 +11037,7 @@ pub struct SessionFsWriteFileRequest {
     pub mode: Option<i64>,
 }
 
-/// Schema for the `SessionInstalledPlugin` type.
+/// Installed plugin record for a session, with marketplace, version, install time, enabled state, cache path, and source.
 ///
 /// <div class="warning">
 ///
@@ -10086,7 +11068,7 @@ pub struct SessionInstalledPlugin {
     pub version: Option<String>,
 }
 
-/// Schema for the `SessionInstalledPluginSourceGitHub` type.
+/// Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref, and optional subpath.
 ///
 /// <div class="warning">
 ///
@@ -10106,7 +11088,7 @@ pub struct SessionInstalledPluginSourceGitHub {
     pub source: SessionInstalledPluginSourceGitHubSource,
 }
 
-/// Schema for the `SessionInstalledPluginSourceLocal` type.
+/// Source descriptor for a direct local plugin install, with a local filesystem path.
 ///
 /// <div class="warning">
 ///
@@ -10122,7 +11104,7 @@ pub struct SessionInstalledPluginSourceLocal {
     pub source: SessionInstalledPluginSourceLocalSource,
 }
 
-/// Schema for the `SessionInstalledPluginSourceUrl` type.
+/// Source descriptor for a direct URL plugin install, with URL, optional ref, and optional subpath.
 ///
 /// <div class="warning">
 ///
@@ -10267,6 +11249,8 @@ pub struct SessionMetadataSnapshot {
     pub selected_model: Option<String>,
     /// The unique identifier of the session
     pub session_id: SessionId,
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp of when the session started
     pub start_time: String,
     /// Short human-readable summary of the session, if known. Omitted when no summary has been generated.
@@ -10298,7 +11282,7 @@ pub struct SessionModelList {
     pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
+/// Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
 ///
 /// <div class="warning">
 ///
@@ -10313,7 +11297,7 @@ pub struct SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource {
     pub r#type: String,
 }
 
-/// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRule` type.
+/// Single content-exclusion rule supplied to `sessions.open` options, with paths, match conditions, and source.
 ///
 /// <div class="warning">
 ///
@@ -10329,11 +11313,11 @@ pub struct SessionOpenOptionsAdditionalContentExclusionPolicyRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub if_none_match: Option<Vec<String>>,
     pub paths: Vec<String>,
-    /// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource` type.
+    /// Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
     pub source: SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource,
 }
 
-/// Schema for the `SessionOpenOptionsAdditionalContentExclusionPolicy` type.
+/// Content-exclusion policy supplied to `sessions.open` options, with rules, last-updated data, and scope.
 ///
 /// <div class="warning">
 ///
@@ -10434,6 +11418,9 @@ pub struct SessionOpenOptions {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
+    /// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
     /// Whether on-demand custom instruction discovery is enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -10449,6 +11436,9 @@ pub struct SessionOpenOptions {
     /// Override directory for session event logs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_log_directory: Option<String>,
+    /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Denylist of tool names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -10527,9 +11517,6 @@ pub struct SessionOpenOptions {
     /// Whether this session supports remote steering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_steerable: Option<bool>,
-    /// Initial response budget limits for the session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the host is an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -10542,6 +11529,9 @@ pub struct SessionOpenOptions {
     /// Optional stable session identifier to use for a new session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
+    /// Initial session limits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Shell init profile.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_init_profile: Option<String>,
@@ -10557,6 +11547,9 @@ pub struct SessionOpenOptions {
     /// Optional trajectory output file path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Initial output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Working directory to anchor the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -10719,6 +11712,10 @@ pub struct SessionsOpenHandoff {
     pub kind: SessionsOpenHandoffKind,
     /// Remote session metadata for the session to hand off (typically obtained from `sessions.list` with `source: "remote"`).
     pub metadata: RemoteSessionMetadataValue,
+    /// In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) on_confirm: Option<serde_json::Value>,
     /// In-process progress callback `(update) => void` invoked for each handoff step. Marked internal because a function reference cannot cross the JSON-RPC boundary. The host-side `handoffSession` is already declared as `AsyncGenerator<HandoffProgress, HandoffResult>`; the schema layer flattens it because it does not yet support streaming methods. The wire-clean replacement is to expose the AsyncGenerator directly (or use vscode-jsonrpc `$/progress` notifications) once the schema/transport layer supports it.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -10731,7 +11728,7 @@ pub struct SessionsOpenHandoff {
     pub task_type: Option<SessionsOpenHandoffTaskType>,
 }
 
-/// Schema for the `SessionsOpenProgress` type.
+/// `sessions.open` handoff progress update with step, status, and optional message.
 ///
 /// <div class="warning">
 ///
@@ -10927,6 +11924,206 @@ pub struct SessionSetCredentialsResult {
     pub copilot_user_resolved: Option<bool>,
     /// Whether the operation succeeded
     pub success: bool,
+}
+
+/// Availability of built-in job tools surfaced to boundary consumers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsBuiltInToolAvailabilitySnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create_pull_request: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub report_progress: Option<bool>,
+}
+
+/// Named Rust-owned settings predicate to evaluate for this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsEvaluatePredicateRequest {
+    /// Predicate name. The runtime owns the raw feature-flag names and composition logic.
+    pub name: SessionSettingsPredicateName,
+    /// Tool name for tool-scoped predicates such as trivial-change handling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+}
+
+/// Result of evaluating a Rust-owned settings predicate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsEvaluatePredicateResult {
+    pub enabled: bool,
+}
+
+/// Redacted job settings for a session. The job nonce is excluded.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsJobSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub built_in_tool_availability: Option<SessionSettingsBuiltInToolAvailabilitySnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_trigger_job: Option<bool>,
+}
+
+/// Redacted model routing settings for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsModelSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+/// Online-evaluation settings safe to expose across the SDK boundary.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsOnlineEvaluationSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_online_evaluation: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_online_evaluation_output_file: Option<bool>,
+}
+
+/// Redacted repository and GitHub host settings for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsRepoSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_id: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pr_commit_count: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_write: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_scanning_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_url: Option<String>,
+}
+
+/// Redacted validation and memory-tool settings for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsValidationSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codeql_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_review_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_review_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependabot_timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_store_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_vote_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_scanning_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+}
+
+/// Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    pub job: SessionSettingsJobSnapshot,
+    pub model: SessionSettingsModelSnapshot,
+    pub online_evaluation: SessionSettingsOnlineEvaluationSnapshot,
+    pub repo: SessionSettingsRepoSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_time_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<f64>,
+    pub validation: SessionSettingsValidationSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 /// UUID prefix to resolve to a unique session ID.
@@ -11210,25 +12407,6 @@ pub struct SessionsListRequest {
 pub struct SessionsLoadDeferredRepoHooksRequest {
     /// Active session ID whose deferred repo-level hooks should be loaded
     pub session_id: SessionId,
-}
-
-/// Cursor and optional long-poll wait for polling runtime-spawned sessions.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsRequest {
-    /// Opaque cursor returned by a previous poll. Omit on the first call to receive any spawn events buffered since the runtime started.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
-    /// Milliseconds to wait for new spawn events when the cursor is at the tail. 0 (default) returns immediately even if no events are buffered. Capped at 60000ms.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wait_ms: Option<i32>,
 }
 
 /// Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
@@ -11542,6 +12720,9 @@ pub struct SessionUpdateOptionsParams {
     /// Override directory for the session-events log. When unset, the runtime's default events log directory is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_log_directory: Option<String>,
+    /// Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_builtin_agents: Option<Vec<String>>,
     /// Denylist of tool names for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -11587,9 +12768,6 @@ pub struct SessionUpdateOptionsParams {
     /// Reasoning summary mode for supported model clients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<OptionsUpdateReasoningSummary>,
-    /// Optional response budget limits. Pass null to clear the response budget.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_budget: Option<ResponseBudgetConfig>,
     /// Whether the session is running in an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
@@ -11599,6 +12777,9 @@ pub struct SessionUpdateOptionsParams {
     /// Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
+    /// Optional session limits. Pass null to clear the session limits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_limits: Option<SessionLimitsConfig>,
     /// Shell init profile (`None` or `NonInteractive`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_init_profile: Option<String>,
@@ -11623,6 +12804,9 @@ pub struct SessionUpdateOptionsParams {
     /// Optional path for trajectory output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Absolute working-directory path for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -11763,7 +12947,7 @@ pub struct ShutdownRequest {
     pub r#type: Option<ShutdownType>,
 }
 
-/// Schema for the `Skill` type.
+/// Skill metadata available to a session, with name, description, source, enabled/invocable state, path, plugin, and argument hint.
 ///
 /// <div class="warning">
 ///
@@ -11795,7 +12979,7 @@ pub struct Skill {
     pub user_invocable: bool,
 }
 
-/// Schema for the `SkillDiscoveryPath` type.
+/// Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.
 ///
 /// <div class="warning">
 ///
@@ -11848,6 +13032,13 @@ pub struct SkillList {
 }
 
 /// Skill names to mark as disabled in global configuration, replacing any previous list.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsConfigSetDisabledSkillsRequest {
@@ -11871,6 +13062,13 @@ pub struct SkillsDisableRequest {
 }
 
 /// Optional project paths and additional skill directories to include in discovery.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsDiscoverRequest {
@@ -11919,7 +13117,7 @@ pub struct SkillsGetDiscoveryPathsRequest {
     pub project_paths: Option<Vec<String>>,
 }
 
-/// Schema for the `SkillsInvokedSkill` type.
+/// Skill invocation record with name, path, content, allowed tools, and turn number.
 ///
 /// <div class="warning">
 ///
@@ -11975,7 +13173,7 @@ pub struct SkillsLoadDiagnostics {
     pub warnings: Vec<String>,
 }
 
-/// Schema for the `SlashCommandAgentPromptResult` type.
+/// Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, and settings-change flag.
 ///
 /// <div class="warning">
 ///
@@ -12000,7 +13198,7 @@ pub struct SlashCommandAgentPromptResult {
     pub runtime_settings_changed: Option<bool>,
 }
 
-/// Schema for the `SlashCommandCompletedResult` type.
+/// Slash-command invocation result indicating completion, with optional message and settings-change flag.
 ///
 /// <div class="warning">
 ///
@@ -12021,7 +13219,7 @@ pub struct SlashCommandCompletedResult {
     pub runtime_settings_changed: Option<bool>,
 }
 
-/// Schema for the `SlashCommandTextResult` type.
+/// Slash-command invocation result containing text output plus Markdown/ANSI rendering flags.
 ///
 /// <div class="warning">
 ///
@@ -12047,7 +13245,7 @@ pub struct SlashCommandTextResult {
     pub text: String,
 }
 
-/// Schema for the `SlashCommandSelectSubcommandOption` type.
+/// Selectable slash-command subcommand option with name, description, and optional group label.
 ///
 /// <div class="warning">
 ///
@@ -12067,7 +13265,7 @@ pub struct SlashCommandSelectSubcommandOption {
     pub name: String,
 }
 
-/// Schema for the `SlashCommandSelectSubcommandResult` type.
+/// Slash-command invocation result asking the client to present subcommand options for a parent command.
 ///
 /// <div class="warning">
 ///
@@ -12138,7 +13336,7 @@ pub struct SubagentSettings {
     pub max_depth: Option<i32>,
 }
 
-/// Schema for the `TaskAgentInfo` type.
+/// Tracked background agent task metadata, including IDs, status, timing, agent type, prompt, model, result, and latest response.
 ///
 /// <div class="warning">
 ///
@@ -12200,7 +13398,7 @@ pub struct TaskAgentInfo {
     pub r#type: TaskAgentInfoType,
 }
 
-/// Schema for the `TaskProgressLine` type.
+/// Timestamped display line for task progress output or recent agent activity.
 ///
 /// <div class="warning">
 ///
@@ -12217,7 +13415,7 @@ pub struct TaskProgressLine {
     pub timestamp: String,
 }
 
-/// Schema for the `TaskAgentProgress` type.
+/// Progress snapshot for an agent task, with recent activity lines and optional latest intent.
 ///
 /// <div class="warning">
 ///
@@ -12328,7 +13526,7 @@ pub struct TasksGetProgressResult {
     pub progress: Option<serde_json::Value>,
 }
 
-/// Schema for the `TaskShellInfo` type.
+/// Tracked shell task metadata, including ID, command, status, timing, attachment/execution mode, log path, and PID.
 ///
 /// <div class="warning">
 ///
@@ -12370,7 +13568,7 @@ pub struct TaskShellInfo {
     pub r#type: TaskShellInfoType,
 }
 
-/// Schema for the `TaskShellProgress` type.
+/// Progress snapshot for a shell task, with recent stdout/stderr output and optional process ID.
 ///
 /// <div class="warning">
 ///
@@ -12583,7 +13781,14 @@ pub struct TelemetrySetFeatureOverridesRequest {
     pub features: HashMap<String, String>,
 }
 
-/// Schema for the `TokenAuthInfo` type.
+/// Authentication-info variant for SDK-configured token authentication, carrying host and the secret token value.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenAuthInfo {
@@ -12598,7 +13803,14 @@ pub struct TokenAuthInfo {
     pub r#type: TokenAuthInfoType,
 }
 
-/// Schema for the `Tool` type.
+/// Built-in tool metadata with identifier, optional namespaced name, description, input-parameter schema, and usage instructions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tool {
@@ -12618,6 +13830,13 @@ pub struct Tool {
 }
 
 /// Built-in tools available for the requested model, with their parameters and instructions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolList {
@@ -12653,6 +13872,13 @@ pub struct ToolsGetCurrentMetadataResult {
 pub struct ToolsInitializeAndValidateResult {}
 
 /// Optional model identifier whose tool overrides should be applied to the listing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolsListRequest {
@@ -12673,7 +13899,7 @@ pub struct ToolsListRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ToolsUpdateSubagentSettingsResult {}
 
-/// Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type.
+/// Selectable option for a UI elicitation multi-select array item, with submitted value and display label.
 ///
 /// <div class="warning">
 ///
@@ -12972,7 +14198,7 @@ pub struct UIElicitationStringEnumField {
     pub r#type: UIElicitationStringEnumFieldType,
 }
 
-/// Schema for the `UIElicitationStringOneOfFieldOneOf` type.
+/// Selectable option for a UI elicitation single-select string field, with submitted value and display label.
 ///
 /// <div class="warning">
 ///
@@ -13053,7 +14279,7 @@ pub struct UIEphemeralQueryResult {
     pub answer: String,
 }
 
-/// Schema for the `UIExitPlanModeResponse` type.
+/// User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
 ///
 /// <div class="warning">
 ///
@@ -13124,7 +14350,7 @@ pub struct UIHandlePendingElicitationRequest {
 pub struct UIHandlePendingExitPlanModeRequest {
     /// The unique request ID from the exit_plan_mode.requested event
     pub request_id: RequestId,
-    /// Schema for the `UIExitPlanModeResponse` type.
+    /// User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
     pub response: UIExitPlanModeResponse,
 }
 
@@ -13173,7 +14399,45 @@ pub struct UIHandlePendingSamplingRequest {
     pub response: Option<UIHandlePendingSamplingResponse>,
 }
 
-/// Schema for the `UIUserInputResponse` type.
+/// The user's selected action for an exhausted session limit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UISessionLimitsExhaustedResponse {
+    /// Action selected by the user.
+    pub action: UISessionLimitsExhaustedResponseAction,
+    /// AI Credits to add to the current max when action is 'add'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_ai_credits: Option<f64>,
+    /// New absolute max AI Credits when action is 'set'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+}
+
+/// Request ID of a pending `session_limits_exhausted.requested` event and the user's selected limit action.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIHandlePendingSessionLimitsExhaustedRequest {
+    /// The unique request ID from the session_limits_exhausted.requested event
+    pub request_id: RequestId,
+    /// The selected session-limit action.
+    pub response: UISessionLimitsExhaustedResponse,
+}
+
+/// User response for a pending user-input request, with answer text and whether it was typed freeform.
 ///
 /// <div class="warning">
 ///
@@ -13203,7 +14467,7 @@ pub struct UIUserInputResponse {
 pub struct UIHandlePendingUserInputRequest {
     /// The unique request ID from the user_input.requested event
     pub request_id: RequestId,
-    /// Schema for the `UIUserInputResponse` type.
+    /// User response for a pending user-input request, with answer text and whether it was typed freeform.
     pub response: UIUserInputResponse,
 }
 
@@ -13323,7 +14587,7 @@ pub struct UsageMetricsModelMetricRequests {
     pub count: i64,
 }
 
-/// Schema for the `UsageMetricsModelMetricTokenDetail` type.
+/// Per-model token-detail entry containing the accumulated token count for one token type.
 ///
 /// <div class="warning">
 ///
@@ -13362,7 +14626,7 @@ pub struct UsageMetricsModelMetricUsage {
     pub reasoning_tokens: Option<i64>,
 }
 
-/// Schema for the `UsageMetricsModelMetric` type.
+/// Per-model usage metrics, including request counts/costs, token usage, nano-AI units, and per-token-type details.
 ///
 /// <div class="warning">
 ///
@@ -13385,7 +14649,7 @@ pub struct UsageMetricsModelMetric {
     pub usage: UsageMetricsModelMetricUsage,
 }
 
-/// Schema for the `UsageMetricsTokenDetail` type.
+/// Session-wide token-detail entry containing the accumulated token count for one token type.
 ///
 /// <div class="warning">
 ///
@@ -13438,7 +14702,14 @@ pub struct UsageGetMetricsResult {
     pub total_user_requests: i64,
 }
 
-/// Schema for the `UserAuthInfo` type.
+/// Authentication-info variant for OAuth user auth, with host and login; the token remains in the runtime secret store.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserAuthInfo {
@@ -13476,6 +14747,127 @@ pub struct UserRequestedShellCommandResult {
     pub success: bool,
     /// Tool call id emitted for the shell execution
     pub tool_call_id: String,
+}
+
+/// A single user setting's effective value alongside its default, so consumers can render settings left at their default.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettingMetadata {
+    /// The centrally-known default for this setting (null when no default is registered).
+    pub default: serde_json::Value,
+    /// True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false.
+    pub is_default: bool,
+    /// The effective value: the user's value if set, otherwise the default.
+    pub value: serde_json::Value,
+}
+
+/// Per-key metadata for every known user setting (settings.json overlaid with the legacy config.json, config.json wins), including settings left at their default. Excludes repository- and enterprise-managed overrides.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettingsGetResult {
+    /// Every known user setting keyed by setting name, each with its effective value, default, and whether it is at the default.
+    pub settings: HashMap<String, UserSettingMetadata>,
+}
+
+/// Partial user settings to write to settings.json. Each top-level key is written individually, replacing the existing value; a key whose value is null is removed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettingsSetRequest {
+    /// Partial user settings to write, as a free-form object keyed by setting name
+    pub settings: serde_json::Value,
+}
+
+/// Outcome of writing user settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettingsSetResult {
+    /// Top-level keys whose write landed in settings.json but is shadowed by a value still present in the legacy config.json (config.json wins on read). The write does not take effect until the legacy value is removed.
+    pub shadowed_keys: Vec<String>,
+}
+
+/// Current sharing status and shareable GitHub URL for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibilityGetResult {
+    /// Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_url: Option<String>,
+    /// Current sharing status. Absent when the session is not synced or the status could not be retrieved (e.g. the user is not authenticated).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<SessionVisibilityStatus>,
+    /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the session cannot be shared and `status`/`shareUrl` are absent.
+    pub synced: bool,
+}
+
+/// Desired sharing status for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibilitySetRequest {
+    /// Sharing status to apply. "repo" makes the session visible to repository readers; "unshared" restricts it to the creator and collaborators.
+    pub status: SessionVisibilityStatus,
+}
+
+/// Effective sharing status and shareable GitHub URL after updating session visibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibilitySetResult {
+    /// Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_url: Option<String>,
+    /// Effective sharing status after the update. May differ from the requested status for task types that are already visible to repository readers by default. Absent when the update could not be applied (e.g. the session is not synced or the user is not authenticated).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<SessionVisibilityStatus>,
+    /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the visibility change could not be applied and `status`/`shareUrl` are absent.
+    pub synced: bool,
 }
 
 /// A single changed file and its unified diff.
@@ -13527,7 +14919,7 @@ pub struct WorkspaceDiffResult {
     pub requested_mode: WorkspaceDiffMode,
 }
 
-/// Schema for the `WorkspacesCheckpoints` type.
+/// Workspace checkpoint metadata with assigned number, human-readable title, and checkpoint filename.
 ///
 /// <div class="warning">
 ///
@@ -13815,6 +15207,13 @@ pub struct WorkspaceSummary {
 }
 
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelsListResult {
@@ -13823,6 +15222,13 @@ pub struct ModelsListResult {
 }
 
 /// Built-in tools available for the requested model, with their parameters and instructions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolsListResult {
@@ -13831,6 +15237,13 @@ pub struct ToolsListResult {
 }
 
 /// User-configured MCP servers, keyed by server name.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfigListResult {
@@ -13991,6 +15404,13 @@ pub struct PluginsMarketplacesRefreshResult {
 }
 
 /// Skills discovered across global and project sources.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsDiscoverResult {
@@ -14319,23 +15739,6 @@ pub struct SessionsGetRemoteControlStatusResult {
     pub status: serde_json::Value,
 }
 
-/// Batch of spawn events plus a cursor for follow-up polls.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionsPollSpawnedSessionsResult {
-    /// Opaque cursor to pass back to receive only events after this batch.
-    pub cursor: String,
-    /// Spawn events emitted since the supplied cursor.
-    pub events: Vec<SessionsPollSpawnedSessionsEvent>,
-}
-
 /// Handle for releasing the extension tool registration.
 ///
 /// <div class="warning">
@@ -14461,6 +15864,28 @@ pub struct SessionGitHubAuthSetCredentialsResult {
     pub copilot_user_resolved: Option<bool>,
     /// Whether the operation succeeded
     pub success: bool,
+}
+
+/// Result of collecting a redacted debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDebugCollectLogsResult {
+    /// Files included in the redacted bundle.
+    pub entries: Vec<DebugCollectLogsCollectedEntry>,
+    /// Destination kind that was written.
+    pub kind: DebugCollectLogsResultKind,
+    /// Actual archive path or staging directory path written. This may differ from the requested path when no-overwrite suffixing or fallback-to-temp-directory was needed.
+    pub path: String,
+    /// Optional files or directories that could not be included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skipped_entries: Option<Vec<DebugCollectLogsSkippedEntry>>,
 }
 
 /// Identifies the target session.
@@ -15043,6 +16468,51 @@ pub struct SessionWorkspacesDiffResult {
     pub mode: WorkspaceDiffMode,
     /// Diff mode requested by the client.
     pub requested_mode: WorkspaceDiffMode,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsGetTriggerCharactersParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Characters that, when typed in the composer, should trigger a `completions.request`. Empty when the session has no host-driven completions (e.g. local sessions, or a relay host that does not advertise `completionTriggerCharacters`).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsGetTriggerCharactersResult {
+    /// Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session.
+    pub trigger_characters: Vec<String>,
+}
+
+/// Host-driven completion items for the current composer input. Empty when the host returns no items or does not support completions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompletionsRequestResult {
+    /// Completion items in host-ranked order.
+    pub items: Vec<SessionCompletionItem>,
 }
 
 /// Identifies the target session.
@@ -15748,18 +17218,6 @@ pub struct SessionMcpIsServerRunningResult {
     pub running: bool,
 }
 
-/// Empty result after recording the MCP OAuth response.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMcpOauthRespondResult {}
-
 /// Indicates whether the pending MCP OAuth response was accepted.
 ///
 /// <div class="warning">
@@ -16313,6 +17771,21 @@ pub struct SessionUiHandlePendingAutoModeSwitchResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionUiHandlePendingSessionLimitsExhaustedResult {
+    /// True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.
+    pub success: bool,
+}
+
+/// Indicates whether the pending UI request was resolved by this call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionUiHandlePendingExitPlanModeResult {
     /// True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.
     pub success: bool,
@@ -16434,13 +17907,16 @@ pub struct SessionPermissionsSetApproveAllResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPermissionsSetAllowAllResult {
-    /// Authoritative allow-all state after the mutation
+    /// Authoritative full allow-all state after the mutation
     pub enabled: bool,
+    /// Authoritative allow-all mode after the mutation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionsAllowAllMode>,
     /// Whether the operation succeeded
     pub success: bool,
 }
 
-/// Current full allow-all permission state.
+/// Current allow-all permission mode.
 ///
 /// <div class="warning">
 ///
@@ -16453,6 +17929,9 @@ pub struct SessionPermissionsSetAllowAllResult {
 pub struct SessionPermissionsGetAllowAllResult {
     /// Whether full allow-all permissions are currently active
     pub enabled: bool,
+    /// Current allow-all mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PermissionsAllowAllMode>,
 }
 
 /// Indicates whether the operation succeeded.
@@ -16792,6 +18271,8 @@ pub struct SessionMetadataSnapshotResult {
     pub selected_model: Option<String>,
     /// The unique identifier of the session
     pub session_id: SessionId,
+    /// Current session limits, or null when no limits are active
+    pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp of when the session started
     pub start_time: String,
     /// Short human-readable summary of the session, if known. Omitted when no summary has been generated.
@@ -16908,6 +18389,92 @@ pub struct SessionMetadataContextInfoResult {
     pub context_info: Option<SessionMetadataContextInfoResultContextInfo>,
 }
 
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Successful compaction history for the session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttributionCompactions {
+    /// Number of successful compactions in this session.
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttributionEntriesItem {
+    /// Supplementary per-entry metadata (e.g. `messageCount`, `role`, `evictable`, `pluginSource`). Values are stringified; parse as needed and ignore unrecognized keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+    /// Identifier for this entry, formed by joining its `kind` and source name (e.g. `tool:bash`, `skill:tmux`, `toolDefinition:bash`); unique within the snapshot. Use it to match the same entry across snapshots, to correlate with other APIs (skill/agent/MCP registries), and as the `parentId` target for nesting. Distinct from the human-facing `label`.
+    pub id: String,
+    /// Source category for this entry. Not a closed set — tolerate unknown values. Known values today: `skill`, `subagent`, `mcpServer`, `tool`, `system`, `toolDefinition`, `plugin`.
+    pub kind: String,
+    /// Human-readable display label, e.g. `bash` or `skill: tmux`. Presentation-only; may be localized/reformatted without notice — do not key off it.
+    pub label: String,
+    /// Optional `id` of the parent entry: e.g. a `plugin` entry parenting its `skill`/`mcpServer` entries, or the `system` entry parenting `toolDefinition` entries. Omitted for top-level entries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Token count currently in context attributable to this entry.
+    pub tokens: i64,
+}
+
+/// Per-source token attribution snapshot for the current context window. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttribution {
+    /// Successful compaction history for the session.
+    pub compactions: SessionMetadataGetContextAttributionResultContextAttributionCompactions,
+    /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
+    pub entries: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem>,
+    /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
+    pub total_tokens: i64,
+}
+
+/// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResult {
+    /// Per-source context-window attribution, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
+    pub context_attribution: Option<SessionMetadataGetContextAttributionResultContextAttribution>,
+}
+
+/// The heaviest individual messages in the session's context window, most-expensive first.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextHeaviestMessagesResult {
+    /// Heaviest messages, most-expensive first.
+    pub messages: Vec<ContextHeaviestMessage>,
+    /// Total token count of the current context window, so callers can compute each message's share without a second call.
+    pub total_tokens: i64,
+}
+
 /// Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode).
 ///
 /// <div class="warning">
@@ -16952,6 +18519,47 @@ pub struct SessionMetadataRecomputeContextTokensResult {
     pub system_token_count: i64,
     /// Sum of tokens across chat-context and system-context messages currently held by the session.
     pub total_tokens: i64,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsSnapshotParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSettingsSnapshotResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    pub job: SessionSettingsJobSnapshot,
+    pub model: SessionSettingsModelSnapshot,
+    pub online_evaluation: SessionSettingsOnlineEvaluationSnapshot,
+    pub repo: SessionSettingsRepoSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_time_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<f64>,
+    pub validation: SessionSettingsValidationSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 /// Identifier of the spawned process, used to correlate streamed output and exit notifications.
@@ -17420,6 +19028,63 @@ pub struct SessionRemoteNotifySteerableChangedResult {}
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionVisibilityGetParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Current sharing status and shareable GitHub URL for a session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionVisibilityGetResult {
+    /// Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_url: Option<String>,
+    /// Current sharing status. Absent when the session is not synced or the status could not be retrieved (e.g. the user is not authenticated).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<SessionVisibilityStatus>,
+    /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the session cannot be shared and `status`/`shareUrl` are absent.
+    pub synced: bool,
+}
+
+/// Effective sharing status and shareable GitHub URL after updating session visibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionVisibilitySetResult {
+    /// Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_url: Option<String>,
+    /// Effective sharing status after the update. May differ from the requested status for task types that are already visible to repository readers by default. Absent when the update could not be applied (e.g. the session is not synced or the user is not authenticated).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<SessionVisibilityStatus>,
+    /// Whether the session has been synced to Mission Control (i.e. has a GitHub task). When false, the visibility change could not be applied and `status`/`shareUrl` are absent.
+    pub synced: bool,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionScheduleListParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -17539,6 +19204,13 @@ pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
 
 /// List of all authenticated users
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
 
 /// Standard MCP CallToolResult
@@ -17550,6 +19222,31 @@ pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
 ///
 /// </div>
 pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
+
+/// Resolved Anthropic adaptive-thinking capability for a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdaptiveThinkingSupport {
+    /// The model does not accept thinking.type='adaptive'
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// The model accepts adaptive thinking but also accepts thinking.type='enabled'
+    #[serde(rename = "optional")]
+    Optional,
+    /// The model only accepts adaptive thinking and rejects thinking.type='enabled' with HTTP 400 (e.g. opus-4.7/4.8)
+    #[serde(rename = "required")]
+    Required,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
 
 /// Which tier this directory belongs to
 ///
@@ -17871,6 +19568,31 @@ pub enum AgentRegistrySpawnResult {
     ValidationError(AgentRegistrySpawnValidationError),
 }
 
+/// Current or requested allow-all mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionsAllowAllMode {
+    /// Permission requests follow the normal approval flow.
+    #[serde(rename = "off")]
+    Off,
+    /// Tool, path, and URL permission requests are automatically approved.
+    #[serde(rename = "on")]
+    On,
+    /// Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.
+    #[serde(rename = "auto")]
+    Auto,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApiKeyAuthInfoType {
@@ -18142,6 +19864,13 @@ pub enum ConnectedRemoteSessionMetadataKind {
 }
 
 /// Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContentFilterMode {
     /// Leave MCP tool result content unchanged.
@@ -18175,7 +19904,137 @@ pub enum CopilotApiTokenAuthInfoType {
     CopilotApiToken,
 }
 
+/// Source category for a collected debug bundle entry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsSource {
+    /// Session event log.
+    #[serde(rename = "events")]
+    Events,
+    /// Process log for the session.
+    #[serde(rename = "process-log")]
+    ProcessLog,
+    /// Interactive shell log for the session.
+    #[serde(rename = "shell-log")]
+    ShellLog,
+    /// Caller-provided diagnostic entry.
+    #[serde(rename = "additional")]
+    Additional,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsDestinationArchiveKind {
+    #[serde(rename = "archive")]
+    #[default]
+    Archive,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsDestinationDirectoryKind {
+    #[serde(rename = "directory")]
+    #[default]
+    Directory,
+}
+
+/// Destination for the redacted debug bundle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DebugCollectLogsDestination {
+    Archive(DebugCollectLogsDestinationArchive),
+    Directory(DebugCollectLogsDestinationDirectory),
+}
+
+/// Kind of caller-provided debug log entry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsEntryKind {
+    /// Include a single server-local file.
+    #[serde(rename = "file")]
+    File,
+    /// Include files from a server-local directory recursively.
+    #[serde(rename = "directory")]
+    Directory,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How a collected debug entry should be redacted before being staged.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsRedaction {
+    /// Redact the file as plain UTF-8 log text.
+    #[serde(rename = "plain-text")]
+    PlainText,
+    /// Redact each non-empty line as a session event JSON object, falling back to plain-text redaction for malformed lines.
+    #[serde(rename = "events-jsonl")]
+    EventsJsonl,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Destination kind that was written.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DebugCollectLogsResultKind {
+    /// A .tgz archive was written.
+    #[serde(rename = "archive")]
+    Archive,
+    /// A directory containing redacted files was written.
+    #[serde(rename = "directory")]
+    Directory,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Server transport type: stdio, http, sse (deprecated), or memory
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiscoveredMcpServerType {
     /// Server communicates over stdio with a local child process.
@@ -18386,6 +20245,14 @@ pub enum ExternalToolTextResultForLlmContentResourceLinkType {
     #[serde(rename = "resource_link")]
     #[default]
     ResourceLink,
+}
+
+/// Content block type discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExternalToolTextResultForLlmContentShellExitType {
+    #[serde(rename = "shell_exit")]
+    #[default]
+    ShellExit,
 }
 
 /// Content block type discriminator
@@ -18929,6 +20796,13 @@ pub enum McpSamplingExecutionAction {
 }
 
 /// Controls if tools provided by this server can be loaded on demand via tool search (auto) or always included in the initial tool list (never)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigDeferTools {
     /// Tools may be deferred under certain conditions
@@ -18944,6 +20818,13 @@ pub enum McpServerConfigDeferTools {
 }
 
 /// OAuth grant type to use when authenticating to the remote MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigHttpOauthGrantType {
     /// Interactive browser-based authorization code flow with PKCE.
@@ -18959,6 +20840,13 @@ pub enum McpServerConfigHttpOauthGrantType {
 }
 
 /// Remote transport type. Defaults to "http" when omitted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigHttpType {
     /// Streamable HTTP transport.
@@ -19065,6 +20953,13 @@ pub enum MetadataSnapshotRemoteMetadataTaskType {
 }
 
 /// Model capability category for grouping in the model picker
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerCategory {
     /// Lightweight model category optimized for faster, lower-cost interactions.
@@ -19083,6 +20978,13 @@ pub enum ModelPickerCategory {
 }
 
 /// Relative cost tier for token-based billing users
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerPriceCategory {
     /// Lowest relative token cost tier.
@@ -19104,6 +21006,13 @@ pub enum ModelPickerPriceCategory {
 }
 
 /// Current policy state for this model
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPolicyState {
     /// The model is enabled by policy.
@@ -20300,6 +22209,13 @@ pub enum SessionFsReaddirWithTypesEntryType {
 }
 
 /// Path conventions used by this filesystem
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsSetProviderConventions {
     /// Paths use Windows path conventions.
@@ -20639,6 +22555,79 @@ pub enum SessionsOpenStatus {
     Unknown,
 }
 
+/// Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionSettingsPredicateName {
+    /// Whether the security-tools feature flag enables security tool wiring.
+    #[serde(rename = "securityToolsEnabled")]
+    SecurityToolsEnabled,
+    /// Whether third-party security tools should receive the security prompt.
+    #[serde(rename = "thirdPartySecurityPromptEnabled")]
+    ThirdPartySecurityPromptEnabled,
+    /// Whether validation may run in parallel.
+    #[serde(rename = "parallelValidationEnabled")]
+    ParallelValidationEnabled,
+    /// Whether runtime timing telemetry is enabled.
+    #[serde(rename = "runtimeTimingTelemetryEnabled")]
+    RuntimeTimingTelemetryEnabled,
+    /// Whether the co-author hook is enabled.
+    #[serde(rename = "coAuthorHookEnabled")]
+    CoAuthorHookEnabled,
+    /// Whether Chronicle integration is enabled.
+    #[serde(rename = "chronicleEnabled")]
+    ChronicleEnabled,
+    /// Whether content-exclusion policy may self-fetch data.
+    #[serde(rename = "contentExclusionSelfFetchEnabled")]
+    ContentExclusionSelfFetchEnabled,
+    /// Whether Claude Opus token-limit caps should be applied.
+    #[serde(rename = "capClaudeOpusTokenLimitsEnabled")]
+    CapClaudeOpusTokenLimitsEnabled,
+    /// Whether code-review behavior is enabled.
+    #[serde(rename = "codeReviewFeatureEnabled")]
+    CodeReviewFeatureEnabled,
+    /// Whether CCA should use the TypeScript autofind behavior.
+    #[serde(rename = "ccaUseTsAutofindEnabled")]
+    CcaUseTsAutofindEnabled,
+    /// Whether the dependency checker is enabled.
+    #[serde(rename = "dependencyCheckerEnabled")]
+    DependencyCheckerEnabled,
+    /// Whether the Dependabot checker is enabled.
+    #[serde(rename = "dependabotCheckerEnabled")]
+    DependabotCheckerEnabled,
+    /// Whether the CodeQL checker is enabled.
+    #[serde(rename = "codeqlCheckerEnabled")]
+    CodeqlCheckerEnabled,
+    /// Whether trivial-change handling is enabled.
+    #[serde(rename = "trivialChangeEnabled")]
+    TrivialChangeEnabled,
+    /// Whether trivial-change skip behavior is enabled.
+    #[serde(rename = "trivialChangeSkipEnabled")]
+    TrivialChangeSkipEnabled,
+    /// Whether trivial-change handling is enabled for code review.
+    #[serde(rename = "trivialChangeEnabledForCodeReview")]
+    TrivialChangeEnabledForCodeReview,
+    /// Whether trivial-change skip behavior is enabled for code review.
+    #[serde(rename = "trivialChangeSkipEnabledForCodeReview")]
+    TrivialChangeSkipEnabledForCodeReview,
+    /// Whether trivial-change handling is enabled for a specific tool.
+    #[serde(rename = "trivialChangeEnabledForTool")]
+    TrivialChangeEnabledForTool,
+    /// Whether trivial-change skip behavior is enabled for a specific tool.
+    #[serde(rename = "trivialChangeSkipEnabledForTool")]
+    TrivialChangeSkipEnabledForTool,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Which session sources to include. Defaults to `local` for backward compatibility.
 ///
 /// <div class="warning">
@@ -20658,6 +22647,28 @@ pub enum SessionSource {
     /// Return both local and remote sessions.
     #[serde(rename = "all")]
     All,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Sharing status for a synced session. "repo" makes the session visible to anyone with read access to the repository; "unshared" restricts it to the creator and collaborators.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionVisibilityStatus {
+    /// The session is visible to repository readers.
+    #[serde(rename = "repo")]
+    Repo,
+    /// The session is restricted to its creator and collaborators.
+    #[serde(rename = "unshared")]
+    Unshared,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -21089,6 +23100,34 @@ pub enum UIExitPlanModeAction {
     /// Exit plan mode and continue in autopilot mode with parallel subagent execution.
     #[serde(rename = "autopilot_fleet")]
     AutopilotFleet,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// User action selected for an exhausted session limit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UISessionLimitsExhaustedResponseAction {
+    /// Increase the current max by an exact AI Credits amount.
+    #[serde(rename = "add")]
+    Add,
+    /// Set a new absolute max AI Credits value.
+    #[serde(rename = "set")]
+    Set,
+    /// Remove the current session limit.
+    #[serde(rename = "unset")]
+    Unset,
+    /// Leave the limit unchanged and cancel the blocked model request.
+    #[serde(rename = "cancel")]
+    Cancel,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

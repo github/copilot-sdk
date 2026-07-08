@@ -51,10 +51,12 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed") */
         @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+        /** Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high") */
+        @JsonProperty("verbosity") Verbosity verbosity,
         /** Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model) */
         @JsonProperty("contextTier") ContextTier contextTier,
-        /** Response budget limits configured at session creation time, if any */
-        @JsonProperty("responseBudget") ResponseBudgetConfig responseBudget,
+        /** Session limits configured at session creation time, if any */
+        @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Working directory and git context at session start */
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at start time */

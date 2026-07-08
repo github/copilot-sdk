@@ -32,14 +32,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5-01</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.4'
+implementation 'com.github:copilot-sdk-java:1.0.6-preview.1-01'
 ```
 
 #### Snapshot Builds
@@ -58,7 +58,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.5-SNAPSHOT</version>
+    <version>1.0.7-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.5-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.6-preview.1-01-SNAPSHOT'
 ```
 
 ## Quick Start
@@ -131,6 +131,106 @@ Or run it directly from the repository:
 ```bash
 jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
+
+## Annotation-based tools and `ToolInvocation` context
+
+When you define tools with `@CopilotTool`, parameters of type `ToolInvocation` are injected as runtime context and are not exposed in the tool schema.
+`ToolInvocation` can appear before, between, or after schema-visible parameters.
+
+```java
+import com.github.copilot.rpc.ToolInvocation;
+import com.github.copilot.tool.CopilotTool;
+import com.github.copilot.tool.CopilotToolParam;
+
+class ProgressTools {
+    @CopilotTool("Reports the current phase and session")
+    public String reportProgress(
+            @CopilotToolParam("Current phase") String phase,
+            ToolInvocation invocation) {
+        return "phase=" + phase + ", sessionId=" + invocation.getSessionId();
+    }
+}
+```
+
+Position examples:
+
+```java
+@CopilotTool("Invocation first")
+public String report(ToolInvocation invocation, @CopilotToolParam("Phase") String phase) { ... }
+
+@CopilotTool("Invocation only")
+public String onlyContext(ToolInvocation invocation) { ... }
+
+@CopilotTool("Invocation middle")
+public String report(@CopilotToolParam("Phase") String phase, ToolInvocation invocation, @CopilotToolParam("Limit") int limit) { ... }
+```
+
+## Inline lambda tool definitions (experimental)
+
+For inline tool authoring at the session construction site, use `ToolDefinition.from(...)` with explicit parameter metadata:
+
+```java
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolDefer;
+import com.github.copilot.tool.Param;
+
+ToolDefinition search = ToolDefinition
+    .from(
+        "search_items",
+        "Searches indexed items by keyword",
+        Param.of(String.class, "keyword", "Search keyword"),
+        keyword -> "Searching for: " + keyword)
+    .skipPermission(true)
+    .defer(ToolDefer.AUTO);
+```
+
+### Parameter metadata with `Param.of(...)`
+
+`Param.of(type, name, description)` creates a required parameter. For optional parameters with defaults:
+
+```java
+Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "10");
+```
+
+### Async handlers
+
+Use `fromAsync` for asynchronous tool handlers:
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+ToolDefinition fetchData = ToolDefinition.fromAsync(
+    "fetch_data",
+    "Fetches data from remote source",
+    Param.of(String.class, "url", "Data source URL"),
+    url -> CompletableFuture.supplyAsync(() -> fetchRemote(url))
+);
+```
+
+### ToolInvocation context injection
+
+Inline tools can access `ToolInvocation` runtime context using `fromWithToolInvocation`:
+
+```java
+ToolDefinition reportPhase = ToolDefinition.fromWithToolInvocation(
+    "report_phase",
+    "Reports the current phase with invocation context",
+    Param.of(String.class, "phase", "The current phase"),
+    (phase, invocation) -> "phase=" + phase + ", toolCallId=" + invocation.getToolCallId()
+);
+```
+
+For async with `ToolInvocation`, use `fromAsyncWithToolInvocation`.
+
+### Fluent option modifiers
+
+Chain fluent modifiers to set tool options:
+
+- `.skipPermission(boolean)` — bypass permission prompts
+- `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
+- `.overridesBuiltInTool(boolean)` — shadow built-in tools
+
+For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
 ## Memory
 

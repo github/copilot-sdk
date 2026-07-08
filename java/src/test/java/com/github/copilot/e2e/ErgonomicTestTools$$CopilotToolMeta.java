@@ -44,6 +44,25 @@ public final class ErgonomicTestTools$$CopilotToolMeta implements CopilotToolMet
                             Map<String, Object> args = invocation.getArguments();
                             String keyword = (String) args.get("keyword");
                             return CompletableFuture.completedFuture(instance.searchItems(keyword));
+                        }, null, null, null),
+                new ToolDefinition("get_status", "Returns the current status",
+                        Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
+                            return CompletableFuture.completedFuture(instance.getStatus());
+                        }, null, null, null),
+                new ToolDefinition("combine_values", "Combines two values into a single string", Map.of(
+                        "type", "object", "properties", Map
+                                .ofEntries(
+                                        Map.entry("value1",
+                                                (Map<String, Object>) (Map) withMeta(Map.of("type", "string"),
+                                                        "First value", null)),
+                                        Map.entry("value2",
+                                                (Map<String, Object>) (Map) withMeta(Map.of("type", "string"),
+                                                        "Second value", null))),
+                        "required", List.of("value1", "value2")), invocation -> {
+                            Map<String, Object> args = invocation.getArguments();
+                            String value1 = (String) args.get("value1");
+                            String value2 = (String) args.get("value2");
+                            return CompletableFuture.completedFuture(instance.combineValues(value1, value2));
                         }, null, null, null));
     }
 }

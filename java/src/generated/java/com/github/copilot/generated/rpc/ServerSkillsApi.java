@@ -32,8 +32,11 @@ public final class ServerSkillsApi {
 
     /**
      * Optional project paths and additional skill directories to include in discovery.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<SkillsDiscoverResult> discover(SkillsDiscoverParams params) {
         return caller.invoke("skills.discover", params, SkillsDiscoverResult.class);
     }

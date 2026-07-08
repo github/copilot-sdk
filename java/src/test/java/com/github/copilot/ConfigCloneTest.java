@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.DefaultAgentConfig;
@@ -172,6 +173,21 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigSessionPolicyOptionsCloned() {
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var excludedAgents = new ArrayList<>(List.of("explore"));
+        SessionConfig original = new SessionConfig().setExcludedBuiltInAgents(excludedAgents).setEnableCitations(true)
+                .setSessionLimits(sessionLimits);
+
+        SessionConfig cloned = original.clone();
+        excludedAgents.add("task");
+
+        assertEquals(List.of("explore"), cloned.getExcludedBuiltInAgents());
+        assertTrue(cloned.getEnableCitations().orElse(false));
+        assertSame(sessionLimits, cloned.getSessionLimits());
+    }
+
+    @Test
     void resumeSessionConfigCloneBasic() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setModel("o1");
@@ -206,6 +222,21 @@ class ConfigCloneTest {
 
         assertEquals("my-agent", cloned.getAgent());
         assertSame(handler, cloned.getOnEvent());
+    }
+
+    @Test
+    void resumeSessionConfigSessionPolicyOptionsCloned() {
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var excludedAgents = new ArrayList<>(List.of("explore"));
+        ResumeSessionConfig original = new ResumeSessionConfig().setExcludedBuiltInAgents(excludedAgents)
+                .setEnableCitations(true).setSessionLimits(sessionLimits);
+
+        ResumeSessionConfig cloned = original.clone();
+        excludedAgents.add("task");
+
+        assertEquals(List.of("explore"), cloned.getExcludedBuiltInAgents());
+        assertTrue(cloned.getEnableCitations().orElse(false));
+        assertSame(sessionLimits, cloned.getSessionLimits());
     }
 
     @Test

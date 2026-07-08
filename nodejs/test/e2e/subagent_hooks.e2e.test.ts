@@ -17,17 +17,12 @@ import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 describe("Subagent hooks", async () => {
     // For snapshot recording (non-CI), use RECORD_GH_TOKEN if available
     const recordToken = !isCI ? process.env.RECORD_GH_TOKEN : undefined;
-    const {
-        copilotClient: client,
-        workDir,
-        env,
-    } = await createSdkTestContext({
-        ...(recordToken ? { copilotClientOptions: { gitHubToken: recordToken } } : {}),
+    const { copilotClient: client, workDir } = await createSdkTestContext({
+        copilotClientOptions: {
+            ...(recordToken ? { gitHubToken: recordToken } : {}),
+            env: { COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS: "true" },
+        },
     });
-    // Sub-agent hook propagation requires the session-based subagents feature flag.
-    // Without this flag, the legacy callback-bridge path is used, which does not
-    // support SDK preToolUse/postToolUse hooks for sub-agent tool calls.
-    env.COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS = "true";
 
     it("should invoke preToolUse and postToolUse hooks for sub-agent tool calls", async () => {
         const hookLog: { kind: "pre" | "post"; toolName: string; sessionId: string }[] = [];

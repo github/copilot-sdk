@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Model` type.
+ * Copilot model metadata, including identifier, display name, capabilities, policy, billing, reasoning efforts, and picker categories.
  *
  * @since 1.0.0
  */

@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -27,8 +28,11 @@ public final class ServerToolsApi {
 
     /**
      * Optional model identifier whose tool overrides should be applied to the listing.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<ToolsListResult> list(ToolsListParams params) {
         return caller.invoke("tools.list", params, ToolsListResult.class);
     }
