@@ -23,11 +23,15 @@ on:
           - public
           - feed
         default: public
-      force_publish:
-        description: "Publish the SDK canary even if the e2e gate fails (use ONLY for a known flake). Bypasses the e2e signal; the build + feed-only guards still apply."
+      mode:
+        description: "publish (tests must pass), publish-force (publish even if tests fail), or tests-only (run gate, never publish)"
         required: false
-        type: boolean
-        default: false
+        type: choice
+        default: publish
+        options:
+          - publish
+          - publish-force
+          - tests-only
   # TEMPORARY: branch-push trigger so we can validate the pipeline before the
   # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
   # inputs, so the resolve job falls back to the currently pinned runtime from
@@ -47,33 +51,40 @@ jobs:
     outputs:
       RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
       RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
+      PUBLISH_MODE: ${{ steps.normalize.outputs.PUBLISH_MODE }}
     steps:
       - uses: actions/checkout@v6.0.2
 
       # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
-      # RUNTIME_SOURCE) pair that every downstream step references. Adding a
-      # `repository_dispatch: types: [runtime-canary]` trigger later is purely
-      # additive: add one more case that reads client_payload and defaults
-      # source to 'feed'. No downstream rework required.
+      # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
+      # references. Adding a `repository_dispatch: types: [runtime-canary]`
+      # trigger later is purely additive: add one more case that reads
+      # client_payload, defaults source to 'feed', and mode to 'publish'. No
+      # downstream rework required.
       - name: Normalize inputs
         id: normalize
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.runtime_version }}
           INPUT_SOURCE: ${{ inputs.runtime_source }}
+          INPUT_MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
             workflow_dispatch)
               VERSION="$INPUT_VERSION"
               SOURCE="$INPUT_SOURCE"
+              # Only a human dispatch may pick a non-default publish mode.
+              MODE="$INPUT_MODE"
               ;;
             push)
               # No dispatch inputs on push: fall back to the currently pinned
               # runtime from public npm so the run is self-consistent and a green
-              # result proves the pipeline mechanics.
+              # result proves the pipeline mechanics. Automated triggers always
+              # publish (green-gated) — they can never force or skip.
               SOURCE="public"
               VERSION="$(node -e "const v=require('./nodejs/package.json').dependencies['@github/copilot']; process.stdout.write(String(v).replace(/^[\^~]/, ''))")"
+              MODE="publish"
               ;;
             *)
               echo "::error::Unsupported event '$EVENT_NAME'."
@@ -82,9 +93,15 @@ jobs:
           esac
           if [ -z "$VERSION" ]; then echo "::error::Could not determine runtime version."; exit 1; fi
           if [ -z "$SOURCE" ]; then SOURCE="public"; fi
-          echo "Resolved RUNTIME_VERSION=$VERSION RUNTIME_SOURCE=$SOURCE"
+          if [ -z "$MODE" ]; then MODE="publish"; fi
+          case "$MODE" in
+            publish|publish-force|tests-only) ;;
+            *) echo "::error::Invalid publish mode '$MODE'. Expected one of: publish, publish-force, tests-only."; exit 1 ;;
+          esac
+          echo "Resolved RUNTIME_VERSION=$VERSION RUNTIME_SOURCE=$SOURCE PUBLISH_MODE=$MODE"
           echo "RUNTIME_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
           echo "RUNTIME_SOURCE=$SOURCE" >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_MODE=$MODE" >> "$GITHUB_OUTPUT"
 
       - name: Validate runtime version (semver)
         env:
@@ -202,22 +219,27 @@ jobs:
   publish:
     name: "Publish SDK canary (internal feed)"
     needs: [resolve, test]
-    # Normally publish only runs when the e2e gate is green. Two bypasses:
-    #  - workflow_dispatch with force_publish=true: a human-acknowledged flake
-    #    override (audited via the actor on the run).
+    # Publish runs only when the gate permits it. Mode (human dispatch only)
+    # governs behavior:
+    #  - tests-only: never publish (skips this job entirely).
+    #  - publish: publish only when the e2e gate is green (the default; the only
+    #    mode automated triggers ever get).
+    #  - publish-force: publish even on a non-green gate — a human-acknowledged
+    #    flake override, audited via the ::warning:: step below and the run actor.
     #  - github.event_name == 'push': TEMP: remove at finalize — branch-validation
     #    bypass coupled with the temporary push trigger so we can exercise the
-    #    publish + bypass paths on this branch. Drop the `github.event_name ==
-    #    'push'` clause from the `if:` below together with the push trigger; after
-    #    that, force is honored only on real dispatches.
+    #    publish path on this branch. Drop the `github.event_name == 'push'`
+    #    clause from the `if:` below together with the push trigger; after that,
+    #    the only publish-on-red path is publish-force on a real dispatch.
     # The bypass only skips the e2e *signal* — the publish job still runs the
     # build (so a broken build can't publish) and enforces feed-only + read-back.
     if: >
       !cancelled() &&
       github.event.repository.fork == false &&
       needs.resolve.result == 'success' &&
+      needs.resolve.outputs.PUBLISH_MODE != 'tests-only' &&
       (needs.test.result == 'success' ||
-       (github.event_name == 'workflow_dispatch' && inputs.force_publish) ||
+       needs.resolve.outputs.PUBLISH_MODE == 'publish-force' ||
        github.event_name == 'push')
     environment: cicd
     runs-on: ubuntu-latest
@@ -234,15 +256,15 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - name: Warn — publishing despite failed e2e gate (bypass)
+      - name: Warn — publishing despite failed e2e gate (publish-force)
         # always() so this audit is never skipped by prior-step status; it fires
-        # specifically when publish proceeded without a green e2e gate. Runs at
-        # the workspace root because it executes before checkout, so the job's
-        # default working-directory (./nodejs) does not exist yet.
-        if: always() && needs.test.result != 'success'
+        # specifically when publish proceeded on a non-green gate via publish-force.
+        # Runs at the workspace root because it executes before checkout, so the
+        # job's default working-directory (./nodejs) does not exist yet.
+        if: always() && needs.test.result != 'success' && needs.resolve.outputs.PUBLISH_MODE == 'publish-force'
         working-directory: ${{ github.workspace }}
         run: |
-          echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}). Triggered by '${{ github.actor }}' via '${{ github.event_name }}'${{ (github.event_name == 'workflow_dispatch' && inputs.force_publish) && ' with force_publish=true' || '' }}. The e2e signal was bypassed; build + feed-only + read-back guards still apply."
+          echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}) via publish-force. Triggered by '${{ github.actor }}' through '${{ github.event_name }}'. The e2e signal was bypassed; build + feed-only + read-back guards still apply."
 
       - uses: actions/checkout@v6.0.2
 
