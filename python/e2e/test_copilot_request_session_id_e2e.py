@@ -36,6 +36,9 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 class _InterceptedRequest:
     url: str
     session_id: str | None
+    agent_id: str | None
+    parent_agent_id: str | None
+    interaction_type: str | None
 
 
 class _SessionIdHandler(CopilotRequestHandler):
@@ -46,7 +49,15 @@ class _SessionIdHandler(CopilotRequestHandler):
         self, request: httpx.Request, ctx: CopilotRequestContext
     ) -> httpx.Response:
         url = str(request.url)
-        self.records.append(_InterceptedRequest(url=url, session_id=ctx.session_id))
+        self.records.append(
+            _InterceptedRequest(
+                url=url,
+                session_id=ctx.session_id,
+                agent_id=ctx.agent_id,
+                parent_agent_id=ctx.parent_agent_id,
+                interaction_type=ctx.interaction_type,
+            )
+        )
         if is_inference_url(url):
             return build_inference_response(request)
         # Force /responses transport so the inference URL is predictable.
@@ -54,6 +65,11 @@ class _SessionIdHandler(CopilotRequestHandler):
 
 
 session_id_client = isolated_client_fixture(_SessionIdHandler)
+
+
+def _assert_agent_metadata(record: _InterceptedRequest) -> None:
+    assert record.agent_id
+    assert record.interaction_type
 
 
 class TestCopilotRequestSessionId:
@@ -78,6 +94,7 @@ class TestCopilotRequestSessionId:
             assert r.session_id == session.session_id, (
                 "CAPI inference request must carry the runtime session id"
             )
+            _assert_agent_metadata(r)
 
         # Validate the final assistant response arrived (guards against truncated captures)
         assert "OK from the synthetic" in text
@@ -112,6 +129,7 @@ class TestCopilotRequestSessionId:
             assert r.session_id == byok_session_id, (
                 "BYOK inference request must carry the runtime session id"
             )
+            _assert_agent_metadata(r)
 
         # Session ids are per-session, so the two turns must differ.
         assert byok_session_id != TestCopilotRequestSessionId.capi_session_id
