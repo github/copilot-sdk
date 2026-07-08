@@ -1,0 +1,195 @@
+name: "SDK Canary (runtime compat gate)"
+
+# Nightly-style canary compatibility gate: installs an explicit version of the
+# @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
+# against it. This proves runtime <-> SDK compatibility. No publishing happens
+# here.
+
+env:
+  HUSKY: 0
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime_version:
+        description: "Exact @github/copilot version to test (e.g. 1.0.69 or 1.0.70-canary.<sha>)"
+        required: true
+        type: string
+      runtime_source:
+        description: "Where to install the runtime from"
+        required: true
+        type: choice
+        options:
+          - public
+          - feed
+        default: public
+  # TEMPORARY: branch-push trigger so we can validate the pipeline before the
+  # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
+  # inputs, so the resolve job falls back to the currently pinned runtime from
+  # public npm. Remove this trigger once the workflow lands on main.
+  push:
+    branches: [mackinnonbuck-sdk-canary-compat-gate]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  resolve:
+    name: "Resolve runtime inputs"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    outputs:
+      RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
+      RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
+      # RUNTIME_SOURCE) pair that every downstream step references. Adding a
+      # `repository_dispatch: types: [runtime-canary]` trigger later is purely
+      # additive: add one more case that reads client_payload and defaults
+      # source to 'feed'. No downstream rework required.
+      - name: Normalize inputs
+        id: normalize
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.runtime_version }}
+          INPUT_SOURCE: ${{ inputs.runtime_source }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            workflow_dispatch)
+              VERSION="$INPUT_VERSION"
+              SOURCE="$INPUT_SOURCE"
+              ;;
+            push)
+              # No dispatch inputs on push: fall back to the currently pinned
+              # runtime from public npm so the run is self-consistent and a green
+              # result proves the pipeline mechanics.
+              SOURCE="public"
+              VERSION="$(node -e "const v=require('./nodejs/package.json').dependencies['@github/copilot']; process.stdout.write(String(v).replace(/^[\^~]/, ''))")"
+              ;;
+            *)
+              echo "::error::Unsupported event '$EVENT_NAME'."
+              exit 1
+              ;;
+          esac
+          if [ -z "$VERSION" ]; then echo "::error::Could not determine runtime version."; exit 1; fi
+          if [ -z "$SOURCE" ]; then SOURCE="public"; fi
+          echo "Resolved RUNTIME_VERSION=$VERSION RUNTIME_SOURCE=$SOURCE"
+          echo "RUNTIME_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "RUNTIME_SOURCE=$SOURCE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate runtime version (semver)
+        env:
+          RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
+        run: |
+          if [[ ! "$RUNTIME_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "::error::Invalid runtime version '$RUNTIME_VERSION'. Expected semver (e.g. 1.0.69 or 1.0.70-canary.abc123)."
+            exit 1
+          fi
+
+  test:
+    name: "e2e (${{ matrix.os }})"
+    needs: resolve
+    if: github.event.repository.fork == false
+    environment: cicd
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      POWERSHELL_UPDATECHECK: Off
+      RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
+      RUNTIME_SOURCE: ${{ needs.resolve.outputs.RUNTIME_SOURCE }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./nodejs
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-node@v6
+        with:
+          cache: "npm"
+          cache-dependency-path: "./nodejs/package-lock.json"
+          node-version: 22
+
+      - name: Install SDK dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      - name: Azure Login (OIDC -> id-cpd-ci)
+        if: env.RUNTIME_SOURCE == 'feed'
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
+          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
+          allow-no-subscriptions: true
+
+      # Route ONLY @github/* (the runtime + its 8 platform packages) to the
+      # internal feed via a scoped registry. All other deps (e.g. detect-libc)
+      # still resolve from public npm. A global --registry would break because
+      # detect-libc is not on the feed.
+      - name: Configure canary feed (.npmrc)
+        if: env.RUNTIME_SOURCE == 'feed'
+        run: |
+          set -euo pipefail
+          TOKEN="$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          NPMRC="$(cat <<EOF
+          @github:registry=https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${TOKEN}
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${TOKEN}
+          EOF
+          )"
+          printf '%s\n' "$NPMRC" > .npmrc
+          printf '%s\n' "$NPMRC" > ../test/harness/.npmrc
+          echo "Wrote scoped @github registry .npmrc to ./nodejs and ./test/harness"
+
+      - name: Override runtime version
+        run: |
+          set -euo pipefail
+          echo "Installing @github/copilot@${RUNTIME_VERSION} (source: ${RUNTIME_SOURCE})"
+          npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
+          ( cd ../test/harness && npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts )
+
+      - name: Verify installed runtime
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const expected = process.env.RUNTIME_VERSION;
+            const pkg = require("./node_modules/@github/copilot/package.json");
+            if (pkg.version !== expected) {
+              console.error(`::error::Installed @github/copilot version ${pkg.version} does not match requested ${expected}`);
+              process.exit(1);
+            }
+            const dir = "./node_modules/@github";
+            const entries = fs.readdirSync(dir).filter((d) => d.startsWith("copilot-"));
+            const plat = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux";
+            const arch = process.arch;
+            const match = entries.find((d) => d.includes(plat) && d.includes(arch));
+            if (!match) {
+              console.error(`::error::No @github/copilot platform optional dep for ${plat}-${arch}. Present: ${entries.join(", ") || "(none)"}`);
+              process.exit(1);
+            }
+            console.log(`Verified @github/copilot@${pkg.version} with platform package @github/${match}`);
+          '
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: Run Node.js SDK e2e tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+        run: npm test
