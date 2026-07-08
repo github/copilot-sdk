@@ -46,14 +46,15 @@ gh pr ready $PR_NUMBER -R $REPO
 
 The act of marking as Ready for Review triggers the Copilot code review agent. Wait for it to post its findings.
 
-Poll the PR comments looking for a batch header matching this pattern:
+Poll the PR reviews and comments using **multiple detection strategies** (any match is sufficient):
 
-```
-## Copilot's findings
+**Strategy A:** A review whose body matches `"Copilot.s findings"` (original format).
 
-- **Files reviewed:** X/Y changed files
-- **Comments generated:** N
-```
+**Strategy B:** A review whose body matches `"Pull request overview"` (alternate format).
+
+**Strategy C:** A review from a user whose login contains `"copilot-pull-request-reviewer"` (handles `[bot]` suffix).
+
+**Strategy D:** Line-level review comments from user `Copilot` on the PR.
 
 ```bash
 # Poll every 30 seconds for up to 10 minutes
@@ -62,9 +63,28 @@ INTERVAL=30
 ELAPSED=0
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
+  # Strategy A: Original "Copilot's findings" header
   FINDINGS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/reviews" \
-    --jq '.[] | select(.body | test("Copilot.s findings")) | {id: .id, body: .body}' | tail -1)
-  
+    --jq '.[] | select(.body | test("Copilot.s findings")) | {id: .id, body: .body}' 2>/dev/null | tail -1)
+
+  # Strategy B: Alternate "Pull request overview" header
+  if [ -z "$FINDINGS" ]; then
+    FINDINGS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq '.[] | select(.body | test("Pull request overview")) | {id: .id, body: .body}' 2>/dev/null | tail -1)
+  fi
+
+  # Strategy C: Any review from the copilot-pull-request-reviewer bot
+  if [ -z "$FINDINGS" ]; then
+    FINDINGS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq '.[] | select(.user.login | test("copilot-pull-request-reviewer")) | {id: .id, body: .body}' 2>/dev/null | tail -1)
+  fi
+
+  # Strategy D: Line-level comments from user "Copilot"
+  if [ -z "$FINDINGS" ]; then
+    FINDINGS=$(gh api "/repos/$REPO/pulls/$PR_NUMBER/comments" \
+      --jq '.[] | select(.user.login == "Copilot") | {id: .id, body: .body}' 2>/dev/null | head -1)
+  fi
+
   if [ -n "$FINDINGS" ]; then
     break
   fi
@@ -117,9 +137,10 @@ This ensures any pending workflow runs triggered by prior pushes are approved an
 ### Step 6: Gather all review comments
 
 ```bash
-# Get all review comments from the Copilot code review batch
+# Get all review comments from the Copilot code review batch.
+# The reviewer may appear as "copilot-pull-request-reviewer[bot]" or "Copilot" depending on the repo.
 gh api "/repos/$REPO/pulls/$PR_NUMBER/comments" \
-  --jq '.[] | select(.user.login == "copilot-pull-request-reviewer") | {id: .id, path: .path, line: .line, body: .body, in_reply_to_id: .in_reply_to_id}'
+  --jq '.[] | select(.user.login | test("copilot-pull-request-reviewer|Copilot")) | {id: .id, path: .path, line: .line, body: .body, in_reply_to_id: .in_reply_to_id}'
 ```
 
 Identify each individual comment. Each has a unique `id` (e.g., `discussion_r3456155645`-style reference). For discussion, each is a `jtbdtask-pr-comments-comment`.
