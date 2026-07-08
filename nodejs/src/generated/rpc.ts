@@ -9374,6 +9374,10 @@ export interface PluginsReloadRequest {
    */
   reloadHooks?: boolean;
   /**
+   * Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).
+   */
+  reloadExtensions?: boolean;
+  /**
    * When true, skip repo-level hooks during the hook reload. Use before folder trust is confirmed; load them post-trust via `sessions.loadDeferredRepoHooks`.
    */
   deferRepoHooks?: boolean;

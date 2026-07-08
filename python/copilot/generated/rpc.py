@@ -5687,6 +5687,11 @@ class PluginsReloadRequest:
     reload_custom_agents: bool | None = None
     """Re-run custom-agent discovery after refreshing plugins. Defaults to true."""
 
+    reload_extensions: bool | None = None
+    """Re-discover and relaunch subprocess extensions (including plugin-shipped extensions)
+    after refreshing plugins. Defaults to true. Has no effect when the session has no active
+    extension controller (e.g. extensions were not requested for the session).
+    """
     reload_hooks: bool | None = None
     """Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has
     no effect when the host has not registered a hook reloader (e.g. remote sessions).
@@ -5699,9 +5704,10 @@ class PluginsReloadRequest:
         assert isinstance(obj, dict)
         defer_repo_hooks = from_union([from_bool, from_none], obj.get("deferRepoHooks"))
         reload_custom_agents = from_union([from_bool, from_none], obj.get("reloadCustomAgents"))
+        reload_extensions = from_union([from_bool, from_none], obj.get("reloadExtensions"))
         reload_hooks = from_union([from_bool, from_none], obj.get("reloadHooks"))
         reload_mcp = from_union([from_bool, from_none], obj.get("reloadMcp"))
-        return PluginsReloadRequest(defer_repo_hooks, reload_custom_agents, reload_hooks, reload_mcp)
+        return PluginsReloadRequest(defer_repo_hooks, reload_custom_agents, reload_extensions, reload_hooks, reload_mcp)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -5709,6 +5715,8 @@ class PluginsReloadRequest:
             result["deferRepoHooks"] = from_union([from_bool, from_none], self.defer_repo_hooks)
         if self.reload_custom_agents is not None:
             result["reloadCustomAgents"] = from_union([from_bool, from_none], self.reload_custom_agents)
+        if self.reload_extensions is not None:
+            result["reloadExtensions"] = from_union([from_bool, from_none], self.reload_extensions)
         if self.reload_hooks is not None:
             result["reloadHooks"] = from_union([from_bool, from_none], self.reload_hooks)
         if self.reload_mcp is not None:

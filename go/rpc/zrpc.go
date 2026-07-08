@@ -5738,6 +5738,10 @@ type PluginsReloadRequest struct {
 	DeferRepoHooks *bool `json:"deferRepoHooks,omitempty"`
 	// Re-run custom-agent discovery after refreshing plugins. Defaults to true.
 	ReloadCustomAgents *bool `json:"reloadCustomAgents,omitempty"`
+	// Re-discover and relaunch subprocess extensions (including plugin-shipped extensions)
+	// after refreshing plugins. Defaults to true. Has no effect when the session has no active
+	// extension controller (e.g. extensions were not requested for the session).
+	ReloadExtensions *bool `json:"reloadExtensions,omitempty"`
 	// Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has
 	// no effect when the host has not registered a hook reloader (e.g. remote sessions).
 	ReloadHooks *bool `json:"reloadHooks,omitempty"`
@@ -17080,6 +17084,9 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 		}
 		if requestParams.ReloadCustomAgents != nil {
 			req["reloadCustomAgents"] = *requestParams.ReloadCustomAgents
+		}
+		if requestParams.ReloadExtensions != nil {
+			req["reloadExtensions"] = *requestParams.ReloadExtensions
 		}
 		if requestParams.ReloadHooks != nil {
 			req["reloadHooks"] = *requestParams.ReloadHooks

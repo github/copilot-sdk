@@ -6438,6 +6438,10 @@ public sealed class PluginsReloadRequest
     [JsonPropertyName("reloadCustomAgents")]
     public bool? ReloadCustomAgents { get; set; }
 
+    /// <summary>Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).</summary>
+    [JsonPropertyName("reloadExtensions")]
+    public bool? ReloadExtensions { get; set; }
+
     /// <summary>Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).</summary>
     [JsonPropertyName("reloadHooks")]
     public bool? ReloadHooks { get; set; }
@@ -6458,6 +6462,10 @@ internal sealed class PluginsReloadRequestWithSession
     /// <summary>Re-run custom-agent discovery after refreshing plugins. Defaults to true.</summary>
     [JsonPropertyName("reloadCustomAgents")]
     public bool? ReloadCustomAgents { get; set; }
+
+    /// <summary>Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).</summary>
+    [JsonPropertyName("reloadExtensions")]
+    public bool? ReloadExtensions { get; set; }
 
     /// <summary>Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).</summary>
     [JsonPropertyName("reloadHooks")]
@@ -21423,7 +21431,7 @@ public sealed class PluginsApi
     {
         _session.ThrowIfDisposed();
 
-        var rpcRequest = new PluginsReloadRequestWithSession { SessionId = _session.SessionId, ReloadMcp = request?.ReloadMcp, ReloadCustomAgents = request?.ReloadCustomAgents, ReloadHooks = request?.ReloadHooks, DeferRepoHooks = request?.DeferRepoHooks };
+        var rpcRequest = new PluginsReloadRequestWithSession { SessionId = _session.SessionId, ReloadMcp = request?.ReloadMcp, ReloadCustomAgents = request?.ReloadCustomAgents, ReloadHooks = request?.ReloadHooks, ReloadExtensions = request?.ReloadExtensions, DeferRepoHooks = request?.DeferRepoHooks };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.plugins.reload", [rpcRequest], cancellationToken);
     }
 }
