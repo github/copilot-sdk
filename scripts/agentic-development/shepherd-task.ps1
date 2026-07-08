@@ -199,11 +199,10 @@ Invoke skill ``shepherd-task-from-ready-to-merged-to-base`` with these inputs:
     }
 }
 
-# Verify merged into correct branch (strip remote prefix for comparison)
+# Verify merged into correct branch
 $mergedBase = gh pr view $prNumber -R $Repo --json baseRefName --jq '.baseRefName'
-$expectedBase = $BaseBranch -replace '^[^/]+/', ''
-if ($mergedBase -ne $expectedBase) {
-    Write-Fail "PR #$prNumber was merged into '$mergedBase', expected '$expectedBase'."
+if ($mergedBase -ne $BaseBranch) {
+    Write-Fail "PR #$prNumber was merged into '$mergedBase', expected '$BaseBranch'."
     exit 1
 }
 

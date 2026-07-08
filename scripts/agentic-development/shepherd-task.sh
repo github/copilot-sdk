@@ -156,11 +156,10 @@ else
     fi
 fi
 
-# Verify merged into correct branch (strip remote prefix for comparison)
+# Verify merged into correct branch
 MERGED_BASE=$(gh pr view "$PR_NUMBER" -R "$REPO" --json baseRefName --jq '.baseRefName')
-EXPECTED_BASE="${BASE_BRANCH#*/}"
-if [[ "$MERGED_BASE" != "$EXPECTED_BASE" ]]; then
-    fail "PR #$PR_NUMBER was merged into '$MERGED_BASE', expected '$EXPECTED_BASE'."
+if [[ "$MERGED_BASE" != "$BASE_BRANCH" ]]; then
+    fail "PR #$PR_NUMBER was merged into '$MERGED_BASE', expected '$BASE_BRANCH'."
 fi
 
 # Verify issue is closed
