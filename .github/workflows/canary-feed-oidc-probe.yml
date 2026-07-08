@@ -2,7 +2,7 @@ name: canary-feed-oidc-probe
 
 # THROWAWAY Phase 0 probe. Validates that id-cpd-ci (via the OIDC federated
 # credential on environment:cicd) can mint an Azure DevOps token and publish to
-# the internal copilot-canary-spike npm feed. Delete once Phase 0 is proven.
+# the internal copilot-canary-test npm feed. Delete once Phase 0 is proven.
 
 on:
   push:
@@ -45,15 +45,15 @@ jobs:
           WORK="$(mktemp -d)"; cd "$WORK"
           VERSION="0.0.0-ci.${{ github.run_number }}"
           cat > package.json <<JSON
-          { "name": "@copilot-canary-spike/ci-probe", "version": "${VERSION}", "description": "OIDC CI round-trip probe" }
+          { "name": "@copilot-canary-test/ci-probe", "version": "${VERSION}", "description": "OIDC CI round-trip probe" }
           JSON
           cat > .npmrc <<EOF
-          registry=https://pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/registry/
-          //pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/registry/:_authToken=${FEED_TOKEN}
-          //pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/:_authToken=${FEED_TOKEN}
+          registry=https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${FEED_TOKEN}
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${FEED_TOKEN}
           EOF
           npm publish
-          echo "Published @copilot-canary-spike/ci-probe@${VERSION}"
+          echo "Published @copilot-canary-test/ci-probe@${VERSION}"
 
       - name: Read back (fresh install)
         env:
@@ -63,10 +63,10 @@ jobs:
           WORK="$(mktemp -d)"; cd "$WORK"
           VERSION="0.0.0-ci.${{ github.run_number }}"
           cat > .npmrc <<EOF
-          registry=https://pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/registry/
-          //pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/registry/:_authToken=${FEED_TOKEN}
-          //pkgs.dev.azure.com/devdiv/DevDiv/_packaging/copilot-canary-spike/npm/:_authToken=${FEED_TOKEN}
+          registry=https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${FEED_TOKEN}
+          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${FEED_TOKEN}
           EOF
-          npm view "@copilot-canary-spike/ci-probe@${VERSION}" version
-          npm install "@copilot-canary-spike/ci-probe@${VERSION}" --no-save
-          test -f node_modules/@copilot-canary-spike/ci-probe/package.json && echo "READBACK OK"
+          npm view "@copilot-canary-test/ci-probe@${VERSION}" version
+          npm install "@copilot-canary-test/ci-probe@${VERSION}" --no-save
+          test -f node_modules/@copilot-canary-test/ci-probe/package.json && echo "READBACK OK"
