@@ -31,15 +31,20 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $shepherdScript = Join-Path $scriptDir 'shepherd-task.ps1'
 
+$logDir = "shepherd-tasks-$(Get-Date -Format 'yyyyMMdd-HHmm')"
+if (-not (Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir | Out-Null
+}
+
 $issues = $TaskIssues -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
 
 foreach ($issue in $issues) {
-    Write-Host "=== Shepherding task issue #$issue ===" -ForegroundColor Cyan
-    & $shepherdScript -TaskIssue $issue -BaseBranch $BaseBranch -Repo $Repo
+    Write-Output "=== Shepherding task issue #$issue ==="
+    & $shepherdScript -TaskIssue $issue -BaseBranch $BaseBranch -Repo $Repo -LogDir $logDir
     if ($LASTEXITCODE -ne 0) {
         Write-Error "shepherd-task.ps1 failed for issue #$issue (exit code $LASTEXITCODE)"
         exit $LASTEXITCODE
     }
 }
 
-Write-Host "=== All tasks shepherded successfully ===" -ForegroundColor Green
+Write-Output "=== All tasks shepherded successfully ==="

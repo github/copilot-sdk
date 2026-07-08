@@ -21,13 +21,16 @@ REPO="$3"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+LOG_DIR="shepherd-tasks-$(date +%Y%m%d-%H%M)"
+mkdir -p "$LOG_DIR"
+
 IFS=',' read -ra ISSUES <<< "$TASK_ISSUES"
 
 for issue in "${ISSUES[@]}"; do
     issue="$(echo "$issue" | tr -d '[:space:]')"
     [[ -z "$issue" ]] && continue
     echo "=== Shepherding task issue #${issue} ==="
-    "$SCRIPT_DIR/shepherd-task.sh" "$issue" "$BASE_BRANCH" "$REPO"
+    "$SCRIPT_DIR/shepherd-task.sh" "$issue" "$BASE_BRANCH" "$REPO" "$LOG_DIR"
 done
 
 echo "=== All tasks shepherded successfully ==="
