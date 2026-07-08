@@ -88,7 +88,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
   if [ -n "$FINDINGS" ]; then
     break
   fi
-  
+
   sleep $INTERVAL
   ELAPSED=$((ELAPSED + INTERVAL))
 done
@@ -274,6 +274,7 @@ This ensures any pending workflow runs are approved and complete before performi
 ### Step 15: Final checks before merge
 
 Verify:
+
 - The only failed check is "Block remove-before-merge paths" / "No remove-before-merge directories".
 - All other checks pass.
 
