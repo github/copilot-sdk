@@ -23,6 +23,11 @@ on:
           - public
           - feed
         default: public
+      force_publish:
+        description: "Publish the SDK canary even if the e2e gate fails (use ONLY for a known flake). Bypasses the e2e signal; the build + feed-only guards still apply."
+        required: false
+        type: boolean
+        default: false
   # TEMPORARY: branch-push trigger so we can validate the pipeline before the
   # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
   # inputs, so the resolve job falls back to the currently pinned runtime from
@@ -197,7 +202,22 @@ jobs:
   publish:
     name: "Publish SDK canary (internal feed)"
     needs: [resolve, test]
-    if: github.event.repository.fork == false
+    # Normally publish only runs when the e2e gate is green. Two bypasses:
+    #  - workflow_dispatch with force_publish=true: a human-acknowledged flake
+    #    override (audited via the actor on the run).
+    #  - github.event_name == 'push': TEMPORARY branch-validation bypass that
+    #    pairs with the temporary push trigger so we can exercise the publish +
+    #    bypass paths on this branch. Remove alongside the push trigger at
+    #    finalize; after that, force is honored only on real dispatches.
+    # The bypass only skips the e2e *signal* — the publish job still runs the
+    # build (so a broken build can't publish) and enforces feed-only + read-back.
+    if: >
+      !cancelled() &&
+      github.event.repository.fork == false &&
+      needs.resolve.result == 'success' &&
+      (needs.test.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && inputs.force_publish) ||
+       github.event_name == 'push')
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
@@ -213,6 +233,11 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
+      - name: Warn — publishing despite failed e2e gate (bypass)
+        if: needs.test.result != 'success'
+        run: |
+          echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}). Triggered by '${{ github.actor }}' via '${{ github.event_name }}'${{ (github.event_name == 'workflow_dispatch' && inputs.force_publish) && ' with force_publish=true' || '' }}. The e2e signal was bypassed; build + feed-only + read-back guards still apply."
+
       - uses: actions/checkout@v6.0.2
 
       - uses: actions/setup-node@v6
