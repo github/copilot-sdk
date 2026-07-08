@@ -1,9 +1,10 @@
 name: "SDK Canary (runtime compat gate)"
 
-# Nightly-style canary compatibility gate: installs an explicit version of the
-# @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
-# against it. This proves runtime <-> SDK compatibility. No publishing happens
-# here.
+# Canary compatibility gate: installs an explicit version of the @github/copilot
+# runtime, builds the Node SDK, and runs the Node e2e suite against it to prove
+# runtime <-> SDK compatibility. On a green gate it publishes an SDK canary
+# (pinned to the exact tested runtime) to the internal copilot-canary-test feed.
+# Triggered manually via workflow_dispatch.
 
 env:
   HUSKY: 0
@@ -28,12 +29,6 @@ on:
         required: false
         type: boolean
         default: false
-  # TEMPORARY: branch-push trigger so we can validate the pipeline before the
-  # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
-  # inputs, so the resolve job falls back to the currently pinned runtime from
-  # public npm. Remove this trigger once the workflow lands on main.
-  push: # TEMP: remove at finalize (coupled with the publish.if `event==push` clause)
-    branches: [mackinnonbuck-sdk-canary-compat-gate]
 
 permissions:
   contents: read
@@ -50,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
 
-      # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
+      # Normalize the dispatch inputs into a single (RUNTIME_VERSION,
       # RUNTIME_SOURCE) pair that every downstream step references. Adding a
       # `repository_dispatch: types: [runtime-canary]` trigger later is purely
       # additive: add one more case that reads client_payload and defaults
@@ -67,13 +62,6 @@ jobs:
             workflow_dispatch)
               VERSION="$INPUT_VERSION"
               SOURCE="$INPUT_SOURCE"
-              ;;
-            push)
-              # No dispatch inputs on push: fall back to the currently pinned
-              # runtime from public npm so the run is self-consistent and a green
-              # result proves the pipeline mechanics.
-              SOURCE="public"
-              VERSION="$(node -e "const v=require('./nodejs/package.json').dependencies['@github/copilot']; process.stdout.write(String(v).replace(/^[\^~]/, ''))")"
               ;;
             *)
               echo "::error::Unsupported event '$EVENT_NAME'."
@@ -202,14 +190,9 @@ jobs:
   publish:
     name: "Publish SDK canary (internal feed)"
     needs: [resolve, test]
-    # Normally publish only runs when the e2e gate is green. Two bypasses:
-    #  - workflow_dispatch with force_publish=true: a human-acknowledged flake
-    #    override (audited via the actor on the run).
-    #  - github.event_name == 'push': TEMP: remove at finalize — branch-validation
-    #    bypass coupled with the temporary push trigger so we can exercise the
-    #    publish + bypass paths on this branch. Drop the `github.event_name ==
-    #    'push'` clause from the `if:` below together with the push trigger; after
-    #    that, force is honored only on real dispatches.
+    # Normally publish only runs when the e2e gate is green. One bypass:
+    # workflow_dispatch with force_publish=true — a human-acknowledged flake
+    # override, audited via the ::warning:: step below and the run's actor.
     # The bypass only skips the e2e *signal* — the publish job still runs the
     # build (so a broken build can't publish) and enforces feed-only + read-back.
     if: >
@@ -217,8 +200,7 @@ jobs:
       github.event.repository.fork == false &&
       needs.resolve.result == 'success' &&
       (needs.test.result == 'success' ||
-       (github.event_name == 'workflow_dispatch' && inputs.force_publish) ||
-       github.event_name == 'push')
+       (github.event_name == 'workflow_dispatch' && inputs.force_publish))
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
