@@ -231,7 +231,7 @@ jobs:
 
   publish-java:
     name: Publish Java SDK
-    if: github.event.inputs.dist-tag != 'unstable'
+    if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     needs: version
     uses: ./.github/workflows/java-publish-maven.yml
     with:
