@@ -21,7 +21,7 @@ jobs:
         with:
           client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
           tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
-          subscription-id: "${{ vars.CPD_ID_SUBSCRIPTION_ID }}"
+          allow-no-subscriptions: true
 
       - name: Mint Azure DevOps token
         id: adotoken
