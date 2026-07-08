@@ -5,6 +5,8 @@ name: canary-feed-oidc-probe
 # the internal copilot-canary-spike npm feed. Delete once Phase 0 is proven.
 
 on:
+  push:
+    branches: [mackinnonbuck-canary-oidc-probe]
   workflow_dispatch:
 
 permissions:
