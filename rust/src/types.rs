@@ -1770,6 +1770,13 @@ pub struct SessionConfig {
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
     pub exp_assignments: Option<Value>,
+    /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's [`github_token`](Self::github_token). Requires `github_token`
+    /// to be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When `None`, behaves exactly as before. Set via
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub enable_managed_settings: Option<bool>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1905,6 +1912,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2010,6 +2018,7 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             exp_assignments: None,
+            enable_managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2166,6 +2175,7 @@ impl SessionConfig {
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
+            enable_managed_settings: self.enable_managed_settings,
         };
 
         let runtime = SessionConfigRuntime {
@@ -2732,6 +2742,16 @@ impl SessionConfig {
         self.exp_assignments = Some(assignments);
         self
     }
+
+    /// Opt the runtime into self-fetching enterprise managed settings
+    /// (bypass-permissions policy) at session bootstrap using the session's
+    /// [`github_token`](Self::github_token). Requires `github_token` to be set;
+    /// if omitted, the runtime is expected to reject session creation
+    /// (fail-closed).
+    pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
+        self.enable_managed_settings = Some(enabled);
+        self
+    }
 }
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
@@ -2900,6 +2920,12 @@ pub struct ResumeSessionConfig {
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
     pub exp_assignments: Option<Value>,
+    /// Opt-in flag injected on resume. See
+    /// [`SessionConfig::enable_managed_settings`]. Re-supply on resume so
+    /// the runtime re-applies the managed-settings self-fetch after a CLI
+    /// process restart. Set via
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub enable_managed_settings: Option<bool>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -3028,6 +3054,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -3177,6 +3204,7 @@ impl ResumeSessionConfig {
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
+            enable_managed_settings: self.enable_managed_settings,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -3264,6 +3292,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             exp_assignments: None,
+            enable_managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -3811,6 +3840,13 @@ impl ResumeSessionConfig {
     #[doc(hidden)]
     pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
         self.exp_assignments = Some(assignments);
+        self
+    }
+
+    /// Opt the runtime into self-fetching enterprise managed settings on resume.
+    /// See [`SessionConfig::with_enable_managed_settings`].
+    pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
+        self.enable_managed_settings = Some(enabled);
         self
     }
 }

@@ -1147,6 +1147,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
+                EnableManagedSettings: config.EnableManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -1357,6 +1358,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
+                EnableManagedSettings: config.EnableManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -2696,6 +2698,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
@@ -2796,6 +2799,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 

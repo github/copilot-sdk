@@ -2190,6 +2190,14 @@ export interface SessionConfigBase {
     gitHubToken?: string;
 
     /**
+     * Opt-in: when true, the runtime self-fetches enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap using the session's
+     * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
+     * if omitted, the runtime is expected to reject session creation (fail-closed).
+     */
+    enableManagedSettings?: boolean;
+
+    /**
      * When true, skips embedding-based retrieval for this session.
      * Use in multitenant deployments to prevent cross-session information leakage
      * through the shared embedding cache.

@@ -102,6 +102,7 @@ public class ResumeSessionConfig {
     private String gitHubToken;
     private String remoteSession;
     private JsonNode expAssignments;
+    private Boolean enableManagedSettings;
 
     /**
      * Gets the AI model to use.
@@ -1746,6 +1747,36 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether the runtime self-fetches enterprise managed settings at session
+     * bootstrap on resume.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to opt into
+     *         self-fetching managed settings, or {@link java.util.Optional#empty()}
+     *         to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableManagedSettings() {
+        return Optional.ofNullable(enableManagedSettings);
+    }
+
+    /**
+     * Opts the runtime into self-fetching enterprise managed settings on resume.
+     * <p>
+     * See {@link SessionConfig#setEnableManagedSettings(boolean)} for details.
+     * Re-supply on resume so the runtime re-applies the managed-settings self-fetch
+     * after a CLI process restart. Serialized on the wire as
+     * {@code enableManagedSettings}.
+     *
+     * @param enableManagedSettings
+     *            {@code true} to opt into self-fetching managed settings
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1819,6 +1850,7 @@ public class ResumeSessionConfig {
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
+        copy.enableManagedSettings = this.enableManagedSettings;
         return copy;
     }
 }

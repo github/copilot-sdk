@@ -103,6 +103,7 @@ public class SessionConfig {
     private String remoteSession;
     private CloudSessionOptions cloud;
     private JsonNode expAssignments;
+    private Boolean enableManagedSettings;
 
     /**
      * Gets the custom session ID.
@@ -1877,6 +1878,38 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether the runtime self-fetches enterprise managed settings at session
+     * bootstrap.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to opt into
+     *         self-fetching managed settings, or {@link java.util.Optional#empty()}
+     *         to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableManagedSettings() {
+        return Optional.ofNullable(enableManagedSettings);
+    }
+
+    /**
+     * Opts the runtime into self-fetching enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap.
+     * <p>
+     * When {@code true}, the runtime self-fetches enterprise managed settings using
+     * the session's {@link #getGitHubToken() gitHubToken}. Requires
+     * {@code gitHubToken} to be set; if omitted, the runtime is expected to reject
+     * session creation (fail-closed). When unset, behaves exactly as before.
+     * Serialized on the wire as {@code enableManagedSettings}.
+     *
+     * @param enableManagedSettings
+     *            {@code true} to opt into self-fetching managed settings
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -1955,6 +1988,7 @@ public class SessionConfig {
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
+        copy.enableManagedSettings = this.enableManagedSettings;
         return copy;
     }
 }

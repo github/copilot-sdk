@@ -2861,6 +2861,7 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
+        EnableManagedSettings = other.EnableManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3284,6 +3285,16 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public JsonElement? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's <see cref="GitHubToken"/>. Requires <see cref="GitHubToken"/> to
+    /// be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When unset, behaves exactly as before. Serialized on the
+    /// wire as <c>enableManagedSettings</c>.
+    /// </summary>
+    public bool? EnableManagedSettings { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

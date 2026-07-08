@@ -1756,6 +1756,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         exp_assignments: dict[str, Any] | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1887,6 +1888,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2017,6 +2025,10 @@ class CopilotClient:
         # Add ExP assignment data if provided (opaque JSON, trusted integrator)
         if exp_assignments is not None:
             payload["expAssignments"] = exp_assignments
+
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
 
         # Add working directory if provided
         if working_directory:
@@ -2408,6 +2420,7 @@ class CopilotClient:
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
         exp_assignments: dict[str, Any] | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2540,6 +2553,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2694,6 +2714,10 @@ class CopilotClient:
         # Add ExP assignment data if provided (opaque JSON, trusted integrator)
         if exp_assignments is not None:
             payload["expAssignments"] = exp_assignments
+
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
 
         if working_directory:
             payload["workingDirectory"] = working_directory
