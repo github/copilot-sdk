@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from copilot import define_tool
 from copilot.tools import (
@@ -196,6 +196,91 @@ class TestDefineTool:
         assert "error" in result.text_result_for_llm.lower()
         # But the actual error is stored internally
         assert result.error == "secret error message"
+
+    async def test_validation_error_is_surfaced_to_llm(self):
+        class Params(BaseModel):
+            username: str
+
+            @field_validator("username")
+            @classmethod
+            def check_username(cls, v: str) -> str:
+                if v == "admin":
+                    raise ValueError("username 'admin' is reserved")
+                return v
+
+        @define_tool("validate", description="A validating tool")
+        def validating_tool(params: Params) -> str:
+            return "ok"
+
+        invocation = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="validate",
+            arguments={"username": "admin"},
+        )
+
+        result = await validating_tool.handler(invocation)
+
+        assert result.result_type == "failure"
+        assert result.text_result_for_llm.startswith("Invalid tool arguments:")
+        assert "username 'admin' is reserved" in result.text_result_for_llm
+        # Full detail is retained in the debug field.
+        assert result.error is not None
+
+    async def test_validation_error_extra_forbid_includes_field_name(self):
+        class Params(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+
+            request: str
+
+        @define_tool("strict", description="A strict tool")
+        def strict_tool(params: Params) -> str:
+            return "ok"
+
+        invocation = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="strict",
+            arguments={"request": "ok", "extra_field": "unexpected"},
+        )
+
+        result = await strict_tool.handler(invocation)
+
+        assert result.result_type == "failure"
+        assert result.text_result_for_llm.startswith("Invalid tool arguments:")
+        # The offending key name is carried in `loc` even though the generic
+        # message is "Extra inputs are not permitted".
+        assert "extra_field" in result.text_result_for_llm
+        assert result.error is not None
+
+    async def test_validation_error_from_handler_body_is_redacted(self):
+        class Params(BaseModel):
+            pass
+
+        class Internal(BaseModel):
+            count: int
+
+        @define_tool("body", description="A tool that validates internally")
+        def body_tool(params: Params) -> str:
+            Internal.model_validate({"count": "secret-not-an-int"})
+            return "ok"
+
+        invocation = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="body",
+            arguments={},
+        )
+
+        result = await body_tool.handler(invocation)
+
+        assert result.result_type == "failure"
+        # A ValidationError from the handler body must not be surfaced as an
+        # argument-validation error; it stays redacted like any other exception.
+        assert not result.text_result_for_llm.startswith("Invalid tool arguments:")
+        assert "secret-not-an-int" not in result.text_result_for_llm
+        assert "error" in result.text_result_for_llm.lower()
+        assert result.error is not None
 
     async def test_function_style_api(self):
         class Params(BaseModel):
