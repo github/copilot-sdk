@@ -32,7 +32,7 @@ on:
   # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
   # inputs, so the resolve job falls back to the currently pinned runtime from
   # public npm. Remove this trigger once the workflow lands on main.
-  push:
+  push: # TEMP: remove at finalize (coupled with the publish.if `event==push` clause)
     branches: [mackinnonbuck-sdk-canary-compat-gate]
 
 permissions:
@@ -205,10 +205,11 @@ jobs:
     # Normally publish only runs when the e2e gate is green. Two bypasses:
     #  - workflow_dispatch with force_publish=true: a human-acknowledged flake
     #    override (audited via the actor on the run).
-    #  - github.event_name == 'push': TEMPORARY branch-validation bypass that
-    #    pairs with the temporary push trigger so we can exercise the publish +
-    #    bypass paths on this branch. Remove alongside the push trigger at
-    #    finalize; after that, force is honored only on real dispatches.
+    #  - github.event_name == 'push': TEMP: remove at finalize — branch-validation
+    #    bypass coupled with the temporary push trigger so we can exercise the
+    #    publish + bypass paths on this branch. Drop the `github.event_name ==
+    #    'push'` clause from the `if:` below together with the push trigger; after
+    #    that, force is honored only on real dispatches.
     # The bypass only skips the e2e *signal* — the publish job still runs the
     # build (so a broken build can't publish) and enforces feed-only + read-back.
     if: >
@@ -234,7 +235,9 @@ jobs:
         working-directory: ./nodejs
     steps:
       - name: Warn — publishing despite failed e2e gate (bypass)
-        if: needs.test.result != 'success'
+        # always() so this audit is never skipped by prior-step status; it fires
+        # specifically when publish proceeded without a green e2e gate.
+        if: always() && needs.test.result != 'success'
         run: |
           echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}). Triggered by '${{ github.actor }}' via '${{ github.event_name }}'${{ (github.event_name == 'workflow_dispatch' && inputs.force_publish) && ' with force_publish=true' || '' }}. The e2e signal was bypassed; build + feed-only + read-back guards still apply."
 
