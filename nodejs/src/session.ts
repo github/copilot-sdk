@@ -1408,7 +1408,7 @@ export class CopilotSession {
         validateGitHubApiRequest(request);
         const response = await this.rpc.api.github.request({
             scope: "current_repository",
-            method: "GET",
+            method: request.method,
             path: request.path,
             query: request.query,
             paginate: request.paginate,
