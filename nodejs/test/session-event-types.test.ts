@@ -49,6 +49,9 @@ import type {
     // narrow or annotate intermediate values.
     UserMessageAgentMode,
     Attachment,
+    GitHubApiQueryValue,
+    GitHubApiRequest,
+    GitHubApiResponse,
     WorkingDirectoryContextHostType,
 } from "../src/index.js";
 
@@ -82,6 +85,27 @@ type _AssistantMessageEventStaysAlignedWithSessionEventUnion = _AssertEqual<
 const _assistantMessageEventAlignmentCheck: _AssistantMessageEventStaysAlignedWithSessionEventUnion = true;
 
 describe("Session event type exports (#1156)", () => {
+    it("exposes GitHub API request and response types", () => {
+        assertImportable<GitHubApiQueryValue>();
+        assertImportable<GitHubApiRequest>();
+        assertImportable<GitHubApiResponse>();
+
+        const request: GitHubApiRequest = {
+            method: "GET",
+            path: "/code-scanning/alerts",
+            query: { state: "open", per_page: 100 },
+            paginate: true,
+        };
+        const response: GitHubApiResponse<Array<{ number: number }>> = {
+            status: 200,
+            headers: { "x-github-request-id": "request-1" },
+            data: [{ number: 1 }],
+        };
+
+        expect(request.path).toBe("/code-scanning/alerts");
+        expect(response.data[0]?.number).toBe(1);
+    });
+
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
         // This is the specific type called out in issue #1156. The annotation
         // is the compile-time API-surface check; these assertions only validate

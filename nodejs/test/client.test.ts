@@ -98,6 +98,67 @@ describe("CopilotClient", () => {
         });
     });
 
+    it("sends current-repository GitHub API requests through session RPC", async () => {
+        const sendRequest = vi.fn(async () => ({
+            status: 200,
+            headers: { "x-github-request-id": "request-1" },
+            data: [{ number: 1 }],
+        }));
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+
+        const result = await session.api.github.request<Array<{ number: number }>>({
+            method: "GET",
+            path: "/code-scanning/alerts",
+            query: { state: "open", per_page: 100 },
+            paginate: true,
+        });
+
+        expect(sendRequest).toHaveBeenCalledWith("session.api.github.request", {
+            sessionId: "session-1",
+            scope: "current_repository",
+            method: "GET",
+            path: "/code-scanning/alerts",
+            query: { state: "open", per_page: 100 },
+            paginate: true,
+        });
+        expect(result.data[0]?.number).toBe(1);
+    });
+
+    it.each([
+        ["non-GET method", { method: "POST", path: "/code-scanning/alerts" }],
+        ["empty path", { method: "GET", path: "" }],
+        ["path without leading slash", { method: "GET", path: "code-scanning/alerts" }],
+        ["full URL", { method: "GET", path: "https://api.github.com/repos/github/copilot-sdk" }],
+        [
+            "protocol-relative URL",
+            { method: "GET", path: "//api.github.com/repos/github/copilot-sdk" },
+        ],
+        [
+            "explicit repo scope",
+            { method: "GET", path: "/repos/github/copilot-sdk/code-scanning/alerts" },
+        ],
+        ["traversal segment", { method: "GET", path: "/code-scanning/../alerts" }],
+    ])("rejects unsafe GitHub API request input: %s", async (_name, request) => {
+        const sendRequest = vi.fn();
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+
+        await expect(session.api.github.request(request as any)).rejects.toThrow();
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("rejects PATCH GitHub API requests before dispatch", async () => {
+        const sendRequest = vi.fn();
+        const session = new CopilotSession("session-1", { sendRequest } as any);
+
+        await expect(
+            session.api.github.request({
+                method: "PATCH",
+                path: "/code-scanning/alerts/1",
+            } as any)
+        ).rejects.toThrow("session.api.github.request currently supports only GET requests.");
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
     it("passes MCP OAuth requests through when optional metadata is absent", async () => {
         let observedRequest: any;
         const session = new CopilotSession(

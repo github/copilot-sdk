@@ -51,7 +51,29 @@ const session = await joinSession({
 });
 ```
 
-The `session` object provides methods for sending messages, logging to the timeline, listening to events, and accessing the RPC API. See the `.d.ts` files in the SDK package for full type information.
+The `session` object provides methods for sending messages, logging to the timeline, listening to events, and accessing host-mediated APIs. See the `.d.ts` files in the SDK package for full type information.
+
+## GitHub API requests
+
+Extensions can request GitHub REST data for the current session repository through `session.api.github.request(...)`:
+
+```js
+const alerts = await session.api.github.request({
+    method: "GET",
+    path: "/code-scanning/alerts",
+    query: { state: "open", per_page: 100 },
+    paginate: true,
+});
+```
+
+This API is tokenless from the extension's perspective. The extension sends a repository-relative path, and the host derives the current repository, selects the signed-in or project account, performs the authenticated request, and returns the response data. The extension does not receive a GitHub token.
+
+The default GitHub API surface is intentionally narrow:
+
+- Only `GET` requests are supported.
+- Paths must be repository-relative, such as `/code-scanning/alerts`.
+- Full URLs and `/repos/{owner}/{repo}/...` paths are rejected because the extension cannot choose an arbitrary repository.
+- Cross-repository, organization-wide, GraphQL, and write access are not part of the default API.
 
 ## Further Reading
 

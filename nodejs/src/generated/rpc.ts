@@ -15301,6 +15301,62 @@ export interface SessionMcpAppsCallToolResult {
   [k: string]: unknown | undefined;
 }
 /**
+ * GitHub REST response returned by the host/runtime.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubApiResponse".
+ */
+/** @experimental */
+export interface GitHubApiResponse {
+  /**
+   * HTTP response status code.
+   */
+  status: number;
+  /**
+   * HTTP response headers, normalized by the host/runtime.
+   */
+  headers: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Parsed GitHub REST response body.
+   */
+  data: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubApiRequestParams".
+ */
+/** @experimental */
+export interface GitHubApiRequestParams {
+  /**
+   * Restricts the request to the repository associated with the current session.
+   */
+  scope: "current_repository";
+  /**
+   * GitHub REST method. The initial API is read-only.
+   */
+  method: "GET";
+  /**
+   * Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.
+   */
+  path: string;
+  /**
+   * Query parameters for the GitHub REST request.
+   */
+  query?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * When true, asks the host/runtime to follow GitHub REST pagination and combine page data.
+   */
+  paginate?: boolean;
+}
+/**
  * Identifies the target session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17488,6 +17544,21 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             stop: async (params: ScheduleStopRequest): Promise<ScheduleStopResult> =>
                 connection.sendRequest("session.schedule.stop", { sessionId, ...params }),
+        },
+        /** @experimental */
+        api: {
+            /** @experimental */
+            github: {
+                /**
+                 * Requests GitHub REST data for the current session repository through the host/runtime. The caller supplies a repository-relative REST path and never receives authentication tokens.
+                 *
+                 * @param params Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.
+                 *
+                 * @returns GitHub REST response returned by the host/runtime.
+                 */
+                request: async (params: GitHubApiRequestParams): Promise<GitHubApiResponse> =>
+                    connection.sendRequest("session.api.github.request", { sessionId, ...params }),
+            },
         },
     };
 }
