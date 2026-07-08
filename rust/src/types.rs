@@ -1912,10 +1912,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
-            .field(
-                "enable_managed_settings",
-                &self.enable_managed_settings,
-            )
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -3057,10 +3054,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
-            .field(
-                "enable_managed_settings",
-                &self.enable_managed_settings,
-            )
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),

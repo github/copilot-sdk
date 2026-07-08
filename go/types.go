@@ -2132,7 +2132,7 @@ type createSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
-	EnableManagedSettings           *bool                                  `json:"enableManagedSettings,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2222,7 +2222,7 @@ type resumeSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
-	EnableManagedSettings           *bool                                  `json:"enableManagedSettings,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
