@@ -161,7 +161,7 @@ impl<'a> ClientRpc<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Optional connection token presented by the SDK client during the handshake.
+    /// * `params` - Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
     ///
     /// # Returns
     ///
@@ -2234,61 +2234,6 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-    ///
-    /// Wire method: `sessions.pollSpawnedSessions`.
-    ///
-    /// # Returns
-    ///
-    /// Batch of spawn events plus a cursor for follow-up polls.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn poll_spawned_sessions(&self) -> Result<PollSpawnedSessionsResult, Error> {
-        let wire_params = serde_json::json!({});
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_POLLSPAWNEDSESSIONS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
-    /// Cursor-based long-poll for sessions spawned by the runtime (e.g. in response to a Mission Control `start_session` command). The cursor is an opaque token; pass it back to receive only spawn events that occurred AFTER the cursor was issued. Omit the cursor on the first call to receive any events buffered since the runtime started. Internal: this is a CLI background-daemon plumbing primitive. SDK consumers that need to react to runtime-spawned sessions should subscribe to a higher-level event stream rather than driving a long-poll loop.
-    ///
-    /// Wire method: `sessions.pollSpawnedSessions`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Cursor and optional long-poll wait for polling runtime-spawned sessions.
-    ///
-    /// # Returns
-    ///
-    /// Batch of spawn events plus a cursor for follow-up polls.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn poll_spawned_sessions_with_params(
-        &self,
-        params: SessionsPollSpawnedSessionsRequest,
-    ) -> Result<PollSpawnedSessionsResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _value = self
-            .client
-            .call(rpc_methods::SESSIONS_POLLSPAWNEDSESSIONS, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.
     ///
     /// Wire method: `sessions.registerExtensionToolsOnSession`.
@@ -2635,6 +2580,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.debug.*` sub-namespace.
+    pub fn debug(&self) -> SessionRpcDebug<'a> {
+        SessionRpcDebug {
+            session: self.session,
+        }
+    }
+
     /// `session.eventLog.*` sub-namespace.
     pub fn event_log(&self) -> SessionRpcEventLog<'a> {
         SessionRpcEventLog {
@@ -2771,6 +2723,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.schedule.*` sub-namespace.
     pub fn schedule(&self) -> SessionRpcSchedule<'a> {
         SessionRpcSchedule {
+            session: self.session,
+        }
+    }
+
+    /// `session.settings.*` sub-namespace.
+    pub fn settings(&self) -> SessionRpcSettings<'a> {
+        SessionRpcSettings {
             session: self.session,
         }
     }
@@ -3575,6 +3534,47 @@ impl<'a> SessionRpcCompletions<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_COMPLETIONS_REQUEST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.debug.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcDebug<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcDebug<'a> {
+    /// Collects a redacted session debug log bundle into a local archive or staging directory. The runtime includes session-owned logs by default and accepts caller-provided diagnostic entries so host applications can add their own files without changing this API shape.
+    ///
+    /// Wire method: `session.debug.collectLogs`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Options for collecting a redacted session debug bundle.
+    ///
+    /// # Returns
+    ///
+    /// Result of collecting a redacted debug bundle.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn collect_logs(
+        &self,
+        params: DebugCollectLogsRequest,
+    ) -> Result<DebugCollectLogsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_DEBUG_COLLECTLOGS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5002,39 +5002,6 @@ pub struct SessionRpcMcpOauth<'a> {
 }
 
 impl<'a> SessionRpcMcpOauth<'a> {
-    /// Responds to a pending MCP OAuth request with an in-process provider. This internal CLI-only API accepts a live OAuthClientProvider instance and cannot be used over the SDK JSON-RPC boundary. Use session.mcp.oauth.handlePendingRequest instead for the public SDK-safe response path.
-    ///
-    /// Wire method: `session.mcp.oauth.respond`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - MCP OAuth request id and optional provider response.
-    ///
-    /// # Returns
-    ///
-    /// Empty result after recording the MCP OAuth response.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub(crate) async fn respond(
-        &self,
-        params: McpOauthRespondRequest,
-    ) -> Result<McpOauthRespondResult, Error> {
-        let mut wire_params = serde_json::to_value(params)?;
-        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
-        let _value = self
-            .session
-            .client()
-            .call(rpc_methods::SESSION_MCP_OAUTH_RESPOND, Some(wire_params))
-            .await?;
-        Ok(serde_json::from_value(_value)?)
-    }
-
     /// Resolves a pending MCP OAuth request with a host-provided token or cancellation. The pending request is emitted as mcp.oauth_required with the data necessary to authorize the request.
     ///
     /// Wire method: `session.mcp.oauth.handlePendingRequest`.
@@ -5216,6 +5183,70 @@ impl<'a> SessionRpcMetadata<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_METADATA_CONTEXTINFO, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
+    ///
+    /// Wire method: `session.metadata.getContextAttribution`.
+    ///
+    /// # Returns
+    ///
+    /// Per-source attribution breakdown for the session's current context window, or null if uninitialized.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_context_attribution(&self) -> Result<MetadataContextAttributionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_GETCONTEXTATTRIBUTION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns the largest individual messages currently in the session's context window, most-expensive first. Companion to `metadata.getContextAttribution`. Returns an empty list until the session has initialized.
+    ///
+    /// Wire method: `session.metadata.getContextHeaviestMessages`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for the heaviest-messages query.
+    ///
+    /// # Returns
+    ///
+    /// The heaviest individual messages in the session's context window, most-expensive first.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_context_heaviest_messages(
+        &self,
+        params: MetadataContextHeaviestMessagesRequest,
+    ) -> Result<MetadataContextHeaviestMessagesResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5849,13 +5880,13 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Enables or disables full allow-all permissions (tools, paths, and URLs) for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the unrestricted path and URL managers and emits `session.permissions_changed` on transition. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
+    /// Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.
     ///
     /// Wire method: `session.permissions.setAllowAll`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Whether to enable full allow-all permissions for the session.
+    /// * `params` - Allow-all mode to apply for the session.
     ///
     /// # Returns
     ///
@@ -5885,13 +5916,13 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Returns whether full allow-all permissions are currently active for the session.
+    /// Returns the current allow-all permission mode for the session.
     ///
     /// Wire method: `session.permissions.getAllowAll`.
     ///
     /// # Returns
     ///
-    /// Current full allow-all permission state.
+    /// Current allow-all permission mode.
     ///
     /// <div class="warning">
     ///
@@ -7018,6 +7049,75 @@ impl<'a> SessionRpcSchedule<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_SCHEDULE_STOP, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.settings.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcSettings<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcSettings<'a> {
+    /// Returns a redacted snapshot of session runtime settings, with secrets and raw feature flags excluded. Internal: the runtime settings shape is a runtime-internal surface and is deliberately kept out of the public SDK, because consumers should not depend on the runtime's internal settings layout. It remains callable in-process and is expected to be reworked as the runtime internals are consolidated.
+    ///
+    /// Wire method: `session.settings.snapshot`.
+    ///
+    /// # Returns
+    ///
+    /// Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn snapshot(&self) -> Result<SessionSettingsSnapshot, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SETTINGS_SNAPSHOT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Evaluates a named Rust-owned settings predicate without exposing raw feature flags. Internal: the raw feature-flag names and composition are runtime-internal, so this predicate-evaluation helper is kept out of the public SDK surface and is callable in-process only.
+    ///
+    /// Wire method: `session.settings.evaluatePredicate`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Named Rust-owned settings predicate to evaluate for this session.
+    ///
+    /// # Returns
+    ///
+    /// Result of evaluating a Rust-owned settings predicate.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn evaluate_predicate(
+        &self,
+        params: SessionSettingsEvaluatePredicateRequest,
+    ) -> Result<SessionSettingsEvaluatePredicateResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SETTINGS_EVALUATEPREDICATE,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

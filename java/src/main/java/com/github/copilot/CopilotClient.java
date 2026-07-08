@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -25,7 +26,8 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
-import com.github.copilot.generated.rpc.ConnectParams;
+import com.github.copilot.generated.rpc.ConnectResult;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -258,6 +260,14 @@ public final class CopilotClient implements AutoCloseable {
                 llmAdapter.registerHandlers(rpc);
             }
 
+            // Register the GitHub telemetry forwarding handler when configured.
+            Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry = this.options
+                    .getOnGitHubTelemetry();
+            if (onGitHubTelemetry != null) {
+                GitHubTelemetryAdapter telemetryAdapter = new GitHubTelemetryAdapter(onGitHubTelemetry);
+                telemetryAdapter.registerHandlers(rpc);
+            }
+
             // Verify protocol version
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
@@ -296,11 +306,20 @@ public final class CopilotClient implements AutoCloseable {
         Integer serverVersion;
 
         try {
-            // Try the new 'connect' RPC which supports connection tokens
-            var connectParams = new ConnectParams(effectiveConnectionToken);
-            var connectResponse = connection.rpc
-                    .invoke("connect", connectParams, com.github.copilot.generated.rpc.ConnectResult.class)
-                    .get(30, TimeUnit.SECONDS);
+            // Try the new 'connect' RPC which supports connection tokens.
+            var connectParams = new HashMap<String, Object>();
+            if (effectiveConnectionToken != null) {
+                connectParams.put("token", effectiveConnectionToken);
+            }
+            // Opt into GitHub telemetry forwarding at the connection level when a handler
+            // is registered, so the runtime can forward the first session's un-replayable
+            // start event. Also sent on session create/resume for backward compatibility
+            // with servers that read the flag there instead.
+            if (this.options.getOnGitHubTelemetry() != null) {
+                connectParams.put("enableGitHubTelemetryForwarding", true);
+            }
+            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
+                    TimeUnit.SECONDS);
             serverVersion = connectResponse.protocolVersion() != null
                     ? connectResponse.protocolVersion().intValue()
                     : null;
@@ -579,6 +598,13 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
+            }
+
             // Empty mode: validate availableTools and set toolFilterPrecedence
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
@@ -731,6 +757,13 @@ public final class CopilotClient implements AutoCloseable {
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
+            }
+
+            // Opt this session into GitHub telemetry forwarding when a
+            // connection-level handler is registered (mirrors the runtime's
+            // hand-written capability flag, not part of the codegen'd contract).
+            if (options.getOnGitHubTelemetry() != null) {
+                request.setEnableGitHubTelemetryForwarding(true);
             }
 
             // Empty mode: validate availableTools and set toolFilterPrecedence for resume
@@ -893,6 +926,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // modelCapabilitiesOverrides
                 null, // reasoningEffort
                 null, // reasoningSummary
+                null, // verbosity
                 null, // clientName
                 null, // lspClientName
                 null, // integrationId

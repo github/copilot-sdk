@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP OAuth request id and optional provider response.
+ * Redacted, serializable view of session runtime settings for SDK boundary consumers. Secrets and raw feature flags are intentionally excluded.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,12 +23,15 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpOauthRespondParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** OAuth request identifier from mcp.oauth_required */
-    @JsonProperty("requestId") String requestId,
-    /** In-process OAuthClientProvider instance, or omitted to deny. Marked internal: cannot be serialized across the JSON-RPC boundary. */
-    @JsonProperty("provider") Object provider
+public record SessionSettingsSnapshotResult(
+    @JsonProperty("version") String version,
+    @JsonProperty("clientName") String clientName,
+    @JsonProperty("timeoutMs") Double timeoutMs,
+    @JsonProperty("startTimeMs") Double startTimeMs,
+    @JsonProperty("repo") SessionSettingsRepoSnapshot repo,
+    @JsonProperty("model") SessionSettingsModelSnapshot model,
+    @JsonProperty("validation") SessionSettingsValidationSnapshot validation,
+    @JsonProperty("job") SessionSettingsJobSnapshot job,
+    @JsonProperty("onlineEvaluation") SessionSettingsOnlineEvaluationSnapshot onlineEvaluation
 ) {
 }

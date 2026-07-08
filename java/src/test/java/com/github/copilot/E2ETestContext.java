@@ -382,6 +382,24 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     /**
+     * Configures the proxy to return a raw Copilot user response for a given token.
+     *
+     * @param token
+     *            the GitHub token
+     * @param response
+     *            the raw response object to return for the token
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, Map<String, Object> response)
+            throws IOException, InterruptedException {
+        ensureProxyAlive();
+        proxy.setCopilotUserByToken(token, response);
+    }
+
+    /**
      * Initializes the proxy state without loading a snapshot.
      * <p>
      * Use this for tests that need the proxy to be active (e.g., for per-session

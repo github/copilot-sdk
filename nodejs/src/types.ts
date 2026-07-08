@@ -17,12 +17,18 @@ import type {
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type {
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type {
+    GitHubTelemetryNotification,
+    GitHubTelemetryEvent,
+    GitHubTelemetryClientInfo,
+} from "./generated/rpc.js";
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -338,6 +344,18 @@ export interface CopilotClientOptions {
      * @experimental
      */
     requestHandler?: CopilotRequestHandler;
+
+    /**
+     * Experimental. Receives GitHub telemetry events the runtime forwards to
+     * this connection. When set, the client opts each session it creates or
+     * resumes into telemetry forwarding and dispatches each
+     * `gitHubTelemetry.event` notification to this connection-global handler;
+     * each {@link GitHubTelemetryNotification} carries its originating
+     * `sessionId`.
+     *
+     * @experimental
+     */
+    onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
 
     /**
      * Server-wide idle timeout for sessions in seconds.
@@ -2170,6 +2188,14 @@ export interface SessionConfigBase {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * Opt-in: when true, the runtime self-fetches enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap using the session's
+     * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
+     * if omitted, the runtime is expected to reject session creation (fail-closed).
+     */
+    enableManagedSettings?: boolean;
 
     /**
      * When true, skips embedding-based retrieval for this session.

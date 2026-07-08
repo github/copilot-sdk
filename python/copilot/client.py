@@ -64,13 +64,13 @@ from .copilot_request_handler import CopilotRequestHandler, create_copilot_reque
 from .generated.rpc import (
     ClientGlobalApiHandlers,
     ClientSessionApiHandlers,
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
-    _ConnectRequest,
-    _InternalServerRpc,
+    _ConnectResult,
     from_datetime,
     register_client_global_api_handlers,
     register_client_session_api_handlers,
@@ -399,6 +399,26 @@ class UriRuntimeConnection(RuntimeConnection):
     """Shared secret to authenticate the connection."""
 
 
+class _GitHubTelemetryAdapter:
+    """Adapts a user-provided ``on_github_telemetry`` callback to the generated
+    ``GitHubTelemetryHandler`` protocol.
+    """
+
+    def __init__(
+        self,
+        callback: Callable[[GitHubTelemetryNotification], None | Awaitable[None]],
+    ) -> None:
+        self._callback = callback
+
+    async def event(self, params: GitHubTelemetryNotification) -> None:
+        try:
+            result = self._callback(params)
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
+
+
 @dataclass
 class _CopilotClientOptions:
     """Internal configuration carrier used by :class:`CopilotClient`.
@@ -420,6 +440,9 @@ class _CopilotClientOptions:
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
+    on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]] | None = (
+        None
+    )
     mode: CopilotClientMode = "copilot-cli"
 
 
@@ -1109,6 +1132,8 @@ class CopilotClient:
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+        on_github_telemetry: Callable[[GitHubTelemetryNotification], None | Awaitable[None]]
+        | None = None,
         mode: CopilotClientMode = "copilot-cli",
     ):
         """
@@ -1153,6 +1178,10 @@ class CopilotClient:
             on_list_models: Custom handler for :meth:`list_models`. When
                 provided, the handler is called instead of querying the runtime
                 server.
+            on_github_telemetry: Internal. Callback invoked when the runtime
+                forwards a GitHub telemetry event for a session. The callback
+                may be sync or async. Registering a handler opts every session
+                opened by this client into telemetry forwarding.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary
@@ -1183,6 +1212,7 @@ class CopilotClient:
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
+            on_github_telemetry=on_github_telemetry,
             mode=mode,
         )
         connection = (
@@ -1198,6 +1228,7 @@ class CopilotClient:
         self._options: _CopilotClientOptions = options
         self._connection: RuntimeConnection = connection
         self._on_list_models = options.on_list_models
+        self._on_github_telemetry = options.on_github_telemetry
 
         # Resolve connection-mode-specific state.
         self._actual_host: str = "localhost"
@@ -1725,6 +1756,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         exp_assignments: dict[str, Any] | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1856,6 +1888,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1987,6 +2026,10 @@ class CopilotClient:
         if exp_assignments is not None:
             payload["expAssignments"] = exp_assignments
 
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
+
         # Add working directory if provided
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -2001,6 +2044,11 @@ class CopilotClient:
             if include_sub_agent_streaming_events is not None
             else True
         )
+
+        # Opt this connection into gitHubTelemetry.event notifications when a
+        # telemetry handler was registered on the client.
+        if self._on_github_telemetry is not None:
+            payload["enableGitHubTelemetryForwarding"] = True
 
         # Add provider configuration if provided
         if provider:
@@ -2372,6 +2420,7 @@ class CopilotClient:
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
         exp_assignments: dict[str, Any] | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2504,6 +2553,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2620,6 +2676,11 @@ class CopilotClient:
             else True
         )
 
+        # Opt this connection into gitHubTelemetry.event notifications when a
+        # telemetry handler was registered on the client.
+        if self._on_github_telemetry is not None:
+            payload["enableGitHubTelemetryForwarding"] = True
+
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)
 
@@ -2653,6 +2714,10 @@ class CopilotClient:
         # Add ExP assignment data if provided (opaque JSON, trusted integrator)
         if exp_assignments is not None:
             payload["expAssignments"] = exp_assignments
+
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
 
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -2797,11 +2862,6 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[session_id] = session
-        if on_mcp_auth_request is not None:
-            await self._client.request(
-                "session.eventLog.registerInterest",
-                {"sessionId": session_id, "eventType": "mcp.oauth_required"},
-            )
         log_timing(
             logger,
             logging.DEBUG,
@@ -2830,6 +2890,11 @@ class CopilotClient:
             if isinstance(open_canvases_raw, list):
                 session._set_open_canvases(
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
+                )
+            if on_mcp_auth_request is not None:
+                await self._client.request(
+                    "session.eventLog.registerInterest",
+                    {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
         except BaseException as exc:
             with self._sessions_lock:
@@ -3261,8 +3326,17 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_result = await _InternalServerRpc(self._client)._connect(
-                _ConnectRequest(token=self._effective_connection_token)
+            connect_params: dict[str, Any] = {}
+            if self._effective_connection_token is not None:
+                connect_params["token"] = self._effective_connection_token
+            # Opt in to GitHub telemetry forwarding at the connection level when a
+            # handler is registered (mirrors the runtime, which reads this flag on the
+            # `connect` handshake so the first session's un-replayable `session.start`
+            # event is forwarded). Also sent on session.create/resume for older CLIs.
+            if self._on_github_telemetry is not None:
+                connect_params["enableGitHubTelemetryForwarding"] = True
+            connect_result = _ConnectResult.from_dict(
+                await self._client.request("connect", connect_params)
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
@@ -3690,7 +3764,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
-        self._register_llm_inference_handlers()
+        self._register_client_global_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3810,7 +3884,7 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
-        self._register_llm_inference_handlers()
+        self._register_client_global_handlers()
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -3883,15 +3957,26 @@ class CopilotClient:
 
         await self._client.request("sessionFs.setProvider", params)
 
-    def _register_llm_inference_handlers(self) -> None:
-        if self._request_handler is None or not self._client:
+    def _register_client_global_handlers(self) -> None:
+        if not self._client:
             return
-        adapter = create_copilot_request_adapter(
-            self._request_handler,
-            lambda: self._rpc.llm_inference if self._rpc is not None else None,
-        )
+        llm_inference_adapter = None
+        if self._request_handler is not None:
+            llm_inference_adapter = create_copilot_request_adapter(
+                self._request_handler,
+                lambda: self._rpc.llm_inference if self._rpc is not None else None,
+            )
+        github_telemetry_adapter = None
+        if self._on_github_telemetry is not None:
+            github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
+        if llm_inference_adapter is None and github_telemetry_adapter is None:
+            return
         register_client_global_api_handlers(
-            self._client, ClientGlobalApiHandlers(llm_inference=adapter)
+            self._client,
+            ClientGlobalApiHandlers(
+                llm_inference=llm_inference_adapter,
+                git_hub_telemetry=github_telemetry_adapter,
+            ),
         )
 
     async def _set_llm_inference_provider(self) -> None:

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SessionsOpenProgress` type.
+ * `sessions.open` handoff progress update with step, status, and optional message.
  *
  * @since 1.0.0
  */

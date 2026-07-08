@@ -191,6 +191,7 @@ final class SessionRequestBuilder {
         request.setExtensionSdkPath(config.getExtensionSdkPath());
         request.setExtensionInfo(config.getExtensionInfo());
         request.setCanvasProvider(config.getCanvasProvider());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }
@@ -319,6 +320,7 @@ final class SessionRequestBuilder {
         request.setExtensionSdkPath(config.getExtensionSdkPath());
         request.setExtensionInfo(config.getExtensionInfo());
         request.setCanvasProvider(config.getCanvasProvider());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }

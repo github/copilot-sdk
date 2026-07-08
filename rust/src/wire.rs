@@ -160,10 +160,17 @@ pub(crate) struct SessionCreateWire {
     pub cloud: Option<CloudSessionOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryForwarding",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -283,6 +290,11 @@ pub(crate) struct SessionResumeWire {
     pub remote_session: Option<RemoteSessionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryForwarding",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     /// Maps to wire field `disableResume`.
@@ -292,4 +304,6 @@ pub(crate) struct SessionResumeWire {
     pub continue_pending_work: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+ * Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
  *
  * @since 1.0.0
  */
@@ -21,13 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolExecutionCompleteUIResourceMetaUIPermissions(
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type. */
+    /** Marker object for camera permission on an MCP Apps UI resource. */
     @JsonProperty("camera") ToolExecutionCompleteUIResourceMetaUIPermissionsCamera camera,
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type. */
+    /** Marker object for microphone permission on an MCP Apps UI resource. */
     @JsonProperty("microphone") ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone microphone,
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type. */
+    /** Marker object for geolocation permission on an MCP Apps UI resource. */
     @JsonProperty("geolocation") ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation geolocation,
-    /** Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type. */
+    /** Marker object for clipboard-write permission on an MCP Apps UI resource. */
     @JsonProperty("clipboardWrite") ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite clipboardWrite
 ) {
 }

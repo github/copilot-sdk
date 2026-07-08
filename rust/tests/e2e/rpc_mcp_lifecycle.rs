@@ -327,44 +327,6 @@ async fn should_configure_github_mcp_server() {
     .await;
 }
 
-#[tokio::test]
-async fn should_respond_to_mcp_oauth_request_without_pending_request() {
-    with_e2e_context(
-        "rpc_mcp_lifecycle",
-        "should_respond_to_mcp_oauth_request_without_pending_request",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let host_server = "rpc-lifecycle-oauth-host";
-                let client = ctx.start_client().await;
-                let session =
-                    client
-                        .create_session(ctx.approve_all_session_config().with_mcp_servers(
-                            create_test_mcp_servers(ctx.repo_root(), host_server),
-                        ))
-                        .await
-                        .expect("create session");
-                wait_for_mcp_server_status(&session, host_server, McpServerStatus::Connected).await;
-
-                let result = call_session_rpc(
-                    &session,
-                    "session.mcp.oauth.respond",
-                    json!({
-                        "requestId": format!("missing-{}", uuid::Uuid::new_v4().simple())
-                    }),
-                )
-                .await
-                .expect("respond to missing MCP OAuth request");
-                assert!(result.is_object());
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
 fn create_test_mcp_servers(
     repo_root: &Path,
     server_name: &str,

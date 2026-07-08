@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `OptionsUpdateAdditionalContentExclusionPolicyRuleSource` type.
+ * Source descriptor for a `session.options.update` content-exclusion rule, with source name and type.
  *
  * @since 1.0.0
  */

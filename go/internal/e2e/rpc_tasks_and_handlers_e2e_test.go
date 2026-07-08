@@ -302,6 +302,39 @@ func TestRPCTasksAndHandlersE2E(t *testing.T) {
 		if locationApproval.Success {
 			t.Error("Expected Success=false for missing location approval request id")
 		}
+
+		sessionLimits, err := session.RPC.UI.HandlePendingSessionLimitsExhausted(t.Context(), &rpc.UIHandlePendingSessionLimitsExhaustedRequest{
+			RequestID: "missing-session-limits-request",
+			Response:  rpc.UISessionLimitsExhaustedResponse{Action: rpc.UISessionLimitsExhaustedResponseActionCancel},
+		})
+		if err != nil {
+			t.Fatalf("UI.HandlePendingSessionLimitsExhausted failed: %v", err)
+		}
+		if sessionLimits.Success {
+			t.Error("Expected Success=false for missing session limits request id")
+		}
+
+		headers, err := session.RPC.MCP.Headers().HandlePendingHeadersRefreshRequest(t.Context(), &rpc.MCPHeadersHandlePendingHeadersRefreshRequestRequest{
+			RequestID: "missing-headers-refresh-request",
+			Result:    rpc.MCPHeadersHandlePendingHeadersRefreshRequestHeaders{Headers: map[string]string{"authorization": "Bearer refreshed"}},
+		})
+		if err != nil {
+			t.Fatalf("MCP.Headers.HandlePendingHeadersRefreshRequest failed: %v", err)
+		}
+		if headers.Success {
+			t.Error("Expected Success=false for missing MCP headers refresh request id")
+		}
+
+		noHeaders, err := session.RPC.MCP.Headers().HandlePendingHeadersRefreshRequest(t.Context(), &rpc.MCPHeadersHandlePendingHeadersRefreshRequestRequest{
+			RequestID: "missing-headers-refresh-none-request",
+			Result:    rpc.MCPHeadersHandlePendingHeadersRefreshRequestNone{},
+		})
+		if err != nil {
+			t.Fatalf("MCP.Headers.HandlePendingHeadersRefreshRequest none failed: %v", err)
+		}
+		if noHeaders.Success {
+			t.Error("Expected Success=false for missing MCP headers refresh none request id")
+		}
 	})
 
 	t.Run("should round trip rpc elicitation through config handler", func(t *testing.T) {

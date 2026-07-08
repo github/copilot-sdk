@@ -122,6 +122,11 @@ type ClientOptions struct {
 	// this handler instead of issuing the calls itself. Works for both CAPI
 	// and BYOK sessions.
 	RequestHandler *CopilotRequestHandler
+	// OnGitHubTelemetry registers a connection-level callback (experimental)
+	// that receives GitHub telemetry events the runtime forwards for sessions
+	// opened by this client. When non-nil, every session created or resumed by
+	// this client opts into telemetry forwarding (enableGitHubTelemetryForwarding).
+	OnGitHubTelemetry func(notification *rpc.GitHubTelemetryNotification)
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
@@ -1242,6 +1247,12 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings, when set to true, opts the runtime into
+	// self-fetching enterprise managed settings (bypass-permissions policy) at
+	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
+	// be set; if omitted, the runtime is expected to reject session creation
+	// (fail-closed). Unset behaves exactly as before.
+	EnableManagedSettings *bool
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1663,6 +1674,10 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings injects the same opt-in flag on resume. See
+	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
+	// re-applies the managed-settings self-fetch after a CLI process restart.
+	EnableManagedSettings *bool
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -2081,6 +2096,7 @@ type createSessionRequest struct {
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2116,6 +2132,7 @@ type createSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2179,6 +2196,7 @@ type resumeSessionRequest struct {
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2204,6 +2222,7 @@ type resumeSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

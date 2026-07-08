@@ -173,6 +173,27 @@ describe("Session tasks RPC and pending handlers", async () => {
         });
         expect(locationApproval.success).toBe(false);
 
+        const sessionLimits = await session.rpc.ui.handlePendingSessionLimitsExhausted({
+            requestId: "missing-session-limits-request",
+            response: { action: "cancel" },
+        });
+        expect(sessionLimits.success).toBe(false);
+
+        const headers = await session.rpc.mcp.headers.handlePendingHeadersRefreshRequest({
+            requestId: "missing-headers-refresh-request",
+            result: {
+                kind: "headers",
+                headers: { "X-SDK-Test": "missing" },
+            },
+        });
+        expect(headers.success).toBe(false);
+
+        const noHeaders = await session.rpc.mcp.headers.handlePendingHeadersRefreshRequest({
+            requestId: "missing-headers-refresh-none-request",
+            result: { kind: "none" },
+        });
+        expect(noHeaders.success).toBe(false);
+
         await session.disconnect();
     });
 

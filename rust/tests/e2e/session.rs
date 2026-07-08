@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::handler::{
+    ApproveAllHandler, McpAuthHandler, McpAuthRequest, McpAuthResult,
+};
 use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
     SessionStartData, SessionWarningData, UserMessageData,
@@ -12,8 +14,8 @@ use github_copilot_sdk::types::LogLevel as SessionLogLevel;
 use github_copilot_sdk::{
     Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
     AzureProviderOptions, DefaultAgentConfig, Error, GitHubReferenceType, LogOptions,
-    MessageOptions, ProviderConfig, ResumeSessionConfig, SectionOverride, SessionConfig,
-    SetModelOptions, SystemMessageConfig, Tool, ToolInvocation, ToolResult,
+    MessageOptions, ProviderConfig, RequestId, ResumeSessionConfig, SectionOverride, SessionConfig,
+    SessionId, SetModelOptions, SystemMessageConfig, Tool, ToolInvocation, ToolResult,
 };
 use serde_json::json;
 
@@ -585,6 +587,60 @@ async fn should_resume_a_session_using_a_new_client() {
                     .expect("send after resume")
                     .expect("assistant message");
                 assert!(assistant_message_content(&second).contains('4'));
+
+                resumed
+                    .disconnect()
+                    .await
+                    .expect("disconnect resumed session");
+                new_client.stop().await.expect("stop new client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured() {
+    with_e2e_context(
+        "session",
+        "resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler)),
+                    )
+                    .await
+                    .expect("create session");
+                let session_id = session.id().clone();
+
+                let first = session
+                    .send_and_wait("What is 1+1?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&first).contains('2'));
+
+                session
+                    .disconnect()
+                    .await
+                    .expect("disconnect first session");
+                client.stop().await.expect("stop first client");
+
+                let new_client = ctx.start_client().await;
+                let resumed = new_client
+                    .resume_session(
+                        ResumeSessionConfig::new(session_id.clone())
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_mcp_auth_handler(Arc::new(CancelMcpAuthHandler))
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                    )
+                    .await
+                    .expect("resume session");
+                assert_eq!(resumed.id(), &session_id);
 
                 resumed
                     .disconnect()
@@ -1526,6 +1582,20 @@ async fn latest_user_message(
         .rev()
         .find(|event| event.parsed_type() == SessionEventType::UserMessage)
         .expect("user.message")
+}
+
+struct CancelMcpAuthHandler;
+
+#[async_trait::async_trait]
+impl McpAuthHandler for CancelMcpAuthHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _request: McpAuthRequest,
+    ) -> McpAuthResult {
+        McpAuthResult::Cancelled
+    }
 }
 
 struct SecretNumberTool;

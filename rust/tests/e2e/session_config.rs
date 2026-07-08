@@ -300,7 +300,7 @@ impl CopilotRequestHandler for RecordingHandler {
             body: request.body.clone(),
         });
         if is_inference_url(&request.url) {
-            return Ok(synth_inference_response(&request.url));
+            return Ok(synth_inference_response(&request.url, &request.body));
         }
         Ok(synth_non_inference_response(&request.url))
     }
@@ -327,6 +327,78 @@ fn http_response(status: u16, headers: HeaderMap, body: Value) -> CopilotHttpRes
             async move { Ok::<Bytes, CopilotRequestError>(Bytes::from(bytes)) },
         );
     CopilotHttpResponse::new(status, None, headers, Box::pin(stream))
+}
+
+fn sse_response(body: String) -> CopilotHttpResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("text/event-stream"),
+    );
+    let stream = futures_util::stream::once(async move {
+        Ok::<Bytes, CopilotRequestError>(Bytes::from(body.into_bytes()))
+    });
+    CopilotHttpResponse::new(200, None, headers, Box::pin(stream))
+}
+
+fn wants_stream(body: &[u8]) -> bool {
+    String::from_utf8_lossy(body)
+        .replace(char::is_whitespace, "")
+        .contains("\"stream\":true")
+}
+
+fn anthropic_message_stream_body(text: &str) -> String {
+    let events = [
+        (
+            "message_start",
+            json!({
+                "type": "message_start",
+                "message": {
+                    "id": "msg_stub_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.5",
+                    "content": [],
+                    "stop_reason": null,
+                    "stop_sequence": null,
+                    "usage": { "input_tokens": 5, "output_tokens": 1 },
+                },
+            }),
+        ),
+        (
+            "content_block_start",
+            json!({
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": { "type": "text", "text": "" },
+            }),
+        ),
+        (
+            "content_block_delta",
+            json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": { "type": "text_delta", "text": text },
+            }),
+        ),
+        (
+            "content_block_stop",
+            json!({ "type": "content_block_stop", "index": 0 }),
+        ),
+        (
+            "message_delta",
+            json!({
+                "type": "message_delta",
+                "delta": { "stop_reason": "end_turn", "stop_sequence": null },
+                "usage": { "output_tokens": 7 },
+            }),
+        ),
+        ("message_stop", json!({ "type": "message_stop" })),
+    ];
+    events
+        .iter()
+        .map(|(name, data)| format!("event: {name}\ndata: {data}\n\n"))
+        .collect()
 }
 
 fn synth_non_inference_response(url: &str) -> CopilotHttpResponse {
@@ -369,9 +441,12 @@ fn synth_non_inference_response(url: &str) -> CopilotHttpResponse {
     http_response(200, json_headers(), json!({}))
 }
 
-fn synth_inference_response(url: &str) -> CopilotHttpResponse {
+fn synth_inference_response(url: &str, body: &[u8]) -> CopilotHttpResponse {
     let lower = url.to_lowercase();
     if lower.ends_with("/messages") {
+        if wants_stream(body) {
+            return sse_response(anthropic_message_stream_body(SYNTHETIC_TEXT));
+        }
         return http_response(
             200,
             json_headers(),

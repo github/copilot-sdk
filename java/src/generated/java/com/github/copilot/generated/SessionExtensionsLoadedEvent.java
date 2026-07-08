@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.extensions_loaded".
+ * Session event "session.extensions_loaded". Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

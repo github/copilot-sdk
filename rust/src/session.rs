@@ -529,6 +529,7 @@ impl Session {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
@@ -876,7 +877,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1139,7 +1142,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire()?;
+        let (mut wire, mut runtime) = config.into_wire()?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1181,9 +1186,6 @@ impl Client {
         let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
-        if has_mcp_auth_handler {
-            register_mcp_auth_interest(self, &session_id).await?;
-        }
 
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let setup_start = Instant::now();
@@ -1252,6 +1254,9 @@ impl Client {
                 returned: cli_session_id,
             })
             .into());
+        }
+        if has_mcp_auth_handler {
+            register_mcp_auth_interest(self, &session_id).await?;
         }
 
         // Reload skills after resume (best-effort).

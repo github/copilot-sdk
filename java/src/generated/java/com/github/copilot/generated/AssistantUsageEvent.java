@@ -52,7 +52,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Duration of the API call in milliseconds */
         @JsonProperty("duration") Long duration,
         /** Time to first token in milliseconds. Only available for streaming requests */
-        @JsonProperty("timeToFirstTokenMs") Long timeToFirstTokenMs,
+        @JsonProperty("timeToFirstTokenMs") Double timeToFirstTokenMs,
         /** Average inter-token latency in milliseconds. Only available for streaming requests */
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */

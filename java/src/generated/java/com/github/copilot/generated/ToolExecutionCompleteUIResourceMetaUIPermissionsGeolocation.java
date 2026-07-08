@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+ * Marker object for geolocation permission on an MCP Apps UI resource.
  *
  * @since 1.0.0
  */

@@ -25,7 +25,7 @@ use github_copilot_sdk::types::{
     MessageOptions, RequestId, SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation,
     ToolResult,
 };
-use github_copilot_sdk::{Client, ContextTier, tool};
+use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -470,6 +470,11 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
         }
     });
 
+    let resume_req = read_framed(&mut server_read).await;
+    assert_eq!(resume_req["method"], "session.resume");
+    assert_eq!(resume_req["params"]["requestPermission"], true);
+    server_respond_create(&mut server_write, &resume_req, "session-with-auth").await;
+
     let interest_req = read_framed(&mut server_read).await;
     assert_eq!(interest_req["method"], "session.eventLog.registerInterest");
     assert_eq!(interest_req["params"]["eventType"], "mcp.oauth_required");
@@ -485,10 +490,6 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     )
     .await;
 
-    let resume_req = read_framed(&mut server_read).await;
-    assert_eq!(resume_req["method"], "session.resume");
-    assert_eq!(resume_req["params"]["requestPermission"], true);
-    server_respond_create(&mut server_write, &resume_req, "session-with-auth").await;
     respond_to_reload(&mut server_read, &mut server_write).await;
     let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }
@@ -751,6 +752,322 @@ async fn create_session_sends_canvas_wire_fields() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+fn make_client_with_telemetry(
+    callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback,
+) -> (Client, tokio::io::DuplexStream, tokio::io::DuplexStream) {
+    let (client_write, server_read) = duplex(8192);
+    let (server_write, client_read) = duplex(8192);
+    let client = Client::from_streams_with_github_telemetry(
+        client_read,
+        client_write,
+        std::env::temp_dir(),
+        callback,
+    )
+    .unwrap();
+    (client, server_read, server_write)
+}
+
+#[tokio::test]
+async fn create_and_resume_send_github_telemetry_forwarding_when_callback_registered() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(|_notification| {});
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default())
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id.clone() },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(SessionId::from(session_id)))
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn create_session_omits_github_telemetry_forwarding_without_callback() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default())
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert!(
+        request["params"]
+            .get("enableGitHubTelemetryForwarding")
+            .is_none_or(Value::is_null),
+        "forwarding flag should be omitted when no callback is registered"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn resume_session_omits_github_telemetry_forwarding_without_callback() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(SessionId::from(
+                    "sess-1".to_string(),
+                )))
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert!(
+        request["params"]
+            .get("enableGitHubTelemetryForwarding")
+            .is_none_or(Value::is_null),
+        "forwarding flag should be omitted when no callback is registered"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": "sess-1" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_sends_github_telemetry_forwarding_when_callback_registered() {
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(|_notification| {});
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert_eq!(request["params"]["enableGitHubTelemetryForwarding"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_omits_github_telemetry_forwarding_without_callback() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.verify_protocol_version().await.unwrap() }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "connect");
+    assert!(
+        request["params"]
+            .get("enableGitHubTelemetryForwarding")
+            .is_none_or(Value::is_null),
+        "forwarding flag should be omitted when no callback is registered"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "ok": true, "protocolVersion": 3, "version": "test" },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn connect_rejects_invalid_protocol_version_values() {
+    for protocol_version in [-1, i64::from(u32::MAX) + 1] {
+        let (client, mut server_read, mut server_write) = make_client();
+
+        let handle = tokio::spawn({
+            let client = client.clone();
+            async move { client.verify_protocol_version().await }
+        });
+
+        let request = read_framed(&mut server_read).await;
+        assert_eq!(request["method"], "connect");
+
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": { "ok": true, "protocolVersion": protocol_version, "version": "test" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+        let err = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        match err.kind() {
+            ErrorKind::Protocol(ProtocolErrorKind::InvalidProtocolVersion { server }) => {
+                assert_eq!(*server, protocol_version);
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn github_telemetry_event_dispatches_to_callback() {
+    use github_copilot_sdk::github_telemetry::GitHubTelemetryNotification;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<GitHubTelemetryNotification>();
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(move |notification| {
+            let _ = tx.send(notification);
+        });
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default())
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id.clone() },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let notification = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "gitHubTelemetry.event",
+        "params": {
+            "sessionId": session_id.clone(),
+            "restricted": false,
+            "event": {
+                "kind": "tool_call_executed",
+                "properties": { "tool": "bash" },
+                "metrics": { "duration_ms": 12.0 },
+                "session_id": session_id.clone(),
+                "created_at": "2025-01-01T00:00:00Z"
+            }
+        }
+    });
+    write_framed(
+        &mut server_write,
+        &serde_json::to_vec(&notification).unwrap(),
+    )
+    .await;
+
+    let received = timeout(TIMEOUT, rx.recv()).await.unwrap().unwrap();
+    assert_eq!(received.session_id.as_deref(), Some(session_id.as_str()));
+    assert!(!received.restricted);
+    assert_eq!(received.event.kind, "tool_call_executed");
+    assert_eq!(
+        received.event.properties.get("tool").map(String::as_str),
+        Some("bash")
+    );
+    assert_eq!(
+        received.event.metrics.get("duration_ms").copied(),
+        Some(12.0)
+    );
+    assert_eq!(
+        received.event.created_at.as_deref(),
+        Some("2025-01-01T00:00:00Z")
+    );
 }
 
 #[tokio::test]

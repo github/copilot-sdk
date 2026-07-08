@@ -20,6 +20,7 @@ type (
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
+	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
@@ -50,6 +51,7 @@ type (
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentType                                                 = rpc.AttachmentType
+	AutoApprovalRecommendation                                     = rpc.AutoApprovalRecommendation
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -132,9 +134,11 @@ type (
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
 	PendingMessagesModifiedData                                    = rpc.PendingMessagesModifiedData
+	PermissionAllowAllMode                                         = rpc.PermissionAllowAllMode
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
 	PermissionApprovedForSession                                   = rpc.PermissionApprovedForSession
+	PermissionAutoApproval                                         = rpc.PermissionAutoApproval
 	PermissionCancelled                                            = rpc.PermissionCancelled
 	PermissionCompletedData                                        = rpc.PermissionCompletedData
 	PermissionDeniedByContentExclusionPolicy                       = rpc.PermissionDeniedByContentExclusionPolicy
@@ -329,6 +333,7 @@ type (
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
 	UserToolSessionApprovalWrite                                   = rpc.UserToolSessionApprovalWrite
+	Verbosity                                                      = rpc.Verbosity
 	WorkingDirectoryContext                                        = rpc.WorkingDirectoryContext
 	WorkingDirectoryContextHostType                                = rpc.WorkingDirectoryContextHostType
 	WorkspaceFileChangedOperation                                  = rpc.WorkspaceFileChangedOperation
@@ -363,6 +368,10 @@ const (
 	AttachmentTypeGitHubTreeComparison                                 = rpc.AttachmentTypeGitHubTreeComparison
 	AttachmentTypeGitHubURL                                            = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
+	AutoApprovalRecommendationApprove                                  = rpc.AutoApprovalRecommendationApprove
+	AutoApprovalRecommendationError                                    = rpc.AutoApprovalRecommendationError
+	AutoApprovalRecommendationExcluded                                 = rpc.AutoApprovalRecommendationExcluded
+	AutoApprovalRecommendationRequireApproval                          = rpc.AutoApprovalRecommendationRequireApproval
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -441,6 +450,9 @@ const (
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
 	OmittedBinaryTypeResource                                          = rpc.OmittedBinaryTypeResource
+	PermissionAllowAllModeAuto                                         = rpc.PermissionAllowAllModeAuto
+	PermissionAllowAllModeOff                                          = rpc.PermissionAllowAllModeOff
+	PermissionAllowAllModeOn                                           = rpc.PermissionAllowAllModeOn
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
@@ -497,6 +509,7 @@ const (
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
+	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
 	SessionEventTypeAssistantTurnStart                                 = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                     = rpc.SessionEventTypeAssistantUsage
@@ -647,6 +660,9 @@ const (
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
+	VerbosityHigh                                                      = rpc.VerbosityHigh
+	VerbosityLow                                                       = rpc.VerbosityLow
+	VerbosityMedium                                                    = rpc.VerbosityMedium
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
 	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

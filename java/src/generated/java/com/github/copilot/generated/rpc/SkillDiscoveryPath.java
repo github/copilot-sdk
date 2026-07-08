@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SkillDiscoveryPath` type.
+ * Canonical directory where skills can be discovered or created, with scope, preference, and optional project path.
  *
  * @since 1.0.0
  */

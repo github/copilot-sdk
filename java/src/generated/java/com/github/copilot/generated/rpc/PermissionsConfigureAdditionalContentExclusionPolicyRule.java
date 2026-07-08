@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
+ * Single content-exclusion rule supplied to `session.permissions.configure`, with paths, match conditions, and source.
  *
  * @since 1.0.0
  */
@@ -25,7 +25,7 @@ public record PermissionsConfigureAdditionalContentExclusionPolicyRule(
     @JsonProperty("paths") List<String> paths,
     @JsonProperty("ifAnyMatch") List<String> ifAnyMatch,
     @JsonProperty("ifNoneMatch") List<String> ifNoneMatch,
-    /** Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type. */
+    /** Source descriptor for a `session.permissions.configure` content-exclusion rule, with source name and type. */
     @JsonProperty("source") PermissionsConfigureAdditionalContentExclusionPolicyRuleSource source
 ) {
 }

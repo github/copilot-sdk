@@ -96,7 +96,9 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
 
         if (u.EndsWith("/messages", StringComparison.Ordinal))
         {
-            return Json(BufferedAnthropicMessageJson);
+            return wantsStream
+                ? Sse(string.Concat(AnthropicStreamEvents))
+                : Json(BufferedAnthropicMessageJson);
         }
 
         // /chat/completions non-streaming (and any other inference url) — buffered JSON.
@@ -156,6 +158,20 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
         "data: {\"id\":\"chatcmpl-stub-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"claude-sonnet-4.5\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"" + SyntheticText + "\"},\"finish_reason\":null}]}\n\n",
         "data: {\"id\":\"chatcmpl-stub-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"claude-sonnet-4.5\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":7,\"total_tokens\":12}}\n\n",
         "data: [DONE]\n\n",
+    ];
+
+    // Anthropic Messages streaming (SSE) sequence. Emitted when the runtime issues a
+    // streaming /messages request (stream: true); the buffered JSON below is only valid
+    // for non-streaming requests, and returning it for a streaming request makes the
+    // runtime's Anthropic client fail with "stream ended without producing a Message".
+    private static readonly string[] AnthropicStreamEvents =
+    [
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_stub_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-4.5\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":5,\"output_tokens\":1}}}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"" + SyntheticText + "\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":7}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
     ];
 
     private static readonly string BufferedResponseJson =

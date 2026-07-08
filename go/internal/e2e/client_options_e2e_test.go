@@ -10,6 +10,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // Mirrors the E2E portions of dotnet/test/ClientOptionsTests.cs (snapshot category "client_options").
@@ -198,6 +199,315 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("should forward advanced session creation options to the CLI", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
+		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
+		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
+			t.Fatalf("Failed to write fake CLI script: %v", err)
+		}
+
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Connection = copilot.StdioConnection{Path: cliPath, Args: []string{"--capture-file", capturePath}}
+			opts.GitHubToken = "advanced-create-client-token"
+			opts.UseLoggedInUser = copilot.Bool(false)
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		sessionID := "advanced-session-id"
+		workingDirectory := t.TempDir()
+		configDirectory := t.TempDir()
+		embeddingCacheStorage := "in-memory"
+		organizationCustomInstructions := "organization guidance"
+		maxAiCredits := float64(42)
+		extensionSDKPath := filepath.Join(ctx.WorkDir, "extension-sdk")
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			SessionID:                          sessionID,
+			ClientName:                         "go-sdk-e2e-client",
+			Model:                              "claude-sonnet-4.5",
+			ReasoningEffort:                    "low",
+			ReasoningSummary:                   copilot.ReasoningSummaryNone,
+			ContextTier:                        copilot.ContextTierLongContext,
+			ConfigDirectory:                    configDirectory,
+			EnableConfigDiscovery:              copilot.Bool(true),
+			SkipEmbeddingRetrieval:             copilot.Bool(true),
+			EmbeddingCacheStorage:              &embeddingCacheStorage,
+			OrganizationCustomInstructions:     &organizationCustomInstructions,
+			EnableOnDemandInstructionDiscovery: copilot.Bool(true),
+			EnableFileHooks:                    copilot.Bool(false),
+			EnableHostGitOperations:            copilot.Bool(false),
+			EnableSessionStore:                 copilot.Bool(false),
+			EnableSkills:                       copilot.Bool(false),
+			WorkingDirectory:                   workingDirectory,
+			Streaming:                          copilot.Bool(true),
+			IncludeSubAgentStreamingEvents:     copilot.Bool(false),
+			AvailableTools:                     []string{"read_file"},
+			ExcludedTools:                      []string{"bash"},
+			ExcludedBuiltInAgents:              []string{"legacy-agent"},
+			EnableSessionTelemetry:             copilot.Bool(false),
+			EnableCitations:                    copilot.Bool(true),
+			SessionLimits:                      &rpc.SessionLimitsConfig{MaxAiCredits: &maxAiCredits},
+			SkipCustomInstructions:             copilot.Bool(true),
+			CustomAgentsLocalOnly:              copilot.Bool(true),
+			CoauthorEnabled:                    copilot.Bool(false),
+			ManageScheduleEnabled:              copilot.Bool(false),
+			GitHubToken:                        "advanced-create-session-token",
+			RemoteSession:                      rpc.RemoteSessionModeExport,
+			SkillDirectories:                   []string{"skills"},
+			PluginDirectories:                  []string{"plugins"},
+			InstructionDirectories:             []string{"instructions"},
+			DisabledSkills:                     []string{"disabled-skill"},
+			EnableMCPApps:                      true,
+			Canvases: []copilot.CanvasDeclaration{{
+				ID:          "canvas",
+				DisplayName: "Canvas",
+				Description: "Canvas description",
+				InputSchema: map[string]any{"type": "object"},
+			}},
+			RequestCanvasRenderer: copilot.Bool(true),
+			RequestExtensions:     copilot.Bool(true),
+			ExtensionSDKPath:      &extensionSDKPath,
+			ExtensionInfo:         &copilot.ExtensionInfo{Source: "github-app", Name: "go-e2e-extension"},
+			ExpAssignments:        map[string]any{"feature": "enabled"},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		session.Disconnect()
+
+		createReq := getCapturedRequest(t, capturePath, "session.create")
+		params, ok := createReq.Params.(map[string]any)
+		if !ok {
+			t.Fatalf("Expected session.create params object, got %T", createReq.Params)
+		}
+		expectedValues := map[string]any{
+			"sessionId":                          sessionID,
+			"clientName":                         "go-sdk-e2e-client",
+			"model":                              "claude-sonnet-4.5",
+			"reasoningEffort":                    "low",
+			"reasoningSummary":                   "none",
+			"contextTier":                        "long_context",
+			"configDir":                          configDirectory,
+			"enableConfigDiscovery":              true,
+			"skipEmbeddingRetrieval":             true,
+			"embeddingCacheStorage":              embeddingCacheStorage,
+			"organizationCustomInstructions":     organizationCustomInstructions,
+			"enableOnDemandInstructionDiscovery": true,
+			"enableFileHooks":                    false,
+			"enableHostGitOperations":            false,
+			"enableSessionStore":                 false,
+			"enableSkills":                       false,
+			"workingDirectory":                   workingDirectory,
+			"streaming":                          true,
+			"includeSubAgentStreamingEvents":     false,
+			"enableSessionTelemetry":             false,
+			"enableCitations":                    true,
+			"skipCustomInstructions":             true,
+			"customAgentsLocalOnly":              true,
+			"coauthorEnabled":                    false,
+			"manageScheduleEnabled":              false,
+			"gitHubToken":                        "advanced-create-session-token",
+			"remoteSession":                      "export",
+			"requestMcpApps":                     true,
+			"requestCanvasRenderer":              true,
+			"requestExtensions":                  true,
+			"extensionSdkPath":                   extensionSDKPath,
+			"envValueMode":                       "direct",
+		}
+		for key, expected := range expectedValues {
+			if params[key] != expected {
+				t.Fatalf("Expected %s=%#v, got %#v in %#v", key, expected, params[key], params)
+			}
+		}
+		assertStringArray(t, params["availableTools"], []string{"read_file"})
+		assertStringArray(t, params["excludedTools"], []string{"bash"})
+		assertStringArray(t, params["excludedBuiltinAgents"], []string{"legacy-agent"})
+		assertStringArray(t, params["skillDirectories"], []string{"skills"})
+		assertStringArray(t, params["pluginDirectories"], []string{"plugins"})
+		assertStringArray(t, params["instructionDirectories"], []string{"instructions"})
+		assertStringArray(t, params["disabledSkills"], []string{"disabled-skill"})
+		if params["sessionLimits"].(map[string]any)["maxAiCredits"] != maxAiCredits {
+			t.Fatalf("Expected sessionLimits to be forwarded, got %#v", params["sessionLimits"])
+		}
+		extensionInfo := params["extensionInfo"].(map[string]any)
+		if extensionInfo["source"] != "github-app" || extensionInfo["name"] != "go-e2e-extension" {
+			t.Fatalf("Expected extensionInfo to be forwarded, got %#v", extensionInfo)
+		}
+		canvases := params["canvases"].([]any)
+		canvas := canvases[0].(map[string]any)
+		if canvas["id"] != "canvas" || canvas["displayName"] != "Canvas" || canvas["description"] != "Canvas description" {
+			t.Fatalf("Expected canvas declaration to be forwarded, got %#v", canvas)
+		}
+		if params["expAssignments"].(map[string]any)["feature"] != "enabled" {
+			t.Fatalf("Expected expAssignments to be forwarded, got %#v", params["expAssignments"])
+		}
+	})
+
+	t.Run("should forward singular provider configuration on session creation", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
+		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
+		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
+			t.Fatalf("Failed to write fake CLI script: %v", err)
+		}
+
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Connection = copilot.StdioConnection{Path: cliPath, Args: []string{"--capture-file", capturePath}}
+			opts.GitHubToken = "provider-client-token"
+			opts.UseLoggedInUser = copilot.Bool(false)
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			Provider: &copilot.ProviderConfig{
+				Type:            "openai",
+				WireAPI:         "responses",
+				Transport:       "websockets",
+				BaseURL:         "https://models.example.test/v1",
+				APIKey:          "provider-key",
+				ModelID:         "base-model",
+				WireModel:       "wire-model",
+				MaxPromptTokens: 1000,
+				MaxOutputTokens: 2000,
+				Headers:         map[string]string{"x-provider": "go"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		session.Disconnect()
+
+		createReq := getCapturedRequest(t, capturePath, "session.create")
+		params := createReq.Params.(map[string]any)
+		provider := params["provider"].(map[string]any)
+		for key, expected := range map[string]any{
+			"type":            "openai",
+			"wireApi":         "responses",
+			"transport":       "websockets",
+			"baseUrl":         "https://models.example.test/v1",
+			"apiKey":          "provider-key",
+			"modelId":         "base-model",
+			"wireModel":       "wire-model",
+			"maxPromptTokens": float64(1000),
+			"maxOutputTokens": float64(2000),
+		} {
+			if provider[key] != expected {
+				t.Fatalf("Expected provider.%s=%#v, got %#v in %#v", key, expected, provider[key], provider)
+			}
+		}
+		if provider["headers"].(map[string]any)["x-provider"] != "go" {
+			t.Fatalf("Expected provider headers to be forwarded, got %#v", provider["headers"])
+		}
+	})
+
+	t.Run("should forward advanced session resume options to the CLI", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
+		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
+		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
+			t.Fatalf("Failed to write fake CLI script: %v", err)
+		}
+
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Connection = copilot.StdioConnection{Path: cliPath, Args: []string{"--capture-file", capturePath}}
+			opts.GitHubToken = "advanced-resume-client-token"
+			opts.UseLoggedInUser = copilot.Bool(false)
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		workingDirectory := t.TempDir()
+		configDirectory := t.TempDir()
+		continuePendingWork := false
+		extensionSDKPath := filepath.Join(ctx.WorkDir, "resume-extension-sdk")
+		session, err := client.ResumeSession(t.Context(), "resume-session-id", &copilot.ResumeSessionConfig{
+			Model:                          "gpt-5-mini",
+			ReasoningEffort:                "low",
+			ReasoningSummary:               copilot.ReasoningSummaryNone,
+			ContextTier:                    copilot.ContextTierLongContext,
+			WorkingDirectory:               workingDirectory,
+			ConfigDirectory:                configDirectory,
+			EnableConfigDiscovery:          copilot.Bool(false),
+			SuppressResumeEvent:            true,
+			ContinuePendingWork:            &continuePendingWork,
+			Streaming:                      copilot.Bool(true),
+			IncludeSubAgentStreamingEvents: copilot.Bool(false),
+			GitHubToken:                    "advanced-resume-session-token",
+			Canvases: []copilot.CanvasDeclaration{{
+				ID:          "resume-canvas",
+				DisplayName: "Resume Canvas",
+				Description: "Resume canvas description",
+				InputSchema: map[string]any{"type": "object"},
+			}},
+			OpenCanvases: []rpc.OpenCanvasInstance{{
+				CanvasID:    "resume-canvas",
+				ExtensionID: "github-app/go-e2e-extension",
+				InstanceID:  "resume-instance",
+				Input:       map[string]any{"value": "from-resume"},
+			}},
+			RequestCanvasRenderer: copilot.Bool(true),
+			RequestExtensions:     copilot.Bool(true),
+			ExtensionSDKPath:      &extensionSDKPath,
+			ExtensionInfo:         &copilot.ExtensionInfo{Source: "github-app", Name: "go-e2e-extension"},
+			ExpAssignments:        map[string]any{"resumeFeature": "enabled"},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		session.Disconnect()
+
+		resumeReq := getCapturedRequest(t, capturePath, "session.resume")
+		params := resumeReq.Params.(map[string]any)
+		expectedValues := map[string]any{
+			"sessionId":                      "resume-session-id",
+			"model":                          "gpt-5-mini",
+			"reasoningEffort":                "low",
+			"reasoningSummary":               "none",
+			"contextTier":                    "long_context",
+			"workingDirectory":               workingDirectory,
+			"configDir":                      configDirectory,
+			"enableConfigDiscovery":          false,
+			"disableResume":                  true,
+			"continuePendingWork":            false,
+			"streaming":                      true,
+			"includeSubAgentStreamingEvents": false,
+			"gitHubToken":                    "advanced-resume-session-token",
+			"requestCanvasRenderer":          true,
+			"requestExtensions":              true,
+			"extensionSdkPath":               extensionSDKPath,
+			"envValueMode":                   "direct",
+		}
+		for key, expected := range expectedValues {
+			if params[key] != expected {
+				t.Fatalf("Expected resume %s=%#v, got %#v in %#v", key, expected, params[key], params)
+			}
+		}
+		openCanvases := params["openCanvases"].([]any)
+		openCanvas := openCanvases[0].(map[string]any)
+		if openCanvas["canvasId"] != "resume-canvas" || openCanvas["extensionId"] != "github-app/go-e2e-extension" ||
+			openCanvas["instanceId"] != "resume-instance" {
+			t.Fatalf("Expected open canvas state to be forwarded, got %#v", openCanvas)
+		}
+		extensionInfo := params["extensionInfo"].(map[string]any)
+		if extensionInfo["source"] != "github-app" || extensionInfo["name"] != "go-e2e-extension" {
+			t.Fatalf("Expected extensionInfo on resume, got %#v", extensionInfo)
+		}
+		if params["expAssignments"].(map[string]any)["resumeFeature"] != "enabled" {
+			t.Fatalf("Expected resume expAssignments to be forwarded, got %#v", params["expAssignments"])
+		}
+	})
+
 }
 
 // ---------------------------------------------------------------------------
@@ -353,8 +663,36 @@ func readCapture(t *testing.T, path string) capturedCli {
 	return c
 }
 
-// fakeStdioCliScript is identical to the one used by the .NET / Python
-// equivalents (dotnet/test/ClientOptionsTests.cs and python/e2e/test_client_options.py).
+func getCapturedRequest(t *testing.T, path, method string) capturedRequest {
+	t.Helper()
+	capture := readCapture(t, path)
+	for _, request := range capture.Requests {
+		if request.Method == method {
+			return request
+		}
+	}
+	t.Fatalf("Expected %s request in capture, got %+v", method, capture.Requests)
+	return capturedRequest{}
+}
+
+func assertStringArray(t *testing.T, value any, expected []string) {
+	t.Helper()
+	items, ok := value.([]any)
+	if !ok {
+		t.Fatalf("Expected string array %v, got %#v", expected, value)
+	}
+	if len(items) != len(expected) {
+		t.Fatalf("Expected string array %v, got %#v", expected, items)
+	}
+	for i, expectedValue := range expected {
+		if items[i] != expectedValue {
+			t.Fatalf("Expected string array %v, got %#v", expected, items)
+		}
+	}
+}
+
+// fakeStdioCliScript is intentionally kept close to the fake CLIs used by the
+// other SDK client-options E2E tests, while still matching Go's request capture shape.
 const fakeStdioCliScript = `
 const fs = require("fs");
 
@@ -426,6 +764,11 @@ function handleMessage(message) {
     return;
   }
   if (message.method === "session.create") {
+    const sessionId = (message.params && message.params.sessionId) || "fake-session";
+    writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
+    return;
+  }
+  if (message.method === "session.resume") {
     const sessionId = (message.params && message.params.sessionId) || "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;

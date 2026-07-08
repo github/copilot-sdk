@@ -1651,15 +1651,16 @@ function addWrapperResultImports(resultType: string, allImports: Set<string>, pa
 }
 
 /**
- * Return the params class name if the method has a params schema with properties
- * other than sessionId (i.e. there are user-supplied parameters).
+ * Return the params class name if the method has a params schema with user-supplied properties.
+ * Session-scoped wrappers inject sessionId automatically, but server-scoped wrappers must let
+ * callers supply it explicitly.
  */
-function wrapperParamsClassName(method: RpcMethodNode): string | null {
+function wrapperParamsClassName(method: RpcMethodNode, isSession: boolean): string | null {
     let params = method.params;
     if (params?.$ref) params = resolveRef(params) as JSONSchema7;
     if (!params || typeof params !== "object") return null;
     const props = params.properties ?? {};
-    const userProps = Object.keys(props).filter((k) => k !== "sessionId");
+    const userProps = Object.keys(props).filter((k) => !isSession || k !== "sessionId");
     if (userProps.length === 0) return null;
     return rpcMethodToClassName(method.rpcMethod) + "Params";
 }
@@ -1682,7 +1683,7 @@ function generateApiMethod(
     sessionIdExpr: string
 ): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean } {
     const resultClass = wrapperResultClassName(method);
-    const paramsClass = wrapperParamsClassName(method);
+    const paramsClass = wrapperParamsClassName(method, isSession);
     const hasSessionId = methodHasSessionId(method);
     const hasExtraParams = paramsClass !== null;
     let needsMapper = false;
@@ -1790,7 +1791,7 @@ async function generateNamespaceApiFile(
     const methodLines: string[] = [];
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
-        const paramsClass = wrapperParamsClassName(method);
+        const paramsClass = wrapperParamsClassName(method, isSession);
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
@@ -1910,7 +1911,7 @@ async function generateRpcRootFile(
     const methodLines: string[] = [];
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
-        const paramsClass = wrapperParamsClassName(method);
+        const paramsClass = wrapperParamsClassName(method, isSession);
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
