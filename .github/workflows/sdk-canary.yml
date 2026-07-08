@@ -247,7 +247,23 @@ jobs:
         run: |
           set -euo pipefail
           SHORT_SHA="${SHA:0:7}"
-          SDK_VERSION="0.0.0-canary.${RUN_NUMBER}.g${SHORT_SHA}"
+          # Base the canary on the NEXT patch of the public SDK latest so canaries
+          # correlate with public releases: they sort ABOVE the current public
+          # latest and BELOW the eventual real release of that next patch (a
+          # prerelease of X.Y.Z always sorts below X.Y.Z). Public latest is
+          # currently 1.0.6, so canaries look like 1.0.7-canary.<run>.g<sha> and
+          # can never shadow the real 1.0.7 when it ships.
+          # Read public latest EXPLICITLY from public npm (never the feed: the
+          # feed has no public upstream and now holds our own canaries). Read-only.
+          PUBLIC_LATEST="$(npm view @github/copilot-sdk version --registry https://registry.npmjs.org/ 2>/dev/null || true)"
+          BASE="${PUBLIC_LATEST%%-*}"; BASE="${BASE%%+*}"
+          if [[ "$BASE" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            NEXT="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$(( BASH_REMATCH[3] + 1 ))"
+          else
+            NEXT="0.0.0"
+            echo "::warning::Could not resolve public SDK latest; falling back to 0.0.0 canary base"
+          fi
+          SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
           if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
             echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
             exit 1
