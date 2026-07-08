@@ -236,8 +236,11 @@ jobs:
     steps:
       - name: Warn — publishing despite failed e2e gate (bypass)
         # always() so this audit is never skipped by prior-step status; it fires
-        # specifically when publish proceeded without a green e2e gate.
+        # specifically when publish proceeded without a green e2e gate. Runs at
+        # the workspace root because it executes before checkout, so the job's
+        # default working-directory (./nodejs) does not exist yet.
         if: always() && needs.test.result != 'success'
+        working-directory: ${{ github.workspace }}
         run: |
           echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}). Triggered by '${{ github.actor }}' via '${{ github.event_name }}'${{ (github.event_name == 'workflow_dispatch' && inputs.force_publish) && ' with force_publish=true' || '' }}. The e2e signal was bypassed; build + feed-only + read-back guards still apply."
 
