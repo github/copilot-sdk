@@ -1269,6 +1269,12 @@ type Tool struct {
 	// Defer controls whether the tool may be deferred (loaded lazily via tool
 	// search) rather than always pre-loaded. When empty, the runtime decides.
 	Defer ToolDefer `json:"defer,omitempty"`
+	// Metadata is opaque, host-defined metadata associated with the tool
+	// definition. Keys are namespaced and not part of the stable public API;
+	// the SDK forwards them verbatim to the runtime, which may recognize
+	// specific keys to inform host-specific behavior. Unknown keys are
+	// preserved and round-tripped untouched.
+	Metadata map[string]any `json:"metadata,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`

@@ -63,6 +63,7 @@ class Tool:
     overrides_built_in_tool: bool = False
     skip_permission: bool = False
     defer: Literal["auto", "never"] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -77,6 +78,7 @@ def define_tool(
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Callable[[Callable[..., Any]], Tool]:
     pass
 
@@ -91,6 +93,7 @@ def define_tool(
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Tool:
     pass
 
@@ -105,6 +108,7 @@ def define_tool(
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Tool:
     pass
 
@@ -118,6 +122,7 @@ def define_tool(
     overrides_built_in_tool: bool = False,
     skip_permission: bool = False,
     defer: Literal["auto", "never"] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -166,6 +171,10 @@ def define_tool(
                     rather than always pre-loaded. When "auto", the tool can be deferred
                     and surfaced through tool search. When "never", the tool is always
                     pre-loaded. Optional; defaults to "auto".
+        metadata: Opaque, host-defined metadata associated with the tool definition.
+                    Keys are namespaced and not part of the stable public API; the SDK
+                    forwards them verbatim to the runtime, which may recognize specific
+                    keys to inform host-specific behavior. Unknown keys are preserved.
 
     Returns:
         A Tool instance
@@ -246,6 +255,7 @@ def define_tool(
             overrides_built_in_tool=overrides_built_in_tool,
             skip_permission=skip_permission,
             defer=defer,
+            metadata=metadata,
         )
 
     # If handler is provided, call decorator immediately
@@ -265,6 +275,7 @@ def define_tool(
             overrides_built_in_tool=overrides_built_in_tool,
             skip_permission=skip_permission,
             defer=defer,
+            metadata=metadata,
         )
 
     # Otherwise return decorator for @define_tool(...) usage

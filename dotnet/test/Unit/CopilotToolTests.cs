@@ -44,6 +44,34 @@ public class CopilotToolTests
     }
 
     [Fact]
+    public void DefineTool_Sets_Metadata_In_Additional_Properties()
+    {
+        var metadata = new Dictionary<string, object>
+        {
+            ["github.com/copilot:safeForTelemetry"] = new Dictionary<string, object>
+            {
+                ["name"] = true,
+                ["inputsNames"] = false
+            }
+        };
+
+        var function = CopilotTool.DefineTool(
+            ReturnsOk,
+            new CopilotToolOptions { Metadata = metadata });
+
+        Assert.True(function.AdditionalProperties.TryGetValue("metadata", out var value));
+        Assert.Same(metadata, value);
+    }
+
+    [Fact]
+    public void DefineTool_Omits_Metadata_When_Unset()
+    {
+        var function = CopilotTool.DefineTool(ReturnsOk);
+
+        Assert.False(function.AdditionalProperties.ContainsKey("metadata"));
+    }
+
+    [Fact]
     public void DefineTool_Accepts_Lambda_Handlers_Without_Casts()
     {
         var function = CopilotTool.DefineTool((string value) => value, factoryOptions: new() { Name = "echo", Description = "Echo a value" });

@@ -1926,6 +1926,8 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 if tool.defer is not None:
                     definition["defer"] = tool.defer
+                if tool.metadata is not None:
+                    definition["metadata"] = tool.metadata
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -2581,6 +2583,8 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 if tool.defer is not None:
                     definition["defer"] = tool.defer
+                if tool.metadata is not None:
+                    definition["metadata"] = tool.metadata
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization

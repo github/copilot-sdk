@@ -75,6 +75,10 @@ import com.github.copilot.tool.Param;
  *            controls whether the tool may be deferred (loaded lazily via tool
  *            search) rather than always pre-loaded; {@code null} lets the
  *            runtime decide
+ * @param metadata
+ *            opaque, host-defined metadata forwarded verbatim to the runtime;
+ *            keys are namespaced and not part of the stable public API;
+ *            {@code null} when unset
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
  * @since 1.0.0
@@ -83,7 +87,8 @@ import com.github.copilot.tool.Param;
 public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("description") String description,
         @JsonProperty("parameters") Object parameters, @JsonIgnore ToolHandler handler,
         @JsonProperty("overridesBuiltInTool") Boolean overridesBuiltInTool,
-        @JsonProperty("skipPermission") Boolean skipPermission, @JsonProperty("defer") ToolDefer defer) {
+        @JsonProperty("skipPermission") Boolean skipPermission, @JsonProperty("defer") ToolDefer defer,
+        @JsonProperty("metadata") Map<String, Object> metadata) {
 
     /**
      * Creates a tool definition with a JSON schema for parameters.
@@ -103,7 +108,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition create(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
-        return new ToolDefinition(name, description, schema, handler, null, null, null);
+        return new ToolDefinition(name, description, schema, handler, null, null, null, null);
     }
 
     /**
@@ -127,7 +132,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition createOverride(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
-        return new ToolDefinition(name, description, schema, handler, true, null, null);
+        return new ToolDefinition(name, description, schema, handler, true, null, null, null);
     }
 
     /**
@@ -150,7 +155,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition createSkipPermission(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
-        return new ToolDefinition(name, description, schema, handler, null, true, null);
+        return new ToolDefinition(name, description, schema, handler, null, true, null, null);
     }
 
     /**
@@ -176,7 +181,32 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition createWithDefer(String name, String description, Map<String, Object> schema,
             ToolHandler handler, ToolDefer defer) {
-        return new ToolDefinition(name, description, schema, handler, null, null, defer);
+        return new ToolDefinition(name, description, schema, handler, null, null, defer, null);
+    }
+
+    /**
+     * Creates a tool definition with opaque, host-defined metadata.
+     * <p>
+     * Use this factory method to attach namespaced metadata that the SDK forwards
+     * verbatim to the runtime. The keys are not part of the stable public API; the
+     * runtime may recognize specific keys to inform host-specific behavior.
+     *
+     * @param name
+     *            the unique name of the tool
+     * @param description
+     *            a description of what the tool does
+     * @param schema
+     *            the JSON Schema as a {@code Map}
+     * @param handler
+     *            the handler function to execute when invoked
+     * @param metadata
+     *            the opaque metadata map forwarded to the runtime
+     * @return a new tool definition with the metadata set
+     * @since 1.0.7
+     */
+    public static ToolDefinition createWithMetadata(String name, String description, Map<String, Object> schema,
+            ToolHandler handler, Map<String, Object> metadata) {
+        return new ToolDefinition(name, description, schema, handler, null, null, null, metadata);
     }
 
     /**
@@ -247,7 +277,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     @CopilotExperimental
     public ToolDefinition overridesBuiltInTool(boolean value) {
-        return new ToolDefinition(name, description, parameters, handler, value, skipPermission, defer);
+        return new ToolDefinition(name, description, parameters, handler, value, skipPermission, defer, metadata);
     }
 
     /**
@@ -261,7 +291,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     @CopilotExperimental
     public ToolDefinition skipPermission(boolean value) {
-        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, value, defer);
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, value, defer, metadata);
     }
 
     /**
@@ -275,7 +305,23 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     @CopilotExperimental
     public ToolDefinition defer(ToolDefer value) {
-        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, value);
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, value,
+                metadata);
+    }
+
+    /**
+     * Returns a copy with the opaque {@code metadata} bag set.
+     *
+     * @param value
+     *            the opaque, host-defined metadata forwarded verbatim to the
+     *            runtime; keys are namespaced and not part of the stable public API
+     * @return a new {@code ToolDefinition} with the metadata applied
+     * @since 1.0.7
+     */
+    @CopilotExperimental
+    public ToolDefinition metadata(Map<String, Object> value) {
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
+                value);
     }
 
     // ------------------------------------------------------------------
@@ -319,7 +365,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             R result = handler.get();
             return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -361,7 +407,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             R result = handler.apply(arg1);
             return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -409,7 +455,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             R result = handler.apply(arg1, arg2);
             return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     // ------------------------------------------------------------------
@@ -458,7 +504,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             }
             return future.thenApply(result -> formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -506,7 +552,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             }
             return future.thenApply(result -> formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -551,7 +597,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             }
             return future.thenApply(result -> formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     // ------------------------------------------------------------------
@@ -594,7 +640,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             R result = handler.apply(invocation);
             return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -640,7 +686,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             R result = handler.apply(arg1, invocation);
             return CompletableFuture.completedFuture(formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     // ------------------------------------------------------------------
@@ -689,7 +735,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             }
             return future.thenApply(result -> formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     /**
@@ -741,7 +787,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             }
             return future.thenApply(result -> formatResult(result, mapper));
         };
-        return new ToolDefinition(name, description, schema, toolHandler, null, null, null);
+        return new ToolDefinition(name, description, schema, toolHandler, null, null, null, null);
     }
 
     // ------------------------------------------------------------------

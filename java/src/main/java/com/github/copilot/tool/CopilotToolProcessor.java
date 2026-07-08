@@ -276,7 +276,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
         out.println("                },");
         out.println("                " + overridesArg + ",");
         out.println("                " + skipPermArg + ",");
-        out.println("                " + deferArg);
+        out.println("                " + deferArg + ",");
+        out.println("                null");
         out.print("            )");
     }
 

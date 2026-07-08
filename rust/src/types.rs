@@ -351,6 +351,13 @@ pub struct Tool {
     /// runtime decide.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub defer: Option<DeferMode>,
+    /// Opaque, host-defined metadata associated with the tool definition.
+    /// Keys are namespaced and not part of the stable public API; the SDK
+    /// forwards them verbatim to the runtime, which may recognize specific
+    /// keys to inform host-specific behavior. Unknown keys are preserved and
+    /// round-tripped untouched.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub metadata: HashMap<String, Value>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -470,6 +477,14 @@ impl Tool {
         self
     }
 
+    /// Set opaque, host-defined metadata forwarded verbatim to the runtime.
+    /// Keys are namespaced and not part of the stable public API. Replaces any
+    /// previously-set metadata.
+    pub fn with_metadata(mut self, metadata: HashMap<String, Value>) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
     /// Attach a runtime implementation. The SDK will dispatch matching
     /// `external_tool.requested` broadcasts to `handler` for this tool's
     /// name. Without a handler the tool is declaration-only.
@@ -498,6 +513,7 @@ impl std::fmt::Debug for Tool {
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
             .field("defer", &self.defer)
+            .field("metadata", &self.metadata)
             .field(
                 "handler",
                 &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
@@ -5207,6 +5223,32 @@ mod tests {
         let plain = Tool::new("plain");
         let value = serde_json::to_value(&plain).unwrap();
         assert!(value.get("defer").is_none());
+    }
+
+    #[test]
+    fn tool_metadata_serialization() {
+        use std::collections::HashMap;
+
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "github.com/copilot:safeForTelemetry".to_string(),
+            json!({ "name": true, "inputsNames": false }),
+        );
+        let tool = Tool::new("lookup").with_metadata(metadata);
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(
+            value
+                .get("metadata")
+                .unwrap()
+                .get("github.com/copilot:safeForTelemetry")
+                .unwrap(),
+            &json!({ "name": true, "inputsNames": false })
+        );
+
+        // Empty metadata is omitted on the wire.
+        let plain = Tool::new("plain");
+        let value = serde_json::to_value(&plain).unwrap();
+        assert!(value.get("metadata").is_none());
     }
 
     #[test]

@@ -30,7 +30,7 @@ public final class SimpleTools$$CopilotToolMeta implements CopilotToolMetadataPr
                     Map<String, Object> args = invocation.getArguments();
                     String name = (String) args.get("name");
                     return CompletableFuture.completedFuture(instance.greetUser(name));
-                }, null, null, null),
+                }, null, null, null, null),
                 new ToolDefinition("add_numbers", "Adds two numbers together",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -46,6 +46,6 @@ public final class SimpleTools$$CopilotToolMeta implements CopilotToolMetadataPr
                             int a = ((Number) args.get("a")).intValue();
                             int b = ((Number) args.get("b")).intValue();
                             return CompletableFuture.completedFuture(instance.addNumbers(a, b));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

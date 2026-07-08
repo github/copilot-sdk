@@ -20,6 +20,9 @@ public static class CopilotTool
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="CopilotToolDefer"/> deferral mode.</summary>
     internal const string DeferKey = "defer";
 
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's opaque host-defined metadata.</summary>
+    internal const string MetadataKey = "metadata";
+
     /// <summary>
     /// Defines a tool for use in a <see cref="CopilotSession"/>.
     /// </summary>
@@ -87,7 +90,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.Defer is not null))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.Defer is not null || toolOptions.Metadata is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -111,6 +114,11 @@ public static class CopilotTool
                 if (toolOptions.Defer is { } defer)
                 {
                     additionalProperties[DeferKey] = defer;
+                }
+
+                if (toolOptions.Metadata is { } metadata)
+                {
+                    additionalProperties[MetadataKey] = metadata;
                 }
 
                 factoryOptions.AdditionalProperties = additionalProperties;
@@ -151,6 +159,16 @@ public sealed class CopilotToolOptions
     /// SDK forwards it to the CLI as the tool's <c>defer</c> mode. Defaults to "auto".
     /// </remarks>
     public CopilotToolDefer? Defer { get; set; }
+
+    /// <summary>
+    /// Gets or sets opaque, host-defined metadata associated with the tool definition.
+    /// </summary>
+    /// <remarks>
+    /// Keys are namespaced and not part of the stable public API. When set, the SDK forwards
+    /// the metadata verbatim to the CLI as the tool's <c>metadata</c> object, which the runtime
+    /// may recognize to inform host-specific behavior. Unknown keys are preserved.
+    /// </remarks>
+    public IDictionary<string, object>? Metadata { get; set; }
 }
 
 /// <summary>
