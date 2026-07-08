@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
     PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
-    UserToolSessionApproval,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -6725,6 +6725,9 @@ pub struct ModelSwitchToRequest {
     /// Reasoning summary mode to request for supported model clients
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level to request for supported models
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// The model identifier active on the session after the switch.
@@ -8723,6 +8726,9 @@ pub struct PluginsReloadRequest {
     /// Re-run custom-agent discovery after refreshing plugins. Defaults to true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_custom_agents: Option<bool>,
+    /// Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reload_extensions: Option<bool>,
     /// Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_hooks: Option<bool>,
@@ -9595,7 +9601,7 @@ pub struct QueueRemoveMostRecentResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterEventInterestParams {
-    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
     pub event_type: String,
 }
 
@@ -9740,6 +9746,10 @@ pub struct RemoteControlConfig {
 pub struct RemoteControlStatusActive {
     /// Session id remote control is pointed at.
     pub attached_session_id: String,
+    /// True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) awaiting_first_message: Option<bool>,
     /// MC frontend URL for this session, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
@@ -11411,6 +11421,9 @@ pub struct SessionOpenOptions {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
+    /// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
     /// Whether on-demand custom instruction discovery is enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -11513,9 +11526,6 @@ pub struct SessionOpenOptions {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Opt-in: self-fetch enterprise managed settings at session bootstrap.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub self_fetch_managed_settings: Option<bool>,
     /// Capabilities enabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -11540,6 +11550,9 @@ pub struct SessionOpenOptions {
     /// Optional trajectory output file path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Initial output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Working directory to anchor the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -11702,6 +11715,10 @@ pub struct SessionsOpenHandoff {
     pub kind: SessionsOpenHandoffKind,
     /// Remote session metadata for the session to hand off (typically obtained from `sessions.list` with `source: "remote"`).
     pub metadata: RemoteSessionMetadataValue,
+    /// In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) on_confirm: Option<serde_json::Value>,
     /// In-process progress callback `(update) => void` invoked for each handoff step. Marked internal because a function reference cannot cross the JSON-RPC boundary. The host-side `handoffSession` is already declared as `AsyncGenerator<HandoffProgress, HandoffResult>`; the schema layer flattens it because it does not yet support streaming methods. The wire-clean replacement is to expose the AsyncGenerator directly (or use vscode-jsonrpc `$/progress` notifications) once the schema/transport layer supports it.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12790,6 +12807,9 @@ pub struct SessionUpdateOptionsParams {
     /// Optional path for trajectory output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Absolute working-directory path for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,

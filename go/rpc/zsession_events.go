@@ -62,6 +62,7 @@ const (
 	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
 	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
 	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantToolCallDelta           SessionEventType = "assistant.tool_call_delta"
 	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
 	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
 	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
@@ -822,10 +823,14 @@ type SessionModelChangeData struct {
 	PreviousReasoningEffort *string `json:"previousReasoningEffort,omitempty"`
 	// Reasoning summary mode before the model change, if applicable
 	PreviousReasoningSummary *ReasoningSummary `json:"previousReasoningSummary,omitempty"`
+	// Output verbosity level before the model change, if applicable
+	PreviousVerbosity *Verbosity `json:"previousVerbosity,omitempty"`
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode after the model change, if applicable
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Output verbosity level after the model change, if applicable
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
 func (*SessionModelChangeData) sessionEventData()      {}
@@ -1329,6 +1334,8 @@ type SessionStartData struct {
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// ISO 8601 timestamp when the session was created
 	StartTime time.Time `json:"startTime"`
+	// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 	// Schema version number for the session event format
 	Version int64 `json:"version"`
 }
@@ -1403,6 +1410,8 @@ type SessionResumeData struct {
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
 	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
+	// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
 func (*SessionResumeData) sessionEventData()      {}
@@ -1567,6 +1576,23 @@ type ToolExecutionPartialResultData struct {
 func (*ToolExecutionPartialResultData) sessionEventData() {}
 func (*ToolExecutionPartialResultData) Type() SessionEventType {
 	return SessionEventTypeToolExecutionPartialResult
+}
+
+// Streaming tool-call input delta for incremental tool-call updates
+type AssistantToolCallDeltaData struct {
+	// Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+	InputDelta string `json:"inputDelta"`
+	// Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+	ToolCallID string `json:"toolCallId"`
+	// Name of the tool being invoked, when known from the stream
+	ToolName *string `json:"toolName,omitempty"`
+	// Tool call type, when known from the stream
+	ToolType *AssistantMessageToolRequestType `json:"toolType,omitempty"`
+}
+
+func (*AssistantToolCallDeltaData) sessionEventData() {}
+func (*AssistantToolCallDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantToolCallDelta
 }
 
 // Sub-agent completion details for successful execution
@@ -2540,6 +2566,10 @@ type PermissionPromptRequestURL struct {
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// URL to be fetched
@@ -2753,6 +2783,10 @@ func (PermissionRequestShell) Kind() PermissionRequestKind {
 type PermissionRequestURL struct {
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// URL to be fetched
@@ -2776,6 +2810,10 @@ type PermissionRequestWrite struct {
 	Intention string `json:"intention"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
+	// True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }

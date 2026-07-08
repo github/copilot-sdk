@@ -529,6 +529,7 @@ impl Session {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
