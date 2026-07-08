@@ -57,18 +57,26 @@ async function waitWithTimeout<T>(
     }
 }
 
-async function waitForPendingPermissionRequestId(session: CopilotSession): Promise<string> {
+async function waitForPendingPermissionRequestId(
+    session: CopilotSession,
+    requestId: string
+): Promise<void> {
     const deadline = Date.now() + PENDING_WORK_TIMEOUT_MS;
+    let seenRequestIds: string[] = [];
     do {
         const pending = await session.rpc.permissions.pendingRequests();
-        const request = pending.items[0];
-        if (request) {
-            return request.requestId;
+        seenRequestIds = pending.items.map((request) => request.requestId);
+        if (seenRequestIds.includes(requestId)) {
+            return;
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
     } while (Date.now() < deadline);
 
-    throw new Error("Timeout waiting for pending permission request");
+    throw new Error(
+        `Timeout waiting for pending permission request ${requestId}. Saw: ${
+            seenRequestIds.join(", ") || "<none>"
+        }`
+    );
 }
 
 function waitForExternalToolRequests(
@@ -219,7 +227,7 @@ describe("Pending work resume", async () => {
                     PENDING_WORK_TIMEOUT_MS,
                     "originalPermissionRequest"
                 );
-                await permissionRequestedP;
+                const permissionEvent = await permissionRequestedP;
                 expect(initialRequest.kind).toBe("custom-tool");
 
                 await suspendedClient.forceStop();
@@ -236,7 +244,8 @@ describe("Pending work resume", async () => {
                         }),
                     ],
                 });
-                const requestId = await waitForPendingPermissionRequestId(session2);
+                const requestId = permissionEvent.data.requestId;
+                await waitForPendingPermissionRequestId(session2, requestId);
 
                 const permissionResult =
                     await session2.rpc.permissions.handlePendingPermissionRequest({
