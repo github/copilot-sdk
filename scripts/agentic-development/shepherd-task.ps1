@@ -112,9 +112,14 @@ function Test-NoUnresolvedReviews {
 # PHASE 1: Assignment to Ready for Review
 # =============================================================================
 
-Write-Status "Phase 1: Launching copilot --yolo for task #$TaskIssue"
+# Idempotency: skip Phase 1 if a PR already exists for this issue
+$prNumber = Find-LinkedPR
+if ($prNumber) {
+    Write-Status "PR #$prNumber already exists for issue #$TaskIssue — skipping Phase 1."
+} else {
+    Write-Status "Phase 1: Launching copilot --yolo for task #$TaskIssue"
 
-$phase1Prompt = @"
+    $phase1Prompt = @"
 Invoke skill ``shepherd-task-to-ready`` with these inputs:
 
 - TASK_ISSUE: $TaskIssue
@@ -122,18 +127,19 @@ Invoke skill ``shepherd-task-to-ready`` with these inputs:
 - REPO: $Repo
 "@
 
-Write-Status "Phase 1 prompt: $phase1Prompt"
-$phase1Share = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
-$phase1Json = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
-$phase1Prompt | copilot --yolo --output-format json --share $phase1Share > $phase1Json
+    Write-Status "Phase 1 prompt: $phase1Prompt"
+    $phase1Share = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
+    $phase1Json = Join-Path $LogDir "phase1-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
+    $phase1Prompt | copilot --yolo --output-format json --share $phase1Share > $phase1Json
 
-Write-Status "Phase 1: copilot exited. Verifying state..."
+    Write-Status "Phase 1: copilot exited. Verifying state..."
 
-# --- Verify Phase 1 outcome ---
-$prNumber = Find-LinkedPR
-if (-not $prNumber) {
-    Write-Fail "No open PR found linked to issue #$TaskIssue after Phase 1."
-    exit 1
+    # --- Verify Phase 1 outcome ---
+    $prNumber = Find-LinkedPR
+    if (-not $prNumber) {
+        Write-Fail "No open PR found linked to issue #$TaskIssue after Phase 1."
+        exit 1
+    }
 }
 Write-Status "Found PR #$prNumber"
 
@@ -162,9 +168,14 @@ Write-Ok "Phase 1 VERIFIED: PR #$prNumber is ready. CI passing, no unresolved co
 # PHASE 2: Ready for Review to Merged
 # =============================================================================
 
-Write-Status "Phase 2: Launching copilot --yolo for PR #$prNumber"
+# Idempotency: skip Phase 2 if PR is already merged
+$prState = gh pr view $prNumber -R $Repo --json state --jq '.state'
+if ($prState -eq "MERGED") {
+    Write-Ok "PR #$prNumber already merged — skipping Phase 2."
+} else {
+    Write-Status "Phase 2: Launching copilot --yolo for PR #$prNumber"
 
-$phase2Prompt = @"
+    $phase2Prompt = @"
 Invoke skill ``shepherd-task-from-ready-to-merged-to-base`` with these inputs:
 
 - TASK_ISSUE: $TaskIssue
@@ -173,18 +184,19 @@ Invoke skill ``shepherd-task-from-ready-to-merged-to-base`` with these inputs:
 - PR_NUMBER: $prNumber
 "@
 
-Write-Status "Phase 2 prompt: $phase2Prompt"
-$phase2Share = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
-$phase2Json = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
-$phase2Prompt | copilot --yolo --output-format json --share $phase2Share > $phase2Json
+    Write-Status "Phase 2 prompt: $phase2Prompt"
+    $phase2Share = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.md"
+    $phase2Json = Join-Path $LogDir "phase2-task-$(Get-Date -Format 'yyyyMMdd-HHmm')-$TaskIssue.json"
+    $phase2Prompt | copilot --yolo --output-format json --share $phase2Share > $phase2Json
 
-Write-Status "Phase 2: copilot exited. Verifying state..."
+    Write-Status "Phase 2: copilot exited. Verifying state..."
 
-# --- Verify Phase 2 outcome ---
-$prState = gh pr view $prNumber -R $Repo --json state --jq '.state'
-if ($prState -ne "MERGED") {
-    Write-Fail "PR #$prNumber is in state '$prState', expected MERGED."
-    exit 1
+    # --- Verify Phase 2 outcome ---
+    $prState = gh pr view $prNumber -R $Repo --json state --jq '.state'
+    if ($prState -ne "MERGED") {
+        Write-Fail "PR #$prNumber is in state '$prState', expected MERGED."
+        exit 1
+    }
 }
 
 # Verify merged into correct branch (strip remote prefix for comparison)

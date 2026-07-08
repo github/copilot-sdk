@@ -82,24 +82,30 @@ no_unresolved_reviews() {
 # PHASE 1: Assignment to Ready for Review
 # =============================================================================
 
-status "Phase 1: Launching copilot --yolo for task #$TASK_ISSUE"
+# Idempotency: skip Phase 1 if a PR already exists for this issue
+PR_NUMBER=$(find_linked_pr) || true
+if [[ -n "$PR_NUMBER" ]]; then
+    status "PR #$PR_NUMBER already exists for issue #$TASK_ISSUE — skipping Phase 1."
+else
+    status "Phase 1: Launching copilot --yolo for task #$TASK_ISSUE"
 
-PHASE1_PROMPT="Invoke skill \`shepherd-task-to-ready\` with these inputs:
+    PHASE1_PROMPT="Invoke skill \`shepherd-task-to-ready\` with these inputs:
 
 - TASK_ISSUE: $TASK_ISSUE
 - BASE_BRANCH: $BASE_BRANCH
 - REPO: $REPO"
 
-status "Phase 1 prompt:"
-echo "$PHASE1_PROMPT"
-PHASE1_SHARE="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
-PHASE1_JSON="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
-echo "$PHASE1_PROMPT" | copilot --yolo --output-format json --share "$PHASE1_SHARE" > "$PHASE1_JSON"
+    status "Phase 1 prompt:"
+    echo "$PHASE1_PROMPT"
+    PHASE1_SHARE="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
+    PHASE1_JSON="$LOG_DIR/phase1-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
+    echo "$PHASE1_PROMPT" | copilot --yolo --output-format json --share "$PHASE1_SHARE" > "$PHASE1_JSON"
 
-status "Phase 1: copilot exited. Verifying state..."
+    status "Phase 1: copilot exited. Verifying state..."
 
-# --- Verify Phase 1 outcome ---
-PR_NUMBER=$(find_linked_pr) || fail "No open PR found linked to issue #$TASK_ISSUE after Phase 1."
+    # --- Verify Phase 1 outcome ---
+    PR_NUMBER=$(find_linked_pr) || fail "No open PR found linked to issue #$TASK_ISSUE after Phase 1."
+fi
 status "Found PR #$PR_NUMBER"
 
 # Verify base branch
@@ -121,27 +127,33 @@ ok "Phase 1 VERIFIED: PR #$PR_NUMBER is ready. CI passing, no unresolved comment
 # PHASE 2: Ready for Review to Merged
 # =============================================================================
 
-status "Phase 2: Launching copilot --yolo for PR #$PR_NUMBER"
+# Idempotency: skip Phase 2 if PR is already merged
+PR_STATE=$(gh pr view "$PR_NUMBER" -R "$REPO" --json state --jq '.state')
+if [[ "$PR_STATE" == "MERGED" ]]; then
+    ok "PR #$PR_NUMBER already merged — skipping Phase 2."
+else
+    status "Phase 2: Launching copilot --yolo for PR #$PR_NUMBER"
 
-PHASE2_PROMPT="Invoke skill \`shepherd-task-from-ready-to-merged-to-base\` with these inputs:
+    PHASE2_PROMPT="Invoke skill \`shepherd-task-from-ready-to-merged-to-base\` with these inputs:
 
 - TASK_ISSUE: $TASK_ISSUE
 - BASE_BRANCH: $BASE_BRANCH
 - REPO: $REPO
 - PR_NUMBER: $PR_NUMBER"
 
-status "Phase 2 prompt:"
-echo "$PHASE2_PROMPT"
-PHASE2_SHARE="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
-PHASE2_JSON="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
-echo "$PHASE2_PROMPT" | copilot --yolo --output-format json --share "$PHASE2_SHARE" > "$PHASE2_JSON"
+    status "Phase 2 prompt:"
+    echo "$PHASE2_PROMPT"
+    PHASE2_SHARE="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.md"
+    PHASE2_JSON="$LOG_DIR/phase2-task-$(date +%Y%m%d-%H%M)-$TASK_ISSUE.json"
+    echo "$PHASE2_PROMPT" | copilot --yolo --output-format json --share "$PHASE2_SHARE" > "$PHASE2_JSON"
 
-status "Phase 2: copilot exited. Verifying state..."
+    status "Phase 2: copilot exited. Verifying state..."
 
-# --- Verify Phase 2 outcome ---
-PR_STATE=$(gh pr view "$PR_NUMBER" -R "$REPO" --json state --jq '.state')
-if [[ "$PR_STATE" != "MERGED" ]]; then
-    fail "PR #$PR_NUMBER is in state '$PR_STATE', expected MERGED."
+    # --- Verify Phase 2 outcome ---
+    PR_STATE=$(gh pr view "$PR_NUMBER" -R "$REPO" --json state --jq '.state')
+    if [[ "$PR_STATE" != "MERGED" ]]; then
+        fail "PR #$PR_NUMBER is in state '$PR_STATE', expected MERGED."
+    fi
 fi
 
 # Verify merged into correct branch (strip remote prefix for comparison)
