@@ -21,9 +21,11 @@ import type {
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
+    CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
@@ -531,6 +533,14 @@ export interface ToolInvocation {
     toolCallId: string;
     toolName: string;
     arguments: unknown;
+    /**
+     * Snapshot of the session's currently initialized tools. Populated by the
+     * SDK only when this invocation targets the built-in tool-search tool
+     * (`tool_search_tool`), so a tool-search override can rank/filter the live
+     * catalog — including MCP tools configured in settings — without issuing its
+     * own RPC. `undefined` for every other tool invocation.
+     */
+    availableTools?: CurrentToolMetadata[];
     /** W3C Trace Context traceparent from the CLI's execute_tool span. */
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */

@@ -91,6 +91,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
         new() { SingleReader = true });
 
     /// <summary>
+    /// Fixed name of the runtime's built-in tool-search tool. A client can
+    /// replace its behavior by registering a tool with this exact name and
+    /// <c>OverridesBuiltInTool</c> set to <c>true</c>.
+    /// </summary>
+    private const string ToolSearchToolName = "tool_search_tool";
+
+    /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
@@ -840,6 +847,24 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 ToolName = toolName,
                 Arguments = arguments
             };
+
+            // The built-in tool-search tool receives a snapshot of the session's
+            // currently initialized tools so an override can filter the live
+            // catalog without issuing its own RPC. Fetch it only for that tool
+            // to avoid a round-trip on every tool call; a failed fetch leaves
+            // the snapshot null rather than failing the tool.
+            if (toolName == ToolSearchToolName)
+            {
+                try
+                {
+                    var metadata = await Rpc.Tools.GetCurrentMetadataAsync();
+                    invocation.AvailableTools = metadata.Tools;
+                }
+                catch
+                {
+                    // Leave AvailableTools null on failure.
+                }
+            }
 
             var aiFunctionArgs = new AIFunctionArguments
             {

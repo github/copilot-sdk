@@ -147,6 +147,7 @@ export type {
     Tool,
     ToolHandler,
     ToolInvocation,
+    CurrentToolMetadata,
     ToolTelemetry,
     ToolResultObject,
     ToolSearchConfig,

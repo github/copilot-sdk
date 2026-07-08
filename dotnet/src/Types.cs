@@ -796,6 +796,14 @@ public sealed class ToolInvocation
     /// Arguments passed to the tool by the language model.
     /// </summary>
     public JsonElement? Arguments { get; set; }
+    /// <summary>
+    /// Snapshot of the session's currently initialized tools. The SDK populates
+    /// this only when the invocation targets the built-in tool-search tool
+    /// (<c>tool_search_tool</c>), so a tool-search override can rank/filter the
+    /// live catalog — including MCP tools configured in settings — without
+    /// issuing its own RPC. <c>null</c> for every other tool invocation.
+    /// </summary>
+    public IList<CurrentToolMetadata>? AvailableTools { get; set; }
 }
 
 /// <summary>

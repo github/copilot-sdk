@@ -13,6 +13,11 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+// toolSearchToolName is the fixed name of the runtime's built-in tool-search
+// tool. A client can replace its behavior by registering a [Tool] with this
+// exact name and OverridesBuiltInTool set to true.
+const toolSearchToolName = "tool_search_tool"
+
 type sessionHandler struct {
 	id uint64
 	fn SessionEventHandler
@@ -1511,6 +1516,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		ToolName:     toolName,
 		Arguments:    arguments,
 		TraceContext: ctx,
+	}
+
+	// The built-in tool-search tool receives a snapshot of the session's
+	// currently initialized tools so an override can filter the live catalog
+	// without issuing its own RPC. Fetch it only for that tool to avoid a
+	// round-trip on every tool call; a failed fetch leaves the snapshot nil
+	// rather than failing the tool.
+	if toolName == toolSearchToolName {
+		if metadata, mErr := s.RPC.Tools.GetCurrentMetadata(ctx); mErr == nil && metadata != nil {
+			invocation.AvailableTools = metadata.Tools
+		}
 	}
 
 	result, err := handler(invocation)

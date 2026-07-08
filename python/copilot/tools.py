@@ -11,9 +11,12 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeVar, get_type_hints, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from .generated.rpc import CurrentToolMetadata
 
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
@@ -50,6 +53,14 @@ class ToolInvocation:
     tool_call_id: str = ""
     tool_name: str = ""
     arguments: Any = None
+    available_tools: list[CurrentToolMetadata] | None = None
+    """Snapshot of the session's currently initialized tools.
+
+    Populated by the SDK only when this invocation targets the built-in
+    tool-search tool (``tool_search_tool``), so a tool-search override can
+    rank/filter the live catalog -- including MCP tools configured in settings --
+    without issuing its own RPC. ``None`` for every other tool invocation.
+    """
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]

@@ -159,6 +159,13 @@ public final class CopilotSession implements AutoCloseable {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     /**
+     * Fixed name of the runtime's built-in tool-search tool. A client can replace
+     * its behavior by registering a tool with this exact name and
+     * {@code overridesBuiltInTool} set to {@code true}.
+     */
+    private static final String TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
+
+    /**
      * The current active session ID. Initialized to the pre-generated value and may
      * be updated after session.create / session.resume if the server returns a
      * different ID (e.g. when working against a v2 CLI that ignores the
@@ -911,6 +918,20 @@ public final class CopilotSession implements AutoCloseable {
                         : (arguments != null ? MAPPER.valueToTree(arguments) : null);
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
+
+                // The built-in tool-search tool receives a snapshot of the session's
+                // currently initialized tools so an override can filter the live
+                // catalog without issuing its own RPC. Fetch it only for that tool to
+                // avoid a round-trip on every tool call; a failed fetch leaves the
+                // snapshot null rather than failing the tool.
+                if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+                    try {
+                        var metadata = getRpc().tools.getCurrentMetadata().join();
+                        invocation.setAvailableTools(metadata.tools());
+                    } catch (Exception e) {
+                        LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+                    }
+                }
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {

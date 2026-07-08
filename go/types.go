@@ -1297,6 +1297,14 @@ type ToolInvocation struct {
 	ToolName   string
 	Arguments  any
 
+	// AvailableTools is a snapshot of the session's currently initialized
+	// tools. The SDK populates it only when this invocation targets the
+	// built-in tool-search tool ("tool_search_tool"), so a tool-search
+	// override can rank/filter the live catalog -- including MCP tools
+	// configured in settings -- without issuing its own RPC. It is nil for
+	// every other tool invocation.
+	AvailableTools []rpc.CurrentToolMetadata
+
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
 	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.

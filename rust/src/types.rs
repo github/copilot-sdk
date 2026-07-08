@@ -20,6 +20,7 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
 use crate::generated::api_types::OpenCanvasInstance;
+use crate::generated::api_types::CurrentToolMetadata;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -4810,6 +4811,15 @@ pub struct ToolInvocation {
     pub tool_name: String,
     /// Tool arguments as JSON.
     pub arguments: Value,
+    /// Snapshot of the session's currently initialized tools.
+    ///
+    /// The SDK populates this only when the invocation targets the built-in
+    /// tool-search tool (`tool_search_tool`), so a tool-search override can
+    /// rank/filter the live catalog — including MCP tools configured in
+    /// settings — without issuing its own RPC. Empty for every other tool
+    /// invocation. This field is not part of the wire protocol.
+    #[serde(skip)]
+    pub available_tools: Vec<CurrentToolMetadata>,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI

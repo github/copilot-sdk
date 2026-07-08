@@ -87,6 +87,11 @@ from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
+# Fixed name of the runtime's built-in tool-search tool. A client can replace
+# its behavior by registering a tool with this exact name and
+# ``overrides_built_in_tool=True``.
+_TOOL_SEARCH_TOOL_NAME = "tool_search_tool"
+
 
 if TYPE_CHECKING:
     from .session_fs_provider import SessionFsProvider
@@ -1954,11 +1959,25 @@ class CopilotSession:
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
+            # The built-in tool-search tool receives a snapshot of the session's
+            # currently initialized tools so an override can filter the live
+            # catalog without issuing its own RPC. Fetch it only for that tool to
+            # avoid a round-trip on every tool call; a failed fetch leaves the
+            # snapshot as None rather than failing the tool.
+            available_tools = None
+            if tool_name == _TOOL_SEARCH_TOOL_NAME:
+                try:
+                    metadata = await self.rpc.tools.get_current_metadata()
+                    available_tools = metadata.tools
+                except Exception:
+                    available_tools = None
+
             invocation = ToolInvocation(
                 session_id=self.session_id,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
                 arguments=arguments,
+                available_tools=available_tools,
             )
 
             with trace_context(traceparent, tracestate):
