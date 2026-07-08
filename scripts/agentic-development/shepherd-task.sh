@@ -58,10 +58,12 @@ ci_passing() {
 # Check for unresolved bot review comments.
 no_unresolved_reviews() {
     local pr_number="$1"
+    local repo_owner="${REPO%%/*}"
+    local repo_name="${REPO##*/}"
     local unresolved
-    unresolved=$(gh api graphql -F number="$pr_number" -f query='
-    query($number: Int!) {
-      repository(owner: "github", name: "copilot-sdk") {
+    unresolved=$(gh api graphql -F owner="$repo_owner" -F name="$repo_name" -F number="$pr_number" -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           reviewThreads(first: 100) {
             nodes { isResolved comments(first: 1) { nodes { author { login } } } }

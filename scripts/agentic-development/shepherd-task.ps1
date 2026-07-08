@@ -84,9 +84,12 @@ function Test-CIPassing {
 function Test-NoUnresolvedReviews {
     param([string]$PRNumber)
 
-    $unresolved = gh api graphql -F number=$PRNumber -f query='
-    query($number: Int!) {
-      repository(owner: "github", name: "copilot-sdk") {
+    $repoOwner = ($Repo -split '/')[0]
+    $repoName = ($Repo -split '/')[1]
+
+    $unresolved = gh api graphql -F owner=$repoOwner -F name=$repoName -F number=$PRNumber -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           reviewThreads(first: 100) {
             nodes { isResolved comments(first: 1) { nodes { author { login } } } }
