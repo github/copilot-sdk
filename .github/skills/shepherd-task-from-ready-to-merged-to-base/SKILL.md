@@ -118,8 +118,8 @@ GH_CURRENT_USER=$(gh api /user --jq '.login')
 # Get the topic branch name for the PR
 JTBDTASK_BRANCH=$(gh pr view $PR_NUMBER -R $REPO --json headRefName --jq '.headRefName')
 
-# Create a worktree for local review work
-git worktree add "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER" "upstream/$JTBDTASK_BRANCH"
+# Create a worktree for local review work — as a SIBLING of the current repo clone, not inside it.
+git worktree add "../review-copilot-pr-$PR_NUMBER" "upstream/$JTBDTASK_BRANCH"
 ```
 
 For discussion, this worktree is the `jtbdtask-pr-comments-comment-worktree`.
@@ -175,8 +175,8 @@ For each review comment (`jtbdtask-pr-comments-comment`), working in the `jtbdta
 Once **all** N review comments have been addressed locally:
 
 ```bash
-# Push from the worktree to upstream
-cd "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
+# Push from the worktree to upstream (sibling directory)
+cd "../review-copilot-pr-$PR_NUMBER"
 git push upstream HEAD:$JTBDTASK_BRANCH
 ```
 
@@ -281,8 +281,8 @@ Verify:
 ### Step 16: Clean up worktree
 
 ```bash
-# Remove the worktree
-git worktree remove "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
+# Remove the worktree (sibling directory)
+git worktree remove "../review-copilot-pr-$PR_NUMBER"
 
 # Remove the local branch tracking the PR topic branch (if created)
 git branch -D "$JTBDTASK_BRANCH" 2>/dev/null || true
@@ -308,8 +308,8 @@ If there are conflicts between the PR branch and `BASE_BRANCH`:
 # Check for merge conflicts
 MERGEABLE=$(gh pr view $PR_NUMBER -R $REPO --json mergeable --jq '.mergeable')
 if [ "$MERGEABLE" = "CONFLICTING" ]; then
-  # Resolve conflicts locally in the worktree
-  cd "$GH_CURRENT_USER/review-copilot-pr-$PR_NUMBER"
+  # Resolve conflicts locally in the worktree (sibling directory)
+  cd "../review-copilot-pr-$PR_NUMBER"
   git fetch upstream
   git rebase "upstream/$BASE_BRANCH"
   # Resolve conflicts, then:
