@@ -275,6 +275,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionAutoModeResolved:
+		var d SessionAutoModeResolvedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionAutopilotObjectiveChanged:
 		var d SessionAutopilotObjectiveChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

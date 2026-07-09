@@ -3595,15 +3595,14 @@ type MCPRemoveGitHubResult struct {
 	Removed bool `json:"removed"`
 }
 
-// Server name and opaque configuration for an individual MCP server restart.
+// Server name and optional replacement configuration for an individual MCP server restart.
+// Omit `config` for a config-free restart-by-name of an already-configured server.
 // Experimental: MCPRestartServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPRestartServerRequest struct {
-	// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
-	// shape supplied only by in-process CLI callers.
-	// Internal: Config is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Config any `json:"config"`
+	// Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart
+	// the server with its already-registered configuration (config-free restart-by-name).
+	Config MCPServerConfig `json:"config,omitempty"`
 	// Name of the MCP server to restart
 	ServerName string `json:"serverName"`
 }
@@ -3791,15 +3790,12 @@ type MCPSetEnvValueModeResult struct {
 	Mode MCPSetEnvValueModeDetails `json:"mode"`
 }
 
-// Server name and opaque configuration for an individual MCP server start.
+// Server name and configuration for an individual MCP server start.
 // Experimental: MCPStartServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStartServerRequest struct {
-	// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
-	// shape supplied only by in-process CLI callers.
-	// Internal: Config is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Config any `json:"config"`
+	// MCP server configuration (stdio process or remote HTTP/SSE)
+	Config MCPServerConfig `json:"config"`
 	// Name of the MCP server to start
 	ServerName string `json:"serverName"`
 }
@@ -6869,6 +6865,73 @@ type SendAttachmentsToMessageParams struct {
 	// canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs
 	// and those fields stay unset on the attachment.
 	InstanceID *string `json:"instanceId,omitempty"`
+}
+
+// A single user message to append to the session as part of a `session.sendMessages` turn
+// Experimental: SendMessageItem is part of an experimental API and may change or be removed.
+type SendMessageItem struct {
+	// Optional attachments (files, directories, selections, blobs, GitHub references) to
+	// include with this message
+	Attachments []Attachment `json:"attachments,omitzero"`
+	// If false, this message will not trigger a Premium Request Unit charge. User messages
+	// default to billable.
+	// Internal: Billable is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Billable *bool `json:"billable,omitempty"`
+	// If provided, this is shown in the timeline instead of `prompt`
+	DisplayPrompt *string `json:"displayPrompt,omitempty"`
+	// The user message text
+	Prompt string `json:"prompt"`
+	// If set, the request will fail if the named tool is not available when this message is
+	// among the user messages at the start of the current exchange
+	RequiredTool *string `json:"requiredTool,omitempty"`
+	// Optional provenance tag copied to the resulting user.message event. Must match one of
+	// three forms: the literal `system`, `command-<command-id>` for messages originating from a
+	// command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for
+	// messages originating from a scheduled job.
+	// Internal: Source is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Source *string `json:"source,omitempty"`
+}
+
+// Parameters for sending zero or more user messages to the session in a single turn.
+// Remote-backed (Mission Control) sessions do not support this method and will return an
+// error.
+// Experimental: SendMessagesRequest is part of an experimental API and may change or be
+// removed.
+type SendMessagesRequest struct {
+	// The UI mode the agent was in when these messages were sent. Defaults to the session's
+	// current mode.
+	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
+	// The user messages to append to the conversation, in order. May be empty, in which case a
+	// single turn runs over the existing history with no new user message.
+	Messages []SendMessageItem `json:"messages"`
+	// How to deliver the messages. `enqueue` (default) appends to the message queue.
+	// `immediate` interjects during an in-progress turn.
+	Mode *SendMode `json:"mode,omitempty"`
+	// If true, adds the messages to the front of the queue instead of the end
+	Prepend *bool `json:"prepend,omitempty"`
+	// Custom HTTP headers to include in outbound model requests for this turn. Merged with
+	// session-level provider headers; per-turn headers augment and overwrite session-level
+	// headers with the same key.
+	RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
+	// W3C Trace Context traceparent header for distributed tracing of this agent turn
+	Traceparent *string `json:"traceparent,omitempty"`
+	// W3C Trace Context tracestate header for distributed tracing
+	Tracestate *string `json:"tracestate,omitempty"`
+	// If true, await completion of the agentic loop for this turn before returning. Defaults to
+	// false (fire-and-forget). When true, the result still contains the same `messageIds`; the
+	// caller can rely on the agent having processed the messages before the call resolves.
+	Wait *bool `json:"wait,omitempty"`
+}
+
+// Result of sending zero or more user messages
+// Experimental: SendMessagesResult is part of an experimental API and may change or be
+// removed.
+type SendMessagesResult struct {
+	// Unique identifiers assigned to the messages, one per provided message in order. Empty
+	// when no messages were provided.
+	MessageIDs []string `json:"messageIds"`
 }
 
 // Parameters for sending a user message to the session
@@ -12820,6 +12883,29 @@ func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsG
 	return &result, nil
 }
 
+// Experimental: ServerCommandsAPI contains experimental APIs that may change or be removed.
+type ServerCommandsAPI serverAPI
+
+// Lists the well-known built-in slash commands that work as the first message in a new
+// session (e.g. /plan, /env), without requiring an active session. Commands that depend on
+// session state, authentication, or a synced session are omitted.
+//
+// RPC method: commands.list.
+//
+// Returns: Slash commands available in the session, after applying any include/exclude
+// filters.
+func (a *ServerCommandsAPI) List(ctx context.Context) (*CommandList, error) {
+	raw, err := a.client.Request(ctx, "commands.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result CommandList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -14056,6 +14142,7 @@ type ServerRPC struct {
 	Account       *ServerAccountAPI
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
+	Commands      *ServerCommandsAPI
 	Instructions  *ServerInstructionsAPI
 	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
@@ -14097,6 +14184,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Account = (*ServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
+	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
@@ -15430,6 +15518,35 @@ func (a *MCPAPI) RemoveGitHub(ctx context.Context) (*MCPRemoveGitHubResult, erro
 	return &result, nil
 }
 
+// RestartServer restarts an individual MCP server on the live session (stops then starts).
+// Omit `config` for a config-free restart-by-name of an already-configured server; supply
+// `config` to restart with a replacement configuration. Session-scoped and ephemeral: does
+// NOT modify persistent user configuration (`mcp.config.*`).
+//
+// RPC method: session.mcp.restartServer.
+//
+// Parameters: Server name and optional replacement configuration for an individual MCP
+// server restart. Omit `config` for a config-free restart-by-name of an already-configured
+// server.
+func (a *MCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Config != nil {
+			req["config"] = params.Config
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPRestartServerResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SetEnvValueMode sets how environment-variable values supplied to MCP servers are resolved
 // (direct or indirect).
 //
@@ -15449,6 +15566,33 @@ func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueMode
 		return nil, err
 	}
 	var result MCPSetEnvValueModeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StartServer starts an individual MCP server on the live session from a caller-supplied
+// config. Session-scoped and ephemeral: the server is added to this session's running set
+// only and is reaped when the session ends. Does NOT modify persistent user configuration
+// (`mcp.config.*`), so it does not affect future sessions. The server surfaces through
+// `session.mcp.list` and the `session.mcp_servers_loaded` /
+// `session.mcp_server_status_changed` events like any other server.
+//
+// RPC method: session.mcp.startServer.
+//
+// Parameters: Server name and configuration for an individual MCP server start.
+func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["config"] = params.Config
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPStartServerResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -18657,6 +18801,58 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 	return &result, nil
 }
 
+// SendMessages sends zero or more user messages to the session in a single turn and returns
+// their message IDs. All provided messages are appended to the conversation in order, then
+// exactly one agent turn runs over the resulting history. When the list is empty, one turn
+// runs over the existing history with no new user message. Remote-backed (Mission Control)
+// sessions do not support this method and will return an error.
+//
+// RPC method: session.sendMessages.
+//
+// Parameters: Parameters for sending zero or more user messages to the session in a single
+// turn. Remote-backed (Mission Control) sessions do not support this method and will return
+// an error.
+//
+// Returns: Result of sending zero or more user messages
+// Experimental: SendMessages is an experimental API and may change or be removed in future
+// versions.
+func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesRequest) (*SendMessagesResult, error) {
+	req := map[string]any{"sessionId": a.common.sessionID}
+	if params != nil {
+		if params.AgentMode != nil {
+			req["agentMode"] = *params.AgentMode
+		}
+		req["messages"] = params.Messages
+		if params.Mode != nil {
+			req["mode"] = *params.Mode
+		}
+		if params.Prepend != nil {
+			req["prepend"] = *params.Prepend
+		}
+		if params.RequestHeaders != nil {
+			req["requestHeaders"] = params.RequestHeaders
+		}
+		if params.Traceparent != nil {
+			req["traceparent"] = *params.Traceparent
+		}
+		if params.Tracestate != nil {
+			req["tracestate"] = *params.Tracestate
+		}
+		if params.Wait != nil {
+			req["wait"] = *params.Wait
+		}
+	}
+	raw, err := a.common.client.Request(ctx, "session.sendMessages", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SendMessagesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Shutdown shuts down the session and persists its final state. Awaits any deferred
 // sessionEnd hooks before resolving so user-supplied hook scripts complete before the
 // runtime tears down.
@@ -18830,54 +19026,6 @@ func (a *InternalMCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReload
 		return nil, err
 	}
 	var result MCPStartServersResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RestartServer restarts an individual MCP server on the session's host (stops then starts).
-//
-// RPC method: session.mcp.restartServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server restart.
-// Internal: RestartServer is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalMCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPRestartServerResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// StartServer starts an individual MCP server on the session's host.
-//
-// RPC method: session.mcp.startServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server start.
-// Internal: StartServer is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalMCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPStartServerResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

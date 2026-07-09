@@ -53,46 +53,49 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                            SessionEventType = "abort"
-	SessionEventTypeAssistantIdle                    SessionEventType = "assistant.idle"
-	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantToolCallDelta           SessionEventType = "assistant.tool_call_delta"
-	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                        SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
-	SessionEventTypeMCPHeadersRefreshRequired        SessionEventType = "mcp.headers_refresh_required"
-	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
+	SessionEventTypeAbort                      SessionEventType = "abort"
+	SessionEventTypeAssistantIdle              SessionEventType = "assistant.idle"
+	SessionEventTypeAssistantIntent            SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage           SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta      SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart      SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning         SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta    SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta    SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantToolCallDelta     SessionEventType = "assistant.tool_call_delta"
+	SessionEventTypeAssistantTurnEnd           SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart         SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage             SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted    SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested    SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged        SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted           SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute             SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued              SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged            SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted       SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested       SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted      SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested      SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted      SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested      SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                    SessionEventType = "hook.end"
+	SessionEventTypeHookProgress               SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                  SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete     SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired  SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted          SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired           SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
+	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
@@ -210,6 +213,8 @@ type AssistantMessageData struct {
 	// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
 	// Experimental: Citations is part of an experimental API and may change or be removed.
 	Citations *Citations `json:"citations,omitempty"`
+	// Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+	ClientRequestID *string `json:"clientRequestId,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -247,6 +252,28 @@ type AssistantMessageData struct {
 
 func (*AssistantMessageData) sessionEventData()      {}
 func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
+
+// Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+// Experimental: SessionAutoModeResolvedData is part of an experimental API and may change or be removed.
+type SessionAutoModeResolvedData struct {
+	// Ordered candidate model list the router returned, when not a fallback
+	CandidateModels []string `json:"candidateModels,omitzero"`
+	// Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+	CategoryScores map[string]float64 `json:"categoryScores,omitzero"`
+	// The concrete model the session will use after any intent refinement
+	ChosenModel string `json:"chosenModel"`
+	// Classifier confidence for the predicted label, when available
+	Confidence *float64 `json:"confidence,omitempty"`
+	// The predicted classifier label (e.g. `needs_reasoning`), when available
+	PredictedLabel *string `json:"predictedLabel,omitempty"`
+	// Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work")
+	ReasoningBucket *AutoModeResolvedReasoningBucket `json:"reasoningBucket,omitempty"`
+}
+
+func (*SessionAutoModeResolvedData) sessionEventData() {}
+func (*SessionAutoModeResolvedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoModeResolved
+}
 
 // Auto mode switch completion notification
 type AutoModeSwitchCompletedData struct {
@@ -3593,6 +3620,18 @@ const (
 	AutoApprovalRecommendationExcluded AutoApprovalRecommendation = "excluded"
 	// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
 	AutoApprovalRecommendationRequireApproval AutoApprovalRecommendation = "requireApproval"
+)
+
+// Coarse request-difficulty bucket for UX explainability
+type AutoModeResolvedReasoningBucket string
+
+const (
+	// The request looks high-reasoning; a stronger model is appropriate.
+	AutoModeResolvedReasoningBucketHigh AutoModeResolvedReasoningBucket = "high"
+	// The request looks low-reasoning; a lighter model is appropriate.
+	AutoModeResolvedReasoningBucketLow AutoModeResolvedReasoningBucket = "low"
+	// The request needs a moderate amount of reasoning.
+	AutoModeResolvedReasoningBucketMedium AutoModeResolvedReasoningBucket = "medium"
 )
 
 // The user's auto-mode-switch choice

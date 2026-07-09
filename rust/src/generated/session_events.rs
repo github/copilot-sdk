@@ -186,6 +186,15 @@ pub enum SessionEventType {
     SessionLimitsExhaustedRequested,
     #[serde(rename = "session_limits_exhausted.completed")]
     SessionLimitsExhaustedCompleted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_mode_resolved")]
+    SessionAutoModeResolved,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -446,6 +455,15 @@ pub enum SessionEventData {
     SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
     #[serde(rename = "session_limits_exhausted.completed")]
     SessionLimitsExhaustedCompleted(SessionLimitsExhaustedCompletedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_mode_resolved")]
+    SessionAutoModeResolved(SessionAutoModeResolvedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -1628,6 +1646,9 @@ pub struct AssistantMessageData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<Citations>,
+    /// Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_request_id: Option<String>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -3833,6 +3854,36 @@ pub struct SessionLimitsExhaustedCompletedData {
     pub response: SessionLimitsExhaustedResponse,
 }
 
+/// Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutoModeResolvedData {
+    /// Ordered candidate model list the router returned, when not a fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_models: Option<Vec<String>>,
+    /// Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_scores: Option<HashMap<String, f64>>,
+    /// The concrete model the session will use after any intent refinement
+    pub chosen_model: String,
+    /// Classifier confidence for the predicted label, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+    /// The predicted classifier label (e.g. `needs_reasoning`), when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicted_label: Option<String>,
+    /// Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_bucket: Option<AutoModeResolvedReasoningBucket>,
+}
+
 /// A single slash command available in the session, as listed by the `commands.changed` event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -5433,6 +5484,24 @@ pub enum SessionLimitsExhaustedResponseAction {
     /// Leave the limit unchanged and cancel the blocked model request.
     #[serde(rename = "cancel")]
     Cancel,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Coarse request-difficulty bucket for UX explainability
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoModeResolvedReasoningBucket {
+    /// The request looks low-reasoning; a lighter model is appropriate.
+    #[serde(rename = "low")]
+    Low,
+    /// The request needs a moderate amount of reasoning.
+    #[serde(rename = "medium")]
+    Medium,
+    /// The request looks high-reasoning; a stronger model is appropriate.
+    #[serde(rename = "high")]
+    High,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

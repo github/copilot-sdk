@@ -59,6 +59,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
         @JsonProperty("requestId") String requestId,
+        /** Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id). */
+        @JsonProperty("clientRequestId") String clientRequestId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
         /** Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances. */

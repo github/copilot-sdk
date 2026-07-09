@@ -43,6 +43,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `commands.*` sub-namespace.
+    pub fn commands(&self) -> ClientRpcCommands<'a> {
+        ClientRpcCommands {
+            client: self.client,
+        }
+    }
+
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
@@ -452,6 +459,38 @@ impl<'a> ClientRpcAgents<'a> {
         let _value = self
             .client
             .call(rpc_methods::AGENTS_GETDISCOVERYPATHS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `commands.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcCommands<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcCommands<'a> {
+    /// Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.
+    ///
+    /// Wire method: `commands.list`.
+    ///
+    /// # Returns
+    ///
+    /// Slash commands available in the session, after applying any include/exclude filters.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(&self) -> Result<CommandList, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::COMMANDS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -2848,6 +2887,39 @@ impl<'a> SessionRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+    ///
+    /// Wire method: `session.sendMessages`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+    ///
+    /// # Returns
+    ///
+    /// Result of sending zero or more user messages
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn send_messages(
+        &self,
+        params: SendMessagesRequest,
+    ) -> Result<SendMessagesResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SENDMESSAGES, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Aborts the current agent turn.
     ///
     /// Wire method: `session.abort`.
@@ -4569,13 +4641,13 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts an individual MCP server on the session's host.
+    /// Starts an individual MCP server on the live session from a caller-supplied config. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
     ///
     /// Wire method: `session.mcp.startServer`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Server name and opaque configuration for an individual MCP server start.
+    /// * `params` - Server name and configuration for an individual MCP server start.
     ///
     /// <div class="warning">
     ///
@@ -4584,7 +4656,7 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub(crate) async fn start_server(&self, params: McpStartServerRequest) -> Result<(), Error> {
+    pub async fn start_server(&self, params: McpStartServerRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
@@ -4595,13 +4667,13 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(())
     }
 
-    /// Restarts an individual MCP server on the session's host (stops then starts).
+    /// Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).
     ///
     /// Wire method: `session.mcp.restartServer`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Server name and opaque configuration for an individual MCP server restart.
+    /// * `params` - Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
     ///
     /// <div class="warning">
     ///
@@ -4610,10 +4682,7 @@ impl<'a> SessionRpcMcp<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub(crate) async fn restart_server(
-        &self,
-        params: McpRestartServerRequest,
-    ) -> Result<(), Error> {
+    pub async fn restart_server(&self, params: McpRestartServerRequest) -> Result<(), Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
