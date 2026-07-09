@@ -40,6 +40,8 @@ on:
           - publish
           - publish-force
           - tests-only
+  repository_dispatch:
+    types: [runtime-canary]
 
 permissions:
   contents: read
@@ -64,10 +66,9 @@ jobs:
     steps:
       # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
       # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
-      # references. Adding a `repository_dispatch: types: [runtime-canary]`
-      # trigger later is purely additive: add one more case that reads
-      # client_payload, defaults source to 'internal', and mode to 'publish'. No
-      # downstream rework required.
+      # references. workflow_dispatch reads the human-supplied inputs;
+      # repository_dispatch reads client_payload and forces source=internal
+      # (a runtime canary only exists on the feed), defaulting mode to publish.
       - name: Normalize inputs
         id: normalize
         env:
@@ -75,14 +76,22 @@ jobs:
           INPUT_VERSION: ${{ inputs.runtime_version }}
           INPUT_SOURCE: ${{ inputs.runtime_source }}
           INPUT_MODE: ${{ inputs.mode }}
+          PAYLOAD_VERSION: ${{ github.event.client_payload.runtime_version }}
+          PAYLOAD_SOURCE: ${{ github.event.client_payload.runtime_source }}
+          PAYLOAD_MODE: ${{ github.event.client_payload.mode }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
             workflow_dispatch)
               VERSION="$INPUT_VERSION"
               SOURCE="$INPUT_SOURCE"
-              # Only a human dispatch may pick a non-default publish mode.
               MODE="$INPUT_MODE"
+              ;;
+            repository_dispatch)
+              VERSION="$PAYLOAD_VERSION"
+              # A runtime canary only ever exists on the internal feed.
+              SOURCE="${PAYLOAD_SOURCE:-internal}"
+              MODE="${PAYLOAD_MODE:-publish}"
               ;;
             *)
               echo "::error::Unsupported event '$EVENT_NAME'."
@@ -226,11 +235,10 @@ jobs:
   publish:
     name: "Publish SDK canary (internal feed)"
     needs: [resolve, test]
-    # Publish runs only when the gate permits it. Mode (human dispatch only)
-    # governs behavior:
+    # Publish runs only when the gate permits it. Mode governs behavior:
     #  - tests-only: never publish (skips this job entirely).
-    #  - publish: publish only when the e2e gate is green (the default; the only
-    #    mode automated triggers ever get).
+    #  - publish: publish only when the e2e gate is green (the default for both
+    #    the human and automated triggers).
     #  - publish-force: publish even on a non-green gate — a human-acknowledged
     #    flake override, audited via the ::warning:: step below and the run actor.
     # publish-force only skips the e2e *signal* — the publish job still runs the
