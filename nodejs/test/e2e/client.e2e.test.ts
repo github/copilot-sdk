@@ -1,6 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
+import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { isInProcessTransport } from "./harness/sdkTestContext.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
@@ -107,6 +107,11 @@ describe("Client", () => {
         60_000
     );
 
+    // Skipping on in-proc:
+    // - It breaks the macOS E2E run (failure: EPIPE)
+    // - It's not clear that anyone should use forceStop in the in-proc case - there's no child process
+    //   to terminate, so we can't be sure to leave a clean state
+    // - If you want to get to a clean state within your process, that's what "stop" (not "forceStop") is for
     it.skipIf(isInProcessTransport)("should forceStop without cleanup", async () => {
         const client = new CopilotClient({});
         onTestFinishedForceStop(client);
