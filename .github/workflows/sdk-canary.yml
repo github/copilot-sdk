@@ -13,8 +13,7 @@ env:
   # (when runtime_source=internal) installs the runtime from here; it must NEVER
   # reach public npm (@github/copilot-sdk is a live public package).
   FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-  # Azure DevOps resource ID used to mint an ADO access token for the feed
-  # (a well-known public constant, not a secret).
+  # Azure DevOps resource ID used to mint an ADO access token for the feed.
   ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
 
 on:
@@ -62,9 +61,6 @@ jobs:
       RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
       PUBLISH_MODE: ${{ steps.normalize.outputs.PUBLISH_MODE }}
     steps:
-      # No checkout: this job only normalizes dispatch inputs and validates the
-      # version string — it never touches repo files.
-      #
       # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
       # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
       # references. Adding a `repository_dispatch: types: [runtime-canary]`
@@ -174,18 +170,18 @@ jobs:
             "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
             "${FEED_AUTH_BASE}:_authToken=${TOKEN}")"
           printf '%s\n' "$NPMRC" > .npmrc
-          printf '%s\n' "$NPMRC" > ../test/harness/.npmrc
-          echo "Wrote scoped @github registry .npmrc to ./nodejs and ./test/harness"
+          echo "Wrote scoped @github registry .npmrc to ./nodejs"
 
+      # Only ./nodejs needs the runtime override: the SDK resolves and spawns the
+      # runtime from its own node_modules during e2e. The harness is a mock CAPI
+      # proxy that never imports or launches @github/copilot, so its pinned copy
+      # is left as-is (and needs no feed .npmrc).
       - name: Override runtime version
         run: |
           set -euo pipefail
           echo "Installing @github/copilot@${RUNTIME_VERSION} (source: ${RUNTIME_SOURCE})"
           npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
-          ( cd ../test/harness && npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts )
 
-      # Verify the ./nodejs copy, which is the one the SDK actually spawns during
-      # e2e (the harness is a mock CAPI proxy and never launches the runtime).
       - name: Verify installed runtime
         run: |
           set -euo pipefail
