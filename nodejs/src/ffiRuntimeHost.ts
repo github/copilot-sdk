@@ -138,8 +138,7 @@ export class FfiRuntimeHost {
     private constructor(
         private readonly libraryPath: string,
         private readonly cliEntrypoint: string,
-        private readonly environment?: Record<string, string | undefined>,
-        private readonly workingDirectory?: string
+        private readonly environment?: Record<string, string | undefined>
     ) {
         this.lib = loadLibrary(libraryPath);
         this.receiveStream = new PassThrough();
@@ -166,8 +165,7 @@ export class FfiRuntimeHost {
     static create(
         cliEntrypoint: string,
         prebuildsFolder: string,
-        environment?: Record<string, string | undefined>,
-        workingDirectory?: string
+        environment?: Record<string, string | undefined>
     ): FfiRuntimeHost {
         const fullEntrypoint = resolve(cliEntrypoint);
         const distDir = dirname(fullEntrypoint);
@@ -175,7 +173,7 @@ export class FfiRuntimeHost {
         if (!existsSync(libraryPath)) {
             throw new Error(`FFI runtime library not found. Looked for '${libraryPath}'.`);
         }
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, workingDirectory);
+        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment);
     }
 
     /**
@@ -187,37 +185,27 @@ export class FfiRuntimeHost {
         const envJson = buildEnvJson(this.environment);
 
         // The native host spawns the CLI worker itself and has no cwd parameter, so the
-        // worker inherits this process's cwd. Mirror the stdio child's `cwd: workingDirectory`
-        // by switching cwd for the duration of the blocking host_start, then restoring it.
-        const previousCwd = process.cwd();
-        const shouldSwitchCwd = !!this.workingDirectory && this.workingDirectory !== previousCwd;
-        if (shouldSwitchCwd) {
-            process.chdir(this.workingDirectory!);
-        }
+        // worker inherits this process's cwd. A custom working directory is intentionally
+        // unsupported for the in-process transport (rejected by the client constructor)
+        // rather than mutating the shared process-global cwd here.
 
         // host_start blocks until the worker connects back and signals readiness
         // (up to ~30s); run it as an async FFI call so the Node event loop isn't blocked.
-        try {
-            this.serverId = await new Promise<number>((resolvePromise, rejectPromise) => {
-                this.lib.hostStart.async(
-                    argvJson,
-                    argvJson.length,
-                    envJson,
-                    envJson ? envJson.length : 0,
-                    (error: Error | null, result: number) => {
-                        if (error) {
-                            rejectPromise(error);
-                        } else {
-                            resolvePromise(result);
-                        }
+        this.serverId = await new Promise<number>((resolvePromise, rejectPromise) => {
+            this.lib.hostStart.async(
+                argvJson,
+                argvJson.length,
+                envJson,
+                envJson ? envJson.length : 0,
+                (error: Error | null, result: number) => {
+                    if (error) {
+                        rejectPromise(error);
+                    } else {
+                        resolvePromise(result);
                     }
-                );
-            });
-        } finally {
-            if (shouldSwitchCwd) {
-                process.chdir(previousCwd);
-            }
-        }
+                }
+            );
+        });
         if (!this.serverId) {
             throw new Error(
                 `copilot_runtime_host_start failed (library '${this.libraryPath}', entrypoint '${this.cliEntrypoint}').`
@@ -276,6 +264,13 @@ export class FfiRuntimeHost {
         // and would surface only as a DEP0168 "uncaught Node-API callback exception"
         // warning, so catch and log it here instead of letting it escape.
         try {
+            // A native outbound callback can still be delivered on the event loop after
+            // dispose() has ended receiveStream; writing then would throw
+            // ERR_STREAM_WRITE_AFTER_END. Drop late frames instead — the connection is
+            // gone and nothing is reading them.
+            if (this.disposed || this.receiveStream.writableEnded) {
+                return;
+            }
             const length = Number(bytesLen);
             if (!bytesPtr || length <= 0) {
                 return;

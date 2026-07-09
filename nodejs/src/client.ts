@@ -578,9 +578,8 @@ export class CopilotClient {
      * Resolves the default {@link RuntimeConnection} for the no-connection case,
      * honoring {@link CopilotClient.DEFAULT_CONNECTION_ENV_VAR}.
      */
-    private static resolveDefaultConnection(options: CopilotClientOptions): RuntimeConnection {
-        const env = options.env ?? process.env;
-        const value = env[CopilotClient.DEFAULT_CONNECTION_ENV_VAR];
+    private static resolveDefaultConnection(): RuntimeConnection {
+        const value = process.env[CopilotClient.DEFAULT_CONNECTION_ENV_VAR];
         if (!value || value.toLowerCase() === "stdio") {
             return { kind: "stdio" };
         }
@@ -627,7 +626,7 @@ export class CopilotClient {
         const conn: InternalRuntimeConnection =
             options._internalConnection ??
             options.connection ??
-            CopilotClient.resolveDefaultConnection(options);
+            CopilotClient.resolveDefaultConnection();
 
         if (
             conn.kind === "uri" &&
@@ -635,6 +634,14 @@ export class CopilotClient {
         ) {
             throw new Error(
                 "gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri (external server manages its own auth)"
+            );
+        }
+        if (conn.kind === "inprocess" && options.workingDirectory !== undefined) {
+            throw new Error(
+                "workingDirectory is not supported with RuntimeConnection.forInProcess(): the in-process " +
+                    "transport hosts the runtime in this process, so honoring it would require mutating the " +
+                    "shared process-global cwd. Change the host process's working directory before " +
+                    "constructing the client instead."
             );
         }
         if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
@@ -2534,12 +2541,7 @@ export class CopilotClient {
         // The transpiled output is per-file (not bundled), so this resolves the
         // sibling module at runtime in both the ESM and CJS builds.
         const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
-        const host = FfiRuntimeHost.create(
-            entrypoint,
-            CopilotClient.getNapiPrebuildsFolder(),
-            undefined,
-            this.options.workingDirectory
-        );
+        const host = FfiRuntimeHost.create(entrypoint, CopilotClient.getNapiPrebuildsFolder());
         this.ffiHost = host;
         await host.start();
     }

@@ -173,7 +173,12 @@ export async function createSdkTestContext({
         : {};
 
     const copilotClient = new CopilotClient({
-        workingDirectory: workDir,
+        // The in-process transport rejects a per-client workingDirectory (it would have to
+        // mutate the shared host process cwd). Instead the harness changes this process's
+        // cwd to workDir around the in-process worker's startup (see beforeEach below), so
+        // the worker still spawns with workDir as its cwd. Out-of-process clients get it
+        // as a normal per-client option.
+        workingDirectory: isInProcess ? undefined : workDir,
         // In-process hosting mirrors the environment onto the real process (per test, in
         // beforeEach below), so the worker inherits it; passing a per-client env here
         // would have no effect.
@@ -192,6 +197,9 @@ export async function createSdkTestContext({
     // Holds the process.env entries the current test overwrote, so afterEach restores them.
     let restoreProcessEnv: Array<[string, string | undefined]> = [];
 
+    // Holds the process cwd before an in-process test changed it, so afterEach restores it.
+    let restoreCwd: string | undefined;
+
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
         // Must be inside beforeEach - vitest requires test context
@@ -207,6 +215,15 @@ export async function createSdkTestContext({
         for (const [key, value] of Object.entries(inProcessEnv)) {
             restoreProcessEnv.push([key, process.env[key]]);
             process.env[key] = value;
+        }
+
+        // The in-process worker inherits this process's cwd at spawn (the client auto-starts
+        // on first use inside the test body). Point cwd at workDir here so the worker spawns
+        // with the same working directory the out-of-process transport passes explicitly;
+        // afterEach restores it.
+        if (isInProcess) {
+            restoreCwd = process.cwd();
+            process.chdir(workDir);
         }
 
         await openAiEndpoint.updateConfig({
@@ -229,6 +246,11 @@ export async function createSdkTestContext({
             }
         }
         restoreProcessEnv = [];
+        // Restore the cwd an in-process test changed for worker startup.
+        if (restoreCwd !== undefined) {
+            process.chdir(restoreCwd);
+            restoreCwd = undefined;
+        }
         // Empty directories but leave them in place for next test
         await rimraf([join(homeDir, "*"), join(workDir, "*")], { glob: true });
     });
