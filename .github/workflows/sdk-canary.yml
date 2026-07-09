@@ -106,7 +106,7 @@ jobs:
         env:
           RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
         run: |
-          if [[ ! "$RUNTIME_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+          if [[ ! "$RUNTIME_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Invalid runtime version '$RUNTIME_VERSION'. Expected semver (e.g. 1.0.69 or 1.0.70-canary.abc123)."
             exit 1
           fi
@@ -167,12 +167,10 @@ jobs:
           # name lives in exactly one place (the workflow-level env).
           FEED_AUTH_REGISTRY="${FEED_URL#https:}"
           FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          NPMRC="$(cat <<EOF
-          @github:registry=${FEED_URL}
-          ${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}
-          ${FEED_AUTH_BASE}:_authToken=${TOKEN}
-          EOF
-          )"
+          NPMRC="$(printf '%s\n' \
+            "@github:registry=${FEED_URL}" \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}")"
           printf '%s\n' "$NPMRC" > .npmrc
           printf '%s\n' "$NPMRC" > ../test/harness/.npmrc
           echo "Wrote scoped @github registry .npmrc to ./nodejs and ./test/harness"
@@ -305,7 +303,7 @@ jobs:
             echo "::warning::Could not resolve public SDK latest; falling back to 0.0.0 canary base"
           fi
           SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
-          if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+          if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
             exit 1
           fi
@@ -345,10 +343,9 @@ jobs:
           # supplied explicitly via publishConfig + --registry.
           FEED_AUTH_REGISTRY="${FEED_URL#https:}"
           FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
-          cat > .npmrc <<EOF
-          ${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}
-          ${FEED_AUTH_BASE}:_authToken=${TOKEN}
-          EOF
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > .npmrc
           echo "Wrote auth-only .npmrc to ./nodejs"
 
       # Belt and suspenders (2 of 3): pin the publish target in the package too.
