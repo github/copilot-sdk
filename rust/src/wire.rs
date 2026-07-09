@@ -24,10 +24,10 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CapiSessionOptions, CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
-    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
-    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
-    SystemMessageConfig, Tool,
+    CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
+    DefaultAgentConfig, ExtensionInfo, InfiniteSessionConfig, LargeToolOutputConfig,
+    McpServerConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
+    SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -73,6 +73,8 @@ pub(crate) struct SessionCreateWire {
     pub extension_sdk_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_info: Option<ExtensionInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,6 +208,8 @@ pub(crate) struct SessionResumeWire {
     pub extension_sdk_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_info: Option<ExtensionInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

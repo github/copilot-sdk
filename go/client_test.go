@@ -251,6 +251,82 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsCanvasProviderToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		ExtensionInfo:  &ExtensionInfo{Source: "github-app", Name: "counter-provider"},
+		CanvasProvider: &CanvasProviderIdentity{ID: "app:builtin:window-1", Name: String("Built-in")},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertCanvasProviderForwarded(t, <-createParams, "app:builtin:window-1", "Built-in", "counter-provider")
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-canvas","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-canvas", &ResumeSessionConfig{
+		CanvasProvider: &CanvasProviderIdentity{ID: "app:builtin:window-1"},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertCanvasProviderForwarded(t, <-resumeParams, "app:builtin:window-1", "", "")
+}
+
+// assertCanvasProviderForwarded checks the outbound params carry canvasProvider
+// with the expected id. A non-empty wantName asserts the name is present; an
+// empty wantName asserts the name key is omitted from the wire. A non-empty
+// wantExtensionName asserts extensionInfo.name is forwarded alongside it.
+func assertCanvasProviderForwarded(t *testing.T, params json.RawMessage, wantID, wantName, wantExtensionName string) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	provider, ok := decoded["canvasProvider"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected canvasProvider object in request params, got %T", decoded["canvasProvider"])
+	}
+	if provider["id"] != wantID {
+		t.Fatalf("expected canvasProvider.id=%q, got %v", wantID, provider["id"])
+	}
+	if wantName == "" {
+		if _, present := provider["name"]; present {
+			t.Fatalf("expected canvasProvider.name to be omitted, got %v", provider["name"])
+		}
+	} else if provider["name"] != wantName {
+		t.Fatalf("expected canvasProvider.name=%q, got %v", wantName, provider["name"])
+	}
+	if wantExtensionName != "" {
+		info, ok := decoded["extensionInfo"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected extensionInfo object in request params, got %T", decoded["extensionInfo"])
+		}
+		if info["name"] != wantExtensionName {
+			t.Fatalf("expected extensionInfo.name=%q, got %v", wantExtensionName, info["name"])
+		}
+	}
+}
+
 func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)

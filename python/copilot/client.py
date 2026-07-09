@@ -58,6 +58,7 @@ from ._telemetry import get_trace_context
 from .canvas import (
     CanvasDeclaration,
     CanvasHandler,
+    CanvasProviderIdentity,
     ExtensionInfo,
 )
 from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
@@ -1754,6 +1755,7 @@ class CopilotClient:
         request_extensions: bool | None = None,
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
+        canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         exp_assignments: dict[str, Any] | None = None,
         enable_managed_settings: bool | None = None,
@@ -2172,6 +2174,8 @@ class CopilotClient:
             payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
+        if canvas_provider is not None:
+            payload["canvasProvider"] = canvas_provider.to_dict()
 
         if not self._client:
             raise RuntimeError("Client not connected")
@@ -2417,6 +2421,7 @@ class CopilotClient:
         request_extensions: bool | None = None,
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
+        canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
         exp_assignments: dict[str, Any] | None = None,
@@ -2807,6 +2812,8 @@ class CopilotClient:
             payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
+        if canvas_provider is not None:
+            payload["canvasProvider"] = canvas_provider.to_dict()
 
         if not self._client:
             raise RuntimeError("Client not connected")

@@ -301,6 +301,7 @@ describe("CopilotClient", () => {
             requestCanvasRenderer: true,
             requestExtensions: true,
             extensionInfo: { source: "github-app", name: "counter-provider" },
+            canvasProvider: { id: "app:builtin:window-1", name: "Built-in" },
         });
 
         const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
@@ -317,6 +318,10 @@ describe("CopilotClient", () => {
         expect(payload.extensionInfo).toEqual({
             source: "github-app",
             name: "counter-provider",
+        });
+        expect(payload.canvasProvider).toEqual({
+            id: "app:builtin:window-1",
+            name: "Built-in",
         });
     });
 
@@ -345,6 +350,7 @@ describe("CopilotClient", () => {
             requestCanvasRenderer: true,
             requestExtensions: true,
             extensionInfo: { source: "github-app", name: "counter-provider" },
+            canvasProvider: { id: "app:builtin:window-1" },
         });
 
         const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
@@ -355,6 +361,7 @@ describe("CopilotClient", () => {
             source: "github-app",
             name: "counter-provider",
         });
+        expect(payload.canvasProvider).toEqual({ id: "app:builtin:window-1" });
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 

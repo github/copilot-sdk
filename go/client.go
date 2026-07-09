@@ -727,6 +727,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
 	req.Canvases = config.Canvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
@@ -1091,6 +1093,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
 	req.OpenCanvases = config.OpenCanvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath

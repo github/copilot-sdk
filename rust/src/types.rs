@@ -917,6 +917,42 @@ impl ExtensionInfo {
     }
 }
 
+/// Stable identity for a host/SDK connection that supplies built-in canvases.
+///
+/// When set on session create or resume, the runtime uses [`id`] verbatim as
+/// the agent-facing canvas extension id, so canvases declared on a control
+/// connection survive stdio reconnect and CLI process restart instead of being
+/// re-keyed to a per-connection id. The id is opaque to the runtime; a
+/// per-window-stable value such as `app:builtin:<windowId>` is recommended. An
+/// id beginning with `connection:` is reserved and ignored by the runtime.
+///
+/// [`id`]: CanvasProviderIdentity::id
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderIdentity {
+    /// Opaque, stable provider id used verbatim as the canvas extension id.
+    pub id: String,
+    /// Optional display name surfaced as the canvas extension name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl CanvasProviderIdentity {
+    /// Create a canvas provider identity from a stable opaque id.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: None,
+        }
+    }
+
+    /// Set the optional display name surfaced as the canvas extension name.
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+}
+
 /// Configuration for a single MCP server.
 ///
 /// MCP (Model Context Protocol) servers expose external tools to the
@@ -1599,6 +1635,9 @@ pub struct SessionConfig {
     pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases, so they survive reconnect and CLI restart.
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     /// Allowlist of built-in tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
@@ -1855,6 +1894,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_extensions", &self.request_extensions)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
+            .field("canvas_provider", &self.canvas_provider)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
@@ -1977,6 +2017,7 @@ impl Default for SessionConfig {
             request_extensions: None,
             extension_sdk_path: None,
             extension_info: None,
+            canvas_provider: None,
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
@@ -2126,6 +2167,7 @@ impl SessionConfig {
             request_extensions: self.request_extensions,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
+            canvas_provider: self.canvas_provider,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
@@ -2398,6 +2440,13 @@ impl SessionConfig {
     /// Set stable extension identity metadata for this connection.
     pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
         self.extension_info = Some(extension_info);
+        self
+    }
+
+    /// Set the canvas provider identity for this connection so host-supplied
+    /// canvases survive reconnect and CLI restart.
+    pub fn with_canvas_provider(mut self, canvas_provider: CanvasProviderIdentity) -> Self {
+        self.canvas_provider = Some(canvas_provider);
         self
     }
 
@@ -2803,6 +2852,9 @@ pub struct ResumeSessionConfig {
     pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases, so they rehydrate against a stable extension id on resume.
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     /// Allowlist of tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
@@ -2998,6 +3050,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_extensions", &self.request_extensions)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
+            .field("canvas_provider", &self.canvas_provider)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
@@ -3156,6 +3209,7 @@ impl ResumeSessionConfig {
             request_extensions: self.request_extensions,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
+            canvas_provider: self.canvas_provider,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
@@ -3252,6 +3306,7 @@ impl ResumeSessionConfig {
             request_extensions: None,
             extension_sdk_path: None,
             extension_info: None,
+            canvas_provider: None,
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
@@ -3501,6 +3556,13 @@ impl ResumeSessionConfig {
     /// Set stable extension identity metadata for this connection on resume.
     pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
         self.extension_info = Some(extension_info);
+        self
+    }
+
+    /// Set the canvas provider identity for this connection on resume so
+    /// host-supplied canvases rehydrate against a stable extension id.
+    pub fn with_canvas_provider(mut self, canvas_provider: CanvasProviderIdentity) -> Self {
+        self.canvas_provider = Some(canvas_provider);
         self
     }
 

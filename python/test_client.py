@@ -11,8 +11,10 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from copilot import (
+    CanvasProviderIdentity,
     CapiSessionOptions,
     CopilotClient,
+    ExtensionInfo,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
@@ -553,6 +555,49 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["contextTier"] == "long_context"
             assert captured["session.resume"]["contextTier"] == "default"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_canvas_provider(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                extension_info=ExtensionInfo(source="github-app", name="counter"),
+                canvas_provider=CanvasProviderIdentity(id="app:builtin:window-1", name="Built-in"),
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                canvas_provider=CanvasProviderIdentity(id="app:builtin:window-1"),
+            )
+
+            assert captured["session.create"]["canvasProvider"] == {
+                "id": "app:builtin:window-1",
+                "name": "Built-in",
+            }
+            assert captured["session.create"]["extensionInfo"] == {
+                "source": "github-app",
+                "name": "counter",
+            }
+            assert captured["session.resume"]["canvasProvider"] == {
+                "id": "app:builtin:window-1",
+            }
         finally:
             await client.force_stop()
 

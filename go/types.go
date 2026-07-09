@@ -1235,6 +1235,9 @@ type SessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases, so they survive reconnect and CLI restart.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data for this session,
 	// in the same JSON shape the Copilot CLI fetches from the experimentation
 	// service (CopilotExpAssignmentResponse). When supplied, the runtime feeds
@@ -1666,6 +1669,9 @@ type ResumeSessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases. See SessionConfig.CanvasProvider.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data on resume. See
 	// SessionConfig.ExpAssignments. Re-supply on resume so the runtime
 	// re-applies the assignments after a CLI process restart.
@@ -2131,6 +2137,7 @@ type createSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
@@ -2221,6 +2228,7 @@ type resumeSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`

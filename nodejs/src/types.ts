@@ -1715,6 +1715,23 @@ export interface ExtensionInfo {
 }
 
 /**
+ * Stable identity for a host/SDK connection that supplies built-in canvases.
+ *
+ * When set on session create or resume, the runtime uses {@link id} verbatim
+ * as the agent-facing canvas extension id, so canvases declared on a control
+ * connection survive stdio reconnect and CLI process restart instead of being
+ * re-keyed to a per-connection id. The id is opaque to the runtime; a
+ * per-window-stable value such as `app:builtin:<windowId>` is recommended. An
+ * id beginning with `connection:` is reserved and ignored by the runtime.
+ */
+export interface CanvasProviderIdentity {
+    /** Opaque, stable provider id used verbatim as the canvas extension id. */
+    id: string;
+    /** Optional display name surfaced as the canvas extension name. */
+    name?: string;
+}
+
+/**
  * Provider-scoped options for the Copilot API (CAPI).
  *
  * These settings apply to the built-in Copilot API provider only. They live
@@ -1857,6 +1874,14 @@ export interface SessionConfigBase {
      * id instead of a reconnect-specific connection id.
      */
     extensionInfo?: ExtensionInfo;
+
+    /**
+     * Stable identity for a host/SDK connection that supplies built-in
+     * canvases. When set, the runtime uses `id` verbatim as the agent-facing
+     * canvas extension id, so canvases declared on a control connection survive
+     * reconnect and CLI restart. Honored on session create and resume.
+     */
+    canvasProvider?: CanvasProviderIdentity;
 
     /**
      * Slash commands registered for this session.
