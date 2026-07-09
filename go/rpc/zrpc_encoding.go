@@ -1561,6 +1561,46 @@ func (r *MCPOauthHandlePendingRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r *MCPRestartServerRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPRestartServerRequest struct {
+		Config     json.RawMessage `json:"config,omitempty"`
+		ServerName string          `json:"serverName"`
+	}
+	var raw rawMCPRestartServerRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMCPServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.ServerName = raw.ServerName
+	return nil
+}
+
+func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPStartServerRequest struct {
+		Config     json.RawMessage `json:"config"`
+		ServerName string          `json:"serverName"`
+	}
+	var raw rawMCPStartServerRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMCPServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.ServerName = raw.ServerName
+	return nil
+}
+
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -3136,6 +3176,37 @@ func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
+	type rawSendMessageItem struct {
+		Attachments   []json.RawMessage `json:"attachments,omitzero"`
+		Billable      *bool             `json:"billable,omitempty"`
+		DisplayPrompt *string           `json:"displayPrompt,omitempty"`
+		Prompt        string            `json:"prompt"`
+		RequiredTool  *string           `json:"requiredTool,omitempty"`
+		Source        *string           `json:"source,omitempty"`
+	}
+	var raw rawSendMessageItem
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	r.Billable = raw.Billable
+	r.DisplayPrompt = raw.DisplayPrompt
+	r.Prompt = raw.Prompt
+	r.RequiredTool = raw.RequiredTool
+	r.Source = raw.Source
+	return nil
+}
+
 func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	type rawSendRequest struct {
 		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
@@ -3329,6 +3400,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
+		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
@@ -3358,7 +3430,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		RemoteSteerable                        *bool                                                `json:"remoteSteerable,omitempty"`
 		RunningInInteractiveMode               *bool                                                `json:"runningInInteractiveMode,omitempty"`
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
-		SelfFetchManagedSettings               *bool                                                `json:"selfFetchManagedSettings,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
 		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
@@ -3367,6 +3438,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
 		SkipCustomInstructions                 *bool                                                `json:"skipCustomInstructions,omitempty"`
 		TrajectoryFile                         *string                                              `json:"trajectoryFile,omitempty"`
+		Verbosity                              *Verbosity                                           `json:"verbosity,omitempty"`
 		WorkingDirectory                       *string                                              `json:"workingDirectory,omitempty"`
 		WorkingDirectoryContext                *SessionContext                                      `json:"workingDirectoryContext,omitempty"`
 	}
@@ -3399,6 +3471,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
+	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming
@@ -3428,7 +3501,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.RemoteSteerable = raw.RemoteSteerable
 	r.RunningInInteractiveMode = raw.RunningInInteractiveMode
 	r.SandboxConfig = raw.SandboxConfig
-	r.SelfFetchManagedSettings = raw.SelfFetchManagedSettings
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
 	r.SessionLimits = raw.SessionLimits
@@ -3437,6 +3509,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.SkillDirectories = raw.SkillDirectories
 	r.SkipCustomInstructions = raw.SkipCustomInstructions
 	r.TrajectoryFile = raw.TrajectoryFile
+	r.Verbosity = raw.Verbosity
 	r.WorkingDirectory = raw.WorkingDirectory
 	r.WorkingDirectoryContext = raw.WorkingDirectoryContext
 	return nil

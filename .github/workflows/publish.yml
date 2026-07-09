@@ -229,10 +229,28 @@ jobs:
         with:
           packages-dir: python/dist/
 
+  publish-java:
+    name: Publish Java SDK
+    if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
+    needs: version
+    uses: ./.github/workflows/java-publish-maven.yml
+    with:
+      releaseVersion: ${{ needs.version.outputs.version }}
+      prerelease: ${{ github.event.inputs.dist-tag == 'prerelease' }}
+    secrets: inherit
+
   github-release:
     name: Create GitHub Release
-    needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust]
-    if: github.ref == 'refs/heads/main' && github.event.inputs.dist-tag != 'unstable'
+    needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust, publish-java]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.dist-tag != 'unstable' &&
+      needs.version.result == 'success' &&
+      needs.publish-nodejs.result == 'success' &&
+      needs.publish-dotnet.result == 'success' &&
+      needs.publish-python.result == 'success' &&
+      needs.publish-rust.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2

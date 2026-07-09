@@ -156,6 +156,7 @@ public abstract class RuntimeConnection
     /// Works across the SDK's target frameworks: modern .NET uses <c>NativeLibrary</c>,
     /// while <c>netstandard2.0</c> consumers use a built-in fallback native loader.
     /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
     public static InProcessRuntimeConnection ForInProcess()
         => new();
 }
@@ -172,6 +173,16 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 
     /// <summary>Extra command-line arguments to pass to the runtime process.</summary>
     public IList<string>? Args { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment variables passed to the spawned runtime process,
+    /// replacing the inherited environment.
+    /// </summary>
+    /// <remarks>
+    /// Cannot be combined with <see cref="CopilotClientOptions.Environment"/>; setting both throws
+    /// an <see cref="ArgumentException"/> when the client is constructed.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string>? Environment { get; set; }
 }
 
 /// <summary>
@@ -190,6 +201,7 @@ public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 /// To point at a non-default runtime entrypoint, set the <c>COPILOT_CLI_PATH</c>
 /// environment variable.
 /// </summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class InProcessRuntimeConnection : RuntimeConnection
 {
     internal InProcessRuntimeConnection() { }
@@ -356,7 +368,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
 
-    /// <summary>Environment variables to pass to the runtime process.</summary>
+    /// <summary>
+    /// Gets or sets environment variables passed to the runtime process.
+    /// </summary>
+    /// <remarks>
+    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
+    /// which runs the runtime in the host process; setting this option there throws an
+    /// <see cref="ArgumentException"/>. For child-process transports, prefer
+    /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
+    /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
 
     /// <summary>Logger instance for SDK diagnostic output.</summary>
@@ -2841,6 +2861,7 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
+        EnableManagedSettings = other.EnableManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3264,6 +3285,16 @@ public abstract class SessionConfigBase
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public JsonElement? ExpAssignments { get; set; }
+
+    /// <summary>
+    /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's <see cref="GitHubToken"/>. Requires <see cref="GitHubToken"/> to
+    /// be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When unset, behaves exactly as before. Serialized on the
+    /// wire as <c>enableManagedSettings</c>.
+    /// </summary>
+    public bool? EnableManagedSettings { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

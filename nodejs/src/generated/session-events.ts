@@ -42,6 +42,7 @@ export type SessionEvent =
   | AssistantIntentEvent
   | AssistantReasoningEvent
   | AssistantReasoningDeltaEvent
+  | AssistantToolCallDeltaEvent
   | AssistantStreamingDeltaEvent
   | AssistantMessageEvent
   | AssistantMessageStartEvent
@@ -90,6 +91,7 @@ export type SessionEvent =
   | AutoModeSwitchCompletedEvent
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
+  | AutoModeResolvedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -135,6 +137,16 @@ export type ReasoningSummary =
   | "concise"
   /** Request a detailed summary of the model's reasoning. */
   | "detailed";
+/**
+ * Output verbosity level used for supported model calls (e.g. "low", "medium", "high")
+ */
+export type Verbosity =
+  /** A terse response was requested. */
+  | "low"
+  /** A medium amount of response detail was requested. */
+  | "medium"
+  /** A more detailed response was requested. */
+  | "high";
 /**
  * The type of operation performed on the autopilot objective state file
  */
@@ -272,6 +284,14 @@ export type UserMessageDelivery =
   /** Enqueued while the agent was busy; processed as its own run afterward. */
   | "queued";
 /**
+ * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+ */
+export type AssistantMessageToolRequestType =
+  /** Standard function-style tool call. */
+  | "function"
+  /** Custom grammar-based tool call. */
+  | "custom";
+/**
  * The system that produced a citation.
  */
 /** @experimental */
@@ -287,14 +307,6 @@ export type CitationProvider =
  */
 /** @experimental */
 export type CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock;
-/**
- * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
- */
-export type AssistantMessageToolRequestType =
-  /** Standard function-style tool call. */
-  | "function"
-  /** Custom grammar-based tool call. */
-  | "custom";
 /**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
@@ -621,6 +633,16 @@ export type SessionLimitsExhaustedResponseAction =
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
 /**
+ * Coarse request-difficulty bucket for UX explainability
+ */
+export type AutoModeResolvedReasoningBucket =
+  /** The request looks low-reasoning; a lighter model is appropriate. */
+  | "low"
+  /** The request needs a moderate amount of reasoning. */
+  | "medium"
+  /** The request looks high-reasoning; a stronger model is appropriate. */
+  | "high";
+/**
  * Exit plan mode action
  */
 export type ExitPlanModeAction =
@@ -792,6 +814,7 @@ export interface StartData {
    * ISO 8601 timestamp when the session was created
    */
   startTime: string;
+  verbosity?: Verbosity;
   /**
    * Schema version number for the session event format
    */
@@ -920,6 +943,7 @@ export interface ResumeData {
    * True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
    */
   sessionWasActive?: boolean;
+  verbosity?: Verbosity;
 }
 /**
  * Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
@@ -1456,11 +1480,13 @@ export interface ModelChangeData {
    */
   previousReasoningEffort?: string;
   previousReasoningSummary?: ReasoningSummary;
+  previousVerbosity?: Verbosity;
   /**
    * Reasoning effort level after the model change, if applicable
    */
   reasoningEffort?: string | null;
   reasoningSummary?: ReasoningSummary;
+  verbosity?: Verbosity;
 }
 /**
  * Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -3208,6 +3234,54 @@ export interface AssistantReasoningDeltaData {
   reasoningId: string;
 }
 /**
+ * Session event "assistant.tool_call_delta". Streaming tool-call input delta for incremental tool-call updates
+ */
+export interface AssistantToolCallDeltaEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantToolCallDeltaData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.tool_call_delta".
+   */
+  type: "assistant.tool_call_delta";
+}
+/**
+ * Streaming tool-call input delta for incremental tool-call updates
+ */
+export interface AssistantToolCallDeltaData {
+  /**
+   * Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+   */
+  inputDelta: string;
+  /**
+   * Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+   */
+  toolCallId: string;
+  /**
+   * Name of the tool being invoked, when known from the stream
+   */
+  toolName?: string;
+  toolType?: AssistantMessageToolRequestType;
+}
+/**
  * Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
  */
 export interface AssistantStreamingDeltaEvent {
@@ -3290,6 +3364,10 @@ export interface AssistantMessageData {
    * @experimental
    */
   citations?: Citations;
+  /**
+   * Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+   */
+  clientRequestId?: string;
   /**
    * The assistant's text response content
    */
@@ -5825,6 +5903,14 @@ export interface PermissionRequestWrite {
    */
   newFileContents?: string;
   /**
+   * True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
+  /**
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
@@ -5905,6 +5991,14 @@ export interface PermissionRequestUrl {
    * Permission kind discriminator
    */
   kind: "url";
+  /**
+   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -6212,6 +6306,14 @@ export interface PermissionPromptRequestUrl {
    * Prompt kind discriminator
    */
   kind: "url";
+  /**
+   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -7701,6 +7803,66 @@ export interface SessionLimitsExhaustedResponse {
    * New absolute max AI Credits when action is 'set'.
    */
   maxAiCredits?: number;
+}
+/**
+ * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeResolvedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_mode_resolved".
+   */
+  type: "session.auto_mode_resolved";
+}
+/**
+ * Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedData {
+  /**
+   * Ordered candidate model list the router returned, when not a fallback
+   */
+  candidateModels?: string[];
+  /**
+   * Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+   */
+  categoryScores?: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * The concrete model the session will use after any intent refinement
+   */
+  chosenModel: string;
+  /**
+   * Classifier confidence for the predicted label, when available
+   */
+  confidence?: number;
+  /**
+   * The predicted classifier label (e.g. `needs_reasoning`), when available
+   */
+  predictedLabel?: string;
+  reasoningBucket?: AutoModeResolvedReasoningBucket;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification

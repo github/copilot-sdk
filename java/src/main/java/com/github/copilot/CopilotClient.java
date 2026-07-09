@@ -926,6 +926,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // modelCapabilitiesOverrides
                 null, // reasoningEffort
                 null, // reasoningSummary
+                null, // verbosity
                 null, // clientName
                 null, // lspClientName
                 null, // integrationId

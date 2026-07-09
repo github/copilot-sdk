@@ -53,45 +53,49 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                            SessionEventType = "abort"
-	SessionEventTypeAssistantIdle                    SessionEventType = "assistant.idle"
-	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                        SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
-	SessionEventTypeMCPHeadersRefreshRequired        SessionEventType = "mcp.headers_refresh_required"
-	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
+	SessionEventTypeAbort                      SessionEventType = "abort"
+	SessionEventTypeAssistantIdle              SessionEventType = "assistant.idle"
+	SessionEventTypeAssistantIntent            SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage           SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta      SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart      SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning         SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta    SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta    SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantToolCallDelta     SessionEventType = "assistant.tool_call_delta"
+	SessionEventTypeAssistantTurnEnd           SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart         SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage             SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted    SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested    SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged        SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted           SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute             SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued              SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged            SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted       SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested       SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted      SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested      SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted      SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested      SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                    SessionEventType = "hook.end"
+	SessionEventTypeHookProgress               SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                  SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete     SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired  SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted          SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired           SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
+	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
+	// that may change or be removed.
+	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
 	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
@@ -209,6 +213,8 @@ type AssistantMessageData struct {
 	// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
 	// Experimental: Citations is part of an experimental API and may change or be removed.
 	Citations *Citations `json:"citations,omitempty"`
+	// Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+	ClientRequestID *string `json:"clientRequestId,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
 	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -246,6 +252,28 @@ type AssistantMessageData struct {
 
 func (*AssistantMessageData) sessionEventData()      {}
 func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
+
+// Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+// Experimental: SessionAutoModeResolvedData is part of an experimental API and may change or be removed.
+type SessionAutoModeResolvedData struct {
+	// Ordered candidate model list the router returned, when not a fallback
+	CandidateModels []string `json:"candidateModels,omitzero"`
+	// Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+	CategoryScores map[string]float64 `json:"categoryScores,omitzero"`
+	// The concrete model the session will use after any intent refinement
+	ChosenModel string `json:"chosenModel"`
+	// Classifier confidence for the predicted label, when available
+	Confidence *float64 `json:"confidence,omitempty"`
+	// The predicted classifier label (e.g. `needs_reasoning`), when available
+	PredictedLabel *string `json:"predictedLabel,omitempty"`
+	// Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work")
+	ReasoningBucket *AutoModeResolvedReasoningBucket `json:"reasoningBucket,omitempty"`
+}
+
+func (*SessionAutoModeResolvedData) sessionEventData() {}
+func (*SessionAutoModeResolvedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoModeResolved
+}
 
 // Auto mode switch completion notification
 type AutoModeSwitchCompletedData struct {
@@ -822,10 +850,14 @@ type SessionModelChangeData struct {
 	PreviousReasoningEffort *string `json:"previousReasoningEffort,omitempty"`
 	// Reasoning summary mode before the model change, if applicable
 	PreviousReasoningSummary *ReasoningSummary `json:"previousReasoningSummary,omitempty"`
+	// Output verbosity level before the model change, if applicable
+	PreviousVerbosity *Verbosity `json:"previousVerbosity,omitempty"`
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode after the model change, if applicable
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
+	// Output verbosity level after the model change, if applicable
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
 func (*SessionModelChangeData) sessionEventData()      {}
@@ -1329,6 +1361,8 @@ type SessionStartData struct {
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// ISO 8601 timestamp when the session was created
 	StartTime time.Time `json:"startTime"`
+	// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 	// Schema version number for the session event format
 	Version int64 `json:"version"`
 }
@@ -1403,6 +1437,8 @@ type SessionResumeData struct {
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
 	// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
 	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
+	// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
 func (*SessionResumeData) sessionEventData()      {}
@@ -1567,6 +1603,23 @@ type ToolExecutionPartialResultData struct {
 func (*ToolExecutionPartialResultData) sessionEventData() {}
 func (*ToolExecutionPartialResultData) Type() SessionEventType {
 	return SessionEventTypeToolExecutionPartialResult
+}
+
+// Streaming tool-call input delta for incremental tool-call updates
+type AssistantToolCallDeltaData struct {
+	// Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+	InputDelta string `json:"inputDelta"`
+	// Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+	ToolCallID string `json:"toolCallId"`
+	// Name of the tool being invoked, when known from the stream
+	ToolName *string `json:"toolName,omitempty"`
+	// Tool call type, when known from the stream
+	ToolType *AssistantMessageToolRequestType `json:"toolType,omitempty"`
+}
+
+func (*AssistantToolCallDeltaData) sessionEventData() {}
+func (*AssistantToolCallDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantToolCallDelta
 }
 
 // Sub-agent completion details for successful execution
@@ -2540,6 +2593,10 @@ type PermissionPromptRequestURL struct {
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// URL to be fetched
@@ -2753,6 +2810,10 @@ func (PermissionRequestShell) Kind() PermissionRequestKind {
 type PermissionRequestURL struct {
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// URL to be fetched
@@ -2776,6 +2837,10 @@ type PermissionRequestWrite struct {
 	Intention string `json:"intention"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
+	// True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
+	// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+	RequestSandboxBypassReason *string `json:"requestSandboxBypassReason,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -3555,6 +3620,18 @@ const (
 	AutoApprovalRecommendationExcluded AutoApprovalRecommendation = "excluded"
 	// The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.
 	AutoApprovalRecommendationRequireApproval AutoApprovalRecommendation = "requireApproval"
+)
+
+// Coarse request-difficulty bucket for UX explainability
+type AutoModeResolvedReasoningBucket string
+
+const (
+	// The request looks high-reasoning; a stronger model is appropriate.
+	AutoModeResolvedReasoningBucketHigh AutoModeResolvedReasoningBucket = "high"
+	// The request looks low-reasoning; a lighter model is appropriate.
+	AutoModeResolvedReasoningBucketLow AutoModeResolvedReasoningBucket = "low"
+	// The request needs a moderate amount of reasoning.
+	AutoModeResolvedReasoningBucketMedium AutoModeResolvedReasoningBucket = "medium"
 )
 
 // The user's auto-mode-switch choice

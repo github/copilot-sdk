@@ -13,9 +13,9 @@
 //! configs hold trait-object handlers, the wire structs hold only the
 //! plain data the runtime needs.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
+use indexmap::IndexMap;
 use serde::Serialize;
 
 use crate::canvas::CanvasDeclaration;
@@ -83,7 +83,7 @@ pub(crate) struct SessionCreateWire {
     /// naturally (everything matching X except Y).
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -169,6 +169,8 @@ pub(crate) struct SessionCreateWire {
     pub commands: Option<Vec<CommandWireDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -213,7 +215,7 @@ pub(crate) struct SessionResumeWire {
     /// SDK always sends `"excluded"`. See create-wire docs.
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -302,4 +304,6 @@ pub(crate) struct SessionResumeWire {
     pub continue_pending_work: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }

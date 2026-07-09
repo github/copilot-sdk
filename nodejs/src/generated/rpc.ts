@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval } from "./session-events.js";
+import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval, Verbosity } from "./session-events.js";
 
 /**
  * Initial authentication info for the session.
@@ -6784,26 +6784,18 @@ export interface McpRemoveGitHubResult {
   removed: boolean;
 }
 /**
- * Server name and opaque configuration for an individual MCP server restart.
+ * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpRestartServerRequest".
  */
 /** @experimental */
-/** @internal */
 export interface McpRestartServerRequest {
   /**
    * Name of the MCP server to restart
    */
   serverName: string;
-  /**
-   * Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.
-   *
-   * @internal
-   */
-  config: {
-    [k: string]: unknown | undefined;
-  };
+  config?: McpServerConfig;
 }
 /**
  * Outcome of an MCP sampling execution: success result, failure error, or cancellation.
@@ -6882,26 +6874,18 @@ export interface McpSetEnvValueModeResult {
   mode: McpSetEnvValueModeDetails;
 }
 /**
- * Server name and opaque configuration for an individual MCP server start.
+ * Server name and configuration for an individual MCP server start.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpStartServerRequest".
  */
 /** @experimental */
-/** @internal */
 export interface McpStartServerRequest {
   /**
    * Name of the MCP server to start
    */
   serverName: string;
-  /**
-   * Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.
-   *
-   * @internal
-   */
-  config: {
-    [k: string]: unknown | undefined;
-  };
+  config: McpServerConfig;
 }
 /**
  * MCP server startup filtering result.
@@ -7572,6 +7556,7 @@ export interface ModelSwitchToRequest {
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
+  verbosity?: Verbosity;
   modelCapabilities?: ModelCapabilitiesOverride;
   contextTier?: ContextTier;
 }
@@ -9373,6 +9358,10 @@ export interface PluginsReloadRequest {
    */
   reloadHooks?: boolean;
   /**
+   * Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).
+   */
+  reloadExtensions?: boolean;
+  /**
    * When true, skip repo-level hooks during the hook reload. Use before folder trust is confirmed; load them post-trust via `sessions.loadDeferredRepoHooks`.
    */
   deferRepoHooks?: boolean;
@@ -10212,7 +10201,7 @@ export interface QueueRemoveMostRecentResult {
 /** @experimental */
 export interface RegisterEventInterestParams {
   /**
-   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
    */
   eventType: string;
 }
@@ -10413,6 +10402,12 @@ export interface RemoteControlStatusActive {
   promptManager?: {
     [k: string]: unknown | undefined;
   };
+  /**
+   * True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
+   *
+   * @internal
+   */
+  awaitingFirstMessage?: boolean;
 }
 /**
  * The last setup attempt failed. The singleton is otherwise off.
@@ -10869,6 +10864,93 @@ export interface SendAttachmentsToMessageParams {
    * Attachments to push into the next user-message turn. extension_context entries take the slim shape; standard variants take their full AttachmentSchema shape.
    */
   attachments: PushAttachment[];
+}
+/**
+ * A single user message to append to the session as part of a `session.sendMessages` turn
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SendMessageItem".
+ */
+/** @experimental */
+export interface SendMessageItem {
+  /**
+   * The user message text
+   */
+  prompt: string;
+  /**
+   * If provided, this is shown in the timeline instead of `prompt`
+   */
+  displayPrompt?: string;
+  /**
+   * Optional attachments (files, directories, selections, blobs, GitHub references) to include with this message
+   */
+  attachments?: Attachment[];
+  /**
+   * If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.
+   *
+   * @internal
+   */
+  billable?: boolean;
+  /**
+   * If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
+   */
+  requiredTool?: string;
+  /**
+   * Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-<command-id>` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for messages originating from a scheduled job.
+   *
+   * @internal
+   */
+  source?: string;
+}
+/**
+ * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SendMessagesRequest".
+ */
+/** @experimental */
+export interface SendMessagesRequest {
+  /**
+   * The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+   */
+  messages: SendMessageItem[];
+  mode?: SendMode;
+  /**
+   * If true, adds the messages to the front of the queue instead of the end
+   */
+  prepend?: boolean;
+  agentMode?: SendAgentMode;
+  /**
+   * Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
+   */
+  requestHeaders?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * W3C Trace Context traceparent header for distributed tracing of this agent turn
+   */
+  traceparent?: string;
+  /**
+   * W3C Trace Context tracestate header for distributed tracing
+   */
+  tracestate?: string;
+  /**
+   * If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves.
+   */
+  wait?: boolean;
+}
+/**
+ * Result of sending zero or more user messages
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SendMessagesResult".
+ */
+/** @experimental */
+export interface SendMessagesResult {
+  /**
+   * Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+   */
+  messageIds: string[];
 }
 /**
  * Parameters for sending a user message to the session
@@ -11765,6 +11847,7 @@ export interface SessionOpenOptions {
    */
   reasoningEffort?: string;
   reasoningSummary?: SessionOpenOptionsReasoningSummary;
+  verbosity?: Verbosity;
   /**
    * Identifier of the client driving the session.
    */
@@ -11790,9 +11873,9 @@ export interface SessionOpenOptions {
     [k: string]: unknown | undefined;
   };
   /**
-   * Opt-in: self-fetch enterprise managed settings at session bootstrap.
+   * Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
    */
-  selfFetchManagedSettings?: boolean;
+  enableManagedSettings?: boolean;
   /**
    * Feature-flag values resolved by the host.
    */
@@ -12152,6 +12235,14 @@ export interface SessionsOpenHandoff {
    * @internal
    */
   onProgress?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
+   *
+   * @internal
+   */
+  onConfirm?: {
     [k: string]: unknown | undefined;
   };
 }
@@ -12906,6 +12997,7 @@ export interface SessionUpdateOptionsParams {
    */
   reasoningEffort?: string;
   reasoningSummary?: OptionsUpdateReasoningSummary;
+  verbosity?: Verbosity;
   /**
    * Identifier of the client driving the session.
    */
@@ -16023,6 +16115,17 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         send: async (params: SendRequest): Promise<SendResult> =>
             connection.sendRequest("session.send", { sessionId, ...params }),
         /**
+         * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+         *
+         * @param params Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+         *
+         * @returns Result of sending zero or more user messages
+         *
+         * @experimental
+         */
+        sendMessages: async (params: SendMessagesRequest): Promise<SendMessagesResult> =>
+            connection.sendRequest("session.sendMessages", { sessionId, ...params }),
+        /**
          * Aborts the current agent turn.
          *
          * @param params Parameters for aborting the current turn
@@ -16586,6 +16689,20 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             removeGitHub: async (): Promise<McpRemoveGitHubResult> =>
                 connection.sendRequest("session.mcp.removeGitHub", { sessionId }),
+            /**
+             * Starts an individual MCP server on the live session from a caller-supplied config. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
+             *
+             * @param params Server name and configuration for an individual MCP server start.
+             */
+            startServer: async (params: McpStartServerRequest): Promise<void> =>
+                connection.sendRequest("session.mcp.startServer", { sessionId, ...params }),
+            /**
+             * Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).
+             *
+             * @param params Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
+             */
+            restartServer: async (params: McpRestartServerRequest): Promise<void> =>
+                connection.sendRequest("session.mcp.restartServer", { sessionId, ...params }),
             /**
              * Stops an individual MCP server on the session's host.
              *
@@ -17512,20 +17629,6 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             configureGitHub: async (params: McpConfigureGitHubRequest): Promise<McpConfigureGitHubResult> =>
                 connection.sendRequest("session.mcp.configureGitHub", { sessionId, ...params }),
-            /**
-             * Starts an individual MCP server on the session's host.
-             *
-             * @param params Server name and opaque configuration for an individual MCP server start.
-             */
-            startServer: async (params: McpStartServerRequest): Promise<void> =>
-                connection.sendRequest("session.mcp.startServer", { sessionId, ...params }),
-            /**
-             * Restarts an individual MCP server on the session's host (stops then starts).
-             *
-             * @param params Server name and opaque configuration for an individual MCP server restart.
-             */
-            restartServer: async (params: McpRestartServerRequest): Promise<void> =>
-                connection.sendRequest("session.mcp.restartServer", { sessionId, ...params }),
             /**
              * Registers a pre-connected external MCP client (e.g. IDE) on the session's host. The caller retains lifecycle ownership of the client and transport. Marked internal because the `client` and `transport` arguments are in-process MCP SDK instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on top of the SDK, external clients will be expressed as transport configs the runtime can construct itself.
              *

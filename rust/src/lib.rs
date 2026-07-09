@@ -73,7 +73,11 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-// JSON-RPC wire types are internal transport details (like Go SDK's internal/jsonrpc2/).
+/// Re-export of [`indexmap::IndexMap`], used for order-preserving maps in the
+/// public API (e.g. [`Tool::parameters`](types::Tool::parameters) and
+/// `SessionConfig::mcp_servers`) so serialized key order stays deterministic.
+pub use indexmap::IndexMap;
+// JSON-RPC wire types are internal transport details.
 // External callers interact via Client/Session methods, not raw RPC.
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,

@@ -81,6 +81,8 @@ pub enum SessionEventType {
     AssistantReasoning,
     #[serde(rename = "assistant.reasoning_delta")]
     AssistantReasoningDelta,
+    #[serde(rename = "assistant.tool_call_delta")]
+    AssistantToolCallDelta,
     #[serde(rename = "assistant.streaming_delta")]
     AssistantStreamingDelta,
     #[serde(rename = "assistant.message")]
@@ -184,6 +186,15 @@ pub enum SessionEventType {
     SessionLimitsExhaustedRequested,
     #[serde(rename = "session_limits_exhausted.completed")]
     SessionLimitsExhaustedCompleted,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_mode_resolved")]
+    SessionAutoModeResolved,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -346,6 +357,8 @@ pub enum SessionEventData {
     AssistantReasoning(AssistantReasoningData),
     #[serde(rename = "assistant.reasoning_delta")]
     AssistantReasoningDelta(AssistantReasoningDeltaData),
+    #[serde(rename = "assistant.tool_call_delta")]
+    AssistantToolCallDelta(AssistantToolCallDeltaData),
     #[serde(rename = "assistant.streaming_delta")]
     AssistantStreamingDelta(AssistantStreamingDeltaData),
     #[serde(rename = "assistant.message")]
@@ -442,6 +455,15 @@ pub enum SessionEventData {
     SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
     #[serde(rename = "session_limits_exhausted.completed")]
     SessionLimitsExhaustedCompleted(SessionLimitsExhaustedCompletedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.auto_mode_resolved")]
+    SessionAutoModeResolved(SessionAutoModeResolvedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -628,6 +650,9 @@ pub struct SessionStartData {
     pub session_limits: Option<SessionLimitsConfig>,
     /// ISO 8601 timestamp when the session was created
     pub start_time: String,
+    /// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Schema version number for the session event format
     pub version: i64,
 }
@@ -673,6 +698,9 @@ pub struct SessionResumeData {
     /// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_was_active: Option<bool>,
+    /// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
@@ -844,12 +872,18 @@ pub struct SessionModelChangeData {
     /// Reasoning summary mode before the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level before the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_verbosity: Option<Verbosity>,
     /// Reasoning effort level after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode after the model change, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level after the model change, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -1435,6 +1469,22 @@ pub struct AssistantReasoningDeltaData {
     pub reasoning_id: String,
 }
 
+/// Session event "assistant.tool_call_delta". Streaming tool-call input delta for incremental tool-call updates
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantToolCallDeltaData {
+    /// Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+    pub input_delta: String,
+    /// Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+    pub tool_call_id: String,
+    /// Name of the tool being invoked, when known from the stream
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+    /// Tool call type, when known from the stream
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_type: Option<AssistantMessageToolRequestType>,
+}
+
 /// Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1596,6 +1646,9 @@ pub struct AssistantMessageData {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<Citations>,
+    /// Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_request_id: Option<String>,
     /// The assistant's text response content
     pub content: String,
     /// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
@@ -2738,6 +2791,12 @@ pub struct PermissionRequestWrite {
     /// Complete new file contents for newly created files
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_file_contents: Option<String>,
+    /// True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -2794,6 +2853,12 @@ pub struct PermissionRequestUrl {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestUrlKind,
+    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3052,6 +3117,12 @@ pub struct PermissionPromptRequestUrl {
     pub intention: String,
     /// Prompt kind discriminator
     pub kind: PermissionPromptRequestUrlKind,
+    /// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass: Option<bool>,
+    /// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_sandbox_bypass_reason: Option<String>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3783,6 +3854,36 @@ pub struct SessionLimitsExhaustedCompletedData {
     pub response: SessionLimitsExhaustedResponse,
 }
 
+/// Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutoModeResolvedData {
+    /// Ordered candidate model list the router returned, when not a fallback
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_models: Option<Vec<String>>,
+    /// Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_scores: Option<HashMap<String, f64>>,
+    /// The concrete model the session will use after any intent refinement
+    pub chosen_model: String,
+    /// Classifier confidence for the predicted label, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+    /// The predicted classifier label (e.g. `needs_reasoning`), when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicted_label: Option<String>,
+    /// Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_bucket: Option<AutoModeResolvedReasoningBucket>,
+}
+
 /// A single slash command available in the session, as listed by the `commands.changed` event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4301,6 +4402,24 @@ pub enum ReasoningSummary {
     Unknown,
 }
 
+/// Output verbosity level used for supported model calls (e.g. "low", "medium", "high")
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Verbosity {
+    /// A terse response was requested.
+    #[serde(rename = "low")]
+    Low,
+    /// A medium amount of response detail was requested.
+    #[serde(rename = "medium")]
+    Medium,
+    /// A more detailed response was requested.
+    #[serde(rename = "high")]
+    High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The type of operation performed on the autopilot objective state file
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutopilotObjectiveChangedOperation {
@@ -4485,6 +4604,21 @@ pub enum UserMessageDelivery {
     Unknown,
 }
 
+/// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssistantMessageToolRequestType {
+    /// Standard function-style tool call.
+    #[serde(rename = "function")]
+    Function,
+    /// Custom grammar-based tool call.
+    #[serde(rename = "custom")]
+    Custom,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// The system that produced a citation.
 ///
 /// <div class="warning">
@@ -4504,21 +4638,6 @@ pub enum CitationProvider {
     /// Citation synthesized client-side by the runtime from tool output.
     #[serde(rename = "client")]
     Client,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssistantMessageToolRequestType {
-    /// Standard function-style tool call.
-    #[serde(rename = "function")]
-    Function,
-    /// Custom grammar-based tool call.
-    #[serde(rename = "custom")]
-    Custom,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -5365,6 +5484,24 @@ pub enum SessionLimitsExhaustedResponseAction {
     /// Leave the limit unchanged and cancel the blocked model request.
     #[serde(rename = "cancel")]
     Cancel,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Coarse request-difficulty bucket for UX explainability
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutoModeResolvedReasoningBucket {
+    /// The request looks low-reasoning; a lighter model is appropriate.
+    #[serde(rename = "low")]
+    Low,
+    /// The request needs a moderate amount of reasoning.
+    #[serde(rename = "medium")]
+    Medium,
+    /// The request looks high-reasoning; a stronger model is appropriate.
+    #[serde(rename = "high")]
+    High,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

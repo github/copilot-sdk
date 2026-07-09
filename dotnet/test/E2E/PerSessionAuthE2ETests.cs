@@ -22,7 +22,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         };
         // Disable the harness's auto-injected client token so the per-session
         // auth tests validate only session-scoped tokens.
-        return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env }, autoInjectGitHubToken: false);
+        return Ctx.CreateClient(environment: env, autoInjectGitHubToken: false);
     }
 
     private CopilotClient CreateNoAuthTestClient()
@@ -32,9 +32,8 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
 
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Environment = env,
             UseLoggedInUser = false,
-        }, autoInjectGitHubToken: false);
+        }, autoInjectGitHubToken: false, environment: env);
     }
 
     private static Dictionary<string, string> WithoutAuthEnv(Dictionary<string, string> env)
