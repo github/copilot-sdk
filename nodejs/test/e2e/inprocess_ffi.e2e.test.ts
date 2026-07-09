@@ -16,9 +16,10 @@ function onTestFinishedForceStop(client: CopilotClient) {
 }
 
 describe("In-process FFI transport", () => {
-    // Mirrors the .NET `Should_Start_And_Connect_Over_InProcess_Ffi`. Resolution of the
-    // in-process transport from COPILOT_SDK_DEFAULT_CONNECTION is exercised by the full
-    // E2E suite running under the `inprocess` CI matrix cell, not a dedicated test.
+    // Smoke test that the in-process FFI transport starts and completes a round-trip.
+    // Resolution of the in-process transport from COPILOT_SDK_DEFAULT_CONNECTION is
+    // exercised by the full E2E suite running under the `inprocess` CI matrix cell,
+    // not a dedicated test.
     it("should start and connect over in-process FFI", async () => {
         // In-process FFI hosting resolves the CLI entrypoint (COPILOT_CLI_PATH or the
         // bundled platform package) and its sibling native runtime library itself. If
