@@ -445,19 +445,34 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </example>
     public async Task StopAsync()
     {
-        List<Exception> errors = [];
-
-        foreach (var session in _sessions.Values.ToArray())
+        var disposeErrors = await Task.WhenAll(_sessions.Values.Select(async session =>
         {
             try
             {
+                // TEMPORARY: over the in-process (FFI) transport the runtime shares this
+                // process, so a turn still running when the runtime disposes the session
+                // can leave that session's SQLite session.db handle open — it isn't
+                // reclaimed by terminating a child process, so the file stays locked
+                // (Windows) and the session-state directory can't be removed. Abort any
+                // in-flight turn first so it cancels and releases the handle. Aborting a
+                // session with no active turn is a no-op. Scoped to in-process only:
+                // stdio/tcp runtimes run in a child process that we kill on shutdown
+                // (which frees the handle), and for external servers we don't own the
+                // runtime and aborting would cancel pending work other clients may still
+                // resume. Remove once the runtime cleans up fully on shutdown.
+                if (_connection is InProcessRuntimeConnection)
+                {
+                    await session.AbortAsync();
+                }
                 await session.DisposeAsync();
+                return (Exception?)null;
             }
             catch (Exception ex)
             {
-                errors.Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
+                return new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex);
             }
-        }
+        }));
+        List<Exception> errors = [.. disposeErrors.Where(static e => e is not null).Select(static e => e!)];
 
         _sessions.Clear();
 
