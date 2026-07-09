@@ -56,6 +56,7 @@ jobs:
     name: "Resolve runtime inputs"
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
       RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
@@ -90,6 +91,10 @@ jobs:
           esac
           if [ -z "$VERSION" ]; then echo "::error::Could not determine runtime version."; exit 1; fi
           if [ -z "$SOURCE" ]; then SOURCE="public"; fi
+          case "$SOURCE" in
+            public|internal) ;;
+            *) echo "::error::Invalid runtime source '$SOURCE'. Expected one of: public, internal."; exit 1 ;;
+          esac
           if [ -z "$MODE" ]; then MODE="publish"; fi
           case "$MODE" in
             publish|publish-force|tests-only) ;;
@@ -172,10 +177,6 @@ jobs:
           printf '%s\n' "$NPMRC" > .npmrc
           echo "Wrote scoped @github registry .npmrc to ./nodejs"
 
-      # Only ./nodejs needs the runtime override: the SDK resolves and spawns the
-      # runtime from its own node_modules during e2e. The harness is a mock CAPI
-      # proxy that never imports or launches @github/copilot, so its pinned copy
-      # is left as-is (and needs no feed .npmrc).
       - name: Override runtime version
         run: |
           set -euo pipefail
@@ -274,7 +275,7 @@ jobs:
       # here, or npm ci would try to fetch the runtime from the upstream-less
       # feed and 404.
       - name: Install SDK dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Compute SDK canary version
         id: sdkver
@@ -293,13 +294,13 @@ jobs:
           # stays consistent with publish.yml: `current` returns the latest public
           # dist-tag version, read-only from public npm (never the feed), then
           # we bump the patch ourselves to keep strict patch+1 semantics.
-          PUBLIC_LATEST="$(node scripts/get-version.js current 2>/dev/null || true)"
+          PUBLIC_LATEST="$(node scripts/get-version.js current || true)"
           BASE="${PUBLIC_LATEST%%-*}"; BASE="${BASE%%+*}"
           if [[ "$BASE" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             NEXT="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$(( BASH_REMATCH[3] + 1 ))"
           else
-            NEXT="0.0.0"
-            echo "::warning::Could not resolve public SDK latest; falling back to 0.0.0 canary base"
+            echo "::error::Could not resolve public SDK latest version (got '$PUBLIC_LATEST'); refusing to publish a canary with an unknown base."
+            exit 1
           fi
           SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
           if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
