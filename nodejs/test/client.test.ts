@@ -26,7 +26,7 @@ async function stopClient(client: CopilotClient): Promise<void> {
 describe("CopilotClient", () => {
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();
-        onTestFinished(() => stopClient(client));
+        onTestFinished(() => client.forceStop());
 
         const stdin = new PassThrough();
         const stdout = new PassThrough();

@@ -111,7 +111,7 @@ describe("Client", () => {
         onTestFinishedForceStop(client);
 
         await client.createSession({ onPermissionRequest: approveAll });
-        await client.stop();
+        await client.forceStop();
     });
 
     it("should get status with version and protocol info", async () => {
