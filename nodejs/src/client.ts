@@ -914,8 +914,12 @@ export class CopilotClient {
         // terminating a child and the file stays locked (Windows), preventing
         // removal of the session-state directory. Aborting lets the turn cancel
         // and release the handle. Best-effort and idempotent: a session with no
-        // active turn is a no-op.
-        await Promise.allSettled(activeSessions.map((session) => session.abort()));
+        // active turn is a no-op. Skip for external servers: we don't own that
+        // runtime, and aborting would cancel pending work other clients may
+        // still resume.
+        if (!this.isExternalServer) {
+            await Promise.allSettled(activeSessions.map((session) => session.abort()));
+        }
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
