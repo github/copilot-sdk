@@ -1,4 +1,4 @@
-name: "SDK Canary (runtime compat gate)"
+name: "SDK Canary Test/Publish"
 
 # Nightly-style canary compatibility gate: installs an explicit version of the
 # @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
@@ -7,6 +7,14 @@ name: "SDK Canary (runtime compat gate)"
 
 env:
   HUSKY: 0
+  # Internal org-scoped Azure Artifacts feed — single source of truth so the
+  # feed name isn't repeated across steps. The SDK canary publishes here and
+  # (when runtime_source=internal) installs the runtime from here; it must NEVER
+  # reach public npm (@github/copilot-sdk is a live public package).
+  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+  # Azure DevOps resource ID used to mint an ADO access token for the feed
+  # (a well-known public constant, not a secret).
+  ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
 
 on:
   workflow_dispatch:
@@ -21,7 +29,7 @@ on:
         type: choice
         options:
           - public
-          - feed
+          - internal
         default: public
       mode:
         description: "publish (tests must pass), publish-force (publish even if tests fail), or tests-only (run gate, never publish)"
@@ -43,6 +51,12 @@ permissions:
   contents: read
   id-token: write
 
+# Serialize runs per ref so two overlapping canary runs can't race the feed
+# publish. cancel-in-progress: false — never kill an in-flight publish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   resolve:
     name: "Resolve runtime inputs"
@@ -59,7 +73,7 @@ jobs:
       # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
       # references. Adding a `repository_dispatch: types: [runtime-canary]`
       # trigger later is purely additive: add one more case that reads
-      # client_payload, defaults source to 'feed', and mode to 'publish'. No
+      # client_payload, defaults source to 'internal', and mode to 'publish'. No
       # downstream rework required.
       - name: Normalize inputs
         id: normalize
@@ -107,13 +121,13 @@ jobs:
         env:
           RUNTIME_VERSION: ${{ steps.normalize.outputs.RUNTIME_VERSION }}
         run: |
-          if [[ ! "$RUNTIME_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+          if [[ ! "$RUNTIME_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
             echo "::error::Invalid runtime version '$RUNTIME_VERSION'. Expected semver (e.g. 1.0.69 or 1.0.70-canary.abc123)."
             exit 1
           fi
 
   test:
-    name: "e2e (${{ matrix.os }})"
+    name: "E2E tests (${{ matrix.os }})"
     needs: resolve
     if: github.event.repository.fork == false
     environment: cicd
@@ -147,7 +161,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Azure Login (OIDC -> id-cpd-ci)
-        if: env.RUNTIME_SOURCE == 'feed'
+        if: env.RUNTIME_SOURCE == 'internal'
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
@@ -159,15 +173,19 @@ jobs:
       # still resolve from public npm. A global --registry would break because
       # detect-libc is not on the feed.
       - name: Configure canary feed (.npmrc)
-        if: env.RUNTIME_SOURCE == 'feed'
+        if: env.RUNTIME_SOURCE == 'internal'
         run: |
           set -euo pipefail
-          TOKEN="$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)"
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
           echo "::add-mask::$TOKEN"
+          # Derive the protocol-relative auth scopes from FEED_URL so the feed
+          # name lives in exactly one place (the workflow-level env).
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
           NPMRC="$(cat <<EOF
-          @github:registry=https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
-          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${TOKEN}
-          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${TOKEN}
+          @github:registry=${FEED_URL}
+          ${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}
+          ${FEED_AUTH_BASE}:_authToken=${TOKEN}
           EOF
           )"
           printf '%s\n' "$NPMRC" > .npmrc
@@ -201,7 +219,12 @@ jobs:
               console.error(`::error::No @github/copilot platform optional dep for ${plat}-${arch}. Present: ${entries.join(", ") || "(none)"}`);
               process.exit(1);
             }
-            console.log(`Verified @github/copilot@${pkg.version} with platform package @github/${match}`);
+            const platPkg = require(`${dir}/${match}/package.json`);
+            if (platPkg.version !== expected) {
+              console.error(`::error::Platform package @github/${match} version ${platPkg.version} does not match requested ${expected}`);
+              process.exit(1);
+            }
+            console.log(`Verified @github/copilot@${pkg.version} with platform package @github/${match}@${platPkg.version}`);
           '
 
       - name: Build SDK
@@ -248,9 +271,6 @@ jobs:
       id-token: write
     env:
       RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
-      # Org-scoped internal TEST feed. The SDK canary MUST only ever go here,
-      # never to public npm (@github/copilot-sdk is a live public package).
-      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
     defaults:
       run:
         shell: bash
@@ -293,9 +313,11 @@ jobs:
           # prerelease of X.Y.Z always sorts below X.Y.Z). Public latest is
           # currently 1.0.6, so canaries look like 1.0.7-canary.<run>.g<sha> and
           # can never shadow the real 1.0.7 when it ships.
-          # Read public latest EXPLICITLY from public npm (never the feed: the
-          # feed has no public upstream and now holds our own canaries). Read-only.
-          PUBLIC_LATEST="$(npm view @github/copilot-sdk version --registry https://registry.npmjs.org/ 2>/dev/null || true)"
+          # Reuse the repo's own version helper (scripts/get-version.js) so this
+          # stays consistent with publish.yml: `current` returns the latest public
+          # dist-tag version read read-only from public npm (never the feed), then
+          # we bump the patch ourselves to keep strict patch+1 semantics.
+          PUBLIC_LATEST="$(node scripts/get-version.js current 2>/dev/null || true)"
           BASE="${PUBLIC_LATEST%%-*}"; BASE="${BASE%%+*}"
           if [[ "$BASE" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             NEXT="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$(( BASH_REMATCH[3] + 1 ))"
@@ -304,7 +326,7 @@ jobs:
             echo "::warning::Could not resolve public SDK latest; falling back to 0.0.0 canary base"
           fi
           SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
-          if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+          if [[ ! "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
             echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
             exit 1
           fi
@@ -337,11 +359,16 @@ jobs:
       - name: Configure feed auth (.npmrc)
         run: |
           set -euo pipefail
-          TOKEN="$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)"
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
           echo "::add-mask::$TOKEN"
+          # Derive the protocol-relative auth scopes from FEED_URL (single source
+          # of truth). NO scoped @github:registry line here — publish target is
+          # supplied explicitly via publishConfig + --registry.
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
           cat > .npmrc <<EOF
-          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/:_authToken=${TOKEN}
-          //pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/:_authToken=${TOKEN}
+          ${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}
+          ${FEED_AUTH_BASE}:_authToken=${TOKEN}
           EOF
           echo "Wrote auth-only .npmrc to ./nodejs"
 
