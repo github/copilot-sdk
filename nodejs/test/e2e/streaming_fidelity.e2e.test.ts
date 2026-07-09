@@ -85,7 +85,7 @@ describe("Streaming Fidelity", async () => {
             env,
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
-        onTestFinished(() => newClient.forceStop());
+        onTestFinished(() => newClient.stop());
         const session2 = await newClient.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             streaming: true,
@@ -124,7 +124,7 @@ describe("Streaming Fidelity", async () => {
             env,
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
-        onTestFinished(() => newClient.forceStop());
+        onTestFinished(() => newClient.stop());
         const session2 = await newClient.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             streaming: false,

@@ -84,7 +84,7 @@ describe("Session-scoped state extras RPC", async () => {
         } finally {
             await disconnect(session);
             try {
-                await authClient.forceStop();
+                await authClient.stop();
             } catch {
                 // Best-effort cleanup.
             }

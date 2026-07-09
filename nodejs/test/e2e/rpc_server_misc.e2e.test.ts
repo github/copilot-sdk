@@ -65,7 +65,7 @@ describe("Miscellaneous server-scoped RPC", async () => {
 
     async function disposeIsolated(isolatedClient: CopilotClient, home: string): Promise<void> {
         try {
-            await isolatedClient.forceStop();
+            await isolatedClient.stop();
         } catch {
             // Best-effort cleanup.
         }
@@ -74,7 +74,7 @@ describe("Miscellaneous server-scoped RPC", async () => {
 
     async function forceStop(target: CopilotClient): Promise<void> {
         try {
-            await target.forceStop();
+            await target.stop();
         } catch {
             // Runtime may already be gone.
         }

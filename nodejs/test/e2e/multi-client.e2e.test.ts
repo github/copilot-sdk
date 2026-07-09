@@ -6,7 +6,7 @@ import { describe, expect, it, afterAll } from "vitest";
 import { z } from "zod";
 import { CopilotClient, defineTool, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext";
+import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext";
 
 describe("Multi-client broadcast", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
@@ -304,71 +304,75 @@ describe("Multi-client broadcast", async () => {
         }
     );
 
-    it("disconnecting client removes its tools", { timeout: 90_000 }, async () => {
-        const toolA = defineTool("stable_tool", {
-            description: "A tool that persists across disconnects",
-            parameters: z.object({ input: z.string() }),
-            handler: ({ input }) => `STABLE_${input}`,
-        });
+    it.skipIf(isInProcessTransport)(
+        "disconnecting client removes its tools",
+        { timeout: 90_000 },
+        async () => {
+            const toolA = defineTool("stable_tool", {
+                description: "A tool that persists across disconnects",
+                parameters: z.object({ input: z.string() }),
+                handler: ({ input }) => `STABLE_${input}`,
+            });
 
-        const toolB = defineTool("ephemeral_tool", {
-            description: "A tool that will disappear when its client disconnects",
-            parameters: z.object({ input: z.string() }),
-            handler: ({ input }) => `EPHEMERAL_${input}`,
-        });
+            const toolB = defineTool("ephemeral_tool", {
+                description: "A tool that will disappear when its client disconnects",
+                parameters: z.object({ input: z.string() }),
+                handler: ({ input }) => `EPHEMERAL_${input}`,
+            });
 
-        // Client 1 creates a session with stable_tool
-        const session1 = await client1.createSession({
-            onPermissionRequest: approveAll,
-            tools: [toolA],
-        });
+            // Client 1 creates a session with stable_tool
+            const session1 = await client1.createSession({
+                onPermissionRequest: approveAll,
+                tools: [toolA],
+            });
 
-        // Client 2 resumes with ephemeral_tool
-        await client2.resumeSession(session1.sessionId, {
-            onPermissionRequest: approveAll,
-            tools: [toolB],
-        });
+            // Client 2 resumes with ephemeral_tool
+            await client2.resumeSession(session1.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [toolB],
+            });
 
-        // Verify both tools work before disconnect (sequential to avoid nondeterministic tool_call ordering)
-        const stableResponse = await session1.sendAndWait({
-            prompt: "Use the stable_tool with input 'test1' and tell me the result.",
-        });
-        expect(stableResponse?.data.content).toContain("STABLE_test1");
+            // Verify both tools work before disconnect (sequential to avoid nondeterministic tool_call ordering)
+            const stableResponse = await session1.sendAndWait({
+                prompt: "Use the stable_tool with input 'test1' and tell me the result.",
+            });
+            expect(stableResponse?.data.content).toContain("STABLE_test1");
 
-        const ephemeralResponse = await session1.sendAndWait({
-            prompt: "Use the ephemeral_tool with input 'test2' and tell me the result.",
-        });
-        expect(ephemeralResponse?.data.content).toContain("EPHEMERAL_test2");
+            const ephemeralResponse = await session1.sendAndWait({
+                prompt: "Use the ephemeral_tool with input 'test2' and tell me the result.",
+            });
+            expect(ephemeralResponse?.data.content).toContain("EPHEMERAL_test2");
 
-        // Disconnect client 2 without destroying the shared session.
-        // Suppress "Connection is disposed" rejections that occur when the server
-        // broadcasts events (e.g. tool_changed_notice) to the now-dead connection.
-        const suppressDisposed = (reason: unknown) => {
-            if (reason instanceof Error && reason.message.includes("Connection is disposed")) {
-                return;
-            }
-            throw reason;
-        };
-        process.on("unhandledRejection", suppressDisposed);
-        await client2.forceStop();
+            // Disconnect client 2 without destroying the shared session.
+            // Suppress "Connection is disposed" rejections that occur when the server
+            // broadcasts events (e.g. tool_changed_notice) to the now-dead connection.
+            const suppressDisposed = (reason: unknown) => {
+                if (reason instanceof Error && reason.message.includes("Connection is disposed")) {
+                    return;
+                }
+                throw reason;
+            };
+            process.on("unhandledRejection", suppressDisposed);
+            await client2.forceStop();
 
-        // Give the server time to process the connection close and remove tools
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        process.removeListener("unhandledRejection", suppressDisposed);
+            // Give the server time to process the connection close and remove tools
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            process.removeListener("unhandledRejection", suppressDisposed);
 
-        // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-        client2 = new CopilotClient({
-            connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
-                connectionToken: tcpConnectionToken,
-            }),
-        });
+            // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
+            client2 = new CopilotClient({
+                connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+                    connectionToken: tcpConnectionToken,
+                }),
+            });
 
-        // Now only stable_tool should be available
-        const afterResponse = await session1.sendAndWait({
-            prompt: "Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.",
-        });
-        expect(afterResponse?.data.content).toContain("STABLE_still_here");
-        // ephemeral_tool should NOT have produced a result
-        expect(afterResponse?.data.content).not.toContain("EPHEMERAL_");
-    });
+            // Now only stable_tool should be available
+            const afterResponse = await session1.sendAndWait({
+                prompt: "Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.",
+            });
+            expect(afterResponse?.data.content).toContain("STABLE_still_here");
+            // ephemeral_tool should NOT have produced a result
+            expect(afterResponse?.data.content).not.toContain("EPHEMERAL_");
+        }
+    );
 });

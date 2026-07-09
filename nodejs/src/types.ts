@@ -96,6 +96,7 @@ export interface TelemetryConfig {
  */
 export type RuntimeConnection =
     | StdioRuntimeConnection
+    | InProcessRuntimeConnection
     | TcpRuntimeConnection
     | UriRuntimeConnection;
 
@@ -109,6 +110,26 @@ export interface StdioRuntimeConnection {
     readonly path?: string;
     /** Extra command-line arguments to pass to the runtime process. */
     readonly args?: readonly string[];
+}
+
+/**
+ * Hosts the runtime in-process by loading the native runtime library and speaking
+ * JSON-RPC over its C ABI (FFI), instead of spawning a runtime child process. The
+ * native host spawns the CLI worker itself. Construct via
+ * {@link RuntimeConnection.forInProcess}.
+ *
+ * @experimental The in-process (FFI) transport is experimental and its behavior may
+ * change. Per-client options that are lowered to environment variables — including
+ * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
+ * {@link CopilotClientOptions.gitHubToken}, and
+ * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
+ * transport, because the native runtime loads into the shared host process and its
+ * worker inherits that process's ambient environment. To configure the in-process
+ * runtime, set the corresponding environment variables on the host process before
+ * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
+ */
+export interface InProcessRuntimeConnection {
+    readonly kind: "inprocess";
 }
 
 /**
@@ -182,6 +203,18 @@ export const RuntimeConnection = {
      */
     forUri(url: string, opts: { connectionToken?: string } = {}): UriRuntimeConnection {
         return { kind: "uri", url, connectionToken: opts.connectionToken };
+    },
+    /**
+     * Host the runtime in-process over the native runtime library's C ABI (FFI).
+     *
+     * @experimental Per-client options lowered to environment variables (`env`,
+     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
+     * the worker inherits the host process's ambient environment. Set the
+     * corresponding environment variables on the host process instead. See
+     * https://github.com/github/copilot-sdk/issues/1934.
+     */
+    forInProcess(): InProcessRuntimeConnection {
+        return { kind: "inprocess" };
     },
 } as const;
 

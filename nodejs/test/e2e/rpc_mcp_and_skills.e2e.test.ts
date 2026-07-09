@@ -74,7 +74,7 @@ describe("Session MCP and skills RPC", async () => {
         });
         onTestFinished(async () => {
             try {
-                await mcpAppsClient.forceStop();
+                await mcpAppsClient.stop();
             } catch {
                 // Ignore cleanup errors
             }

@@ -40,6 +40,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
+import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
@@ -58,6 +59,7 @@ import type {
     BearerTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
+    RuntimeConnection,
     LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
@@ -473,6 +475,7 @@ class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
 export class CopilotClient {
     private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
+    private ffiHost: FfiRuntimeHost | null = null;
     private connection: MessageConnection | null = null;
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private socket: Socket | null = null;
@@ -564,6 +567,32 @@ export class CopilotClient {
     }
 
     /**
+     * Environment variable that overrides the transport when the caller does not set
+     * {@link CopilotClientOptions.connection}. Accepts `"inprocess"` or `"stdio"`
+     * (case-insensitive); unset preserves the default stdio transport. Any other value
+     * is an error.
+     */
+    private static readonly DEFAULT_CONNECTION_ENV_VAR = "COPILOT_SDK_DEFAULT_CONNECTION";
+
+    /**
+     * Resolves the default {@link RuntimeConnection} for the no-connection case,
+     * honoring {@link CopilotClient.DEFAULT_CONNECTION_ENV_VAR}.
+     */
+    private static resolveDefaultConnection(): RuntimeConnection {
+        const value = process.env[CopilotClient.DEFAULT_CONNECTION_ENV_VAR];
+        if (!value || value.toLowerCase() === "stdio") {
+            return { kind: "stdio" };
+        }
+        if (value.toLowerCase() === "inprocess") {
+            return { kind: "inprocess" };
+        }
+        throw new Error(
+            `Invalid ${CopilotClient.DEFAULT_CONNECTION_ENV_VAR} value '${value}'. ` +
+                `Expected 'inprocess', 'stdio', or unset.`
+        );
+    }
+
+    /**
      * Creates a new CopilotClient instance.
      *
      * @param options - Configuration options for the client
@@ -594,8 +623,10 @@ export class CopilotClient {
         // Resolve the connection mode. `_internalConnection` is set by
         // `joinSession()` to opt into the parent-process stdio path; consumers
         // should always go through the public `connection` field.
-        const conn: InternalRuntimeConnection = options._internalConnection ??
-            options.connection ?? { kind: "stdio" };
+        const conn: InternalRuntimeConnection =
+            options._internalConnection ??
+            options.connection ??
+            CopilotClient.resolveDefaultConnection();
 
         if (
             conn.kind === "uri" &&
@@ -603,6 +634,14 @@ export class CopilotClient {
         ) {
             throw new Error(
                 "gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri (external server manages its own auth)"
+            );
+        }
+        if (conn.kind === "inprocess" && options.workingDirectory !== undefined) {
+            throw new Error(
+                "workingDirectory is not supported with RuntimeConnection.forInProcess(): the in-process " +
+                    "transport hosts the runtime in this process, so honoring it would require mutating the " +
+                    "shared process-global cwd. Change the host process's working directory before " +
+                    "constructing the client instead."
             );
         }
         if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
@@ -810,7 +849,9 @@ export class CopilotClient {
 
         try {
             // Only start CLI server process if not connecting to external server
-            if (!this.isExternalServer) {
+            if (this.connectionConfig.kind === "inprocess") {
+                await this.startInProcessFfi();
+            } else if (!this.isExternalServer) {
                 await this.startCLIServer();
             }
 
@@ -873,6 +914,20 @@ export class CopilotClient {
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
+        // TEMPORARY: over the in-process (FFI) transport the runtime shares this
+        // process, so a turn still running when the runtime disposes the session
+        // can leave that session's SQLite session.db handle open — it isn't
+        // reclaimed by terminating a child process, so the file stays locked
+        // (Windows) and the session-state directory can't be removed. Abort any
+        // in-flight turn first so it cancels and releases the handle. Best-effort
+        // and idempotent: a session with no active turn is a no-op. Scoped to
+        // in-process only: stdio/tcp runtimes run in a child process that we kill
+        // on shutdown (which frees the handle), and for external servers we don't
+        // own the runtime and aborting would cancel pending work other clients
+        // may still resume. Remove once the runtime cleans up fully on shutdown.
+        if (this.connectionConfig.kind === "inprocess") {
+            await Promise.allSettled(activeSessions.map((session) => session.abort()));
+        }
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
@@ -910,7 +965,7 @@ export class CopilotClient {
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
         // close our connection to them.
-        if (this.connection && this.cliProcess && !this.isExternalServer) {
+        if (this.connection && (this.cliProcess || this.ffiHost) && !this.isExternalServer) {
             const runtimeShutdownStart = Date.now();
             const shutdownPromise = this.rpc.runtime.shutdown();
             void shutdownPromise.catch(() => undefined);
@@ -1007,6 +1062,21 @@ export class CopilotClient {
                 errors.push(
                     new Error(
                         `Failed to kill CLI process: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                );
+            }
+        }
+        // Tear down the in-process FFI host (closes the native connection and
+        // shuts down the native runtime host) for SDK-owned in-process runtimes.
+        if (this.ffiHost) {
+            const host = this.ffiHost;
+            this.ffiHost = null;
+            try {
+                host.dispose();
+            } catch (error) {
+                errors.push(
+                    new Error(
+                        `Failed to dispose in-process runtime host: ${error instanceof Error ? error.message : String(error)}`
                     )
                 );
             }
@@ -1111,6 +1181,16 @@ export class CopilotClient {
                 // Ignore errors
             }
             this.cliProcess = null;
+        }
+
+        // Tear down the in-process FFI host (if any).
+        if (this.ffiHost) {
+            try {
+                this.ffiHost.dispose();
+            } catch {
+                // Ignore errors during force stop
+            }
+            this.ffiHost = null;
         }
 
         if (this.cliStartTimeout) {
@@ -2200,6 +2280,47 @@ export class CopilotClient {
     }
 
     /**
+     * Builds the environment for the spawned runtime child process (stdio/TCP): applies
+     * the auth token, connection token, `COPILOT_HOME`, keychain setting, and telemetry
+     * variables on top of the effective env. Not used by the in-process (FFI) transport,
+     * whose worker inherits the host process's ambient environment
+     * (see {@link CopilotClient.startInProcessFfi}).
+     */
+    private buildRuntimeEnv(): Record<string, string | undefined> {
+        const env: Record<string, string | undefined> = { ...this.resolvedEnv };
+        delete env.NODE_DEBUG;
+
+        if (this.options.gitHubToken) {
+            env.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
+        }
+        if (this.effectiveConnectionToken) {
+            env.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
+        }
+        if (this.options.baseDirectory) {
+            env.COPILOT_HOME = this.options.baseDirectory;
+        }
+        // In empty mode, disable the system keychain. Keytar reads from a
+        // process-wide store that's shared across sessions, which is unsafe
+        // for multi-tenant hosts. The runtime falls back to file-based
+        // credential storage scoped to COPILOT_HOME.
+        if (this.options.mode === "empty") {
+            env.COPILOT_DISABLE_KEYTAR = "1";
+        }
+        if (this.options.telemetry) {
+            const t = this.options.telemetry;
+            env.COPILOT_OTEL_ENABLED = "true";
+            if (t.otlpEndpoint !== undefined) env.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
+            if (t.otlpProtocol !== undefined) env.OTEL_EXPORTER_OTLP_PROTOCOL = t.otlpProtocol;
+            if (t.filePath !== undefined) env.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
+            if (t.exporterType !== undefined) env.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
+            if (t.sourceName !== undefined) env.COPILOT_OTEL_SOURCE_NAME = t.sourceName;
+            if (t.captureContent !== undefined)
+                env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = String(t.captureContent);
+        }
+        return env;
+    }
+
+    /**
      * Start the CLI server process
      */
     private async startCLIServer(): Promise<void> {
@@ -2245,30 +2366,9 @@ export class CopilotClient {
                 args.push("--remote");
             }
 
-            // Suppress debug/trace output that might pollute stdout
-            const envWithoutNodeDebug = { ...this.resolvedEnv };
-            delete envWithoutNodeDebug.NODE_DEBUG;
-
-            // Set auth token in environment if provided
-            if (this.options.gitHubToken) {
-                envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
-            }
-
-            if (this.effectiveConnectionToken) {
-                envWithoutNodeDebug.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
-            }
-
-            if (this.options.baseDirectory) {
-                envWithoutNodeDebug.COPILOT_HOME = this.options.baseDirectory;
-            }
-
-            // In empty mode, disable the system keychain. Keytar reads from a
-            // process-wide store that's shared across sessions, which is unsafe
-            // for multi-tenant hosts. The runtime falls back to file-based
-            // credential storage scoped to COPILOT_HOME.
-            if (this.options.mode === "empty") {
-                envWithoutNodeDebug.COPILOT_DISABLE_KEYTAR = "1";
-            }
+            // Suppress debug/trace output that might pollute stdout, and apply the
+            // shared runtime env (auth token, connection token, COPILOT_HOME, telemetry).
+            const envWithoutNodeDebug = this.buildRuntimeEnv();
 
             if (!this.resolvedCliPath) {
                 throw new Error(
@@ -2278,26 +2378,6 @@ export class CopilotClient {
                         "environment variable, or use `RuntimeConnection.forUri(...)` to " +
                         "connect to an already-running runtime."
                 );
-            }
-
-            // Set OpenTelemetry environment variables if telemetry is configured
-            if (this.options.telemetry) {
-                const t = this.options.telemetry;
-                envWithoutNodeDebug.COPILOT_OTEL_ENABLED = "true";
-                if (t.otlpEndpoint !== undefined)
-                    envWithoutNodeDebug.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
-                if (t.otlpProtocol !== undefined)
-                    envWithoutNodeDebug.OTEL_EXPORTER_OTLP_PROTOCOL = t.otlpProtocol;
-                if (t.filePath !== undefined)
-                    envWithoutNodeDebug.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
-                if (t.exporterType !== undefined)
-                    envWithoutNodeDebug.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
-                if (t.sourceName !== undefined)
-                    envWithoutNodeDebug.COPILOT_OTEL_SOURCE_NAME = t.sourceName;
-                if (t.captureContent !== undefined)
-                    envWithoutNodeDebug.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = String(
-                        t.captureContent
-                    );
             }
 
             // Verify CLI exists before attempting to spawn
@@ -2436,10 +2516,75 @@ export class CopilotClient {
                 return this.connectToParentProcessViaStdio();
             case "stdio":
                 return this.connectToChildProcessViaStdio();
+            case "inprocess":
+                return this.connectViaFfi();
             case "tcp":
             case "uri":
                 return this.connectViaTcp();
         }
+    }
+
+    /**
+     * Start the in-process FFI runtime host: resolve the CLI entrypoint and native
+     * runtime library, then let the native host spawn the CLI worker.
+     *
+     * The worker inherits this host process's ambient environment; per-client options
+     * that lower to environment variables (`env`, `telemetry`, `gitHubToken`,
+     * `baseDirectory`) are intentionally not applied here, because the native runtime
+     * loads into the shared host process and a single env block cannot carry per-client
+     * values. Configure the in-process runtime via the host process environment instead.
+     * See https://github.com/github/copilot-sdk/issues/1934.
+     */
+    private async startInProcessFfi(): Promise<void> {
+        const entrypoint = this.resolveCliPathForFfi();
+        // Load the FFI host lazily so the native `koffi` addon (and its
+        // platform-specific `koffi.node`) is only loaded on the in-process path;
+        // out-of-process (stdio/tcp) consumers never touch the native dependency.
+        // The transpiled output is per-file (not bundled), so this resolves the
+        // sibling module at runtime in both the ESM and CJS builds.
+        const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
+        const host = FfiRuntimeHost.create(entrypoint, CopilotClient.getNapiPrebuildsFolder());
+        this.ffiHost = host;
+        await host.start();
+    }
+
+    /**
+     * Connect to the in-process FFI runtime host over its receive/send streams,
+     * reusing the same `vscode-jsonrpc` framing as the stdio transport.
+     */
+    private async connectViaFfi(): Promise<void> {
+        if (!this.ffiHost) {
+            throw new Error("In-process FFI runtime host not started");
+        }
+        this.messageWriter = new TeardownResilientStreamMessageWriter(this.ffiHost.sendStream);
+        this.connection = createMessageConnection(
+            new StreamMessageReader(this.ffiHost.receiveStream),
+            this.messageWriter
+        );
+
+        this.attachConnectionHandlers();
+        this.connection.listen();
+    }
+
+    /**
+     * Resolves the CLI entrypoint used for in-process FFI hosting: `COPILOT_CLI_PATH`
+     * when set, otherwise the bundled platform-package entrypoint.
+     */
+    private resolveCliPathForFfi(): string {
+        return this.resolvedEnv.COPILOT_CLI_PATH ?? getBundledCliPath();
+    }
+
+    /**
+     * Returns the napi prebuilds folder name for the current host — the
+     * `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
+     * `linux-x64`) under which the runtime ships `prebuilds/<folder>/runtime.node`.
+     */
+    private static getNapiPrebuildsFolder(): string {
+        const arch = process.arch;
+        if (arch !== "x64" && arch !== "arm64") {
+            throw new Error(`Unsupported architecture '${arch}' for in-process FFI hosting.`);
+        }
+        return `${process.platform}-${arch}`;
     }
 
     /**
@@ -2624,8 +2769,9 @@ export class CopilotClient {
         }
 
         const session = this.sessions.get((notification as { sessionId: string }).sessionId);
+        const event = (notification as { event: SessionEvent }).event;
         if (session) {
-            session._dispatchEvent((notification as { event: SessionEvent }).event);
+            session._dispatchEvent(event);
         }
     }
 

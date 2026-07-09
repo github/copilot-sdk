@@ -39,7 +39,7 @@ describe("Sessions", async () => {
             });
             onTestFinished(async () => {
                 try {
-                    await standaloneClient.forceStop();
+                    await standaloneClient.stop();
                 } catch {
                     // ignore
                 }
@@ -64,7 +64,7 @@ describe("Sessions", async () => {
         });
         onTestFinished(async () => {
             try {
-                await tcpClient.forceStop();
+                await tcpClient.stop();
             } catch {
                 // ignore
             }
@@ -84,7 +84,7 @@ describe("Sessions", async () => {
         });
         onTestFinished(async () => {
             try {
-                await resumeClient.forceStop();
+                await resumeClient.stop();
             } catch {
                 // ignore
             }
@@ -388,7 +388,7 @@ describe("Sessions", async () => {
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
 
-        onTestFinished(() => newClient.forceStop());
+        onTestFinished(() => newClient.stop());
         const session2 = await newClient.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
         });
@@ -487,7 +487,7 @@ describe("Sessions", async () => {
                 ? DEFAULT_GITHUB_TOKEN
                 : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
         });
-        onTestFinished(() => newClient.forceStop());
+        onTestFinished(() => newClient.stop());
 
         const session2 = await newClient.resumeSession(sessionId, {
             onPermissionRequest: approveAll,

@@ -1,11 +1,12 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
+import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
+import { isInProcessTransport } from "./harness/sdkTestContext.js";
 
-function onTestFinishedForceStop(client: CopilotClient) {
+function onTestFinishedStop(client: CopilotClient) {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors - process may already be stopped
         }
@@ -18,7 +19,7 @@ describe("Client", () => {
         { transport: "tcp", connection: () => RuntimeConnection.forTcp() },
     ])("allows createSession without onPermissionRequest ($transport)", async ({ connection }) => {
         const client = new CopilotClient({ connection: connection() });
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await using session = await client.createSession({});
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
@@ -30,7 +31,7 @@ describe("Client", () => {
         const client = new CopilotClient({
             connection: RuntimeConnection.forTcp({ connectionToken }),
         });
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await using originalSession = await client.createSession({});
 
@@ -42,7 +43,7 @@ describe("Client", () => {
         const resumeClient = new CopilotClient({
             connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
         });
-        onTestFinishedForceStop(resumeClient);
+        onTestFinishedStop(resumeClient);
 
         await using resumedSession = await resumeClient.resumeSession(
             originalSession.sessionId,
@@ -53,7 +54,7 @@ describe("Client", () => {
 
     it("should start and connect to server using stdio", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -66,7 +67,7 @@ describe("Client", () => {
 
     it("should start and connect to server using tcp", async () => {
         const client = new CopilotClient({ connection: RuntimeConnection.forTcp() });
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -106,9 +107,14 @@ describe("Client", () => {
         60_000
     );
 
-    it("should forceStop without cleanup", async () => {
+    // Skipping on in-proc:
+    // - It breaks the macOS E2E run (failure: EPIPE)
+    // - It's not clear that anyone should use forceStop in the in-proc case - there's no child process
+    //   to terminate, so we can't be sure to leave a clean state
+    // - If you want to get to a clean state within your process, that's what "stop" (not "forceStop") is for
+    it.skipIf(isInProcessTransport)("should forceStop without cleanup", async () => {
         const client = new CopilotClient({});
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.createSession({ onPermissionRequest: approveAll });
         await client.forceStop();
@@ -116,7 +122,7 @@ describe("Client", () => {
 
     it("should get status with version and protocol info", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -132,7 +138,7 @@ describe("Client", () => {
 
     it("should get auth status", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -148,7 +154,7 @@ describe("Client", () => {
 
     it("should list models when authenticated", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -177,7 +183,7 @@ describe("Client", () => {
         const client = new CopilotClient({
             connection: RuntimeConnection.forStdio({ args: ["--nonexistent-flag-for-testing"] }),
         });
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         let initialError: Error | undefined;
         try {

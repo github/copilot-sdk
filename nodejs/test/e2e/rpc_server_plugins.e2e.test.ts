@@ -59,7 +59,7 @@ describe("Server-scoped plugin RPC", async () => {
         fixtureDir?: string
     ): Promise<void> {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Best-effort cleanup.
         }
