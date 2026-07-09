@@ -1,9 +1,10 @@
 name: "SDK Canary Test/Publish"
 
-# Nightly-style canary compatibility gate: installs an explicit version of the
+# Nightly-style canary pipeline. First installs an explicit version of the
 # @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
-# against it. This proves runtime <-> SDK compatibility. No publishing happens
-# here.
+# against it to prove runtime <-> SDK compatibility. When that gate passes (and
+# mode allows), publishes an SDK canary pinned to the tested runtime to the
+# internal Azure Artifacts feed only (never public npm).
 
 env:
   HUSKY: 0
@@ -61,8 +62,9 @@ jobs:
       RUNTIME_SOURCE: ${{ steps.normalize.outputs.RUNTIME_SOURCE }}
       PUBLISH_MODE: ${{ steps.normalize.outputs.PUBLISH_MODE }}
     steps:
-      - uses: actions/checkout@v6.0.2
-
+      # No checkout: this job only normalizes dispatch inputs and validates the
+      # version string — it never touches repo files.
+      #
       # Normalize whichever trigger fired into a single (RUNTIME_VERSION,
       # RUNTIME_SOURCE, PUBLISH_MODE) triple that every downstream step
       # references. Adding a `repository_dispatch: types: [runtime-canary]`
@@ -182,6 +184,8 @@ jobs:
           npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts
           ( cd ../test/harness && npm install "@github/copilot@${RUNTIME_VERSION}" --save-exact --ignore-scripts )
 
+      # Verify the ./nodejs copy, which is the one the SDK actually spawns during
+      # e2e (the harness is a mock CAPI proxy and never launches the runtime).
       - name: Verify installed runtime
         run: |
           set -euo pipefail
@@ -287,12 +291,11 @@ jobs:
           # Base the canary on the NEXT patch of the public SDK latest so canaries
           # correlate with public releases: they sort ABOVE the current public
           # latest and BELOW the eventual real release of that next patch (a
-          # prerelease of X.Y.Z always sorts below X.Y.Z). Public latest is
-          # currently 1.0.6, so canaries look like 1.0.7-canary.<run>.g<sha> and
-          # can never shadow the real 1.0.7 when it ships.
+          # prerelease of X.Y.Z always sorts below X.Y.Z), so a canary can never
+          # shadow the real release when it ships.
           # Reuse the repo's own version helper (scripts/get-version.js) so this
           # stays consistent with publish.yml: `current` returns the latest public
-          # dist-tag version read read-only from public npm (never the feed), then
+          # dist-tag version, read-only from public npm (never the feed), then
           # we bump the patch ourselves to keep strict patch+1 semantics.
           PUBLIC_LATEST="$(node scripts/get-version.js current 2>/dev/null || true)"
           BASE="${PUBLIC_LATEST%%-*}"; BASE="${BASE%%+*}"
