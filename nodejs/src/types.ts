@@ -206,9 +206,6 @@ export const RuntimeConnection = {
     },
     /**
      * Host the runtime in-process over the native runtime library's C ABI (FFI).
-     * The native host spawns the CLI worker itself; the SDK does not launch a
-     * runtime child process. Honors `COPILOT_CLI_PATH` for the CLI entrypoint,
-     * otherwise resolves the bundled platform package.
      *
      * @experimental Per-client options lowered to environment variables (`env`,
      * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
