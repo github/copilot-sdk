@@ -24,7 +24,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     skillDirectories: [
         "./skills/code-review",
         "./skills/documentation",
@@ -50,7 +50,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="gpt-4.1",
+        model="gpt-5.4",
         skill_directories=[
             "./skills/code-review",
             "./skills/documentation",
@@ -87,7 +87,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-        Model: "gpt-4.1",
+        Model: "gpt-5.4",
         SkillDirectories: []string{
             "./skills/code-review",
             "./skills/documentation",
@@ -122,7 +122,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     SkillDirectories = new List<string>
     {
         "./skills/code-review",
@@ -154,7 +154,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("gpt-4.1")
+            .setModel("gpt-5.4")
             .setSkillDirectories(List.of(
                 "./skills/code-review",
                 "./skills/documentation"

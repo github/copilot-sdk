@@ -150,7 +150,7 @@ Create `index.ts`:
 import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-5.4" });
 
 const response = await session.sendAndWait({ prompt: "What is 2 + 2?" });
 console.log(response?.data.content);
@@ -181,7 +181,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
     response = await session.send_and_wait("What is 2 + 2?")
     print(response.data.content)
 
@@ -223,7 +223,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -304,7 +304,7 @@ using GitHub.Copilot;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     OnPermissionRequest = PermissionHandler.ApproveAll
 });
 
@@ -337,7 +337,7 @@ public class HelloCopilot {
 
             var session = client.createSession(
                 new SessionConfig()
-                    .setModel("gpt-4.1")
+                    .setModel("gpt-5.4")
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
             ).get();
 
@@ -383,7 +383,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     streaming: true,
 });
 
@@ -419,7 +419,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", streaming=True)
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4", streaming=True)
 
     # Listen for response chunks
     def handle_event(event):
@@ -466,7 +466,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "gpt-4.1",
+		Model:     "gpt-5.4",
 		Streaming: copilot.Bool(true),
 	})
 	if err != nil {
@@ -562,7 +562,7 @@ using GitHub.Copilot;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
 });
@@ -602,7 +602,7 @@ public class HelloCopilot {
 
             var session = client.createSession(
                 new SessionConfig()
-                    .setModel("gpt-4.1")
+                    .setModel("gpt-5.4")
                     .setStreaming(true)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
             ).get();
@@ -912,7 +912,7 @@ const getWeather = defineTool("get_weather", {
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     streaming: true,
     tools: [getWeather],
 });
@@ -968,7 +968,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", streaming=True, tools=[get_weather])
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4", streaming=True, tools=[get_weather])
 
     def handle_event(event):
         if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -1045,7 +1045,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "gpt-4.1",
+		Model:     "gpt-5.4",
 		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
@@ -1185,7 +1185,7 @@ var getWeather = CopilotTool.DefineTool(
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
     Tools = [getWeather],
@@ -1259,7 +1259,7 @@ public class HelloCopilot {
 
             var session = client.createSession(
                 new SessionConfig()
-                    .setModel("gpt-4.1")
+                    .setModel("gpt-5.4")
                     .setStreaming(true)
                     .setTools(List.of(getWeather))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
@@ -1316,7 +1316,7 @@ const getWeather = defineTool("get_weather", {
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     streaming: true,
     tools: [getWeather],
 });
@@ -1389,7 +1389,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", streaming=True, tools=[get_weather])
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4", streaming=True, tools=[get_weather])
 
     def handle_event(event):
         if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -1482,7 +1482,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "gpt-4.1",
+		Model:     "gpt-5.4",
 		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
@@ -1671,7 +1671,7 @@ var getWeather = CopilotTool.DefineTool(
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
     Tools = [getWeather]
@@ -1765,7 +1765,7 @@ public class WeatherAssistant {
 
             var session = client.createSession(
                 new SessionConfig()
-                    .setModel("gpt-4.1")
+                    .setModel("gpt-5.4")
                     .setStreaming(true)
                     .setOnPermissionRequest(request ->
                         CompletableFuture.completedFuture(PermissionDecision.allow())

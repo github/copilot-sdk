@@ -37,7 +37,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     customAgents: [
         {
             name: "researcher",
@@ -71,7 +71,7 @@ await client.start()
 
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-    model="gpt-4.1",
+    model="gpt-5.4",
     custom_agents=[
         {
             "name": "researcher",
@@ -112,7 +112,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "gpt-5.4",
 		CustomAgents: []copilot.CustomAgentConfig{
 			{
 				Name:        "researcher",
@@ -144,7 +144,7 @@ client := copilot.NewClient(nil)
 client.Start(ctx)
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-    Model: "gpt-4.1",
+    Model: "gpt-5.4",
     CustomAgents: []copilot.CustomAgentConfig{
         {
             Name:        "researcher",
@@ -179,7 +179,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     CustomAgents = new List<CustomAgentConfig>
     {
         new()
@@ -219,7 +219,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("gpt-4.1")
+            .setModel("gpt-5.4")
             .setCustomAgents(List.of(
                 new CustomAgentConfig()
                     .setName("researcher")
@@ -529,7 +529,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "gpt-5.4",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},

@@ -130,7 +130,7 @@ func main() {
 	client := copilot.NewClient(nil)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "gpt-4.1",
+		Model:     "gpt-5.4",
 		Streaming: copilot.Bool(true),
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
@@ -306,7 +306,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `model` | `string` | ✅ | Model identifier (e.g., `"gpt-4.1"`) |
+| `model` | `string` | ✅ | Model identifier (e.g., `"gpt-5.4"`) |
 | `inputTokens` | `number` | | Input tokens consumed |
 | `outputTokens` | `number` | | Output tokens produced |
 | `cacheReadTokens` | `number` | | Tokens read from prompt cache |

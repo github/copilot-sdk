@@ -123,7 +123,7 @@ var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -217,7 +217,7 @@ const getWeather = DefineTool({
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     tools: [getWeather],
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
@@ -255,7 +255,7 @@ try (var client = new CopilotClient()) {
     client.start().get();
 
     var session = client.createSession(new SessionConfig()
-        .setModel("gpt-4.1")
+        .setModel("gpt-5.4")
         .setTools(List.of(getWeather))
         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
@@ -296,7 +296,7 @@ AIAgent reviewer = copilotClient.AsAIAgent(new AIAgentOptions
 // Azure OpenAI agent for generating documentation
 AIAgent documentor = AIAgent.FromOpenAI(new OpenAIAgentOptions
 {
-    Model = "gpt-4.1",
+    Model = "gpt-5.4",
     Instructions = "You write clear, concise documentation for code changes.",
 });
 
@@ -330,7 +330,7 @@ async def main():
 
     # OpenAI agent for documentation
     documentor = OpenAIAgent(
-        model="gpt-4.1",
+        model="gpt-5.4",
         instructions="You write clear, concise documentation for code changes.",
     )
 
@@ -360,7 +360,7 @@ client.start().get();
 
 // Step 1: Code review session
 var reviewer = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -370,7 +370,7 @@ var review = reviewer.sendAndWait(new MessageOptions()
 
 // Step 2: Documentation session using review output
 var documentor = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -434,12 +434,12 @@ var client = new CopilotClient();
 client.start().get();
 
 var securitySession = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
 var perfSession = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -518,7 +518,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     streaming: true,
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
@@ -544,7 +544,7 @@ var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setStreaming(true)
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
@@ -598,7 +598,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 const response = await session.sendAndWait({ prompt: "Explain this code" });
