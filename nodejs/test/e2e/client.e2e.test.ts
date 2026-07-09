@@ -1,6 +1,7 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
+import { isInProcessTransport } from "./harness/sdkTestContext.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -106,7 +107,7 @@ describe("Client", () => {
         60_000
     );
 
-    it("should forceStop without cleanup", async () => {
+    it.skipIf(isInProcessTransport)("should forceStop without cleanup", async () => {
         const client = new CopilotClient({});
         onTestFinishedForceStop(client);
 
