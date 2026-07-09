@@ -11531,6 +11531,52 @@ internal sealed class ScheduleStopRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>GitHub REST response returned by the host/runtime.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class GitHubApiResponse
+{
+    /// <summary>Parsed GitHub REST response body.</summary>
+    [JsonPropertyName("data")]
+    public JsonElement Data { get; set; }
+
+    /// <summary>HTTP response headers, normalized by the host/runtime.</summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string> Headers { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>HTTP response status code.</summary>
+    [JsonPropertyName("status")]
+    public long Status { get; set; }
+}
+
+/// <summary>Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class GitHubApiRequestParams
+{
+    /// <summary>GitHub REST method. The initial API is read-only.</summary>
+    [JsonPropertyName("method")]
+    public string Method { get; set; } = string.Empty;
+
+    /// <summary>When true, asks the host/runtime to follow GitHub REST pagination and combine page data.</summary>
+    [JsonPropertyName("paginate")]
+    public bool? Paginate { get; set; }
+
+    /// <summary>Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Query parameters for the GitHub REST request.</summary>
+    [JsonPropertyName("query")]
+    public IDictionary<string, JsonElement>? Query { get; set; }
+
+    /// <summary>Restricts the request to the repository associated with the current session.</summary>
+    [JsonPropertyName("scope")]
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ProviderTokenAcquireResult
@@ -20028,6 +20074,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Api APIs.</summary>
+    public ApiApi Api =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Suspends the session while preserving persisted state for later resume.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     [Experimental(Diagnostics.Experimental)]
@@ -22893,6 +22945,55 @@ public sealed class ScheduleApi
     }
 }
 
+/// <summary>Provides session-scoped Api APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ApiApi
+{
+    private readonly CopilotSession _session;
+
+    internal ApiApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>GitHub APIs.</summary>
+    public ApiGitHubApi GitHub =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+}
+
+/// <summary>Provides session-scoped ApiGitHub APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ApiGitHubApi
+{
+    private readonly CopilotSession _session;
+
+    internal ApiGitHubApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Requests GitHub REST data for the current session repository through the host/runtime. The caller supplies a repository-relative REST path and never receives authentication tokens.</summary>
+    /// <param name="scope">Restricts the request to the repository associated with the current session.</param>
+    /// <param name="method">GitHub REST method. The initial API is read-only.</param>
+    /// <param name="path">Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.</param>
+    /// <param name="query">Query parameters for the GitHub REST request.</param>
+    /// <param name="paginate">When true, asks the host/runtime to follow GitHub REST pagination and combine page data.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>GitHub REST response returned by the host/runtime.</returns>
+    public async Task<GitHubApiResponse> RequestAsync(string scope, string method, string path, IDictionary<string, JsonElement>? query = null, bool? paginate = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        ArgumentNullException.ThrowIfNull(method);
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new GitHubApiRequestParams { SessionId = _session.SessionId, Scope = scope, Method = method, Path = path, Query = query, Paginate = paginate };
+        return await CopilotClient.InvokeRpcAsync<GitHubApiResponse>(_session.Rpc, "session.api.github.request", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `providerToken` client session API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface IProviderTokenHandler
@@ -23593,6 +23694,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(FolderTrustAddParams))]
 [JsonSerializable(typeof(FolderTrustCheckParams))]
 [JsonSerializable(typeof(FolderTrustCheckResult))]
+[JsonSerializable(typeof(GitHubApiRequestParams))]
+[JsonSerializable(typeof(GitHubApiResponse))]
 [JsonSerializable(typeof(GitHubTelemetryClientInfo))]
 [JsonSerializable(typeof(GitHubTelemetryEvent))]
 [JsonSerializable(typeof(GitHubTelemetryNotification))]

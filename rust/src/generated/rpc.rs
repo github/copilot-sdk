@@ -2559,6 +2559,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.api.*` sub-namespace.
+    pub fn api(&self) -> SessionRpcApi<'a> {
+        SessionRpcApi {
+            session: self.session,
+        }
+    }
+
     /// `session.canvas.*` sub-namespace.
     pub fn canvas(&self) -> SessionRpcCanvas<'a> {
         SessionRpcCanvas {
@@ -3064,6 +3071,62 @@ impl<'a> SessionRpcAgent<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_AGENT_RELOAD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.api.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcApi<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcApi<'a> {
+    /// `session.api.github.*` sub-namespace.
+    pub fn github(&self) -> SessionRpcApiGitHub<'a> {
+        SessionRpcApiGitHub {
+            session: self.session,
+        }
+    }
+}
+
+/// `session.api.github.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcApiGitHub<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcApiGitHub<'a> {
+    /// Requests GitHub REST data for the current session repository through the host/runtime. The caller supplies a repository-relative REST path and never receives authentication tokens.
+    ///
+    /// Wire method: `session.api.github.request`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.
+    ///
+    /// # Returns
+    ///
+    /// GitHub REST response returned by the host/runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn request(
+        &self,
+        params: GitHubApiRequestParams,
+    ) -> Result<GitHubApiResponse, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_API_GITHUB_REQUEST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

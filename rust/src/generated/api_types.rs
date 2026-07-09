@@ -543,6 +543,8 @@ pub mod rpc_methods {
     pub const SESSION_SCHEDULE_LIST: &str = "session.schedule.list";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `session.api.github.request`
+    pub const SESSION_API_GITHUB_REQUEST: &str = "session.api.github.request";
     /// `providerToken.getToken`
     pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `sessionFs.readFile`
@@ -19124,6 +19126,50 @@ pub struct SessionScheduleStopResult {
     pub entry: Option<ScheduleEntry>,
 }
 
+/// Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubApiRequestParams {
+    /// Restricts the request to the repository associated with the current session.
+    pub scope: GitHubApiRequestParamsScope,
+    /// GitHub REST method. The initial API is read-only.
+    pub method: GitHubApiRequestParamsMethod,
+    /// Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.
+    pub path: String,
+    /// Query parameters for the GitHub REST request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<HashMap<String, serde_json::Value>>,
+    /// When true, asks the host/runtime to follow GitHub REST pagination and combine page data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paginate: Option<bool>,
+}
+
+/// GitHub REST response returned by the host/runtime.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubApiResponse {
+    /// HTTP response status code.
+    pub status: i64,
+    /// HTTP response headers, normalized by the host/runtime.
+    pub headers: HashMap<String, String>,
+    /// Parsed GitHub REST response body.
+    pub data: serde_json::Value,
+}
+
 /// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
 ///
 /// <div class="warning">
@@ -23218,4 +23264,19 @@ pub enum WorkspacesWorkspaceDetailsHostType {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Restricts the request to the repository associated with the current session.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubApiRequestParamsScope {
+    #[serde(rename = "current_repository")]
+    #[default]
+    CurrentRepository,
+}
+
+/// GitHub REST method. The initial API is read-only.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubApiRequestParamsMethod {
+    #[default]
+    GET,
 }

@@ -17,6 +17,7 @@ import type {
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type {
+    GitHubApiResponse as GeneratedGitHubApiResponse,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
@@ -836,6 +837,49 @@ export interface SessionUiApi {
      * @throws Error if the host does not support elicitation.
      */
     input(message: string, options?: UiInputOptions): Promise<string | null>;
+}
+
+export type GitHubApiRequestMethod = "GET";
+
+export type GitHubApiQueryValue =
+    | string
+    | number
+    | boolean
+    | null
+    | Array<string | number | boolean | null>;
+
+export interface GitHubApiRequest {
+    /** GitHub REST method. The initial API is read-only. */
+    method: GitHubApiRequestMethod;
+    /**
+     * Repository-relative REST path for the current session repository,
+     * for example `/code-scanning/alerts`.
+     */
+    path: string;
+    /** Query parameters for the GitHub REST request. */
+    query?: Record<string, GitHubApiQueryValue>;
+    /**
+     * Ask the host/runtime to follow GitHub REST pagination and return the combined data.
+     * Exact pagination limits and merge behavior are host-defined.
+     */
+    paginate?: boolean;
+}
+
+export type GitHubApiResponse<T = unknown> = Omit<GeneratedGitHubApiResponse, "data"> & {
+    data: T;
+};
+
+export interface SessionApi {
+    /** Tokenless, host-mediated APIs available to this session. */
+    github: {
+        /**
+         * Requests GitHub REST data for the current session repository through the host/runtime.
+         *
+         * The extension supplies a repository-relative path. The host/runtime derives the
+         * repository, performs authentication internally, and does not expose tokens.
+         */
+        request<T = unknown>(request: GitHubApiRequest): Promise<GitHubApiResponse<T>>;
+    };
 }
 
 export interface ToolCallRequestPayload {

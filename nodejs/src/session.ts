@@ -27,6 +27,8 @@ import type {
     ElicitationParams,
     ElicitationResult,
     ElicitationContext,
+    GitHubApiRequest,
+    GitHubApiResponse,
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
@@ -48,6 +50,7 @@ import type {
     SessionEventPayload,
     SessionEventType,
     SessionHooks,
+    SessionApi,
     SessionUiApi,
     Tool,
     ToolHandler,
@@ -211,6 +214,18 @@ export class CopilotSession {
             confirm: (message: string) => this._confirm(message),
             select: (message: string, options: string[]) => this._select(message, options),
             input: (message: string, options?: UiInputOptions) => this._input(message, options),
+        };
+    }
+
+    /**
+     * Host-mediated APIs for this session.
+     */
+    get api(): SessionApi {
+        return {
+            github: {
+                request: <T = unknown>(request: GitHubApiRequest) =>
+                    this._githubApiRequest<T>(request),
+            },
         };
     }
 
@@ -1385,6 +1400,52 @@ export class CopilotSession {
         options?: { level?: "info" | "warning" | "error"; ephemeral?: boolean }
     ): Promise<void> {
         await this.rpc.log({ message, ...options });
+    }
+
+    private async _githubApiRequest<T = unknown>(
+        request: GitHubApiRequest
+    ): Promise<GitHubApiResponse<T>> {
+        validateGitHubApiRequest(request);
+        const response = await this.rpc.api.github.request({
+            scope: "current_repository",
+            method: request.method,
+            path: request.path,
+            query: request.query,
+            paginate: request.paginate,
+        });
+        return response as GitHubApiResponse<T>;
+    }
+}
+
+function validateGitHubApiRequest(request: GitHubApiRequest): void {
+    if (!request || typeof request !== "object") {
+        throw new Error("GitHub API request must be an object.");
+    }
+
+    if (request.method !== "GET") {
+        throw new Error("session.api.github.request currently supports only GET requests.");
+    }
+
+    if (typeof request.path !== "string" || request.path.length === 0) {
+        throw new Error("GitHub API request path must be a non-empty string.");
+    }
+
+    if (/^[A-Za-z][A-Za-z\d+.-]*:\/\//.test(request.path)) {
+        throw new Error("GitHub API request path must be repository-relative, not a full URL.");
+    }
+
+    if (!request.path.startsWith("/") || request.path.startsWith("//")) {
+        throw new Error("GitHub API request path must start with a single `/`.");
+    }
+
+    if (/^\/repos\/[^/]+\/[^/]+(?:\/|$)/i.test(request.path)) {
+        throw new Error(
+            "GitHub API request path must not include `/repos/{owner}/{repo}`; the host derives the current repository."
+        );
+    }
+
+    if (request.path.split("/").includes("..")) {
+        throw new Error("GitHub API request path must not contain `..` segments.");
     }
 }
 

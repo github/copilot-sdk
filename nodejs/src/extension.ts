@@ -30,6 +30,13 @@ export type JoinSessionConfig = Omit<
 };
 
 export type { ExtensionInfo };
+export type {
+    GitHubApiQueryValue,
+    GitHubApiRequest,
+    GitHubApiRequestMethod,
+    GitHubApiResponse,
+    SessionApi,
+} from "./types.js";
 
 /**
  * Joins the current foreground session.

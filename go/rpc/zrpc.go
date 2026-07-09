@@ -2265,6 +2265,35 @@ type FolderTrustCheckResult struct {
 	Trusted bool `json:"trusted"`
 }
 
+// Current-repository-scoped GitHub REST request. The host/runtime derives the repository
+// from session metadata and performs authentication internally.
+// Experimental: GitHubAPIRequestParams is part of an experimental API and may change or be
+// removed.
+type GitHubAPIRequestParams struct {
+	// GitHub REST method. The initial API is read-only.
+	Method GitHubAPIRequestParamsMethod `json:"method"`
+	// When true, asks the host/runtime to follow GitHub REST pagination and combine page data.
+	Paginate *bool `json:"paginate,omitempty"`
+	// Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.
+	Path string `json:"path"`
+	// Query parameters for the GitHub REST request.
+	Query map[string]any `json:"query,omitzero"`
+	// Restricts the request to the repository associated with the current session.
+	Scope GitHubAPIRequestParamsScope `json:"scope"`
+}
+
+// GitHub REST response returned by the host/runtime.
+// Experimental: GitHubAPIResponse is part of an experimental API and may change or be
+// removed.
+type GitHubAPIResponse struct {
+	// Parsed GitHub REST response body.
+	Data any `json:"data"`
+	// HTTP response headers, normalized by the host/runtime.
+	Headers map[string]string `json:"headers"`
+	// HTTP response status code.
+	Status int64 `json:"status"`
+}
+
 // Pointer to a GitHub repository.
 // Experimental: GitHubRepoRef is part of an experimental API and may change or be removed.
 type GitHubRepoRef struct {
@@ -11082,6 +11111,20 @@ const (
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
 
+// GitHub REST method. The initial API is read-only.
+type GitHubAPIRequestParamsMethod string
+
+const (
+	GitHubAPIRequestParamsMethodGET GitHubAPIRequestParamsMethod = "GET"
+)
+
+// Restricts the request to the repository associated with the current session.
+type GitHubAPIRequestParamsScope string
+
+const (
+	GitHubAPIRequestParamsScopeCurrentRepository GitHubAPIRequestParamsScope = "current_repository"
+)
+
 // Authentication host. HMAC auth always targets the public GitHub host.
 type HMACAuthInfoHost string
 
@@ -14394,6 +14437,51 @@ func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Experimental: APIAPI contains experimental APIs that may change or be removed.
+type APIAPI sessionAPI
+
+// Experimental: APIGitHubAPI contains experimental APIs that may change or be removed.
+type APIGitHubAPI sessionAPI
+
+// Requests GitHub REST data for the current session repository through the host/runtime.
+// The caller supplies a repository-relative REST path and never receives authentication
+// tokens.
+//
+// RPC method: session.api.github.request.
+//
+// Parameters: Current-repository-scoped GitHub REST request. The host/runtime derives the
+// repository from session metadata and performs authentication internally.
+//
+// Returns: GitHub REST response returned by the host/runtime.
+func (a *APIGitHubAPI) Request(ctx context.Context, params *GitHubAPIRequestParams) (*GitHubAPIResponse, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["method"] = params.Method
+		if params.Paginate != nil {
+			req["paginate"] = *params.Paginate
+		}
+		req["path"] = params.Path
+		if params.Query != nil {
+			req["query"] = params.Query
+		}
+		req["scope"] = params.Scope
+	}
+	raw, err := a.client.Request(ctx, "session.api.github.request", req)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubAPIResponse
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: GitHub returns experimental APIs that may change or be removed.
+func (s *APIAPI) GitHub() *APIGitHubAPI {
+	return (*APIGitHubAPI)(s)
 }
 
 // Experimental: CanvasAPI contains experimental APIs that may change or be removed.
@@ -18495,6 +18583,7 @@ type SessionRPC struct {
 	common sessionAPI
 
 	Agent        *AgentAPI
+	API          *APIAPI
 	Canvas       *CanvasAPI
 	Commands     *CommandsAPI
 	Completions  *CompletionsAPI
@@ -18709,6 +18798,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r := &SessionRPC{}
 	r.common = sessionAPI{client: client, sessionID: sessionID}
 	r.Agent = (*AgentAPI)(&r.common)
+	r.API = (*APIAPI)(&r.common)
 	r.Canvas = (*CanvasAPI)(&r.common)
 	r.Commands = (*CommandsAPI)(&r.common)
 	r.Completions = (*CompletionsAPI)(&r.common)

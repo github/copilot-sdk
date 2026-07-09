@@ -185,7 +185,93 @@ function renameBrandDefinitionKeys(defs: Record<string, unknown>): void {
 /** Load a JSON schema file and normalize GitHub brand casing in titles, refs, and definition keys. */
 export async function loadSchemaJson<T>(filePath: string): Promise<T> {
     const parsed = JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
+    if (path.basename(filePath) === "api.schema.json") {
+        applySdkApiSchemaExtensions(parsed as ApiSchema);
+    }
     return normalizeSchemaBrandCasing(parsed);
+}
+
+function applySdkApiSchemaExtensions(schema: ApiSchema): void {
+    schema.session ??= {};
+    schema.session.api ??= {};
+
+    const apiNamespace = schema.session.api as Record<string, unknown>;
+    if (apiNamespace.github !== undefined) {
+        return;
+    }
+
+    apiNamespace.github = {
+        request: {
+            rpcMethod: "session.api.github.request",
+            description:
+                "Requests GitHub REST data for the current session repository through the host/runtime. The caller supplies a repository-relative REST path and never receives authentication tokens.",
+            params: {
+                type: "object",
+                title: "GitHubApiRequestParams",
+                additionalProperties: false,
+                description:
+                    "Current-repository-scoped GitHub REST request. The host/runtime derives the repository from session metadata and performs authentication internally.",
+                properties: {
+                    sessionId: {
+                        type: "string",
+                        description: "Target session identifier.",
+                    },
+                    scope: {
+                        type: "string",
+                        const: "current_repository",
+                        description:
+                            "Restricts the request to the repository associated with the current session.",
+                    },
+                    method: {
+                        type: "string",
+                        const: "GET",
+                        description: "GitHub REST method. The initial API is read-only.",
+                    },
+                    path: {
+                        type: "string",
+                        description:
+                            "Repository-relative REST path beginning with `/`, for example `/code-scanning/alerts`.",
+                    },
+                    query: {
+                        type: "object",
+                        additionalProperties: {
+                            "x-opaque-json": true,
+                        },
+                        description: "Query parameters for the GitHub REST request.",
+                    },
+                    paginate: {
+                        type: "boolean",
+                        description:
+                            "When true, asks the host/runtime to follow GitHub REST pagination and combine page data.",
+                    },
+                },
+                required: ["sessionId", "scope", "method", "path"],
+            },
+            result: {
+                type: "object",
+                title: "GitHubApiResponse",
+                additionalProperties: false,
+                description: "GitHub REST response returned by the host/runtime.",
+                properties: {
+                    status: {
+                        type: "integer",
+                        description: "HTTP response status code.",
+                    },
+                    headers: {
+                        type: "object",
+                        additionalProperties: { type: "string" },
+                        description: "HTTP response headers, normalized by the host/runtime.",
+                    },
+                    data: {
+                        description: "Parsed GitHub REST response body.",
+                        "x-opaque-json": true,
+                    },
+                },
+                required: ["status", "headers", "data"],
+            },
+            stability: "experimental",
+        },
+    };
 }
 
 // ── Schema processing ───────────────────────────────────────────────────────
