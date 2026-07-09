@@ -11,7 +11,7 @@ env:
   # feed name isn't repeated across steps. The SDK canary publishes here and
   # (when runtime_source=internal) installs the runtime from here; it must NEVER
   # reach public npm (@github/copilot-sdk is a live public package).
-  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary-test/npm/registry/
+  FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
   # Azure DevOps resource ID used to mint an ADO access token for the feed
   # (a well-known public constant, not a secret).
   ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
