@@ -8,7 +8,7 @@ import { CopilotClient, RuntimeConnection } from "../../src/index.js";
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors - process may already be stopped
         }

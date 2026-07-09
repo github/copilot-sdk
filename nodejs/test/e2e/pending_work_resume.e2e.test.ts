@@ -150,7 +150,7 @@ describe("Pending work resume", async () => {
         });
         onTestFinished(async () => {
             try {
-                await server.forceStop();
+                await server.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -164,7 +164,7 @@ describe("Pending work resume", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -222,7 +222,7 @@ describe("Pending work resume", async () => {
                 await permissionRequestedP;
                 expect(initialRequest.kind).toBe("custom-tool");
 
-                await suspendedClient.forceStop();
+                await suspendedClient.stop();
 
                 const resumedTcpClient = createConnectingClient(cliUrl);
                 const session2 = await resumedTcpClient.resumeSession(sessionId, {
@@ -300,7 +300,7 @@ describe("Pending work resume", async () => {
                     )
                 ).toBe("beta");
 
-                await suspendedClient.forceStop();
+                await suspendedClient.stop();
 
                 const resumedClient = createConnectingClient(cliUrl);
                 const session2 = await resumedClient.resumeSession(sessionId, {
@@ -379,7 +379,7 @@ describe("Pending work resume", async () => {
                 expect(await originalToolAStarted.promise).toBe("alpha");
                 expect(await originalToolBStarted.promise).toBe("beta");
 
-                await suspendedClient.forceStop();
+                await suspendedClient.stop();
 
                 const resumedClient = createConnectingClient(cliUrl);
                 const session2 = await resumedClient.resumeSession(sessionId, {
@@ -434,7 +434,7 @@ describe("Pending work resume", async () => {
                 expect(firstAnswer?.data.content ?? "").toContain("NO_PENDING_TURN_ONE");
 
                 await firstSession.disconnect();
-                await firstClient.forceStop();
+                await firstClient.stop();
             }
 
             const resumedClient = createConnectingClient(cliUrl);
@@ -516,7 +516,7 @@ describe("Pending work resume", async () => {
                     ).toBe("beta");
 
                     if (scenario.disconnectOriginalClient) {
-                        await suspendedClient.forceStop();
+                        await suspendedClient.stop();
                     }
 
                     const resumedClient = createConnectingClient(cliUrl);
@@ -615,7 +615,7 @@ describe("Pending work resume", async () => {
                 );
 
                 await firstSession.disconnect();
-                await firstClient.forceStop();
+                await firstClient.stop();
             }
 
             const resumedClient = createConnectingClient(cliUrl);

@@ -39,7 +39,7 @@ describe("Server-scoped RPC", async () => {
         });
         onTestFinished(async () => {
             try {
-                await extraClient.forceStop();
+                await extraClient.stop();
             } catch {
                 // Ignore cleanup errors
             }

@@ -108,7 +108,7 @@ describe("Session Fs", async () => {
             connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
             env,
         });
-        onTestFinished(() => client.forceStop());
+        onTestFinished(() => client.stop());
         await client.createSession({ onPermissionRequest: approveAll, createSessionFsProvider });
 
         const { runtimePort: port } = client as unknown as { runtimePort: number };
@@ -123,7 +123,7 @@ describe("Session Fs", async () => {
             }),
             sessionFs: sessionFsConfig,
         });
-        onTestFinished(() => client2.forceStop());
+        onTestFinished(() => client2.stop());
 
         await expect(client2.start()).rejects.toThrow();
     });

@@ -24,8 +24,8 @@ describe("Connection token", async () => {
     });
 
     afterAll(async () => {
-        await wrongClient.forceStop();
-        await noTokenClient.forceStop();
+        await wrongClient.stop();
+        await noTokenClient.stop();
     });
 
     it("connects with the matching token", async () => {

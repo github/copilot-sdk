@@ -9,7 +9,7 @@ function startEphemeralClient(): CopilotClient {
     const client = new CopilotClient();
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors
         }

@@ -50,7 +50,7 @@ async function waitWithTimeout<T>(
 function onTestFinishedForceStop(client: CopilotClient): void {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors
         }

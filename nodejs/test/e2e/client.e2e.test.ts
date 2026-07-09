@@ -5,7 +5,7 @@ import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors - process may already be stopped
         }
@@ -111,7 +111,7 @@ describe("Client", () => {
         onTestFinishedForceStop(client);
 
         await client.createSession({ onPermissionRequest: approveAll });
-        await client.forceStop();
+        await client.stop();
     });
 
     it("should get status with version and protocol info", async () => {

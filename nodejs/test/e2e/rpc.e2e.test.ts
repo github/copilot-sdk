@@ -5,7 +5,7 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors - process may already be stopped
         }

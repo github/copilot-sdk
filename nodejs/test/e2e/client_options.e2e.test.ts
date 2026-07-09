@@ -182,7 +182,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -206,7 +206,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -237,7 +237,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -291,7 +291,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -374,7 +374,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -523,7 +523,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
@@ -590,7 +590,7 @@ describe("Client options", async () => {
         });
         onTestFinished(async () => {
             try {
-                await client.forceStop();
+                await client.stop();
             } catch {
                 // Ignore cleanup errors
             }
