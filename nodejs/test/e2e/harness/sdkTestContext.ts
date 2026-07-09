@@ -92,8 +92,14 @@ export async function createSdkTestContext({
         COPILOT_HOME: copilotHomeDir,
         COPILOT_SDK_AUTH_TOKEN: "",
         GH_CONFIG_DIR: homeDir,
-        GH_TOKEN: "",
-        GITHUB_TOKEN: "",
+        // Use the proxy-recognized token rather than blanking these. Tests that spin up
+        // their own client without passing `gitHubToken` (e.g. the stdio/tcp
+        // "works without onPermissionRequest" cases) rely on GH_TOKEN/GITHUB_TOKEN to
+        // authenticate against the replay proxy. Blanking them only worked on CI, where an
+        // ambient COPILOT_HMAC_KEY secret supplies the credential instead; locally there is
+        // no HMAC key, so the child CLI had nothing to authenticate with and got a 401.
+        GH_TOKEN: authTokenToUse,
+        GITHUB_TOKEN: authTokenToUse,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
