@@ -99,10 +99,12 @@ function loadLibrary(libraryPath: string): FfiLibrary {
 
 function buildArgvJson(cliEntrypoint: string): Buffer {
     // A `.js` entrypoint is launched via node; the packaged single-file CLI binary
-    // embeds its own Node and is invoked directly.
+    // embeds its own Node and is invoked directly. `--no-auto-update` pins the worker
+    // to the bundled pkg matching the loaded cdylib, instead of drifting to a newer
+    // version installed under the user's `~/.copilot/pkg` (which would cause ABI skew).
     const argv = cliEntrypoint.toLowerCase().endsWith(".js")
-        ? ["node", cliEntrypoint, "--embedded-host"]
-        : [cliEntrypoint, "--embedded-host"];
+        ? ["node", cliEntrypoint, "--embedded-host", "--no-auto-update"]
+        : [cliEntrypoint, "--embedded-host", "--no-auto-update"];
     return Buffer.from(JSON.stringify(argv), "utf8");
 }
 
