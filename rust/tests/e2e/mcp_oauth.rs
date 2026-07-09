@@ -8,7 +8,7 @@ use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult}
 use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest};
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::{McpOauthRequestReason, McpServerStatus};
-use github_copilot_sdk::{McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
+use github_copilot_sdk::{IndexMap, McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
 use parking_lot::Mutex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -40,7 +40,7 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
                 .create_session(
                     ctx.approve_all_session_config()
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -129,7 +129,7 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
                     ctx.approve_all_session_config()
                         .with_enable_mcp_apps(true)
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -194,7 +194,7 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .create_session(
                     ctx.approve_all_session_config()
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -250,7 +250,7 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
                     ctx.approve_all_session_config()
                         .with_enable_mcp_apps(true)
                         .with_mcp_auth_handler(handler)
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
