@@ -39,7 +39,7 @@ describe("Sessions", async () => {
             });
             onTestFinished(async () => {
                 try {
-                    await standaloneClient.forceStop();
+                    await standaloneClient.stop();
                 } catch {
                     // ignore
                 }
@@ -64,7 +64,7 @@ describe("Sessions", async () => {
         });
         onTestFinished(async () => {
             try {
-                await tcpClient.forceStop();
+                await tcpClient.stop();
             } catch {
                 // ignore
             }
@@ -84,7 +84,7 @@ describe("Sessions", async () => {
         });
         onTestFinished(async () => {
             try {
-                await resumeClient.forceStop();
+                await resumeClient.stop();
             } catch {
                 // ignore
             }
