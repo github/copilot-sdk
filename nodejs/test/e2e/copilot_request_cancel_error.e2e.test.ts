@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { approveAll, CopilotRequestHandler, type CopilotRequestContext } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 
 /**
  * Cancellation and error coverage for {@link CopilotRequestHandler}. These two
@@ -162,23 +162,31 @@ describe("CopilotRequestHandler observes runtime cancellation", async () => {
         copilotClientOptions: { requestHandler: handler },
     });
 
-    it("fires ctx.signal when the consumer aborts an in-flight inference request", async () => {
-        await client.start();
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        try {
-            await session.send("Say OK.");
-            await waitFor(() => handler.inferenceEntered, 60_000);
-            await session.abort();
-            await waitFor(() => handler.sawAbort, 30_000);
-        } finally {
-            await session.disconnect();
-        }
+    // A CopilotRequestHandler registers a process-wide LLM inference provider. Over the
+    // in-process transport every client shares the one host process, so a second client
+    // cannot register while another still holds the provider. Covered by the default
+    // (stdio) cell, where each client owns its own process.
+    it.skipIf(isInProcessTransport)(
+        "fires ctx.signal when the consumer aborts an in-flight inference request",
+        async () => {
+            await client.start();
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            try {
+                await session.send("Say OK.");
+                await waitFor(() => handler.inferenceEntered, 60_000);
+                await session.abort();
+                await waitFor(() => handler.sawAbort, 30_000);
+            } finally {
+                await session.disconnect();
+            }
 
-        expect(handler.inferenceEntered, "expected the inference callback to be entered").toBe(
-            true
-        );
-        expect(handler.sawAbort, "expected the callback to observe runtime cancellation").toBe(
-            true
-        );
-    }, 90_000);
+            expect(handler.inferenceEntered, "expected the inference callback to be entered").toBe(
+                true
+            );
+            expect(handler.sawAbort, "expected the callback to observe runtime cancellation").toBe(
+                true
+            );
+        },
+        90_000
+    );
 });

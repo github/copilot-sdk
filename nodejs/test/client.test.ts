@@ -2293,22 +2293,29 @@ describe("CopilotClient", () => {
     });
 
     describe("unexpected disconnection", () => {
-        it("transitions to disconnected when child process is killed", async () => {
-            const client = new CopilotClient();
-            await client.start();
-            onTestFinished(() => client.forceStop());
+        // No child process exists over the in-process (FFI) transport, so this
+        // child-process-kill scenario does not apply there. Covered by the default
+        // (stdio) cell.
+        it.skipIf((process.env.COPILOT_SDK_DEFAULT_CONNECTION ?? "").toLowerCase() === "inprocess")(
+            "transitions to disconnected when child process is killed",
+            async () => {
+                const client = new CopilotClient();
+                await client.start();
+                onTestFinished(() => client.forceStop());
 
-            expect((client as any).state).toBe("connected");
+                expect((client as any).state).toBe("connected");
 
-            // Kill the child process to simulate unexpected termination
-            const proc = (client as any).cliProcess as import("node:child_process").ChildProcess;
-            proc.kill();
+                // Kill the child process to simulate unexpected termination
+                const proc = (client as any)
+                    .cliProcess as import("node:child_process").ChildProcess;
+                proc.kill();
 
-            // Wait for the connection.onClose handler to fire
-            await vi.waitFor(() => {
-                expect((client as any).state).toBe("disconnected");
-            });
-        });
+                // Wait for the connection.onClose handler to fire
+                await vi.waitFor(() => {
+                    expect((client as any).state).toBe("disconnected");
+                });
+            }
+        );
     });
 
     describe("onGetTraceContext", () => {

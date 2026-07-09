@@ -59,6 +59,7 @@ export type {
     CopilotClientMode,
     CopilotClientOptions,
     StdioRuntimeConnection,
+    InProcessRuntimeConnection,
     TcpRuntimeConnection,
     UriRuntimeConnection,
     CustomAgentConfig,
