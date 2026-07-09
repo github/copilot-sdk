@@ -162,10 +162,12 @@ describe("CopilotRequestHandler observes runtime cancellation", async () => {
         copilotClientOptions: { requestHandler: handler },
     });
 
-    // A CopilotRequestHandler registers a process-wide LLM inference provider. Over the
-    // in-process transport every client shares the one host process, so a second client
-    // cannot register while another still holds the provider. Covered by the default
-    // (stdio) cell, where each client owns its own process.
+    // The runtime enforces a single, process-wide LLM inference provider: a second
+    // client.start() with a requestHandler rejects llmInference.setProvider with
+    // "Another client is already the LLM inference provider." The sibling error test
+    // above already registers a provider and holds it for this file's lifetime, and
+    // inproc runs share one runtime host, so this scenario can only run on the default
+    // (stdio) cell, where each client owns its own runtime process.
     it.skipIf(isInProcessTransport)(
         "fires ctx.signal when the consumer aborts an in-flight inference request",
         async () => {

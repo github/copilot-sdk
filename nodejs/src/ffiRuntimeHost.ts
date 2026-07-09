@@ -24,6 +24,10 @@ import { PassThrough, Writable } from "node:stream";
 
 const SYMBOL_PREFIX = "copilot_runtime_";
 
+// A long, referenced no-op timer keeps the Node event loop alive while the in-process
+// connection is open (see start()); the exact interval is irrelevant.
+const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
+
 type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
 type KoffiType = ReturnType<typeof koffi.pointer>;
 type KoffiRegisteredCallback = ReturnType<typeof koffi.register>;
@@ -34,7 +38,6 @@ interface FfiLibrary {
     connectionOpen: KoffiFunction;
     connectionWrite: KoffiFunction;
     connectionClose: KoffiFunction;
-    logDroppedCount: KoffiFunction;
     outboundCallbackType: KoffiType;
 }
 
@@ -88,10 +91,6 @@ function loadLibrary(libraryPath: string): FfiLibrary {
             "size_t",
         ]),
         connectionClose: lib.func(`${SYMBOL_PREFIX}connection_close`, "bool", ["uint32"]),
-        // A no-argument, side-effect-free diagnostic getter (returns a dropped-log
-        // counter). Used purely as a cheap async FFI call to keep koffi's asynchronous
-        // callback broker serviced while the connection is idle (see the pump in start()).
-        logDroppedCount: lib.func(`${SYMBOL_PREFIX}log_dropped_count`, "uint64", []),
         outboundCallbackType,
     };
     loadedLibraryPath = libraryPath;
@@ -129,36 +128,7 @@ export class FfiRuntimeHost {
     private connectionId = 0;
     private disposed = false;
     private outboundCallback: KoffiRegisteredCallback | undefined;
-    /**
-     * Keeps koffi's asynchronous callback broker serviced while the FFI connection is
-     * open, so inbound native→JS frames are delivered promptly even when the SDK is
-     * otherwise idle (e.g. awaiting a model response with no client→server writes in
-     * flight).
-     *
-     * The runtime invokes our outbound callback from a worker thread. koffi marshals
-     * such foreign-thread callbacks to the JS main thread via a threadsafe-function
-     * "broker" that is only serviced WHILE a koffi asynchronous FFI call is in flight —
-     * a plain JS timer (setInterval) does NOT pump it. During active request/response
-     * traffic the constant `connection_write` calls keep frames flowing, but once the
-     * SDK goes idle mid-turn (e.g. the worker is awaiting a model HTTP response, so
-     * there are no client→server writes) the broker parks and the next outbound frame
-     * (the model response, then everything after it) sits undelivered until the next
-     * koffi call — observed as a permanent 30s stall of otherwise-healthy sessions on
-     * macOS/Windows (libuv services the broker differently on Linux, which is why it
-     * only reproduces off-Linux). Keeping exactly one cheap async FFI call
-     * (`log_dropped_count`) continuously in flight keeps the broker pumping so
-     * foreign-thread frames are always delivered. This is the koffi analogue of the
-     * .NET host's raw function-pointer callback, which runs directly on the runtime
-     * thread and needs no event-loop pumping.
-     */
-    private pumpActive = false;
-    /**
-     * Inbound frame bytes copied out of the native callback, awaiting delivery to
-     * {@link receiveStream} on a clean event-loop tick. See {@link feedInbound}.
-     */
-    private readonly inboundQueue: Buffer[] = [];
-    /** Whether a drain of {@link inboundQueue} is already scheduled. */
-    private drainScheduled = false;
+    private keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
     /** The stream JSON-RPC reads server→client frames from. */
     readonly receiveStream: PassThrough;
@@ -174,8 +144,8 @@ export class FfiRuntimeHost {
         this.lib = loadLibrary(libraryPath);
         this.receiveStream = new PassThrough();
         this.sendStream = new Writable({
-            // Write frames with a synchronous FFI call (restored while diagnosing the
-            // macOS/Windows inbound-callback stall; async writes were a no-op for it).
+            // connection_write enqueues the frame into the runtime's inbound channel and
+            // returns immediately, so a synchronous FFI call is sufficient here.
             write: (chunk: Buffer, _encoding, callback) => {
                 try {
                     this.writeFrame(chunk);
@@ -278,35 +248,11 @@ export class FfiRuntimeHost {
             throw new Error("copilot_runtime_connection_open failed.");
         }
 
-        this.startBrokerPump();
-    }
-
-    /**
-     * Keeps exactly one cheap async FFI call in flight at all times so koffi's
-     * threadsafe-function broker stays serviced and foreign-thread outbound callbacks
-     * are delivered without waiting for the next client→server write. Each call
-     * reschedules the next on completion; the in-flight libuv request also keeps the
-     * event loop alive (replacing the old keep-alive timer). Stops when disposed.
-     */
-    private startBrokerPump(): void {
-        if (this.pumpActive) {
-            return;
-        }
-        this.pumpActive = true;
-        const pump = (): void => {
-            if (this.disposed || !this.connectionId) {
-                this.pumpActive = false;
-                return;
-            }
-            this.lib.logDroppedCount.async((_error: Error | null, _result: unknown) => {
-                if (this.disposed || !this.connectionId) {
-                    this.pumpActive = false;
-                    return;
-                }
-                pump();
-            });
-        };
-        pump();
+        // The in-process transport has no socket/pipe handle to keep the Node event loop
+        // alive while the SDK is idle awaiting a server→client frame. koffi delivers the
+        // outbound callback on the loop but does not reference it, so hold one referenced
+        // timer for the lifetime of the connection.
+        this.keepAliveTimer = setInterval(() => {}, KEEP_ALIVE_INTERVAL_MS);
     }
 
     private writeFrame(frame: Buffer): void {
@@ -320,25 +266,15 @@ export class FfiRuntimeHost {
     }
 
     /**
-     * Native outbound callback: copies the inbound frame bytes and hands them to the
-     * event loop for delivery, WITHOUT driving the JSON-RPC reader synchronously here.
-     *
-     * The native pointer is only valid for the duration of this call, so the bytes are
-     * decoded/copied eagerly; but writing them to {@link receiveStream} (which
-     * synchronously drives frame parsing and JSON-RPC dispatch, and may re-enter the
-     * SDK's write path) is deferred to a `setImmediate` drain on a clean stack. This
-     * keeps the callback minimal and non-reentrant — the koffi analogue of the .NET
-     * host's thread-safe `Channel` callback, which enqueues and returns immediately.
-     * Delivering synchronously here could re-enter a native `connection_write` call
-     * still on the stack and deadlock (observed as hung `session.rpc.*` round-trips
-     * on macOS).
+     * Native outbound (server→client) callback. koffi delivers it on the JS event loop
+     * via a threadsafe function, so the frame is decoded and written straight to
+     * {@link receiveStream}. The native pointer is only valid for this call, so the
+     * bytes are copied out before returning.
      */
     private feedInbound(bytesPtr: unknown, bytesLen: number | bigint): void {
-        // This runs as a native→JS (Node-API) callback, possibly from a secondary
-        // thread. An exception thrown here cannot propagate across the FFI boundary and
-        // is swallowed by the runtime (surfacing only as a DEP0168 "Uncaught Node-API
-        // callback exception" warning), so catch and log it here instead of letting it
-        // escape.
+        // An exception thrown across the native→JS (Node-API) boundary cannot propagate
+        // and would surface only as a DEP0168 "uncaught Node-API callback exception"
+        // warning, so catch and log it here instead of letting it escape.
         try {
             const length = Number(bytesLen);
             if (!bytesPtr || length <= 0) {
@@ -348,28 +284,11 @@ export class FfiRuntimeHost {
                 bytesPtr,
                 koffi.array("uint8", length, "Typed")
             ) as Uint8Array;
-            this.inboundQueue.push(Buffer.from(bytes));
-            if (!this.drainScheduled) {
-                this.drainScheduled = true;
-                setImmediate(() => this.drainInbound());
-            }
+            this.receiveStream.write(Buffer.from(bytes));
         } catch (error) {
             console.error(
                 `In-process FFI inbound callback failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
             );
-        }
-    }
-
-    /** Delivers queued inbound frames to {@link receiveStream} on a clean event-loop tick. */
-    private drainInbound(): void {
-        this.drainScheduled = false;
-        if (this.disposed) {
-            this.inboundQueue.length = 0;
-            return;
-        }
-        let frame: Buffer | undefined;
-        while ((frame = this.inboundQueue.shift()) !== undefined) {
-            this.receiveStream.write(frame);
         }
     }
 
@@ -379,26 +298,11 @@ export class FfiRuntimeHost {
         }
         const callback = this.outboundCallback;
         this.outboundCallback = undefined;
-        // Defer the unregister to a later tick instead of unregistering synchronously.
-        // koffi delivers outbound callbacks from a secondary thread by queuing them onto
-        // the JS event loop; at teardown one such delivery can still be queued after we
-        // stop the native side. Unregistering while koffi still has a queued call makes
-        // koffi invoke a torn-down callback and raise inside its own native code — an
-        // uncaught Node-API callback exception (DEP0168) that no JS try/catch can catch.
-        // The native connection/host are already closed by the time this runs (see
-        // dispose), so no new deliveries originate; a queued delivery fires in libuv's
-        // poll phase and setImmediate (check phase) runs right after it in the same loop
-        // iteration, so the pending delivery (a no-op, since we are disposed) drains
-        // before we free the slot.
-        const immediate = setImmediate(() => {
-            try {
-                koffi.unregister(callback);
-            } catch {
-                // Ignore teardown failures.
-            }
-        });
-        // Don't let this housekeeping timer keep the process alive.
-        immediate.unref?.();
+        try {
+            koffi.unregister(callback);
+        } catch {
+            // Ignore teardown failures.
+        }
     }
 
     /** Closes the FFI connection, shuts down the native host, and releases resources. */
@@ -408,9 +312,10 @@ export class FfiRuntimeHost {
         }
         this.disposed = true;
 
-        // The broker pump observes `disposed` and stops rescheduling on its next
-        // completion; no timer to clear.
-        this.pumpActive = false;
+        if (this.keepAliveTimer !== undefined) {
+            clearInterval(this.keepAliveTimer);
+            this.keepAliveTimer = undefined;
+        }
 
         try {
             if (this.connectionId) {
