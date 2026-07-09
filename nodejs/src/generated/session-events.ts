@@ -91,6 +91,7 @@ export type SessionEvent =
   | AutoModeSwitchCompletedEvent
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
+  | AutoModeResolvedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -631,6 +632,16 @@ export type SessionLimitsExhaustedResponseAction =
   | "unset"
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
+/**
+ * Coarse request-difficulty bucket for UX explainability
+ */
+export type AutoModeResolvedReasoningBucket =
+  /** The request looks low-reasoning; a lighter model is appropriate. */
+  | "low"
+  /** The request needs a moderate amount of reasoning. */
+  | "medium"
+  /** The request looks high-reasoning; a stronger model is appropriate. */
+  | "high";
 /**
  * Exit plan mode action
  */
@@ -3353,6 +3364,10 @@ export interface AssistantMessageData {
    * @experimental
    */
   citations?: Citations;
+  /**
+   * Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+   */
+  clientRequestId?: string;
   /**
    * The assistant's text response content
    */
@@ -7788,6 +7803,66 @@ export interface SessionLimitsExhaustedResponse {
    * New absolute max AI Credits when action is 'set'.
    */
   maxAiCredits?: number;
+}
+/**
+ * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeResolvedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_mode_resolved".
+   */
+  type: "session.auto_mode_resolved";
+}
+/**
+ * Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedData {
+  /**
+   * Ordered candidate model list the router returned, when not a fallback
+   */
+  candidateModels?: string[];
+  /**
+   * Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+   */
+  categoryScores?: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * The concrete model the session will use after any intent refinement
+   */
+  chosenModel: string;
+  /**
+   * Classifier confidence for the predicted label, when available
+   */
+  confidence?: number;
+  /**
+   * The predicted classifier label (e.g. `needs_reasoning`), when available
+   */
+  predictedLabel?: string;
+  reasoningBucket?: AutoModeResolvedReasoningBucket;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification

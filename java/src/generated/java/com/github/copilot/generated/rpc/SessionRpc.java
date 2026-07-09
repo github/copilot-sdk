@@ -174,6 +174,22 @@ public final class SessionRpc {
     }
 
     /**
+     * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
+    }
+
+    /**
      * Parameters for aborting the current turn
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
