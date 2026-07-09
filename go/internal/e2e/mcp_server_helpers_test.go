@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,10 +35,16 @@ func testMCPServers(t *testing.T, serverNames ...string) map[string]copilot.MCPS
 func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName string, expectedStatus rpc.MCPServerStatus) {
 	t.Helper()
 
+	if err := waitForMCPServerStatusResult(t.Context(), session, serverName, expectedStatus, 60*time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func waitForMCPServerStatusResult(ctx context.Context, session *copilot.Session, serverName string, expectedStatus rpc.MCPServerStatus, timeout time.Duration) error {
 	var lastStatus string
-	deadline := time.Now().Add(60 * time.Second)
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		result, err := session.RPC.MCP.List(t.Context())
+		result, err := session.RPC.MCP.List(ctx)
 		if err != nil {
 			lastStatus = err.Error()
 		} else {
@@ -46,7 +54,7 @@ func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName s
 					continue
 				}
 				if server.Status == expectedStatus {
-					return
+					return nil
 				}
 				lastStatus = string(server.Status)
 				break
@@ -55,5 +63,5 @@ func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName s
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	t.Fatalf("%s did not reach %s; last status was %s", serverName, expectedStatus, lastStatus)
+	return fmt.Errorf("%s did not reach %s; last status was %s", serverName, expectedStatus, lastStatus)
 }

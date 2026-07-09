@@ -348,8 +348,62 @@ func unmarshalAttachment(data []byte) (Attachment, error) {
 			return nil, err
 		}
 		return &d, nil
+	case AttachmentTypeGitHubActionsJob:
+		var d AttachmentGitHubActionsJob
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubCommit:
+		var d AttachmentGitHubCommit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubFile:
+		var d AttachmentGitHubFile
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubFileDiff:
+		var d AttachmentGitHubFileDiff
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case AttachmentTypeGitHubReference:
 		var d AttachmentGitHubReference
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubRelease:
+		var d AttachmentGitHubRelease
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubRepository:
+		var d AttachmentGitHubRepository
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubSnippet:
+		var d AttachmentGitHubSnippet
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubTreeComparison:
+		var d AttachmentGitHubTreeComparison
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AttachmentTypeGitHubURL:
+		var d AttachmentGitHubURL
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -420,8 +474,107 @@ func (r AttachmentFile) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r AttachmentGitHubActionsJob) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubActionsJob
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubCommit) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubCommit
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubFile) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubFile
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubFileDiff) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubFileDiff
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r AttachmentGitHubReference) MarshalJSON() ([]byte, error) {
 	type alias AttachmentGitHubReference
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubRelease) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubRelease
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubRepository) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubRepository
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubSnippet) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubSnippet
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubTreeComparison) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubTreeComparison
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentGitHubURL) MarshalJSON() ([]byte, error) {
+	type alias AttachmentGitHubURL
 	return json.Marshal(struct {
 		Type AttachmentType `json:"type"`
 		alias
@@ -516,6 +669,91 @@ func (r *CommandsRespondToQueuedCommandRequest) UnmarshalJSON(data []byte) error
 	return nil
 }
 
+func unmarshalDebugCollectLogsDestination(data []byte) (DebugCollectLogsDestination, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DebugCollectLogsDestinationKindArchive:
+		var d DebugCollectLogsDestinationArchive
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DebugCollectLogsDestinationKindDirectory:
+		var d DebugCollectLogsDestinationDirectory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDebugCollectLogsDestinationData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDebugCollectLogsDestinationData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DebugCollectLogsDestinationArchive) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationArchive
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DebugCollectLogsDestinationDirectory) MarshalJSON() ([]byte, error) {
+	type alias DebugCollectLogsDestinationDirectory
+	return json.Marshal(struct {
+		Kind DebugCollectLogsDestinationKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *DebugCollectLogsRequest) UnmarshalJSON(data []byte) error {
+	type rawDebugCollectLogsRequest struct {
+		AdditionalEntries []DebugCollectLogsEntry  `json:"additionalEntries,omitzero"`
+		Destination       json.RawMessage          `json:"destination"`
+		Include           *DebugCollectLogsInclude `json:"include,omitempty"`
+	}
+	var raw rawDebugCollectLogsRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AdditionalEntries = raw.AdditionalEntries
+	if raw.Destination != nil {
+		value, err := unmarshalDebugCollectLogsDestination(raw.Destination)
+		if err != nil {
+			return err
+		}
+		r.Destination = value
+	}
+	r.Include = raw.Include
+	return nil
+}
+
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -581,6 +819,12 @@ func unmarshalExternalToolTextResultForLlmContent(data []byte) (ExternalToolText
 		return &d, nil
 	case ExternalToolTextResultForLlmContentTypeResourceLink:
 		var d ExternalToolTextResultForLlmContentResourceLink
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ExternalToolTextResultForLlmContentTypeShellExit:
+		var d ExternalToolTextResultForLlmContentShellExit
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -731,6 +975,17 @@ func (r ExternalToolTextResultForLlmContentResourceLink) MarshalJSON() ([]byte, 
 	})
 }
 
+func (r ExternalToolTextResultForLlmContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ExternalToolTextResultForLlmContentShellExit
+	return json.Marshal(struct {
+		Type ExternalToolTextResultForLlmContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r ExternalToolTextResultForLlmContentTerminal) MarshalJSON() ([]byte, error) {
 	type alias ExternalToolTextResultForLlmContentTerminal
 	return json.Marshal(struct {
@@ -761,6 +1016,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 		ResultType          *string                                           `json:"resultType,omitempty"`
 		SessionLog          *string                                           `json:"sessionLog,omitempty"`
 		TextResultForLlm    string                                            `json:"textResultForLlm"`
+		ToolReferences      []string                                          `json:"toolReferences,omitzero"`
 		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitzero"`
 	}
 	var raw rawExternalToolTextResultForLlm
@@ -782,6 +1038,7 @@ func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	r.ResultType = raw.ResultType
 	r.SessionLog = raw.SessionLog
 	r.TextResultForLlm = raw.TextResultForLlm
+	r.ToolReferences = raw.ToolReferences
 	r.ToolTelemetry = raw.ToolTelemetry
 	return nil
 }
@@ -1138,6 +1395,89 @@ func (r *MCPConfigUpdateRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(data []byte) (MCPHeadersHandlePendingHeadersRefreshRequest, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestHeaders
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPHeadersHandlePendingHeadersRefreshRequestKindNone:
+		var d MCPHeadersHandlePendingHeadersRefreshRequestNone
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPHeadersHandlePendingHeadersRefreshRequestData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestHeaders) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestHeaders
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPHeadersHandlePendingHeadersRefreshRequestNone) MarshalJSON() ([]byte, error) {
+	type alias MCPHeadersHandlePendingHeadersRefreshRequestNone
+	return json.Marshal(struct {
+		Kind MCPHeadersHandlePendingHeadersRefreshRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *MCPHeadersHandlePendingHeadersRefreshRequestRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPHeadersHandlePendingHeadersRefreshRequestRequest struct {
+		RequestID string          `json:"requestId"`
+		Result    json.RawMessage `json:"result"`
+	}
+	var raw rawMCPHeadersHandlePendingHeadersRefreshRequestRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.RequestID = raw.RequestID
+	if raw.Result != nil {
+		value, err := unmarshalMCPHeadersHandlePendingHeadersRefreshRequest(raw.Result)
+		if err != nil {
+			return err
+		}
+		r.Result = value
+	}
+	return nil
+}
+
 func unmarshalMCPOauthPendingRequestResponse(data []byte) (MCPOauthPendingRequestResponse, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -1218,6 +1558,46 @@ func (r *MCPOauthHandlePendingRequest) UnmarshalJSON(data []byte) error {
 		}
 		r.Result = value
 	}
+	return nil
+}
+
+func (r *MCPRestartServerRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPRestartServerRequest struct {
+		Config     json.RawMessage `json:"config,omitempty"`
+		ServerName string          `json:"serverName"`
+	}
+	var raw rawMCPRestartServerRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMCPServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.ServerName = raw.ServerName
+	return nil
+}
+
+func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPStartServerRequest struct {
+		Config     json.RawMessage `json:"config"`
+		ServerName string          `json:"serverName"`
+	}
+	var raw rawMCPStartServerRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Config != nil {
+		value, err := unmarshalMCPServerConfig(raw.Config)
+		if err != nil {
+			return err
+		}
+		r.Config = value
+	}
+	r.ServerName = raw.ServerName
 	return nil
 }
 
@@ -2371,8 +2751,62 @@ func unmarshalPushAttachment(data []byte) (PushAttachment, error) {
 			return nil, err
 		}
 		return &d, nil
+	case PushAttachmentTypeGitHubActionsJob:
+		var d PushAttachmentGitHubActionsJob
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubCommit:
+		var d PushAttachmentGitHubCommit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubFile:
+		var d PushAttachmentGitHubFile
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubFileDiff:
+		var d PushAttachmentGitHubFileDiff
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PushAttachmentTypeGitHubReference:
 		var d PushAttachmentGitHubReference
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubRelease:
+		var d PushAttachmentGitHubRelease
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubRepository:
+		var d PushAttachmentGitHubRepository
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubSnippet:
+		var d PushAttachmentGitHubSnippet
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubTreeComparison:
+		var d PushAttachmentGitHubTreeComparison
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PushAttachmentTypeGitHubURL:
+		var d PushAttachmentGitHubURL
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -2443,8 +2877,107 @@ func (r PushAttachmentFile) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r PushAttachmentGitHubActionsJob) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubActionsJob
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubCommit) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubCommit
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubFile) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubFile
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubFileDiff) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubFileDiff
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r PushAttachmentGitHubReference) MarshalJSON() ([]byte, error) {
 	type alias PushAttachmentGitHubReference
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubRelease) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubRelease
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubRepository) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubRepository
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubSnippet) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubSnippet
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubTreeComparison) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubTreeComparison
+	return json.Marshal(struct {
+		Type PushAttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r PushAttachmentGitHubURL) MarshalJSON() ([]byte, error) {
+	type alias PushAttachmentGitHubURL
 	return json.Marshal(struct {
 		Type PushAttachmentType `json:"type"`
 		alias
@@ -2643,6 +3176,37 @@ func (r *SendAttachmentsToMessageParams) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r *SendMessageItem) UnmarshalJSON(data []byte) error {
+	type rawSendMessageItem struct {
+		Attachments   []json.RawMessage `json:"attachments,omitzero"`
+		Billable      *bool             `json:"billable,omitempty"`
+		DisplayPrompt *string           `json:"displayPrompt,omitempty"`
+		Prompt        string            `json:"prompt"`
+		RequiredTool  *string           `json:"requiredTool,omitempty"`
+		Source        *string           `json:"source,omitempty"`
+	}
+	var raw rawSendMessageItem
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	r.Billable = raw.Billable
+	r.DisplayPrompt = raw.DisplayPrompt
+	r.Prompt = raw.Prompt
+	r.RequiredTool = raw.RequiredTool
+	r.Source = raw.Source
+	return nil
+}
+
 func (r *SendRequest) UnmarshalJSON(data []byte) error {
 	type rawSendRequest struct {
 		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
@@ -2819,6 +3383,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	type rawSessionOpenOptions struct {
 		AdditionalContentExclusionPolicies     []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
 		AgentContext                           *string                                              `json:"agentContext,omitempty"`
+		AllowAllMCPServerInstructions          *bool                                                `json:"allowAllMcpServerInstructions,omitempty"`
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
 		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
 		AvailableTools                         []string                                             `json:"availableTools,omitzero"`
@@ -2835,11 +3400,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
+		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
+		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
@@ -2865,11 +3432,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		SandboxConfig                          *SandboxConfig                                       `json:"sandboxConfig,omitempty"`
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
+		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
 		ShellInitProfile                       *string                                              `json:"shellInitProfile,omitempty"`
 		ShellProcessFlags                      []string                                             `json:"shellProcessFlags,omitzero"`
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
 		SkipCustomInstructions                 *bool                                                `json:"skipCustomInstructions,omitempty"`
 		TrajectoryFile                         *string                                              `json:"trajectoryFile,omitempty"`
+		Verbosity                              *Verbosity                                           `json:"verbosity,omitempty"`
 		WorkingDirectory                       *string                                              `json:"workingDirectory,omitempty"`
 		WorkingDirectoryContext                *SessionContext                                      `json:"workingDirectoryContext,omitempty"`
 	}
@@ -2879,6 +3448,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	}
 	r.AdditionalContentExclusionPolicies = raw.AdditionalContentExclusionPolicies
 	r.AgentContext = raw.AgentContext
+	r.AllowAllMCPServerInstructions = raw.AllowAllMCPServerInstructions
 	r.AskUserDisabled = raw.AskUserDisabled
 	if raw.AuthInfo != nil {
 		value, err := unmarshalAuthInfo(raw.AuthInfo)
@@ -2901,11 +3471,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
+	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
+	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
@@ -2931,11 +3503,13 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.SandboxConfig = raw.SandboxConfig
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
+	r.SessionLimits = raw.SessionLimits
 	r.ShellInitProfile = raw.ShellInitProfile
 	r.ShellProcessFlags = raw.ShellProcessFlags
 	r.SkillDirectories = raw.SkillDirectories
 	r.SkipCustomInstructions = raw.SkipCustomInstructions
 	r.TrajectoryFile = raw.TrajectoryFile
+	r.Verbosity = raw.Verbosity
 	r.WorkingDirectory = raw.WorkingDirectory
 	r.WorkingDirectoryContext = raw.WorkingDirectoryContext
 	return nil

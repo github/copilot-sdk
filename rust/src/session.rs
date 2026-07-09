@@ -11,14 +11,17 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
-use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
+use crate::generated::api_types::{
+    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams, rpc_methods,
+};
 use crate::generated::session_events::{
-    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData,
+    CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
     SessionCanvasClosedData, SessionErrorData, SessionEventType,
 };
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
-    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
+    McpAuthHandler, McpAuthRequest, McpAuthResult, PermissionHandler, PermissionResult,
+    UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -49,6 +52,7 @@ use crate::{
 pub(crate) struct SessionHandlers {
     pub permission: Option<Arc<dyn PermissionHandler>>,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
+    pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
@@ -525,6 +529,7 @@ impl Session {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
@@ -872,7 +877,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -881,6 +888,7 @@ impl Client {
         let handlers = SessionHandlers {
             permission: permission_handler,
             elicitation: runtime.elicitation_handler.take(),
+            mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -895,6 +903,7 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
+        let has_mcp_auth_handler = handlers.mcp_auth.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1030,6 +1039,9 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
+        if has_mcp_auth_handler {
+            register_mcp_auth_interest(self, &session_id).await?;
+        }
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1130,7 +1142,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire()?;
+        let (mut wire, mut runtime) = config.into_wire()?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1139,6 +1153,7 @@ impl Client {
         let handlers = SessionHandlers {
             permission: permission_handler,
             elicitation: runtime.elicitation_handler.take(),
+            mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
@@ -1153,6 +1168,7 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         let bearer_token_providers = std::mem::take(&mut runtime.bearer_token_providers);
+        let has_mcp_auth_handler = handlers.mcp_auth.is_some();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
@@ -1238,6 +1254,9 @@ impl Client {
                 returned: cli_session_id,
             })
             .into());
+        }
+        if has_mcp_auth_handler {
+            register_mcp_auth_interest(self, &session_id).await?;
         }
 
         // Reload skills after resume (best-effort).
@@ -1475,6 +1494,17 @@ fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
     }
+}
+
+async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> Result<(), Error> {
+    let mut params = serde_json::to_value(RegisterEventInterestParams {
+        event_type: "mcp.oauth_required".to_string(),
+    })?;
+    params["sessionId"] = Value::String(session_id.to_string());
+    client
+        .call(rpc_methods::SESSION_EVENTLOG_REGISTERINTEREST, Some(params))
+        .await?;
+    Ok(())
 }
 
 fn tool_failure_result(message: impl Into<String>) -> ToolResult {
@@ -1940,6 +1970,91 @@ async fn handle_notification(
                             "Session::handle_notification response sent successfully"
                         );
                     }
+                }
+                .instrument(span),
+            );
+        }
+        SessionEventType::McpOauthRequired => {
+            let Some(request_id) = extract_request_id(&notification.event.data) else {
+                return;
+            };
+            let Some(mcp_auth_handler) = handlers.mcp_auth.clone() else {
+                warn!(
+                    session_id = %session_id,
+                    request_id = %request_id,
+                    "received MCP OAuth request without a registered MCP auth handler"
+                );
+                return;
+            };
+            let data: McpOauthRequiredData =
+                match serde_json::from_value(notification.event.data.clone()) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        warn!(error = %e, "failed to deserialize MCP OAuth request");
+                        return;
+                    }
+                };
+            let request = McpAuthRequest {
+                request_id: request_id.clone(),
+                server_name: data.server_name,
+                server_url: data.server_url,
+                reason: data.reason,
+                www_authenticate_params: data.www_authenticate_params,
+                resource_metadata: data.resource_metadata,
+                static_client_config: data.static_client_config,
+            };
+            let client = client.clone();
+            let sid = session_id.clone();
+            let span = tracing::error_span!(
+                "mcp_auth_request_handler",
+                session_id = %sid,
+                request_id = %request_id
+            );
+            tokio::spawn(
+                async move {
+                    let cancel = McpAuthResult::Cancelled;
+                    let handler_task = tokio::spawn({
+                        let sid = sid.clone();
+                        let request_id = request_id.clone();
+                        let span = tracing::error_span!(
+                            "mcp_auth_callback",
+                            session_id = %sid,
+                            request_id = %request_id
+                        );
+                        async move {
+                            let handler_start = Instant::now();
+                            let response = mcp_auth_handler
+                                .handle(sid.clone(), request_id.clone(), request)
+                                .await;
+                            tracing::debug!(
+                                elapsed_ms = handler_start.elapsed().as_millis(),
+                                session_id = %sid,
+                                request_id = %request_id,
+                                "McpAuthHandler::handle dispatch"
+                            );
+                            response
+                        }
+                        .instrument(span)
+                    });
+                    let result = match handler_task.await {
+                        Ok(result) => result,
+                        Err(_) => cancel,
+                    };
+                    let rpc_start = Instant::now();
+                    let _ = client
+                        .call(
+                            "session.mcp.oauth.handlePendingRequest",
+                            Some(serde_json::json!({
+                                "sessionId": sid,
+                                "requestId": request_id,
+                                "result": result.into_wire(),
+                            })),
+                        )
+                        .await;
+                    tracing::debug!(
+                        elapsed_ms = rpc_start.elapsed().as_millis(),
+                        "Session::handle_notification MCP auth response sent"
+                    );
                 }
                 .instrument(span),
             );

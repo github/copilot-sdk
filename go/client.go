@@ -696,11 +696,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
+	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
 	req.Provider = config.Provider
 	req.Capi = config.Capi
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.EnableCitations = config.EnableCitations
+	req.SessionLimits = config.SessionLimits
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -727,7 +730,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -756,6 +761,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -806,6 +814,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
+		s.registerMCPAuthHandler(config.OnMCPAuthRequest)
 		if config.OnUserInputRequest != nil {
 			s.registerUserInputHandler(config.OnUserInputRequest)
 		}
@@ -937,6 +946,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
+	if config.OnMCPAuthRequest != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": session.SessionID,
+			"eventType": "mcp.oauth_required",
+		}); err != nil {
+			return nil, err
+		}
+	}
 
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
@@ -1015,6 +1032,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
 	req.ToolFilterPrecedence = precedence
+	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
+	req.EnableCitations = config.EnableCitations
+	req.SessionLimits = config.SessionLimits
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
 	}
@@ -1022,6 +1042,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -1071,7 +1094,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1106,6 +1131,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
+	session.registerMCPAuthHandler(config.OnMCPAuthRequest)
 	if config.OnUserInputRequest != nil {
 		session.registerUserInputHandler(config.OnUserInputRequest)
 	}
@@ -1174,6 +1200,18 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		delete(c.sessions, sessionID)
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if config.OnMCPAuthRequest != nil {
+		if _, err := c.client.Request(ctx, "session.eventLog.registerInterest", map[string]any{
+			"sessionId": sessionID,
+			"eventType": "mcp.oauth_required",
+		}); err != nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, err
+		}
 	}
 
 	session.workspacePath = response.WorkspacePath
@@ -1651,7 +1689,15 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectResult, err := c.internalRPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
+	connectReq := &connectHandshakeRequest{Token: tokenPtr}
+	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
+	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
+	// so the first session's un-replayable `session.start` event is forwarded). Also
+	// sent on session.create/resume for older CLIs.
+	if c.options.OnGitHubTelemetry != nil {
+		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
+	}
+	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
@@ -1666,6 +1712,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 			return err
 		}
 	} else {
+		var connectResult rpc.ConnectResult
+		if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
+			return err
+		}
 		v := int(connectResult.ProtocolVersion)
 		serverVersion = &v
 	}
@@ -1680,6 +1730,11 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 
 	c.negotiatedProtocolVersion = *serverVersion
 	return nil
+}
+
+type connectHandshakeRequest struct {
+	Token                           *string `json:"token,omitempty"`
+	EnableGitHubTelemetryForwarding *bool   `json:"enableGitHubTelemetryForwarding,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's
@@ -2029,15 +2084,33 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil {
-		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-			if c.RPC == nil {
-				return nil
-			}
-			return c.RPC.LlmInference
-		})
-		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
+		handlers := &rpc.ClientGlobalAPIHandlers{}
+		if c.options.RequestHandler != nil {
+			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+				if c.RPC == nil {
+					return nil
+				}
+				return c.RPC.LlmInference
+			})
+		}
+		if c.options.OnGitHubTelemetry != nil {
+			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+		}
+		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 	}
+}
+
+// gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
+// rpc.GitHubTelemetryHandler interface.
+type gitHubTelemetryAdapter struct {
+	callback func(notification *rpc.GitHubTelemetryNotification)
+}
+
+func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) error {
+	defer func() { recover() }() // Ignore handler panics
+	a.callback(request)
+	return nil
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

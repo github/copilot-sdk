@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ShutdownModelMetric` type.
+ * Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details.
  *
  * @since 1.0.0
  */

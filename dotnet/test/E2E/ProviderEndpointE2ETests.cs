@@ -23,7 +23,7 @@ public class ProviderEndpointE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         {
             ["COPILOT_ALLOW_GET_PROVIDER_ENDPOINT"] = "true",
         };
-        return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env });
+        return Ctx.CreateClient(environment: env);
     }
 
     [Fact]

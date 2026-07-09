@@ -34,7 +34,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Have_Stateful_Conversation()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
 
         var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(assistantMessage);
@@ -267,6 +267,33 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var answer2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer2);
         Assert.Contains("4", answer2!.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Resumes_A_Persisted_Session_From_A_New_Client_When_An_Mcp_OAuth_Handler_Is_Configured()
+    {
+        static Task<McpAuthResult?> CancelMcpAuthAsync(McpAuthContext request)
+            => Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel());
+
+        await using var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = CancelMcpAuthAsync,
+        });
+        var sessionId = session1.SessionId;
+
+        var answer = await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        Assert.NotNull(answer);
+        Assert.Contains("2", answer!.Data.Content ?? string.Empty);
+
+        using var newClient = Ctx.CreateClient();
+        await using var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnMcpAuthRequest = CancelMcpAuthAsync,
+        });
+
+        Assert.Equal(sessionId, session2.SessionId);
     }
 
     [Fact]
@@ -689,17 +716,19 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         session.On<SessionEvent>(evt =>
         {
-            if (evt is UserMessageEvent)
+            if (evt is SessionInfoEvent)
             {
                 // Call DisposeAsync from within a handler — must not deadlock.
                 session.DisposeAsync().AsTask().ContinueWith(_ => disposed.TrySetResult());
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session.LogAsync("Dispose from handler trigger");
 
         // If this times out, we deadlocked.
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Client.ForceStopAsync();
     }
 
     [Fact]

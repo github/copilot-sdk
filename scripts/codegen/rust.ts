@@ -1229,6 +1229,8 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		"//! Auto-generated from session-events.schema.json — do not edit manually.",
 	);
 	out.push("");
+	out.push("#![allow(deprecated)]");
+	out.push("");
 	out.push("use std::collections::HashMap;");
 	out.push("");
 	out.push("use serde::{Deserialize, Serialize};");
@@ -1580,6 +1582,7 @@ function generateApiTypesCode(
 	out.push("//! Auto-generated from api.schema.json — do not edit manually.");
 	out.push("");
 	out.push("#![allow(clippy::large_enum_variant)]");
+	out.push("#![allow(deprecated)]");
 	out.push("#![allow(dead_code)]");
 	out.push("#![allow(rustdoc::invalid_html_tags)]");
 	out.push("");
@@ -2002,6 +2005,7 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("");
 	out.push("#![allow(missing_docs)]");
 	out.push("#![allow(clippy::too_many_arguments)]");
+	out.push("#![allow(deprecated)]");
 	out.push("#![allow(dead_code)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");

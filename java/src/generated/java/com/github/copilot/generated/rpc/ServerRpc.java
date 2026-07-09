@@ -7,6 +7,7 @@
 
 package com.github.copilot.generated.rpc;
 
+import com.github.copilot.CopilotExperimental;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -42,6 +43,8 @@ public final class ServerRpc {
     public final ServerAgentsApi agents;
     /** API methods for the {@code instructions} namespace. */
     public final ServerInstructionsApi instructions;
+    /** API methods for the {@code commands} namespace. */
+    public final ServerCommandsApi commands;
     /** API methods for the {@code user} namespace. */
     public final ServerUserApi user;
     /** API methods for the {@code runtime} namespace. */
@@ -71,6 +74,7 @@ public final class ServerRpc {
         this.skills = new ServerSkillsApi(caller);
         this.agents = new ServerAgentsApi(caller);
         this.instructions = new ServerInstructionsApi(caller);
+        this.commands = new ServerCommandsApi(caller);
         this.user = new ServerUserApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
@@ -81,16 +85,22 @@ public final class ServerRpc {
 
     /**
      * Optional message to echo back to the caller.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<PingResult> ping(PingParams params) {
         return caller.invoke("ping", params, PingResult.class);
     }
 
     /**
-     * Optional connection token presented by the SDK client during the handshake.
+     * Parameters for the `server.connect` handshake: an optional connection token and optional connection-level opt-ins (e.g. GitHub telemetry forwarding).
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @CopilotExperimental
     public CompletableFuture<ConnectResult> connect(ConnectParams params) {
         return caller.invoke("connect", params, ConnectResult.class);
     }

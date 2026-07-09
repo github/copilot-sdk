@@ -36,6 +36,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode for supported model clients. */
     @JsonProperty("reasoningSummary") OptionsUpdateReasoningSummary reasoningSummary,
+    /** Output verbosity level for supported models. */
+    @JsonProperty("verbosity") Verbosity verbosity,
     /** Identifier of the client driving the session. */
     @JsonProperty("clientName") String clientName,
     /** Identifier sent to LSP-style integrations. */
@@ -56,6 +58,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("availableTools") List<String> availableTools,
     /** Denylist of tool names for this session. */
     @JsonProperty("excludedTools") List<String> excludedTools,
+    /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
+    @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
     /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
     /** Whether shell-script safety heuristics are enabled. */
@@ -70,6 +74,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch). */
     @JsonProperty("envValueMode") OptionsUpdateEnvValueMode envValueMode,
+    /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
+    @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
     @JsonProperty("skillDirectories") List<String> skillDirectories,
     /** Skill IDs that should be excluded from this session. */
@@ -127,6 +133,8 @@ public record SessionOptionsUpdateParams(
     /** Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier. */
-    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier
+    @JsonProperty("contextTier") OptionsUpdateContextTier contextTier,
+    /** Optional session limits. Pass null to clear the session limits. */
+    @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits
 ) {
 }

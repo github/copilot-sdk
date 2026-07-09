@@ -16,6 +16,7 @@
         <PackageIcon>copilot.png</PackageIcon>
         <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
         <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>

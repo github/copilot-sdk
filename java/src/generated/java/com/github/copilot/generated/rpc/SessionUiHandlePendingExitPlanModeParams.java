@@ -28,7 +28,7 @@ public record SessionUiHandlePendingExitPlanModeParams(
     @JsonProperty("sessionId") String sessionId,
     /** The unique request ID from the exit_plan_mode.requested event */
     @JsonProperty("requestId") String requestId,
-    /** Schema for the `UIExitPlanModeResponse` type. */
+    /** User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback. */
     @JsonProperty("response") UIExitPlanModeResponse response
 ) {
 }

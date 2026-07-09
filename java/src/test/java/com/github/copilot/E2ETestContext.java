@@ -288,6 +288,8 @@ public class E2ETestContext implements AutoCloseable {
         env.put("GH_CONFIG_DIR", homeDir.toString());
         env.put("XDG_CONFIG_HOME", homeDir.toString());
         env.put("XDG_STATE_HOME", homeDir.toString());
+        env.put("COPILOT_MCP_APPS", "true");
+        env.put("MCP_APPS", "true");
 
         // Configure CONNECT proxy for HTTPS interception if available
         String connectUrl = proxy.getConnectProxyUrl();
@@ -380,6 +382,24 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     /**
+     * Configures the proxy to return a raw Copilot user response for a given token.
+     *
+     * @param token
+     *            the GitHub token
+     * @param response
+     *            the raw response object to return for the token
+     * @throws IOException
+     *             if the request fails
+     * @throws InterruptedException
+     *             if the request is interrupted
+     */
+    public void setCopilotUserByToken(String token, Map<String, Object> response)
+            throws IOException, InterruptedException {
+        ensureProxyAlive();
+        proxy.setCopilotUserByToken(token, response);
+    }
+
+    /**
      * Initializes the proxy state without loading a snapshot.
      * <p>
      * Use this for tests that need the proxy to be active (e.g., for per-session
@@ -438,7 +458,6 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     private static String getCliPath(Path repoRoot) throws IOException {
-        // Try environment variable first (explicit override)
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;

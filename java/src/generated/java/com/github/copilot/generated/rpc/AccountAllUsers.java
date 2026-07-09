@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `AccountAllUsers` type.
+ * Authenticated account entry returned by `account.getAllUsers`, with auth info and an optional associated token.
  *
  * @since 1.0.0
  */

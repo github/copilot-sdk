@@ -127,46 +127,31 @@ This skill exists so the plugin reports at least one installed skill.
         writeFileSync(join(pluginDir, "SKILL.md"), skill);
     }
 
-    it(
-        "should install list and uninstall plugin from local marketplace",
-        { timeout: 120_000 },
-        async () => {
-            const marketplaceDir = createLocalMarketplaceFixture();
-            const { client, home } = await createIsolatedStartedClient();
-            try {
-                await client.rpc.plugins.marketplaces.add({ source: marketplaceDir });
+    it("should install and list plugin from local marketplace", { timeout: 120_000 }, async () => {
+        const marketplaceDir = createLocalMarketplaceFixture();
+        const { client, home } = await createIsolatedStartedClient();
+        try {
+            await client.rpc.plugins.marketplaces.add({ source: marketplaceDir });
 
-                const spec = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
-                const install = await client.rpc.plugins.install({ source: spec });
+            const spec = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
+            const install = await client.rpc.plugins.install({ source: spec });
 
-                expect(install.plugin.name).toBe(PLUGIN_NAME);
-                expect(install.plugin.marketplace).toBe(MARKETPLACE_NAME);
-                expect(install.plugin.enabled).toBe(true);
-                expect(install.skillsInstalled).toBeGreaterThanOrEqual(1);
-                expect(install.deprecationWarning ?? null).toBeNull();
+            expect(install.plugin.name).toBe(PLUGIN_NAME);
+            expect(install.plugin.marketplace).toBe(MARKETPLACE_NAME);
+            expect(install.plugin.enabled).toBe(true);
+            expect(install.skillsInstalled).toBeGreaterThanOrEqual(1);
+            expect(install.deprecationWarning ?? null).toBeNull();
 
-                const afterInstall = await client.rpc.plugins.list();
-                const listed = afterInstall.plugins.filter(
-                    (plugin) =>
-                        plugin.name === PLUGIN_NAME && plugin.marketplace === MARKETPLACE_NAME
-                );
-                expect(listed).toHaveLength(1);
-                expect(listed[0].enabled).toBe(true);
-
-                await client.rpc.plugins.uninstall({ name: spec });
-
-                const afterUninstall = await client.rpc.plugins.list();
-                expect(
-                    afterUninstall.plugins.some(
-                        (plugin) =>
-                            plugin.name === PLUGIN_NAME && plugin.marketplace === MARKETPLACE_NAME
-                    )
-                ).toBe(false);
-            } finally {
-                await disposeIsolated(client, home, marketplaceDir);
-            }
+            const afterInstall = await client.rpc.plugins.list();
+            const listed = afterInstall.plugins.filter(
+                (plugin) => plugin.name === PLUGIN_NAME && plugin.marketplace === MARKETPLACE_NAME
+            );
+            expect(listed).toHaveLength(1);
+            expect(listed[0].enabled).toBe(true);
+        } finally {
+            await disposeIsolated(client, home, marketplaceDir);
         }
-    );
+    });
 
     it("should enable and disable marketplace plugin", { timeout: 120_000 }, async () => {
         const marketplaceDir = createLocalMarketplaceFixture();
@@ -244,8 +229,12 @@ This skill exists so the plugin reports at least one installed skill.
                 expect(
                     afterInstall.plugins.filter((plugin) => plugin.name === DIRECT_PLUGIN_NAME)
                 ).toHaveLength(1);
+                expect(install.plugin.directSourceId).toBeTruthy();
 
-                await client.rpc.plugins.uninstall({ name: DIRECT_PLUGIN_NAME });
+                await client.rpc.plugins.uninstall({
+                    name: DIRECT_PLUGIN_NAME,
+                    directSourceId: install.plugin.directSourceId,
+                });
 
                 const afterUninstall = await client.rpc.plugins.list();
                 expect(

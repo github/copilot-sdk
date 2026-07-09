@@ -324,7 +324,7 @@ app.post("/chat", async (req, res) => {
 
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
-        model: "gpt-4.1",
+        model: "gpt-5.4",
     });
 
     const response = await session.sendAndWait({ prompt: req.body.message });
@@ -404,7 +404,7 @@ class SessionManager {
         // Create or resume
         const session = await client.createSession({
             sessionId,
-            model: "gpt-4.1",
+            model: "gpt-5.4",
         });
 
         this.activeSessions.set(sessionId, session);
@@ -450,7 +450,7 @@ For stateless API endpoints where each request is independent:
 ```typescript
 app.post("/api/analyze", async (req, res) => {
     const session = await client.createSession({
-        model: "gpt-4.1",
+        model: "gpt-5.4",
     });
 
     try {
@@ -475,7 +475,7 @@ app.post("/api/chat/start", async (req, res) => {
 
     const session = await client.createSession({
         sessionId,
-        model: "gpt-4.1",
+        model: "gpt-5.4",
         infiniteSessions: {
             enabled: true,
             backgroundCompactionThreshold: 0.80,

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Xunit;
+using GitHub.Copilot.Test.Harness;
 
 // Each E2E test class fixture spins up its own Copilot CLI subprocess plus a CapiProxy
 // (replaying HTTP proxy) Node.js subprocess. With ~25 test classes, running them in parallel
@@ -13,3 +14,5 @@ using Xunit;
 // (a) sharing a single CLI subprocess across classes, or (b) gating concurrency with a
 // semaphore that limits concurrent fixtures to a small number (e.g. 2-3).
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
+
+[assembly: InProcessEnvIsolation]

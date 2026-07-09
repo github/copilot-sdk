@@ -3,6 +3,8 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
@@ -248,6 +251,49 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		ExcludedBuiltInAgents: []string{"explore"},
+		EnableCitations:       Bool(true),
+		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertNewSessionOptions(t, <-createParams, true, "explore", 30)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-options","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
+		ExcludedBuiltInAgents: []string{"task"},
+		EnableCitations:       Bool(false),
+		SessionLimits:         &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertNewSessionOptions(t, <-resumeParams, false, "task", 15)
+}
+
 func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	t.Helper()
 
@@ -255,6 +301,7 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
 	}
+
 	capi, ok := decoded["capi"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected capi object in request params, got %T", decoded["capi"])
@@ -262,6 +309,39 @@ func assertCapiEnableWebSocketResponses(t *testing.T, params json.RawMessage) {
 	if capi["enableWebSocketResponses"] != false {
 		t.Fatalf("expected capi.enableWebSocketResponses=false, got %v", capi["enableWebSocketResponses"])
 	}
+}
+
+func assertNewSessionOptions(
+	t *testing.T,
+	params json.RawMessage,
+	expectedCitations bool,
+	expectedAgent string,
+	expectedCredits float64,
+) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded["enableCitations"] != expectedCitations {
+		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])
+	}
+	agents, ok := decoded["excludedBuiltinAgents"].([]any)
+	if !ok || len(agents) != 1 || agents[0] != expectedAgent {
+		t.Fatalf("expected excludedBuiltinAgents=[%q], got %#v", expectedAgent, decoded["excludedBuiltinAgents"])
+	}
+	limits, ok := decoded["sessionLimits"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected sessionLimits object, got %T", decoded["sessionLimits"])
+	}
+	if limits["maxAiCredits"] != expectedCredits {
+		t.Fatalf("expected sessionLimits.maxAiCredits=%v, got %v", expectedCredits, limits["maxAiCredits"])
+	}
+}
+
+func float64Ptr(value float64) *float64 {
+	return &value
 }
 
 func sessionIDFromParams(t *testing.T, params json.RawMessage) string {
@@ -1315,6 +1395,291 @@ func TestClient_StartStopRace(t *testing.T) {
 	}
 }
 
+func TestClient_MCPAuthInterestRegistration(t *testing.T) {
+	t.Run("create skips MCP OAuth interest without auth handler", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		assertRequestMethod(t, requests.snapshot(), "session.create")
+		assertCreateRequestPermission(t, requests.snapshot())
+	})
+
+	t.Run("create registers MCP OAuth interest after local session create when auth handler is configured", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return MCPAuthResultCancelled(), nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		defer session.Disconnect()
+
+		snapshot := requests.snapshot()
+		assertRequestMethod(t, snapshot, "session.eventLog.registerInterest")
+		if snapshot[0].Method != "session.create" {
+			t.Fatalf("expected session.create before MCP auth interest, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after session.create, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[1])
+		assertCreateRequestPermission(t, snapshot)
+	})
+
+	t.Run("cloud create registers MCP OAuth interest after server assigns id only when auth handler is configured", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		withoutAuth, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession without auth failed: %v", err)
+		}
+		defer withoutAuth.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		requests.clear()
+
+		withAuth, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return MCPAuthResultCancelled(), nil
+			},
+			Cloud: &CloudSessionOptions{
+				Repository: &CloudSessionRepository{Owner: "github", Name: "copilot-sdk", Branch: "main"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession with auth failed: %v", err)
+		}
+		defer withAuth.Disconnect()
+
+		snapshot := requests.snapshot()
+		if snapshot[0].Method != "session.create" {
+			t.Fatalf("expected cloud session.create before MCP auth interest, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after cloud session.create, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[1])
+	})
+
+	t.Run("resume conditionally registers MCP OAuth interest after session resume", func(t *testing.T) {
+		client, requests, cleanup := newInMemoryClient(t)
+		defer cleanup()
+
+		withoutAuth, err := client.ResumeSession(t.Context(), "session-without-auth", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnEvent:             func(SessionEvent) {},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession without auth failed: %v", err)
+		}
+		defer withoutAuth.Disconnect()
+
+		assertNoMCPAuthInterest(t, requests.snapshot())
+		assertRequestMethod(t, requests.snapshot(), "session.resume")
+		requests.clear()
+
+		withAuth, err := client.ResumeSession(t.Context(), "session-with-auth", &ResumeSessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			OnMCPAuthRequest: func(MCPAuthRequest, MCPAuthInvocation) (*MCPAuthResult, error) {
+				return MCPAuthResultCancelled(), nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession with auth failed: %v", err)
+		}
+		defer withAuth.Disconnect()
+
+		snapshot := requests.snapshot()
+		if snapshot[0].Method != "session.resume" {
+			t.Fatalf("expected session.resume before MCP auth interest, got %s", snapshot[0].Method)
+		}
+		if snapshot[1].Method != "session.eventLog.registerInterest" {
+			t.Fatalf("expected MCP auth interest after session.resume, got %s", snapshot[1].Method)
+		}
+		assertMCPAuthInterest(t, snapshot[1])
+	})
+}
+
+type recordedRequest struct {
+	Method string
+	Params map[string]any
+}
+
+type requestRecorder struct {
+	mu       sync.Mutex
+	requests []recordedRequest
+}
+
+func (r *requestRecorder) append(request recordedRequest) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, request)
+}
+
+func (r *requestRecorder) snapshot() []recordedRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]recordedRequest, len(r.requests))
+	copy(out, r.requests)
+	return out
+}
+
+func (r *requestRecorder) clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = nil
+}
+
+func newInMemoryClient(t *testing.T) (*Client, *requestRecorder, func()) {
+	t.Helper()
+
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	rpcClient := jsonrpc2.NewClient(stdinW, stdoutR)
+	rpcClient.Start()
+
+	client := NewClient(&ClientOptions{})
+	client.client = rpcClient
+	client.RPC = rpc.NewServerRPC(rpcClient)
+	client.state = stateConnected
+
+	requests := &requestRecorder{}
+	done := make(chan struct{})
+	go serveInMemoryRuntime(t, stdinR, stdoutW, requests, done)
+
+	cleanup := func() {
+		rpcClient.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+		<-done
+	}
+	return client, requests, cleanup
+}
+
+func serveInMemoryRuntime(t *testing.T, stdinR *io.PipeReader, stdoutW *io.PipeWriter, requests *requestRecorder, done chan<- struct{}) {
+	t.Helper()
+	defer close(done)
+
+	serverAssignedSessions := 0
+	for {
+		frame, err := readTestJSONRPCFrame(stdinR)
+		if err != nil {
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
+		}
+		if err := json.Unmarshal(frame, &request); err != nil {
+			t.Errorf("failed to unmarshal JSON-RPC request: %v", err)
+			return
+		}
+		requests.append(recordedRequest{Method: request.Method, Params: request.Params})
+
+		var result map[string]any
+		switch request.Method {
+		case "session.create", "session.resume":
+			sessionID, _ := request.Params["sessionId"].(string)
+			if sessionID == "" {
+				serverAssignedSessions++
+				sessionID = fmt.Sprintf("server-assigned-session-%d", serverAssignedSessions)
+			}
+			result = map[string]any{"sessionId": sessionID, "workspacePath": nil}
+		case "session.eventLog.registerInterest":
+			result = map[string]any{"id": "interest-1"}
+		case "session.options.update":
+			result = map[string]any{"success": true}
+		case "session.skills.reload", "session.destroy":
+			result = map[string]any{}
+		default:
+			t.Errorf("unexpected JSON-RPC method %s", request.Method)
+			return
+		}
+
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      json.RawMessage(request.ID),
+			"result":  result,
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			t.Errorf("failed to marshal JSON-RPC response: %v", err)
+			return
+		}
+		if _, err := fmt.Fprintf(stdoutW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			return
+		}
+	}
+}
+
+func assertRequestMethod(t *testing.T, requests []recordedRequest, method string) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == method {
+			return
+		}
+	}
+	t.Fatalf("expected %s request in %+v", method, requests)
+}
+
+func assertNoMCPAuthInterest(t *testing.T, requests []recordedRequest) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == "session.eventLog.registerInterest" && request.Params["eventType"] == "mcp.oauth_required" {
+			t.Fatalf("did not expect MCP auth interest registration in %+v", requests)
+		}
+	}
+}
+
+func assertMCPAuthInterest(t *testing.T, request recordedRequest) {
+	t.Helper()
+	if request.Method != "session.eventLog.registerInterest" {
+		t.Fatalf("expected registerInterest request, got %s", request.Method)
+	}
+	if request.Params["eventType"] != "mcp.oauth_required" {
+		t.Fatalf("expected mcp.oauth_required interest, got %v", request.Params["eventType"])
+	}
+}
+
+func assertCreateRequestPermission(t *testing.T, requests []recordedRequest) {
+	t.Helper()
+	for _, request := range requests {
+		if request.Method == "session.create" {
+			if request.Params["requestPermission"] != true {
+				t.Fatalf("expected create requestPermission=true, got %v", request.Params["requestPermission"])
+			}
+			return
+		}
+	}
+	t.Fatalf("session.create request not found in %+v", requests)
+}
+
 func TestCreateSessionRequest_Commands(t *testing.T) {
 	t.Run("forwards commands in session.create RPC", func(t *testing.T) {
 		req := createSessionRequest{
@@ -1971,6 +2336,285 @@ func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
 		}
 	})
+}
+
+func TestCreateSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableGitHubTelemetryForwarding: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
+		}
+	})
+
+	t.Run("omits when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableGitHubTelemetryForwarding(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                       "s1",
+			EnableGitHubTelemetryForwarding: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableGitHubTelemetryForwarding"] != true {
+			t.Errorf("Expected enableGitHubTelemetryForwarding to be true, got %v", m["enableGitHubTelemetryForwarding"])
+		}
+	})
+
+	t.Run("omits when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableGitHubTelemetryForwarding"]; ok {
+			t.Error("Expected enableGitHubTelemetryForwarding to be omitted when not set")
+		}
+	})
+}
+
+func TestClient_ForwardsGitHubTelemetryForwardingToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options:  ClientOptions{OnGitHubTelemetry: func(*rpc.GitHubTelemetryNotification) {}},
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-resumeParams)
+}
+
+func assertForwardingFlagTrue(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded["enableGitHubTelemetryForwarding"] != true {
+		t.Fatalf("expected enableGitHubTelemetryForwarding=true, got %v", decoded["enableGitHubTelemetryForwarding"])
+	}
+}
+
+func TestClient_OmitsGitHubTelemetryForwardingWhenNoHandler(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options:  ClientOptions{},
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.CreateSession(t.Context(), &SessionConfig{}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-createParams)
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed","workspacePath":"/workspace"}`), nil
+	})
+
+	if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed", &ResumeSessionConfig{}); err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-resumeParams)
+}
+
+func assertForwardingFlagAbsent(t *testing.T, params json.RawMessage) {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if _, ok := decoded["enableGitHubTelemetryForwarding"]; ok {
+		t.Fatalf("expected enableGitHubTelemetryForwarding to be omitted, got %v", decoded["enableGitHubTelemetryForwarding"])
+	}
+}
+
+func TestClient_ForwardsGitHubTelemetryForwardingOnConnect(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		internalRPC: rpc.NewInternalServerRPC(rpcClient),
+		sessions:    make(map[string]*Session),
+		options:     ClientOptions{OnGitHubTelemetry: func(*rpc.GitHubTelemetryNotification) {}},
+	}
+
+	connectParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		connectParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+	})
+
+	if err := client.verifyProtocolVersion(t.Context()); err != nil {
+		t.Fatalf("verifyProtocolVersion failed: %v", err)
+	}
+	assertForwardingFlagTrue(t, <-connectParams)
+}
+
+func TestClient_OmitsGitHubTelemetryForwardingOnConnectWhenNoHandler(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		internalRPC: rpc.NewInternalServerRPC(rpcClient),
+		sessions:    make(map[string]*Session),
+		options:     ClientOptions{},
+	}
+
+	connectParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("connect", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		connectParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+	})
+
+	if err := client.verifyProtocolVersion(t.Context()); err != nil {
+		t.Fatalf("verifyProtocolVersion failed: %v", err)
+	}
+	assertForwardingFlagAbsent(t, <-connectParams)
+}
+
+func TestGitHubTelemetryNotificationRoutesToCallback(t *testing.T) {
+	// The runtime forwards telemetry via a JSON-RPC *notification* (no id).
+	// Drive a real Content-Length-framed notification through the transport and
+	// verify that a real Client wired with OnGitHubTelemetry routes it to the
+	// callback through the client's own client-global handler registration
+	// (setupNotificationHandler), rather than registering the adapter by hand.
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
+	rpcClient.Start()
+	defer rpcClient.Stop()
+
+	// Drain the client->server direction so net.Pipe writes never block.
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			if _, err := serverConn.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	received := make(chan *rpc.GitHubTelemetryNotification, 1)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+		options: ClientOptions{
+			OnGitHubTelemetry: func(n *rpc.GitHubTelemetryNotification) { received <- n },
+		},
+	}
+	// setupNotificationHandler is what registers the gitHubTelemetryAdapter when
+	// OnGitHubTelemetry is set; exercising it here covers the real client wiring.
+	client.setupNotificationHandler()
+
+	notification := map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "gitHubTelemetry.event",
+		"params": map[string]any{
+			"sessionId":  "sess-telemetry",
+			"restricted": true,
+			"event": map[string]any{
+				"kind":       "tool_call_executed",
+				"metrics":    map[string]any{"duration_ms": 12.5},
+				"properties": map[string]any{"tool": "shell"},
+			},
+		},
+	}
+	data, err := json.Marshal(notification)
+	if err != nil {
+		t.Fatalf("marshal notification: %v", err)
+	}
+	go func() {
+		_, _ = fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(data), data)
+	}()
+
+	select {
+	case n := <-received:
+		sessionID := ""
+		if n.SessionID != nil {
+			sessionID = *n.SessionID
+		}
+		if sessionID != "sess-telemetry" {
+			t.Errorf("session id = %q, want sess-telemetry", sessionID)
+		}
+		if !n.Restricted {
+			t.Error("expected restricted to be true")
+		}
+		if n.Event.Kind != "tool_call_executed" {
+			t.Errorf("kind = %q, want tool_call_executed", n.Event.Kind)
+		}
+		if n.Event.Metrics["duration_ms"] != 12.5 {
+			t.Errorf("metrics[duration_ms] = %v, want 12.5", n.Event.Metrics["duration_ms"])
+		}
+		if n.Event.Properties["tool"] != "shell" {
+			t.Errorf("properties[tool] = %q, want shell", n.Event.Properties["tool"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for telemetry notification")
+	}
 }
 
 func TestCreateSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {

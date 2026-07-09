@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SkillsLoadedSkill` type.
+ * A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
  *
  * @since 1.0.0
  */

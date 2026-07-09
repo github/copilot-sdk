@@ -22,7 +22,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         };
         // Disable the harness's auto-injected client token so the per-session
         // auth tests validate only session-scoped tokens.
-        return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env }, autoInjectGitHubToken: false);
+        return Ctx.CreateClient(environment: env, autoInjectGitHubToken: false);
     }
 
     private CopilotClient CreateNoAuthTestClient()
@@ -32,9 +32,8 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
 
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Environment = env,
             UseLoggedInUser = false,
-        }, autoInjectGitHubToken: false);
+        }, autoInjectGitHubToken: false, environment: env);
     }
 
     private static Dictionary<string, string> WithoutAuthEnv(Dictionary<string, string> env)
@@ -81,7 +80,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        var status = await session.Rpc.Auth.GetStatusAsync();
+        var status = await session.Rpc.GitHubAuth.GetStatusAsync();
         Assert.True(status.IsAuthenticated);
         Assert.Equal("alice", status.Login);
     }
@@ -103,11 +102,11 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        var statusA = await sessionA.Rpc.Auth.GetStatusAsync();
+        var statusA = await sessionA.Rpc.GitHubAuth.GetStatusAsync();
         Assert.True(statusA.IsAuthenticated);
         Assert.Equal("alice", statusA.Login);
 
-        var statusB = await sessionB.Rpc.Auth.GetStatusAsync();
+        var statusB = await sessionB.Rpc.GitHubAuth.GetStatusAsync();
         Assert.True(statusB.IsAuthenticated);
         Assert.Equal("bob", statusB.Login);
     }
@@ -122,7 +121,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        var status = await session.Rpc.Auth.GetStatusAsync();
+        var status = await session.Rpc.GitHubAuth.GetStatusAsync();
         // Without a per-session GitHub token, there is no per-session identity.
         Assert.True(string.IsNullOrEmpty(status.Login), $"Expected no per-session login without token, got {status.Login}");
     }

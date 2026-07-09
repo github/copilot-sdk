@@ -37,9 +37,8 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Environment = env,
             GitHubToken = token,
-        });
+        }, environment: env);
     }
 
     private async Task ConfigureAuthenticatedUserAsync(
@@ -127,6 +126,40 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Should_Reject_Llm_Inference_Response_Frames_For_Missing_Request()
+    {
+        await Client.StartAsync();
+
+        var start = await Client.Rpc.LlmInference.HttpResponseStartAsync(
+            requestId: "missing-llm-inference-request",
+            status: 200,
+            headers: new Dictionary<string, IList<string>>
+            {
+                ["content-type"] = ["text/event-stream"],
+            },
+            statusText: "OK");
+        Assert.False(start.Accepted);
+
+        var chunk = await Client.Rpc.LlmInference.HttpResponseChunkAsync(
+            requestId: "missing-llm-inference-request",
+            data: "data: {}\n\n",
+            binary: false,
+            end: false);
+        Assert.False(chunk.Accepted);
+
+        var error = await Client.Rpc.LlmInference.HttpResponseChunkAsync(
+            requestId: "missing-llm-inference-request",
+            data: string.Empty,
+            end: true,
+            error: new GitHub.Copilot.Rpc.LlmInferenceHttpResponseChunkError
+            {
+                Code = "missing_request",
+                Message = "No pending LLM inference request.",
+            });
+        Assert.False(error.Accepted);
+    }
+
+    [Fact]
     public async Task Should_Call_Rpc_Models_List_With_Typed_Result()
     {
         const string token = "rpc-models-token";
@@ -203,10 +236,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var environment = Ctx.GetEnvironment();
         environment["COPILOT_ENABLE_SECRET_FILTERING"] = "true";
-        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            Environment = environment,
-        });
+        await using var client = Ctx.CreateClient(environment: environment);
         await client.StartAsync();
         var secret = $"rpc-secret-{Guid.NewGuid():N}";
 
@@ -347,7 +377,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var sessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-in-use");
-        await using var otherClient = Ctx.CreateClient(useStdio: true);
+        await using var otherClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForStdio() });
         await using var otherSession = await otherClient.CreateSessionAsync(new SessionConfig
         {
             SessionId = sessionId,
@@ -492,6 +522,44 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Equal("Skill discovered by server-scoped RPC tests.", discoveredSkill.Description);
         Assert.True(discoveredSkill.Enabled);
         Assert.EndsWith(Path.Join(skillName, "SKILL.md"), discoveredSkill.Path);
+
+        var skillPaths = await Client.Rpc.Skills.GetDiscoveryPathsAsync(
+            projectPaths: [Ctx.WorkDir],
+            excludeHostSkills: true);
+        var projectSkillPath = Assert.Single(skillPaths.Paths, path =>
+            PathEquals(Ctx.WorkDir, path.ProjectPath) && path.PreferredForCreation);
+        Assert.False(string.IsNullOrWhiteSpace(projectSkillPath.Path));
+
+        var agents = await Client.Rpc.Agents.DiscoverAsync(
+            projectPaths: [Ctx.WorkDir],
+            excludeHostAgents: true);
+        Assert.NotNull(agents.Agents);
+        Assert.All(agents.Agents, agent => Assert.False(string.IsNullOrWhiteSpace(agent.Name)));
+
+        var agentPaths = await Client.Rpc.Agents.GetDiscoveryPathsAsync(
+            projectPaths: [Ctx.WorkDir],
+            excludeHostAgents: true);
+        var projectAgentPath = Assert.Single(agentPaths.Paths, path =>
+            PathEquals(Ctx.WorkDir, path.ProjectPath) && path.PreferredForCreation);
+        Assert.False(string.IsNullOrWhiteSpace(projectAgentPath.Path));
+
+        var instructions = await Client.Rpc.Instructions.DiscoverAsync(
+            projectPaths: [Ctx.WorkDir],
+            excludeHostInstructions: true);
+        Assert.NotNull(instructions.Sources);
+        Assert.All(instructions.Sources, source =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(source.Id));
+            Assert.False(string.IsNullOrWhiteSpace(source.Label));
+            Assert.False(string.IsNullOrWhiteSpace(source.SourcePath));
+        });
+
+        var instructionPaths = await Client.Rpc.Instructions.GetDiscoveryPathsAsync(
+            projectPaths: [Ctx.WorkDir],
+            excludeHostInstructions: true);
+        Assert.NotEmpty(instructionPaths.Paths);
+        Assert.Contains(instructionPaths.Paths, path => PathEquals(Ctx.WorkDir, path.ProjectPath));
+        Assert.All(instructionPaths.Paths, path => Assert.False(string.IsNullOrWhiteSpace(path.Path)));
 
         try
         {

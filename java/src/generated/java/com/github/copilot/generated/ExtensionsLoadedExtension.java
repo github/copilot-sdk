@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ExtensionsLoadedExtension` type.
+ * A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.
  *
  * @since 1.0.0
  */

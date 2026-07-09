@@ -1315,6 +1315,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
         server?: Record<string, unknown>;
         session?: Record<string, unknown>;
         clientSession?: Record<string, unknown>;
+        clientGlobal?: Record<string, unknown>;
         definitions?: Record<string, JSONSchema7>;
     };
 
@@ -1343,18 +1344,28 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     if (schema.server) sections.push(["server", schema.server]);
     if (schema.session) sections.push(["session", schema.session]);
     if (schema.clientSession) sections.push(["clientSession", schema.clientSession]);
+    if (schema.clientGlobal) sections.push(["clientGlobal", schema.clientGlobal]);
 
     const generatedClasses = new Map<string, boolean>();
     const allFiles: string[] = [];
 
-    for (const [, sectionNode] of sections) {
+    for (const [sectionName, sectionNode] of sections) {
         const methods = collectRpcMethods(sectionNode);
         for (const [, method] of methods) {
             const className = rpcMethodToClassName(method.rpcMethod);
 
             // Generate params class — resolve $ref if params is a reference
             let paramsSchema = method.params as JSONSchema7 | null;
-            if (paramsSchema?.$ref) paramsSchema = resolveRef(paramsSchema) as JSONSchema7;
+            const paramsRefName = extractRefName(paramsSchema);
+            if (paramsRefName && sectionName === "clientGlobal") {
+                const resolvedParamsSchema = resolveRef(paramsSchema ?? undefined);
+                if (resolvedParamsSchema?.type === "object" && resolvedParamsSchema.properties) {
+                    pendingStandaloneTypes.set(paramsRefName, resolvedParamsSchema);
+                }
+                paramsSchema = null;
+            } else if (paramsSchema?.$ref) {
+                paramsSchema = resolveRef(paramsSchema) as JSONSchema7;
+            }
             if (paramsSchema && typeof paramsSchema === "object" && paramsSchema.properties) {
                 const paramsClassName = `${className}Params`;
                 if (!generatedClasses.has(paramsClassName)) {
@@ -1368,7 +1379,11 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
             const resultRefName = extractRefName(resultSchema);
             if (resultSchema?.$ref) resultSchema = resolveRef(resultSchema) as JSONSchema7;
             if (resultSchema && typeof resultSchema === "object") {
-                if (resultSchema.properties && Object.keys(resultSchema.properties).length > 0) {
+                if (
+                    resultSchema.properties &&
+                    (Object.keys(resultSchema.properties).length > 0 ||
+                        (resultRefName && sectionName === "clientGlobal"))
+                ) {
                     // Object with properties → generate a record class
                     const resultClassName = `${className}Result`;
                     if (!generatedClasses.has(resultClassName)) {
@@ -1636,15 +1651,16 @@ function addWrapperResultImports(resultType: string, allImports: Set<string>, pa
 }
 
 /**
- * Return the params class name if the method has a params schema with properties
- * other than sessionId (i.e. there are user-supplied parameters).
+ * Return the params class name if the method has a params schema with user-supplied properties.
+ * Session-scoped wrappers inject sessionId automatically, but server-scoped wrappers must let
+ * callers supply it explicitly.
  */
-function wrapperParamsClassName(method: RpcMethodNode): string | null {
+function wrapperParamsClassName(method: RpcMethodNode, isSession: boolean): string | null {
     let params = method.params;
     if (params?.$ref) params = resolveRef(params) as JSONSchema7;
     if (!params || typeof params !== "object") return null;
     const props = params.properties ?? {};
-    const userProps = Object.keys(props).filter((k) => k !== "sessionId");
+    const userProps = Object.keys(props).filter((k) => !isSession || k !== "sessionId");
     if (userProps.length === 0) return null;
     return rpcMethodToClassName(method.rpcMethod) + "Params";
 }
@@ -1667,7 +1683,7 @@ function generateApiMethod(
     sessionIdExpr: string
 ): { lines: string[]; needsMapper: boolean; needsExperimentalImport: boolean } {
     const resultClass = wrapperResultClassName(method);
-    const paramsClass = wrapperParamsClassName(method);
+    const paramsClass = wrapperParamsClassName(method, isSession);
     const hasSessionId = methodHasSessionId(method);
     const hasExtraParams = paramsClass !== null;
     let needsMapper = false;
@@ -1775,7 +1791,7 @@ async function generateNamespaceApiFile(
     const methodLines: string[] = [];
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
-        const paramsClass = wrapperParamsClassName(method);
+        const paramsClass = wrapperParamsClassName(method, isSession);
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 
@@ -1895,7 +1911,7 @@ async function generateRpcRootFile(
     const methodLines: string[] = [];
     for (const [key, method] of tree.methods) {
         const resultClass = wrapperResultClassName(method);
-        const paramsClass = wrapperParamsClassName(method);
+        const paramsClass = wrapperParamsClassName(method, isSession);
         addWrapperResultImports(resultClass, allImports, packageName);
         if (paramsClass) allImports.add(`${packageName}.${paramsClass}`);
 

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SkillsInvokedSkill` type.
+ * Skill invocation record with name, path, content, allowed tools, and turn number.
  *
  * @since 1.0.0
  */

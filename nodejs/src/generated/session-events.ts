@@ -21,6 +21,7 @@ export type SessionEvent =
   | WarningEvent
   | ModelChangeEvent
   | ModeChangedEvent
+  | SessionLimitsChangedEvent
   | PermissionsChangedEvent
   | PlanChangedEvent
   | TodosChangedEvent
@@ -29,6 +30,7 @@ export type SessionEvent =
   | TruncationEvent
   | SnapshotRewindEvent
   | ShutdownEvent
+  | UsageCheckpointEvent
   | ContextChangedEvent
   | UsageInfoEvent
   | CompactionStartEvent
@@ -40,11 +42,13 @@ export type SessionEvent =
   | AssistantIntentEvent
   | AssistantReasoningEvent
   | AssistantReasoningDeltaEvent
+  | AssistantToolCallDeltaEvent
   | AssistantStreamingDeltaEvent
   | AssistantMessageEvent
   | AssistantMessageStartEvent
   | AssistantMessageDeltaEvent
   | AssistantTurnEndEvent
+  | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
   | AbortEvent
@@ -75,6 +79,8 @@ export type SessionEvent =
   | SamplingCompletedEvent
   | McpOauthRequiredEvent
   | McpOauthCompletedEvent
+  | McpHeadersRefreshRequiredEvent
+  | McpHeadersRefreshCompletedEvent
   | CustomNotificationEvent
   | ExternalToolRequestedEvent
   | ExternalToolCompletedEvent
@@ -83,6 +89,9 @@ export type SessionEvent =
   | CommandCompletedEvent
   | AutoModeSwitchRequestedEvent
   | AutoModeSwitchCompletedEvent
+  | SessionLimitsExhaustedRequestedEvent
+  | SessionLimitsExhaustedCompletedEvent
+  | AutoModeResolvedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -129,6 +138,16 @@ export type ReasoningSummary =
   /** Request a detailed summary of the model's reasoning. */
   | "detailed";
 /**
+ * Output verbosity level used for supported model calls (e.g. "low", "medium", "high")
+ */
+export type Verbosity =
+  /** A terse response was requested. */
+  | "low"
+  /** A medium amount of response detail was requested. */
+  | "medium"
+  /** A more detailed response was requested. */
+  | "high";
+/**
  * The type of operation performed on the autopilot objective state file
  */
 export type AutopilotObjectiveChangedOperation =
@@ -160,6 +179,17 @@ export type SessionMode =
   | "plan"
   /** The agent is working autonomously toward task completion. */
   | "autopilot";
+/**
+ * Allow-all mode for the session.
+ */
+/** @experimental */
+export type PermissionAllowAllMode =
+  /** Permission requests follow the normal approval flow. */
+  | "off"
+  /** Tool, path, and URL permission requests are automatically approved. */
+  | "on"
+  /** Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable. */
+  | "auto";
 /**
  * The type of operation performed on the plan file
  */
@@ -207,13 +237,22 @@ export type UserMessageAgentMode =
   /** The agent is in shell-focused UI mode. */
   | "shell";
 /**
- * A user message attachment — a file, directory, code selection, blob, GitHub reference, or extension-supplied context payload
+ * A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload
  */
 export type Attachment =
   | AttachmentFile
   | AttachmentDirectory
   | AttachmentSelection
   | AttachmentGitHubReference
+  | AttachmentGitHubCommit
+  | AttachmentGitHubRelease
+  | AttachmentGitHubActionsJob
+  | AttachmentGitHubRepository
+  | AttachmentGitHubFileDiff
+  | AttachmentGitHubTreeComparison
+  | AttachmentGitHubUrl
+  | AttachmentGitHubFile
+  | AttachmentGitHubSnippet
   | AttachmentBlob
   | AttachmentExtensionContext;
 /**
@@ -235,6 +274,24 @@ export type AttachmentGitHubReferenceType =
   /** GitHub discussion reference. */
   | "discussion";
 /**
+ * How this user message was delivered to the agentic loop, relative to whether the loop was already running. This is the timing axis only; the message's origin (human vs. system/command/schedule/skill/etc.) is carried separately by `source`. A system-injected message has a delivery too — e.g. a background-task notification waking an idle agent is `idle`, the same mechanism as a human starting a fresh turn.
+ */
+export type UserMessageDelivery =
+  /** Delivered while the loop was idle; starts its own run immediately (a human's fresh turn, or a system notification waking an idle agent). */
+  | "idle"
+  /** Injected into the current in-flight run while the agent was busy (immediate mode). */
+  | "steering"
+  /** Enqueued while the agent was busy; processed as its own run afterward. */
+  | "queued";
+/**
+ * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+ */
+export type AssistantMessageToolRequestType =
+  /** Standard function-style tool call. */
+  | "function"
+  /** Custom grammar-based tool call. */
+  | "custom";
+/**
  * The system that produced a citation.
  */
 /** @experimental */
@@ -250,14 +307,6 @@ export type CitationProvider =
  */
 /** @experimental */
 export type CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocationBlock;
-/**
- * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
- */
-export type AssistantMessageToolRequestType =
-  /** Standard function-style tool call. */
-  | "function"
-  /** Custom grammar-based tool call. */
-  | "custom";
 /**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
@@ -341,6 +390,7 @@ export type BinaryAssetReferenceType =
 export type ToolExecutionCompleteContent =
   | ToolExecutionCompleteContentText
   | ToolExecutionCompleteContentTerminal
+  | ToolExecutionCompleteContentShellExit
   | ToolExecutionCompleteContentImage
   | ToolExecutionCompleteContentAudio
   | ToolExecutionCompleteContentResourceLink
@@ -455,6 +505,19 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestExtensionManagement
   | PermissionPromptRequestExtensionPermissionAccess;
 /**
+ * Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
+ */
+/** @experimental */
+export type AutoApprovalRecommendation =
+  /** The judge evaluated the request and recommends automatically approving it. */
+  | "approve"
+  /** The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision. */
+  | "requireApproval"
+  /** Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted. */
+  | "excluded"
+  /** The judge was consulted but did not return a usable recommendation, so the request requires explicit approval. */
+  | "error";
+/**
  * Underlying permission kind that needs path approval
  */
 export type PermissionPromptRequestPathAccessKind =
@@ -508,6 +571,18 @@ export type ElicitationCompletedAction =
   /** The user dismissed the request. */
   | "cancel";
 /**
+ * Reason the runtime is requesting host-provided MCP OAuth credentials
+ */
+export type McpOauthRequestReason =
+  /** Initial credentials are required before connecting to the MCP server. */
+  | "initial"
+  /** The current host-provided credential was rejected and a replacement is requested. */
+  | "refresh"
+  /** The server requires a new host authorization flow before continuing. */
+  | "reauth"
+  /** The server requires a credential with additional scope or audience. */
+  | "upscope";
+/**
  * How the pending MCP OAuth request was completed
  */
 export type McpOauthCompletionOutcome =
@@ -515,6 +590,26 @@ export type McpOauthCompletionOutcome =
   | "token"
   /** The request completed without an OAuth provider. */
   | "cancelled";
+/**
+ * Why dynamic headers are being requested.
+ */
+export type McpHeadersRefreshRequiredReason =
+  /** The transport is making its first dynamic header request for this server. */
+  | "startup"
+  /** The previously cached dynamic headers expired. */
+  | "ttl-expired"
+  /** The server returned 401 and stale dynamic headers were invalidated. */
+  | "auth-failed";
+/**
+ * How the pending MCP headers refresh request resolved.
+ */
+export type McpHeadersRefreshCompletedOutcome =
+  /** The host supplied dynamic headers. */
+  | "headers"
+  /** The host responded with no dynamic headers. */
+  | "none"
+  /** No response arrived within the bounded window. */
+  | "timeout";
 /**
  * The user's auto-mode-switch choice
  */
@@ -525,6 +620,28 @@ export type AutoModeSwitchResponse =
   | "yes_always"
   /** Do not switch models. */
   | "no";
+/**
+ * User action selected for an exhausted session limit.
+ */
+export type SessionLimitsExhaustedResponseAction =
+  /** Increase the current max by an exact AI Credits amount. */
+  | "add"
+  /** Set a new absolute max AI Credits value. */
+  | "set"
+  /** Remove the current session limit. */
+  | "unset"
+  /** Leave the limit unchanged and cancel the blocked model request. */
+  | "cancel";
+/**
+ * Coarse request-difficulty bucket for UX explainability
+ */
+export type AutoModeResolvedReasoningBucket =
+  /** The request looks low-reasoning; a lighter model is appropriate. */
+  | "low"
+  /** The request needs a moderate amount of reasoning. */
+  | "medium"
+  /** The request looks high-reasoning; a stronger model is appropriate. */
+  | "high";
 /**
  * Exit plan mode action
  */
@@ -692,10 +809,12 @@ export interface StartData {
    * Unique identifier for the session
    */
   sessionId: string;
+  sessionLimits?: SessionLimitsConfig;
   /**
    * ISO 8601 timestamp when the session was created
    */
   startTime: string;
+  verbosity?: Verbosity;
   /**
    * Schema version number for the session event format
    */
@@ -734,6 +853,15 @@ export interface WorkingDirectoryContext {
    * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
    */
   repositoryHost?: string;
+}
+/**
+ * Optional session limits.
+ */
+export interface SessionLimitsConfig {
+  /**
+   * Maximum AI Credits allowed across the session's current accounting window.
+   */
+  maxAiCredits?: number;
 }
 /**
  * Session event "session.resume". Session resume metadata including current context and event count
@@ -808,9 +936,14 @@ export interface ResumeData {
    */
   selectedModel?: string;
   /**
+   * Session limits currently configured at resume time; null when no limits are active
+   */
+  sessionLimits?: SessionLimitsConfig | null;
+  /**
    * True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
    */
   sessionWasActive?: boolean;
+  verbosity?: Verbosity;
 }
 /**
  * Session event "session.remote_steerable_changed". Notifies that the session's remote steering capability has changed
@@ -1347,11 +1480,13 @@ export interface ModelChangeData {
    */
   previousReasoningEffort?: string;
   previousReasoningSummary?: ReasoningSummary;
+  previousVerbosity?: Verbosity;
   /**
    * Reasoning effort level after the model change, if applicable
    */
   reasoningEffort?: string | null;
   reasoningSummary?: ReasoningSummary;
+  verbosity?: Verbosity;
 }
 /**
  * Session event "session.mode_changed". Agent mode change details including previous and new modes
@@ -1391,7 +1526,46 @@ export interface ModeChangedData {
   previousMode: SessionMode;
 }
 /**
- * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+ * Session event "session.session_limits_changed". Session limits update details. Null clears the limits.
+ */
+export interface SessionLimitsChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsChangedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.session_limits_changed".
+   */
+  type: "session.session_limits_changed";
+}
+/**
+ * Session limits update details. Null clears the limits.
+ */
+export interface SessionLimitsChangedData {
+  /**
+   * Current session limits, or null when no limits are active
+   */
+  sessionLimits: SessionLimitsConfig | null;
+}
+/**
+ * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all transition.
  */
 export interface PermissionsChangedEvent {
   /**
@@ -1421,13 +1595,25 @@ export interface PermissionsChangedEvent {
   type: "session.permissions_changed";
 }
 /**
- * Permissions change details carrying the aggregate allow-all boolean transition.
+ * Permissions change details carrying the aggregate allow-all transition.
  */
 export interface PermissionsChangedData {
+  /**
+   * Allow-all mode after the change
+   *
+   * @experimental
+   */
+  allowAllPermissionMode?: PermissionAllowAllMode;
   /**
    * Aggregate allow-all flag after the change
    */
   allowAllPermissions: boolean;
+  /**
+   * Allow-all mode before the change
+   *
+   * @experimental
+   */
+  previousAllowAllPermissionMode?: PermissionAllowAllMode;
   /**
    * Aggregate allow-all flag before the change
    */
@@ -1842,7 +2028,7 @@ export interface ShutdownCodeChanges {
   linesRemoved: number;
 }
 /**
- * Schema for the `ShutdownModelMetric` type.
+ * Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details.
  */
 export interface ShutdownModelMetric {
   requests: ShutdownModelMetricRequests;
@@ -1878,7 +2064,7 @@ export interface ShutdownModelMetricRequests {
   count?: number;
 }
 /**
- * Schema for the `ShutdownModelMetricTokenDetail` type.
+ * A token-type entry in a shutdown model metric, storing the accumulated token count.
  */
 export interface ShutdownModelMetricTokenDetail {
   /**
@@ -1912,13 +2098,58 @@ export interface ShutdownModelMetricUsage {
   reasoningTokens?: number;
 }
 /**
- * Schema for the `ShutdownTokenDetail` type.
+ * A session-wide shutdown token-type entry storing the accumulated token count.
  */
 export interface ShutdownTokenDetail {
   /**
    * Accumulated token count for this token type
    */
   tokenCount: number;
+}
+/**
+ * Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
+ */
+export interface UsageCheckpointEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: UsageCheckpointData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.usage_checkpoint".
+   */
+  type: "session.usage_checkpoint";
+}
+/**
+ * Durable session usage checkpoint for reconstructing aggregate accounting on resume
+ */
+export interface UsageCheckpointData {
+  /**
+   * Session-wide accumulated nano-AI units cost at checkpoint time
+   */
+  totalNanoAiu: number;
+  /**
+   * Total number of premium API requests used at checkpoint time
+   *
+   * @internal
+   */
+  totalPremiumRequests?: number;
 }
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
@@ -2051,6 +2282,10 @@ export interface CompactionStartData {
    * Token count from non-system messages (user, assistant, tool) at compaction start
    */
   conversationTokens?: number;
+  /**
+   * Model identifier used for compaction, when known
+   */
+  model?: string;
   /**
    * Token count from system message(s) at compaction start
    */
@@ -2280,7 +2515,7 @@ export interface TaskCompleteData {
   summary?: string;
 }
 /**
- * Session event "user.message".
+ * Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageEvent {
   /**
@@ -2310,7 +2545,7 @@ export interface UserMessageEvent {
   type: "user.message";
 }
 /**
- * Schema for the `UserMessageData` type.
+ * Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  */
 export interface UserMessageData {
   agentMode?: UserMessageAgentMode;
@@ -2322,6 +2557,7 @@ export interface UserMessageData {
    * The user's message text as displayed in the timeline
    */
   content: string;
+  delivery?: UserMessageDelivery;
   /**
    * CAPI interaction ID for correlating this user message with its turn
    */
@@ -2502,6 +2738,231 @@ export interface AttachmentGitHubReference {
   url: string;
 }
 /**
+ * Pointer to a GitHub commit.
+ */
+export interface AttachmentGitHubCommit {
+  /**
+   * First line of the commit message
+   */
+  message: string;
+  /**
+   * Full commit SHA
+   */
+  oid: string;
+  repo: GitHubRepoRef;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_commit";
+  /**
+   * URL to the commit on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a GitHub repository.
+ */
+export interface GitHubRepoRef {
+  /**
+   * Numeric GitHub repository id
+   */
+  id?: number;
+  /**
+   * Repository name (without owner)
+   */
+  name: string;
+  /**
+   * Repository owner login (user or organization)
+   */
+  owner: string;
+}
+/**
+ * Pointer to a GitHub release.
+ */
+export interface AttachmentGitHubRelease {
+  /**
+   * Human-readable release name
+   */
+  name: string;
+  repo: GitHubRepoRef;
+  /**
+   * Git tag the release is anchored to
+   */
+  tagName: string;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_release";
+  /**
+   * URL to the release on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a GitHub Actions job.
+ */
+export interface AttachmentGitHubActionsJob {
+  /**
+   * Terminal conclusion of the job when finished (e.g., success, failure, cancelled). Absent for in-progress jobs.
+   */
+  conclusion?: string;
+  /**
+   * Job id within the workflow run
+   */
+  jobId: number;
+  /**
+   * Display name of the job
+   */
+  jobName: string;
+  repo: GitHubRepoRef;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_actions_job";
+  /**
+   * URL to the job on GitHub
+   */
+  url: string;
+  /**
+   * Display name of the workflow the job ran in
+   */
+  workflowName: string;
+}
+/**
+ * Pointer to a GitHub repository.
+ */
+export interface AttachmentGitHubRepository {
+  /**
+   * Short description of the repository
+   */
+  description?: string;
+  /**
+   * Git ref this attachment is anchored at (branch, tag, or commit). When absent the default branch is implied.
+   */
+  ref?: string;
+  repo: GitHubRepoRef;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_repository";
+  /**
+   * URL to the repository on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a single-file diff. At least one of `head` and `base` must be present.
+ */
+export interface AttachmentGitHubFileDiff {
+  base?: AttachmentGitHubFileDiffSide;
+  head?: AttachmentGitHubFileDiffSide;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_file_diff";
+  /**
+   * URL to the diff on GitHub (e.g., a commit, compare, or PR-file URL)
+   */
+  url: string;
+}
+/**
+ * One side of a file diff (head or base)
+ */
+export interface AttachmentGitHubFileDiffSide {
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+  /**
+   * Git ref (branch, tag, or commit SHA) the file is read at
+   */
+  ref: string;
+  repo: GitHubRepoRef;
+}
+/**
+ * Pointer to a comparison between two git revisions.
+ */
+export interface AttachmentGitHubTreeComparison {
+  base: AttachmentGitHubTreeComparisonSide;
+  head: AttachmentGitHubTreeComparisonSide;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_tree_comparison";
+  /**
+   * URL to the comparison on GitHub
+   */
+  url: string;
+}
+/**
+ * One side of a tree comparison (head or base)
+ */
+export interface AttachmentGitHubTreeComparisonSide {
+  repo: GitHubRepoRef;
+  /**
+   * Git revision (branch, tag, or commit SHA)
+   */
+  revision: string;
+}
+/**
+ * Generic GitHub URL reference.
+ */
+export interface AttachmentGitHubUrl {
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_url";
+  /**
+   * URL to the GitHub resource
+   */
+  url: string;
+}
+/**
+ * Pointer to a file in a GitHub repository at a specific ref.
+ */
+export interface AttachmentGitHubFile {
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+  /**
+   * Git ref the file is read at (branch, tag, or commit SHA)
+   */
+  ref: string;
+  repo: GitHubRepoRef;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_file";
+  /**
+   * URL to the file on GitHub
+   */
+  url: string;
+}
+/**
+ * Pointer to a line range inside a file in a GitHub repository.
+ */
+export interface AttachmentGitHubSnippet {
+  lineRange: AttachmentFileLineRange;
+  /**
+   * Repository-relative path to the file
+   */
+  path: string;
+  /**
+   * Git ref the file is read at (branch, tag, or commit SHA)
+   */
+  ref: string;
+  repo: GitHubRepoRef;
+  /**
+   * Attachment type discriminator
+   */
+  type: "github_snippet";
+  /**
+   * URL to the snippet on GitHub (with line anchor)
+   */
+  url: string;
+}
+/**
  * Blob attachment with inline base64-encoded data
  */
 export interface AttachmentBlob {
@@ -2639,6 +3100,10 @@ export interface AssistantTurnStartData {
    */
   interactionId?: string;
   /**
+   * Model identifier used for this turn, when known
+   */
+  model?: string;
+  /**
    * Identifier for this turn within the agentic loop, typically a stringified turn number
    */
   turnId: string;
@@ -2769,6 +3234,54 @@ export interface AssistantReasoningDeltaData {
   reasoningId: string;
 }
 /**
+ * Session event "assistant.tool_call_delta". Streaming tool-call input delta for incremental tool-call updates
+ */
+export interface AssistantToolCallDeltaEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantToolCallDeltaData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.tool_call_delta".
+   */
+  type: "assistant.tool_call_delta";
+}
+/**
+ * Streaming tool-call input delta for incremental tool-call updates
+ */
+export interface AssistantToolCallDeltaData {
+  /**
+   * Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.
+   */
+  inputDelta: string;
+  /**
+   * Tool call ID this delta belongs to, matching the corresponding assistant.message tool request
+   */
+  toolCallId: string;
+  /**
+   * Name of the tool being invoked, when known from the stream
+   */
+  toolName?: string;
+  toolType?: AssistantMessageToolRequestType;
+}
+/**
  * Session event "assistant.streaming_delta". Streaming response progress with cumulative byte count
  */
 export interface AssistantStreamingDeltaEvent {
@@ -2852,6 +3365,10 @@ export interface AssistantMessageData {
    */
   citations?: Citations;
   /**
+   * Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).
+   */
+  clientRequestId?: string;
+  /**
    * The assistant's text response content
    */
   content: string;
@@ -2892,6 +3409,10 @@ export interface AssistantMessageData {
    * Readable reasoning text from the model's extended thinking
    */
   reasoningText?: string;
+  /**
+   * OpenAI-compatible wire field the provider used for reasoning (e.g. reasoning_content/reasoning). Populated only when non-canonical, so the dialect round-trips across turns.
+   */
+  reasoningWireField?: string;
   /**
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
@@ -3215,9 +3736,52 @@ export interface AssistantTurnEndEvent {
  */
 export interface AssistantTurnEndData {
   /**
+   * Model identifier used for this turn, when known
+   */
+  model?: string;
+  /**
    * Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
    */
   turnId: string;
+}
+/**
+ * Session event "assistant.idle". Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+ */
+export interface AssistantIdleEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantIdleData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.idle".
+   */
+  type: "assistant.idle";
+}
+/**
+ * Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
+ */
+export interface AssistantIdleData {
+  /**
+   * True when the preceding agentic loop was cancelled via abort signal
+   */
+  aborted?: boolean;
 }
 /**
  * Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
@@ -3376,7 +3940,7 @@ export interface AssistantUsageCopilotUsageTokenDetail {
   tokenType: string;
 }
 /**
- * Schema for the `AssistantUsageQuotaSnapshot` type.
+ * Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.
  */
 /** @internal */
 export interface AssistantUsageQuotaSnapshot {
@@ -3712,6 +4276,7 @@ export interface ToolExecutionStartData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
+  shellToolInfo?: ToolExecutionStartShellToolInfo;
   /**
    * Unique identifier for this tool call
    */
@@ -3725,6 +4290,19 @@ export interface ToolExecutionStartData {
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
    */
   turnId?: string;
+}
+/**
+ * Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
+ */
+export interface ToolExecutionStartShellToolInfo {
+  /**
+   * Whether the command includes a file write redirection (e.g., > or >>).
+   */
+  hasWriteFileRedirection: boolean;
+  /**
+   * File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
+   */
+  possiblePaths: string[];
 }
 /**
  * Tool definition metadata, present for MCP tools with MCP Apps support
@@ -3747,7 +4325,7 @@ export interface ToolExecutionStartToolDescriptionMeta {
   ui?: ToolExecutionStartToolDescriptionMetaUI;
 }
 /**
- * Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.
+ * MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.
  */
 export interface ToolExecutionStartToolDescriptionMetaUI {
   /**
@@ -4090,7 +4668,8 @@ export interface ToolExecutionCompleteContentText {
   type: "text";
 }
 /**
- * Terminal/shell output content block with optional exit code and working directory
+ * @deprecated
+ * Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
  */
 export interface ToolExecutionCompleteContentTerminal {
   /**
@@ -4109,6 +4688,35 @@ export interface ToolExecutionCompleteContentTerminal {
    * Content block type discriminator
    */
   type: "terminal";
+}
+/**
+ * Shell command exit metadata with optional output preview
+ */
+export interface ToolExecutionCompleteContentShellExit {
+  /**
+   * Working directory where the shell command was executed
+   */
+  cwd?: string;
+  /**
+   * Exit code from the completed shell command
+   */
+  exitCode: number;
+  /**
+   * Output associated with this shell command, if available. May be partial, truncated, or a preview; not guaranteed to be full output.
+   */
+  outputPreview?: string;
+  /**
+   * Whether outputPreview is known to be incomplete or truncated
+   */
+  outputTruncated?: boolean;
+  /**
+   * Shell id, as assigned by Copilot runtime
+   */
+  shellId: string;
+  /**
+   * Content block type discriminator
+   */
+  type: "shell_exit";
 }
 /**
  * Image content block with base64-encoded data
@@ -4210,7 +4818,7 @@ export interface ToolExecutionCompleteContentResource {
   type: "resource";
 }
 /**
- * Schema for the `EmbeddedTextResourceContents` type.
+ * Embedded text resource contents identified by a URI, with an optional MIME type and a text payload.
  */
 export interface EmbeddedTextResourceContents {
   /**
@@ -4227,7 +4835,7 @@ export interface EmbeddedTextResourceContents {
   uri: string;
 }
 /**
- * Schema for the `EmbeddedBlobResourceContents` type.
+ * Embedded binary resource contents identified by a URI, with an optional MIME type and a base64-encoded blob.
  */
 export interface EmbeddedBlobResourceContents {
   /**
@@ -4272,7 +4880,7 @@ export interface ToolExecutionCompleteUIResourceMeta {
   ui?: ToolExecutionCompleteUIResourceMetaUI;
 }
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+ * MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
  */
 export interface ToolExecutionCompleteUIResourceMetaUI {
   csp?: ToolExecutionCompleteUIResourceMetaUICsp;
@@ -4281,7 +4889,7 @@ export interface ToolExecutionCompleteUIResourceMetaUI {
   prefersBorder?: boolean;
 }
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+ * CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
  */
 export interface ToolExecutionCompleteUIResourceMetaUICsp {
   baseUriDomains?: string[];
@@ -4290,7 +4898,7 @@ export interface ToolExecutionCompleteUIResourceMetaUICsp {
   resourceDomains?: string[];
 }
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+ * Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissions {
   camera?: ToolExecutionCompleteUIResourceMetaUIPermissionsCamera;
@@ -4299,19 +4907,19 @@ export interface ToolExecutionCompleteUIResourceMetaUIPermissions {
   microphone?: ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone;
 }
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+ * Marker object for camera permission on an MCP Apps UI resource.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {}
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+ * Marker object for clipboard-write permission on an MCP Apps UI resource.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {}
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+ * Marker object for geolocation permission on an MCP Apps UI resource.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
 /**
- * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+ * Marker object for microphone permission on an MCP Apps UI resource.
  */
 export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
 /**
@@ -4335,7 +4943,7 @@ export interface ToolExecutionCompleteToolDescriptionMeta {
   ui?: ToolExecutionCompleteToolDescriptionMetaUI;
 }
 /**
- * Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+ * MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.
  */
 export interface ToolExecutionCompleteToolDescriptionMetaUI {
   /**
@@ -4393,6 +5001,10 @@ export interface SkillInvokedData {
    * Description of the skill from its SKILL.md frontmatter
    */
   description?: string;
+  /**
+   * Model identifier active when the skill was invoked, when known
+   */
+  model?: string;
   /**
    * Name of the invoked skill
    */
@@ -5008,7 +5620,7 @@ export interface SystemNotificationData {
   kind: SystemNotification;
 }
 /**
- * Schema for the `SystemNotificationAgentCompleted` type.
+ * System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
  */
 export interface SystemNotificationAgentCompleted {
   /**
@@ -5034,7 +5646,7 @@ export interface SystemNotificationAgentCompleted {
   type: "agent_completed";
 }
 /**
- * Schema for the `SystemNotificationAgentIdle` type.
+ * System notification metadata for a background agent that became idle, including agent ID, type, and description.
  */
 export interface SystemNotificationAgentIdle {
   /**
@@ -5055,7 +5667,7 @@ export interface SystemNotificationAgentIdle {
   type: "agent_idle";
 }
 /**
- * Schema for the `SystemNotificationNewInboxMessage` type.
+ * System notification metadata for a new inbox message, including entry ID, sender details, and summary.
  */
 export interface SystemNotificationNewInboxMessage {
   /**
@@ -5080,7 +5692,7 @@ export interface SystemNotificationNewInboxMessage {
   type: "new_inbox_message";
 }
 /**
- * Schema for the `SystemNotificationShellCompleted` type.
+ * System notification metadata for a shell session that completed, including shell ID, optional exit code, and description.
  */
 export interface SystemNotificationShellCompleted {
   /**
@@ -5101,7 +5713,7 @@ export interface SystemNotificationShellCompleted {
   type: "shell_completed";
 }
 /**
- * Schema for the `SystemNotificationShellDetachedCompleted` type.
+ * System notification metadata for a detached shell session that completed, including shell ID and description.
  */
 export interface SystemNotificationShellDetachedCompleted {
   /**
@@ -5118,7 +5730,7 @@ export interface SystemNotificationShellDetachedCompleted {
   type: "shell_detached_completed";
 }
 /**
- * Schema for the `SystemNotificationInstructionDiscovered` type.
+ * System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.
  */
 export interface SystemNotificationInstructionDiscovered {
   /**
@@ -5241,7 +5853,7 @@ export interface PermissionRequestShell {
   warning?: string;
 }
 /**
- * Schema for the `PermissionRequestShellCommand` type.
+ * A parsed command identifier in a shell permission request, including whether it is read-only.
  */
 export interface PermissionRequestShellCommand {
   /**
@@ -5254,7 +5866,7 @@ export interface PermissionRequestShellCommand {
   readOnly: boolean;
 }
 /**
- * Schema for the `PermissionRequestShellPossibleUrl` type.
+ * A URL that may be accessed by a command in a shell permission request.
  */
 export interface PermissionRequestShellPossibleUrl {
   /**
@@ -5291,6 +5903,14 @@ export interface PermissionRequestWrite {
    */
   newFileContents?: string;
   /**
+   * True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
+  /**
    * Tool call ID that triggered this permission request
    */
   toolCallId?: string;
@@ -5311,6 +5931,14 @@ export interface PermissionRequestRead {
    * Path of the file or directory being read
    */
   path: string;
+  /**
+   * True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -5363,6 +5991,14 @@ export interface PermissionRequestUrl {
    * Permission kind discriminator
    */
   kind: "url";
+  /**
+   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -5504,6 +6140,12 @@ export interface PermissionRequestExtensionPermissionAccess {
  */
 export interface PermissionPromptRequestCommands {
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Whether the UI can offer session-wide approval for this command pattern
    */
   canOfferSessionApproval: boolean;
@@ -5533,9 +6175,26 @@ export interface PermissionPromptRequestCommands {
   warning?: string;
 }
 /**
+ * Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
+ */
+/** @experimental */
+export interface PermissionAutoApproval {
+  /**
+   * Human-readable reason for the judge's recommendation, when available.
+   */
+  reason?: string;
+  recommendation: AutoApprovalRecommendation;
+}
+/**
  * File write permission prompt
  */
 export interface PermissionPromptRequestWrite {
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
   /**
    * Whether the UI can offer session-wide approval for file write operations
    */
@@ -5570,6 +6229,12 @@ export interface PermissionPromptRequestWrite {
  */
 export interface PermissionPromptRequestRead {
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Human-readable description of why the file is being read
    */
   intention: string;
@@ -5597,6 +6262,12 @@ export interface PermissionPromptRequestMcp {
     [k: string]: unknown | undefined;
   };
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Prompt kind discriminator
    */
   kind: "mcp";
@@ -5622,6 +6293,12 @@ export interface PermissionPromptRequestMcp {
  */
 export interface PermissionPromptRequestUrl {
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Human-readable description of why the URL is being accessed
    */
   intention: string;
@@ -5629,6 +6306,14 @@ export interface PermissionPromptRequestUrl {
    * Prompt kind discriminator
    */
   kind: "url";
+  /**
+   * True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
+   */
+  requestSandboxBypass?: boolean;
+  /**
+   * Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
+   */
+  requestSandboxBypassReason?: string;
   /**
    * Tool call ID that triggered this permission request
    */
@@ -5643,6 +6328,12 @@ export interface PermissionPromptRequestUrl {
  */
 export interface PermissionPromptRequestMemory {
   action?: PermissionRequestMemoryAction;
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
   /**
    * Source references for the stored fact (store only)
    */
@@ -5680,6 +6371,12 @@ export interface PermissionPromptRequestCustomTool {
     [k: string]: unknown | undefined;
   };
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Prompt kind discriminator
    */
   kind: "custom-tool";
@@ -5702,6 +6399,12 @@ export interface PermissionPromptRequestCustomTool {
 export interface PermissionPromptRequestPath {
   accessKind: PermissionPromptRequestPathAccessKind;
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Prompt kind discriminator
    */
   kind: "path";
@@ -5718,6 +6421,12 @@ export interface PermissionPromptRequestPath {
  * Hook confirmation permission prompt
  */
 export interface PermissionPromptRequestHook {
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
   /**
    * Optional message from the hook explaining why confirmation is needed
    */
@@ -5746,6 +6455,12 @@ export interface PermissionPromptRequestHook {
  */
 export interface PermissionPromptRequestExtensionManagement {
   /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
    * Name of the extension being managed
    */
   extensionName?: string;
@@ -5766,6 +6481,12 @@ export interface PermissionPromptRequestExtensionManagement {
  * Extension permission access prompt
  */
 export interface PermissionPromptRequestExtensionPermissionAccess {
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
   /**
    * Capabilities the extension is requesting
    */
@@ -5828,7 +6549,7 @@ export interface PermissionCompletedData {
   toolCallId?: string;
 }
 /**
- * Schema for the `PermissionApproved` type.
+ * Permission response variant indicating the request was approved without persisting an approval rule.
  */
 export interface PermissionApproved {
   /**
@@ -5837,7 +6558,7 @@ export interface PermissionApproved {
   kind: "approved";
 }
 /**
- * Schema for the `PermissionApprovedForSession` type.
+ * Permission response variant that approves a request and remembers the provided approval for the rest of the session.
  */
 export interface PermissionApprovedForSession {
   approval: UserToolSessionApproval;
@@ -5847,7 +6568,7 @@ export interface PermissionApprovedForSession {
   kind: "approved-for-session";
 }
 /**
- * Schema for the `UserToolSessionApprovalCommands` type.
+ * Session-scoped tool-approval rule for specific shell command identifiers.
  */
 export interface UserToolSessionApprovalCommands {
   /**
@@ -5860,7 +6581,7 @@ export interface UserToolSessionApprovalCommands {
   kind: "commands";
 }
 /**
- * Schema for the `UserToolSessionApprovalRead` type.
+ * Session-scoped tool-approval rule for read-only filesystem operations.
  */
 export interface UserToolSessionApprovalRead {
   /**
@@ -5869,7 +6590,7 @@ export interface UserToolSessionApprovalRead {
   kind: "read";
 }
 /**
- * Schema for the `UserToolSessionApprovalWrite` type.
+ * Session-scoped tool-approval rule for filesystem write operations.
  */
 export interface UserToolSessionApprovalWrite {
   /**
@@ -5878,7 +6599,7 @@ export interface UserToolSessionApprovalWrite {
   kind: "write";
 }
 /**
- * Schema for the `UserToolSessionApprovalMcp` type.
+ * Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when `toolName` is null.
  */
 export interface UserToolSessionApprovalMcp {
   /**
@@ -5895,7 +6616,7 @@ export interface UserToolSessionApprovalMcp {
   toolName: string | null;
 }
 /**
- * Schema for the `UserToolSessionApprovalMemory` type.
+ * Session-scoped tool-approval rule for writes to long-term memory.
  */
 export interface UserToolSessionApprovalMemory {
   /**
@@ -5904,7 +6625,7 @@ export interface UserToolSessionApprovalMemory {
   kind: "memory";
 }
 /**
- * Schema for the `UserToolSessionApprovalCustomTool` type.
+ * Session-scoped tool-approval rule for a custom tool, keyed by tool name.
  */
 export interface UserToolSessionApprovalCustomTool {
   /**
@@ -5917,7 +6638,7 @@ export interface UserToolSessionApprovalCustomTool {
   toolName: string;
 }
 /**
- * Schema for the `UserToolSessionApprovalExtensionManagement` type.
+ * Session-scoped tool-approval rule for extension-management operations, optionally narrowed by operation.
  */
 export interface UserToolSessionApprovalExtensionManagement {
   /**
@@ -5930,7 +6651,7 @@ export interface UserToolSessionApprovalExtensionManagement {
   operation?: string;
 }
 /**
- * Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
+ * Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.
  */
 export interface UserToolSessionApprovalExtensionPermissionAccess {
   /**
@@ -5943,7 +6664,7 @@ export interface UserToolSessionApprovalExtensionPermissionAccess {
   kind: "extension-permission-access";
 }
 /**
- * Schema for the `PermissionApprovedForLocation` type.
+ * Permission response variant that approves a request and persists the provided approval to a project location key.
  */
 export interface PermissionApprovedForLocation {
   approval: UserToolSessionApproval;
@@ -5957,7 +6678,7 @@ export interface PermissionApprovedForLocation {
   locationKey: string;
 }
 /**
- * Schema for the `PermissionCancelled` type.
+ * Permission response variant indicating the request was cancelled before use, with an optional reason.
  */
 export interface PermissionCancelled {
   /**
@@ -5970,7 +6691,7 @@ export interface PermissionCancelled {
   reason?: string;
 }
 /**
- * Schema for the `PermissionDeniedByRules` type.
+ * Permission response variant denied because matching approval rules explicitly blocked the request.
  */
 export interface PermissionDeniedByRules {
   /**
@@ -5983,7 +6704,7 @@ export interface PermissionDeniedByRules {
   rules: PermissionRule[];
 }
 /**
- * Schema for the `PermissionRule` type.
+ * A permission approval or denial rule matched against a tool request, identified by a rule kind with an optional argument value.
  */
 export interface PermissionRule {
   /**
@@ -5996,7 +6717,7 @@ export interface PermissionRule {
   kind: string;
 }
 /**
- * Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
+ * Permission response variant denied because no approval rule matched and user confirmation was unavailable.
  */
 export interface PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
   /**
@@ -6005,7 +6726,7 @@ export interface PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser {
   kind: "denied-no-approval-rule-and-could-not-request-from-user";
 }
 /**
- * Schema for the `PermissionDeniedInteractivelyByUser` type.
+ * Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag.
  */
 export interface PermissionDeniedInteractivelyByUser {
   /**
@@ -6022,7 +6743,7 @@ export interface PermissionDeniedInteractivelyByUser {
   kind: "denied-interactively-by-user";
 }
 /**
- * Schema for the `PermissionDeniedByContentExclusionPolicy` type.
+ * Permission response variant denying a path under content exclusion policy, with the path and message.
  */
 export interface PermissionDeniedByContentExclusionPolicy {
   /**
@@ -6039,7 +6760,7 @@ export interface PermissionDeniedByContentExclusionPolicy {
   path: string;
 }
 /**
- * Schema for the `PermissionDeniedByPermissionRequestHook` type.
+ * Permission response variant denied by a permission-request hook, with optional message and interrupt flag.
  */
 export interface PermissionDeniedByPermissionRequestHook {
   /**
@@ -6280,7 +7001,7 @@ export interface ElicitationCompletedData {
   requestId: string;
 }
 /**
- * Schema for the `ElicitationCompletedContent` type.
+ * Opaque JSON value submitted for one field in accepted `elicitation.completed` form content.
  */
 export interface ElicitationCompletedContent {
   [k: string]: unknown | undefined;
@@ -6407,6 +7128,7 @@ export interface McpOauthRequiredEvent {
  * OAuth authentication request for an MCP server
  */
 export interface McpOauthRequiredData {
+  reason: McpOauthRequestReason;
   /**
    * Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
    */
@@ -6435,6 +7157,10 @@ export interface McpOauthRequiredStaticClientConfig {
    */
   clientId: string;
   /**
+   * Optional OAuth client secret for confidential static clients, when the runtime can resolve one
+   */
+  clientSecret?: string;
+  /**
    * Optional non-default OAuth grant type. When set to 'client_credentials', the OAuth flow runs headlessly using the client_id + keychain-stored secret (no browser, no callback server).
    */
   grantType?: "client_credentials";
@@ -6452,9 +7178,9 @@ export interface McpOauthWWWAuthenticateParams {
    */
   error?: string;
   /**
-   * Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter
+   * Protected resource metadata URL from the WWW-Authenticate resource_metadata parameter, if present
    */
-  resourceMetadataUrl: string;
+  resourceMetadataUrl?: string;
   /**
    * Requested OAuth scopes from the WWW-Authenticate scope parameter, if present
    */
@@ -6497,6 +7223,94 @@ export interface McpOauthCompletedData {
   outcome: McpOauthCompletionOutcome;
   /**
    * Request ID of the resolved OAuth request
+   */
+  requestId: string;
+}
+/**
+ * Session event "mcp.headers_refresh_required". Dynamic headers refresh request for a remote MCP server
+ */
+export interface McpHeadersRefreshRequiredEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpHeadersRefreshRequiredData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.headers_refresh_required".
+   */
+  type: "mcp.headers_refresh_required";
+}
+/**
+ * Dynamic headers refresh request for a remote MCP server
+ */
+export interface McpHeadersRefreshRequiredData {
+  reason: McpHeadersRefreshRequiredReason;
+  /**
+   * Unique identifier for this headers refresh request; used to respond via session.mcp.headers.handlePendingHeadersRefreshRequest()
+   */
+  requestId: string;
+  /**
+   * Display name of the remote MCP server requesting headers
+   */
+  serverName: string;
+  /**
+   * URL of the remote MCP server requesting headers
+   */
+  serverUrl: string;
+}
+/**
+ * Session event "mcp.headers_refresh_completed". MCP headers refresh request completion notification
+ */
+export interface McpHeadersRefreshCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpHeadersRefreshCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp.headers_refresh_completed".
+   */
+  type: "mcp.headers_refresh_completed";
+}
+/**
+ * MCP headers refresh request completion notification
+ */
+export interface McpHeadersRefreshCompletedData {
+  outcome: McpHeadersRefreshCompletedOutcome;
+  /**
+   * Request ID of the resolved headers refresh request
    */
   requestId: string;
 }
@@ -6890,6 +7704,167 @@ export interface AutoModeSwitchCompletedData {
   response: AutoModeSwitchResponse;
 }
 /**
+ * Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
+ */
+export interface SessionLimitsExhaustedRequestedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsExhaustedRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session_limits_exhausted.requested".
+   */
+  type: "session_limits_exhausted.requested";
+}
+/**
+ * Session limit exhaustion notification requiring user action.
+ */
+export interface SessionLimitsExhaustedRequestedData {
+  /**
+   * Configured max AI Credits for the current accounting window.
+   */
+  maxAiCredits: number;
+  /**
+   * Unique identifier for this request; used to respond via session.ui.handlePendingSessionLimitsExhausted().
+   */
+  requestId: string;
+  /**
+   * AI Credits already consumed in the current accounting window.
+   */
+  usedAiCredits: number;
+}
+/**
+ * Session event "session_limits_exhausted.completed". Session limit exhaustion prompt completion notification.
+ */
+export interface SessionLimitsExhaustedCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: SessionLimitsExhaustedCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session_limits_exhausted.completed".
+   */
+  type: "session_limits_exhausted.completed";
+}
+/**
+ * Session limit exhaustion prompt completion notification.
+ */
+export interface SessionLimitsExhaustedCompletedData {
+  /**
+   * Request ID of the resolved request; clients should dismiss any UI for this request.
+   */
+  requestId: string;
+  response: SessionLimitsExhaustedResponse;
+}
+/**
+ * The user's selected action for an exhausted session limit.
+ */
+export interface SessionLimitsExhaustedResponse {
+  action: SessionLimitsExhaustedResponseAction;
+  /**
+   * AI Credits to add to the current max when action is 'add'.
+   */
+  additionalAiCredits?: number;
+  /**
+   * New absolute max AI Credits when action is 'set'.
+   */
+  maxAiCredits?: number;
+}
+/**
+ * Session event "session.auto_mode_resolved". Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutoModeResolvedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.auto_mode_resolved".
+   */
+  type: "session.auto_mode_resolved";
+}
+/**
+ * Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
+ */
+/** @experimental */
+export interface AutoModeResolvedData {
+  /**
+   * Ordered candidate model list the router returned, when not a fallback
+   */
+  candidateModels?: string[];
+  /**
+   * Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.
+   */
+  categoryScores?: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * The concrete model the session will use after any intent refinement
+   */
+  chosenModel: string;
+  /**
+   * Classifier confidence for the predicted label, when available
+   */
+  confidence?: number;
+  /**
+   * The predicted classifier label (e.g. `needs_reasoning`), when available
+   */
+  predictedLabel?: string;
+  reasoningBucket?: AutoModeResolvedReasoningBucket;
+}
+/**
  * Session event "commands.changed". SDK command registration change notification
  */
 export interface CommandsChangedEvent {
@@ -6929,7 +7904,7 @@ export interface CommandsChangedData {
   commands: CommandsChangedCommand[];
 }
 /**
- * Schema for the `CommandsChangedCommand` type.
+ * A single slash command available in the session, as listed by the `commands.changed` event.
  */
 export interface CommandsChangedCommand {
   /**
@@ -7099,7 +8074,7 @@ export interface ExitPlanModeCompletedData {
   selectedAction?: ExitPlanModeAction;
 }
 /**
- * Session event "session.tools_updated".
+ * Session event "session.tools_updated". Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
  */
 export interface ToolsUpdatedEvent {
   /**
@@ -7129,7 +8104,7 @@ export interface ToolsUpdatedEvent {
   type: "session.tools_updated";
 }
 /**
- * Schema for the `ToolsUpdatedData` type.
+ * Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
  */
 export interface ToolsUpdatedData {
   /**
@@ -7138,7 +8113,7 @@ export interface ToolsUpdatedData {
   model: string;
 }
 /**
- * Session event "session.background_tasks_changed".
+ * Session event "session.background_tasks_changed". Empty payload for `session.background_tasks_changed`, indicating background task state changed.
  */
 export interface BackgroundTasksChangedEvent {
   /**
@@ -7168,11 +8143,11 @@ export interface BackgroundTasksChangedEvent {
   type: "session.background_tasks_changed";
 }
 /**
- * Schema for the `BackgroundTasksChangedData` type.
+ * Empty payload for `session.background_tasks_changed`, indicating background task state changed.
  */
 export interface BackgroundTasksChangedData {}
 /**
- * Session event "session.skills_loaded".
+ * Session event "session.skills_loaded". Payload of `session.skills_loaded` listing resolved skill metadata.
  */
 export interface SkillsLoadedEvent {
   /**
@@ -7202,7 +8177,7 @@ export interface SkillsLoadedEvent {
   type: "session.skills_loaded";
 }
 /**
- * Schema for the `SkillsLoadedData` type.
+ * Payload of `session.skills_loaded` listing resolved skill metadata.
  */
 export interface SkillsLoadedData {
   /**
@@ -7211,7 +8186,7 @@ export interface SkillsLoadedData {
   skills: SkillsLoadedSkill[];
 }
 /**
- * Schema for the `SkillsLoadedSkill` type.
+ * A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.
  */
 export interface SkillsLoadedSkill {
   /**
@@ -7241,7 +8216,7 @@ export interface SkillsLoadedSkill {
   userInvocable: boolean;
 }
 /**
- * Session event "session.custom_agents_updated".
+ * Session event "session.custom_agents_updated". Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
  */
 export interface CustomAgentsUpdatedEvent {
   /**
@@ -7271,7 +8246,7 @@ export interface CustomAgentsUpdatedEvent {
   type: "session.custom_agents_updated";
 }
 /**
- * Schema for the `CustomAgentsUpdatedData` type.
+ * Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
  */
 export interface CustomAgentsUpdatedData {
   /**
@@ -7288,7 +8263,7 @@ export interface CustomAgentsUpdatedData {
   warnings: string[];
 }
 /**
- * Schema for the `CustomAgentsUpdatedAgent` type.
+ * A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
  */
 export interface CustomAgentsUpdatedAgent {
   /**
@@ -7325,7 +8300,7 @@ export interface CustomAgentsUpdatedAgent {
   userInvocable: boolean;
 }
 /**
- * Session event "session.mcp_servers_loaded".
+ * Session event "session.mcp_servers_loaded". Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
  */
 export interface McpServersLoadedEvent {
   /**
@@ -7355,7 +8330,7 @@ export interface McpServersLoadedEvent {
   type: "session.mcp_servers_loaded";
 }
 /**
- * Schema for the `McpServersLoadedData` type.
+ * Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
  */
 export interface McpServersLoadedData {
   /**
@@ -7364,7 +8339,7 @@ export interface McpServersLoadedData {
   servers: McpServersLoadedServer[];
 }
 /**
- * Schema for the `McpServersLoadedServer` type.
+ * A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.
  */
 export interface McpServersLoadedServer {
   /**
@@ -7388,7 +8363,7 @@ export interface McpServersLoadedServer {
   transport?: McpServerTransport;
 }
 /**
- * Session event "session.mcp_server_status_changed".
+ * Session event "session.mcp_server_status_changed". Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
  */
 export interface McpServerStatusChangedEvent {
   /**
@@ -7418,7 +8393,7 @@ export interface McpServerStatusChangedEvent {
   type: "session.mcp_server_status_changed";
 }
 /**
- * Schema for the `McpServerStatusChangedData` type.
+ * Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
  */
 export interface McpServerStatusChangedData {
   /**
@@ -7432,7 +8407,7 @@ export interface McpServerStatusChangedData {
   status: McpServerStatus;
 }
 /**
- * Session event "session.extensions_loaded".
+ * Session event "session.extensions_loaded". Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
  */
 export interface ExtensionsLoadedEvent {
   /**
@@ -7462,7 +8437,7 @@ export interface ExtensionsLoadedEvent {
   type: "session.extensions_loaded";
 }
 /**
- * Schema for the `ExtensionsLoadedData` type.
+ * Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
  */
 export interface ExtensionsLoadedData {
   /**
@@ -7471,7 +8446,7 @@ export interface ExtensionsLoadedData {
   extensions: ExtensionsLoadedExtension[];
 }
 /**
- * Schema for the `ExtensionsLoadedExtension` type.
+ * A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.
  */
 export interface ExtensionsLoadedExtension {
   /**
@@ -7486,7 +8461,7 @@ export interface ExtensionsLoadedExtension {
   status: ExtensionsLoadedExtensionStatus;
 }
 /**
- * Session event "session.canvas.opened".
+ * Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
  */
 /** @experimental */
 export interface CanvasOpenedEvent {
@@ -7517,7 +8492,7 @@ export interface CanvasOpenedEvent {
   type: "session.canvas.opened";
 }
 /**
- * Schema for the `CanvasOpenedData` type.
+ * Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
  */
 /** @experimental */
 export interface CanvasOpenedData {
@@ -7557,7 +8532,7 @@ export interface CanvasOpenedData {
   url?: string;
 }
 /**
- * Session event "session.canvas.registry_changed".
+ * Session event "session.canvas.registry_changed". Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
  */
 /** @experimental */
 export interface CanvasRegistryChangedEvent {
@@ -7588,7 +8563,7 @@ export interface CanvasRegistryChangedEvent {
   type: "session.canvas.registry_changed";
 }
 /**
- * Schema for the `CanvasRegistryChangedData` type.
+ * Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
  */
 /** @experimental */
 export interface CanvasRegistryChangedData {
@@ -7598,7 +8573,7 @@ export interface CanvasRegistryChangedData {
   canvases: CanvasRegistryChangedCanvas[];
 }
 /**
- * Schema for the `CanvasRegistryChangedCanvas` type.
+ * A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions.
  */
 /** @experimental */
 export interface CanvasRegistryChangedCanvas {
@@ -7634,7 +8609,7 @@ export interface CanvasRegistryChangedCanvas {
   };
 }
 /**
- * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ * A single action within a canvas declaration, with its name, optional description, and optional input schema.
  */
 /** @experimental */
 export interface CanvasRegistryChangedCanvasAction {
@@ -7654,7 +8629,7 @@ export interface CanvasRegistryChangedCanvasAction {
   name: string;
 }
 /**
- * Session event "session.canvas.closed".
+ * Session event "session.canvas.closed". Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
  */
 /** @experimental */
 export interface CanvasClosedEvent {
@@ -7685,7 +8660,7 @@ export interface CanvasClosedEvent {
   type: "session.canvas.closed";
 }
 /**
- * Schema for the `CanvasClosedData` type.
+ * Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
  */
 /** @experimental */
 export interface CanvasClosedData {
@@ -7860,7 +8835,7 @@ export interface CanvasRemovedData {
   instanceId: string;
 }
 /**
- * Session event "session.extensions.attachments_pushed".
+ * Session event "session.extensions.attachments_pushed". Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
  */
 export interface ExtensionsAttachmentsPushedEvent {
   /**
@@ -7890,7 +8865,7 @@ export interface ExtensionsAttachmentsPushedEvent {
   type: "session.extensions.attachments_pushed";
 }
 /**
- * Schema for the `ExtensionsAttachmentsPushedData` type.
+ * Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
  */
 export interface ExtensionsAttachmentsPushedData {
   /**
@@ -7979,7 +8954,7 @@ export interface McpAppToolCallCompleteToolMeta {
   ui?: McpAppToolCallCompleteToolMetaUI;
 }
 /**
- * Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+ * MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.
  */
 export interface McpAppToolCallCompleteToolMetaUI {
   /**

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "user.message".
+ * Session event "user.message". Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -47,6 +47,8 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("nativeDocumentPathFallbackPaths") List<String> nativeDocumentPathFallbackPaths,
         /** Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user) */
         @JsonProperty("source") String source,
+        /** How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution. */
+        @JsonProperty("delivery") UserMessageDelivery delivery,
         /** The agent mode that was active when this message was sent */
         @JsonProperty("agentMode") UserMessageAgentMode agentMode,
         /** True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry. */

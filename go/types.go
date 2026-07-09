@@ -122,6 +122,11 @@ type ClientOptions struct {
 	// this handler instead of issuing the calls itself. Works for both CAPI
 	// and BYOK sessions.
 	RequestHandler *CopilotRequestHandler
+	// OnGitHubTelemetry registers a connection-level callback (experimental)
+	// that receives GitHub telemetry events the runtime forwards for sessions
+	// opened by this client. When non-nil, every session created or resumed by
+	// this client opts into telemetry forwarding (enableGitHubTelemetryForwarding).
+	OnGitHubTelemetry func(notification *rpc.GitHubTelemetryNotification)
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
@@ -325,6 +330,70 @@ type PermissionHandlerFunc func(request PermissionRequest, invocation Permission
 type PermissionInvocation struct {
 	SessionID string
 }
+
+// MCPAuthWwwAuthenticateParams contains parsed parameters from an MCP server's WWW-Authenticate response.
+type MCPAuthWwwAuthenticateParams struct {
+	ResourceMetadataURL *string `json:"resourceMetadataUrl,omitempty"`
+	Scope               *string `json:"scope,omitempty"`
+	Error               *string `json:"error,omitempty"`
+}
+
+// MCPAuthStaticClientConfig is static OAuth client configuration supplied by an MCP server.
+type MCPAuthStaticClientConfig struct {
+	ClientID     string  `json:"clientId"`
+	ClientSecret *string `json:"clientSecret,omitempty"`
+	GrantType    *string `json:"grantType,omitempty"`
+	PublicClient *bool   `json:"publicClient,omitempty"`
+}
+
+// MCPAuthRequest describes an MCP OAuth request that the SDK host can satisfy with a token.
+type MCPAuthRequest struct {
+	RequestID             string                        `json:"requestId"`
+	ServerName            string                        `json:"serverName"`
+	ServerURL             string                        `json:"serverUrl"`
+	Reason                MCPOauthRequestReason         `json:"reason"`
+	WwwAuthenticateParams *MCPAuthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
+	ResourceMetadata      *string                       `json:"resourceMetadata,omitempty"`
+	StaticClientConfig    *MCPAuthStaticClientConfig    `json:"staticClientConfig,omitempty"`
+}
+
+// MCPAuthToken is host-provided OAuth token data for a pending MCP OAuth request.
+type MCPAuthToken struct {
+	AccessToken string  `json:"accessToken"`
+	TokenType   *string `json:"tokenType,omitempty"`
+	ExpiresIn   *int64  `json:"expiresIn,omitempty"`
+}
+
+// MCPAuthResult is the result returned by an MCP auth request handler.
+type MCPAuthResult struct {
+	Kind  string
+	Token *MCPAuthToken
+}
+
+const (
+	// MCPAuthResultKindToken indicates that the host provided token data.
+	MCPAuthResultKindToken = "token"
+	// MCPAuthResultKindCancelled indicates that the host declined the request.
+	MCPAuthResultKindCancelled = "cancelled"
+)
+
+// MCPAuthResultToken returns a token result for an MCP OAuth request.
+func MCPAuthResultToken(token *MCPAuthToken) *MCPAuthResult {
+	return &MCPAuthResult{Kind: MCPAuthResultKindToken, Token: token}
+}
+
+// MCPAuthResultCancelled returns a cancelled result for an MCP OAuth request.
+func MCPAuthResultCancelled() *MCPAuthResult {
+	return &MCPAuthResult{Kind: MCPAuthResultKindCancelled}
+}
+
+// MCPAuthInvocation provides context about an MCP auth handler invocation.
+type MCPAuthInvocation struct {
+	SessionID string
+}
+
+// MCPAuthHandler handles MCP OAuth requests from the runtime.
+type MCPAuthHandler func(request MCPAuthRequest, invocation MCPAuthInvocation) (*MCPAuthResult, error)
 
 // UserInputRequest represents a request for user input from the agent
 type UserInputRequest struct {
@@ -971,10 +1040,19 @@ type SessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
+	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
+	// the session. Excluded built-in agents are hidden from discovery and cannot
+	// be selected or invoked unless a custom agent with the same name is
+	// configured.
+	ExcludedBuiltInAgents []string
 	// OnPermissionRequest is an optional handler for permission requests from the server.
 	// When nil, permission requests are surfaced as events and left pending for the
 	// consumer to resolve via pending permission RPCs.
 	OnPermissionRequest PermissionHandlerFunc
+	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
+	// When provided, the SDK can satisfy MCP server OAuth requests with host-provided
+	// token data or cancellation.
+	OnMCPAuthRequest MCPAuthHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -1017,6 +1095,16 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// EnableCitations enables native model citations for supported providers.
+	//
+	// Experimental: EnableCitations is part of an experimental model capability
+	// surface and may change or be removed in future SDK or CLI releases.
+	EnableCitations *bool
+	// SessionLimits applies limits to this session's current accounting window.
+	//
+	// Experimental: SessionLimits is part of an experimental runtime accounting
+	// surface and may change or be removed in future SDK or CLI releases.
+	SessionLimits *rpc.SessionLimitsConfig
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1159,6 +1247,12 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings, when set to true, opts the runtime into
+	// self-fetching enterprise managed settings (bypass-permissions policy) at
+	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
+	// be set; if omitted, the runtime is expected to reject session creation
+	// (fail-closed). Unset behaves exactly as before.
+	EnableManagedSettings *bool
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1353,6 +1447,11 @@ type ResumeSessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
+	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
+	// the session. Excluded built-in agents are hidden from discovery and cannot
+	// be selected or invoked unless a custom agent with the same name is
+	// configured.
+	ExcludedBuiltInAgents []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
 	// Capi configures provider-scoped CAPI (Copilot API) session options.
@@ -1376,6 +1475,16 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// EnableCitations enables native model citations for supported providers.
+	//
+	// Experimental: EnableCitations is part of an experimental model capability
+	// surface and may change or be removed in future SDK or CLI releases.
+	EnableCitations *bool
+	// SessionLimits applies limits to this session's current accounting window.
+	//
+	// Experimental: SessionLimits is part of an experimental runtime accounting
+	// surface and may change or be removed in future SDK or CLI releases.
+	SessionLimits *rpc.SessionLimitsConfig
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1405,6 +1514,9 @@ type ResumeSessionConfig struct {
 	// When nil, permission requests are surfaced as events and left pending for the
 	// consumer to resolve via pending permission RPCs.
 	OnPermissionRequest PermissionHandlerFunc
+	// OnMCPAuthRequest is an optional handler for MCP OAuth requests from MCP servers.
+	// See SessionConfig.OnMCPAuthRequest.
+	OnMCPAuthRequest MCPAuthHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -1562,6 +1674,10 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings injects the same opt-in flag on resume. See
+	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
+	// re-applies the managed-settings self-fetch after a CLI process restart.
+	EnableManagedSettings *bool
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -1959,11 +2075,14 @@ type createSessionRequest struct {
 	AvailableTools                     []string                               `json:"availableTools"`
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	ExcludedBuiltInAgents              []string                               `json:"excludedBuiltinAgents,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
 	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
+	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
@@ -1977,6 +2096,7 @@ type createSessionRequest struct {
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2012,6 +2132,7 @@ type createSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2042,11 +2163,14 @@ type resumeSessionRequest struct {
 	AvailableTools                     []string                               `json:"availableTools"`
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
 	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	ExcludedBuiltInAgents              []string                               `json:"excludedBuiltinAgents,omitempty"`
 	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
 	Capi                               *CapiSessionOptions                    `json:"capi,omitempty"`
 	Providers                          []NamedProviderConfig                  `json:"providers,omitempty"`
 	Models                             []ProviderModelConfig                  `json:"models,omitempty"`
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
+	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
@@ -2072,6 +2196,7 @@ type resumeSessionRequest struct {
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2097,6 +2222,7 @@ type resumeSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

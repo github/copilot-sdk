@@ -1,0 +1,18 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Acknowledge the current session limits.
+      - role: user
+        content: >-
+          <session_limits_status>
+
+          Remaining session limits: 30 AI credits. Later session_limits_status messages supersede earlier ones. Be
+          frugal; avoid optional exploration and unnecessary tool calls.
+
+          </session_limits_status>
+      - role: assistant
+        content: Session limits acknowledged.

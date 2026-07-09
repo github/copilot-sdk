@@ -26,6 +26,8 @@ public final class SessionMcpApi {
 
     /** API methods for the {@code mcp.oauth} sub-namespace. */
     public final SessionMcpOauthApi oauth;
+    /** API methods for the {@code mcp.headers} sub-namespace. */
+    public final SessionMcpHeadersApi headers;
     /** API methods for the {@code mcp.apps} sub-namespace. */
     public final SessionMcpAppsApi apps;
 
@@ -34,6 +36,7 @@ public final class SessionMcpApi {
         this.caller = caller;
         this.sessionId = sessionId;
         this.oauth = new SessionMcpOauthApi(caller, sessionId);
+        this.headers = new SessionMcpHeadersApi(caller, sessionId);
         this.apps = new SessionMcpAppsApi(caller, sessionId);
     }
 
@@ -199,7 +202,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Server name and opaque configuration for an individual MCP server start.
+     * Server name and configuration for an individual MCP server start.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -215,7 +218,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Server name and opaque configuration for an individual MCP server restart.
+     * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

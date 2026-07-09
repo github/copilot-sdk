@@ -9,6 +9,7 @@ import "github.com/github/copilot-sdk/go/rpc"
 type (
 	AbortData                                                      = rpc.AbortData
 	AbortReason                                                    = rpc.AbortReason
+	AssistantIdleData                                              = rpc.AssistantIdleData
 	AssistantIntentData                                            = rpc.AssistantIntentData
 	AssistantMessageData                                           = rpc.AssistantMessageData
 	AssistantMessageDeltaData                                      = rpc.AssistantMessageDeltaData
@@ -19,6 +20,7 @@ type (
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
+	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
@@ -31,13 +33,26 @@ type (
 	AttachmentExtensionContext                                     = rpc.AttachmentExtensionContext
 	AttachmentFile                                                 = rpc.AttachmentFile
 	AttachmentFileLineRange                                        = rpc.AttachmentFileLineRange
+	AttachmentGitHubActionsJob                                     = rpc.AttachmentGitHubActionsJob
+	AttachmentGitHubCommit                                         = rpc.AttachmentGitHubCommit
+	AttachmentGitHubFile                                           = rpc.AttachmentGitHubFile
+	AttachmentGitHubFileDiff                                       = rpc.AttachmentGitHubFileDiff
+	AttachmentGitHubFileDiffSide                                   = rpc.AttachmentGitHubFileDiffSide
 	AttachmentGitHubReference                                      = rpc.AttachmentGitHubReference
 	AttachmentGitHubReferenceType                                  = rpc.AttachmentGitHubReferenceType
+	AttachmentGitHubRelease                                        = rpc.AttachmentGitHubRelease
+	AttachmentGitHubRepository                                     = rpc.AttachmentGitHubRepository
+	AttachmentGitHubSnippet                                        = rpc.AttachmentGitHubSnippet
+	AttachmentGitHubTreeComparison                                 = rpc.AttachmentGitHubTreeComparison
+	AttachmentGitHubTreeComparisonSide                             = rpc.AttachmentGitHubTreeComparisonSide
+	AttachmentGitHubURL                                            = rpc.AttachmentGitHubURL
 	AttachmentSelection                                            = rpc.AttachmentSelection
 	AttachmentSelectionDetails                                     = rpc.AttachmentSelectionDetails
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentType                                                 = rpc.AttachmentType
+	AutoApprovalRecommendation                                     = rpc.AutoApprovalRecommendation
+	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -86,6 +101,7 @@ type (
 	ExtensionsLoadedExtensionStatus                                = rpc.ExtensionsLoadedExtensionStatus
 	ExternalToolCompletedData                                      = rpc.ExternalToolCompletedData
 	ExternalToolRequestedData                                      = rpc.ExternalToolRequestedData
+	GitHubRepoRef                                                  = rpc.GitHubRepoRef
 	HandoffRepository                                              = rpc.HandoffRepository
 	HandoffSourceType                                              = rpc.HandoffSourceType
 	HookEndData                                                    = rpc.HookEndData
@@ -96,8 +112,13 @@ type (
 	MCPAppToolCallCompleteError                                    = rpc.MCPAppToolCallCompleteError
 	MCPAppToolCallCompleteToolMeta                                 = rpc.MCPAppToolCallCompleteToolMeta
 	MCPAppToolCallCompleteToolMetaUI                               = rpc.MCPAppToolCallCompleteToolMetaUI
+	MCPHeadersRefreshCompletedData                                 = rpc.MCPHeadersRefreshCompletedData
+	MCPHeadersRefreshCompletedOutcome                              = rpc.MCPHeadersRefreshCompletedOutcome
+	MCPHeadersRefreshRequiredData                                  = rpc.MCPHeadersRefreshRequiredData
+	MCPHeadersRefreshRequiredReason                                = rpc.MCPHeadersRefreshRequiredReason
 	MCPOauthCompletedData                                          = rpc.MCPOauthCompletedData
 	MCPOauthCompletionOutcome                                      = rpc.MCPOauthCompletionOutcome
+	MCPOauthRequestReason                                          = rpc.MCPOauthRequestReason
 	MCPOauthRequiredData                                           = rpc.MCPOauthRequiredData
 	MCPOauthRequiredStaticClientConfig                             = rpc.MCPOauthRequiredStaticClientConfig
 	MCPOauthRequiredStaticClientConfigGrantType                    = rpc.MCPOauthRequiredStaticClientConfigGrantType
@@ -114,9 +135,11 @@ type (
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
 	PendingMessagesModifiedData                                    = rpc.PendingMessagesModifiedData
+	PermissionAllowAllMode                                         = rpc.PermissionAllowAllMode
 	PermissionApproved                                             = rpc.PermissionApproved
 	PermissionApprovedForLocation                                  = rpc.PermissionApprovedForLocation
 	PermissionApprovedForSession                                   = rpc.PermissionApprovedForSession
+	PermissionAutoApproval                                         = rpc.PermissionAutoApproval
 	PermissionCancelled                                            = rpc.PermissionCancelled
 	PermissionCompletedData                                        = rpc.PermissionCompletedData
 	PermissionDeniedByContentExclusionPolicy                       = rpc.PermissionDeniedByContentExclusionPolicy
@@ -176,6 +199,7 @@ type (
 	ReasoningSummary                                               = rpc.ReasoningSummary
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
+	SessionAutoModeResolvedData                                    = rpc.SessionAutoModeResolvedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
 	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
@@ -199,6 +223,11 @@ type (
 	SessionHandoffData                                             = rpc.SessionHandoffData
 	SessionIdleData                                                = rpc.SessionIdleData
 	SessionInfoData                                                = rpc.SessionInfoData
+	SessionLimitsConfig                                            = rpc.SessionLimitsConfig
+	SessionLimitsExhaustedCompletedData                            = rpc.SessionLimitsExhaustedCompletedData
+	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
+	SessionLimitsExhaustedResponse                                 = rpc.SessionLimitsExhaustedResponse
+	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
 	SessionMode                                                    = rpc.SessionMode
@@ -211,6 +240,7 @@ type (
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
 	SessionScheduleRearmedData                                     = rpc.SessionScheduleRearmedData
+	SessionSessionLimitsChangedData                                = rpc.SessionSessionLimitsChangedData
 	SessionShutdownData                                            = rpc.SessionShutdownData
 	SessionSkillsLoadedData                                        = rpc.SessionSkillsLoadedData
 	SessionSnapshotRewindData                                      = rpc.SessionSnapshotRewindData
@@ -220,6 +250,7 @@ type (
 	SessionTodosChangedData                                        = rpc.SessionTodosChangedData
 	SessionToolsUpdatedData                                        = rpc.SessionToolsUpdatedData
 	SessionTruncationData                                          = rpc.SessionTruncationData
+	SessionUsageCheckpointData                                     = rpc.SessionUsageCheckpointData
 	SessionUsageInfoData                                           = rpc.SessionUsageInfoData
 	SessionWarningData                                             = rpc.SessionWarningData
 	SessionWorkspaceFileChangedData                                = rpc.SessionWorkspaceFileChangedData
@@ -260,6 +291,7 @@ type (
 	ToolExecutionCompleteContentResourceLink                       = rpc.ToolExecutionCompleteContentResourceLink
 	ToolExecutionCompleteContentResourceLinkIcon                   = rpc.ToolExecutionCompleteContentResourceLinkIcon
 	ToolExecutionCompleteContentResourceLinkIconTheme              = rpc.ToolExecutionCompleteContentResourceLinkIconTheme
+	ToolExecutionCompleteContentShellExit                          = rpc.ToolExecutionCompleteContentShellExit
 	ToolExecutionCompleteContentTerminal                           = rpc.ToolExecutionCompleteContentTerminal
 	ToolExecutionCompleteContentText                               = rpc.ToolExecutionCompleteContentText
 	ToolExecutionCompleteContentType                               = rpc.ToolExecutionCompleteContentType
@@ -282,6 +314,7 @@ type (
 	ToolExecutionPartialResultData                                 = rpc.ToolExecutionPartialResultData
 	ToolExecutionProgressData                                      = rpc.ToolExecutionProgressData
 	ToolExecutionStartData                                         = rpc.ToolExecutionStartData
+	ToolExecutionStartShellToolInfo                                = rpc.ToolExecutionStartShellToolInfo
 	ToolExecutionStartToolDescription                              = rpc.ToolExecutionStartToolDescription
 	ToolExecutionStartToolDescriptionMeta                          = rpc.ToolExecutionStartToolDescriptionMeta
 	ToolExecutionStartToolDescriptionMetaUI                        = rpc.ToolExecutionStartToolDescriptionMetaUI
@@ -291,6 +324,7 @@ type (
 	UserInputRequestedData                                         = rpc.UserInputRequestedData
 	UserMessageAgentMode                                           = rpc.UserMessageAgentMode
 	UserMessageData                                                = rpc.UserMessageData
+	UserMessageDelivery                                            = rpc.UserMessageDelivery
 	UserToolSessionApproval                                        = rpc.UserToolSessionApproval
 	UserToolSessionApprovalCommands                                = rpc.UserToolSessionApprovalCommands
 	UserToolSessionApprovalCustomTool                              = rpc.UserToolSessionApprovalCustomTool
@@ -301,6 +335,7 @@ type (
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
 	UserToolSessionApprovalWrite                                   = rpc.UserToolSessionApprovalWrite
+	Verbosity                                                      = rpc.Verbosity
 	WorkingDirectoryContext                                        = rpc.WorkingDirectoryContext
 	WorkingDirectoryContextHostType                                = rpc.WorkingDirectoryContextHostType
 	WorkspaceFileChangedOperation                                  = rpc.WorkspaceFileChangedOperation
@@ -324,8 +359,24 @@ const (
 	AttachmentTypeDirectory                                            = rpc.AttachmentTypeDirectory
 	AttachmentTypeExtensionContext                                     = rpc.AttachmentTypeExtensionContext
 	AttachmentTypeFile                                                 = rpc.AttachmentTypeFile
+	AttachmentTypeGitHubActionsJob                                     = rpc.AttachmentTypeGitHubActionsJob
+	AttachmentTypeGitHubCommit                                         = rpc.AttachmentTypeGitHubCommit
+	AttachmentTypeGitHubFile                                           = rpc.AttachmentTypeGitHubFile
+	AttachmentTypeGitHubFileDiff                                       = rpc.AttachmentTypeGitHubFileDiff
 	AttachmentTypeGitHubReference                                      = rpc.AttachmentTypeGitHubReference
+	AttachmentTypeGitHubRelease                                        = rpc.AttachmentTypeGitHubRelease
+	AttachmentTypeGitHubRepository                                     = rpc.AttachmentTypeGitHubRepository
+	AttachmentTypeGitHubSnippet                                        = rpc.AttachmentTypeGitHubSnippet
+	AttachmentTypeGitHubTreeComparison                                 = rpc.AttachmentTypeGitHubTreeComparison
+	AttachmentTypeGitHubURL                                            = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                            = rpc.AttachmentTypeSelection
+	AutoApprovalRecommendationApprove                                  = rpc.AutoApprovalRecommendationApprove
+	AutoApprovalRecommendationError                                    = rpc.AutoApprovalRecommendationError
+	AutoApprovalRecommendationExcluded                                 = rpc.AutoApprovalRecommendationExcluded
+	AutoApprovalRecommendationRequireApproval                          = rpc.AutoApprovalRecommendationRequireApproval
+	AutoModeResolvedReasoningBucketHigh                                = rpc.AutoModeResolvedReasoningBucketHigh
+	AutoModeResolvedReasoningBucketLow                                 = rpc.AutoModeResolvedReasoningBucketLow
+	AutoModeResolvedReasoningBucketMedium                              = rpc.AutoModeResolvedReasoningBucketMedium
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -368,8 +419,18 @@ const (
 	ExtensionsLoadedExtensionStatusStarting                            = rpc.ExtensionsLoadedExtensionStatusStarting
 	HandoffSourceTypeLocal                                             = rpc.HandoffSourceTypeLocal
 	HandoffSourceTypeRemote                                            = rpc.HandoffSourceTypeRemote
+	MCPHeadersRefreshCompletedOutcomeHeaders                           = rpc.MCPHeadersRefreshCompletedOutcomeHeaders
+	MCPHeadersRefreshCompletedOutcomeNone                              = rpc.MCPHeadersRefreshCompletedOutcomeNone
+	MCPHeadersRefreshCompletedOutcomeTimeout                           = rpc.MCPHeadersRefreshCompletedOutcomeTimeout
+	MCPHeadersRefreshRequiredReasonAuthFailed                          = rpc.MCPHeadersRefreshRequiredReasonAuthFailed
+	MCPHeadersRefreshRequiredReasonStartup                             = rpc.MCPHeadersRefreshRequiredReasonStartup
+	MCPHeadersRefreshRequiredReasonTtlExpired                          = rpc.MCPHeadersRefreshRequiredReasonTtlExpired
 	MCPOauthCompletionOutcomeCancelled                                 = rpc.MCPOauthCompletionOutcomeCancelled
 	MCPOauthCompletionOutcomeToken                                     = rpc.MCPOauthCompletionOutcomeToken
+	MCPOauthRequestReasonInitial                                       = rpc.MCPOauthRequestReasonInitial
+	MCPOauthRequestReasonReauth                                        = rpc.MCPOauthRequestReasonReauth
+	MCPOauthRequestReasonRefresh                                       = rpc.MCPOauthRequestReasonRefresh
+	MCPOauthRequestReasonUpscope                                       = rpc.MCPOauthRequestReasonUpscope
 	MCPOauthRequiredStaticClientConfigGrantTypeClientCredentials       = rpc.MCPOauthRequiredStaticClientConfigGrantTypeClientCredentials
 	MCPServerSourceBuiltin                                             = rpc.MCPServerSourceBuiltin
 	MCPServerSourcePlugin                                              = rpc.MCPServerSourcePlugin
@@ -394,6 +455,9 @@ const (
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage
 	OmittedBinaryTypeResource                                          = rpc.OmittedBinaryTypeResource
+	PermissionAllowAllModeAuto                                         = rpc.PermissionAllowAllModeAuto
+	PermissionAllowAllModeOff                                          = rpc.PermissionAllowAllModeOff
+	PermissionAllowAllModeOn                                           = rpc.PermissionAllowAllModeOn
 	PermissionPromptRequestKindCommands                                = rpc.PermissionPromptRequestKindCommands
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
@@ -442,6 +506,7 @@ const (
 	ReasoningSummaryDetailed                                           = rpc.ReasoningSummaryDetailed
 	ReasoningSummaryNone                                               = rpc.ReasoningSummaryNone
 	SessionEventTypeAbort                                              = rpc.SessionEventTypeAbort
+	SessionEventTypeAssistantIdle                                      = rpc.SessionEventTypeAssistantIdle
 	SessionEventTypeAssistantIntent                                    = rpc.SessionEventTypeAssistantIntent
 	SessionEventTypeAssistantMessage                                   = rpc.SessionEventTypeAssistantMessage
 	SessionEventTypeAssistantMessageDelta                              = rpc.SessionEventTypeAssistantMessageDelta
@@ -449,6 +514,7 @@ const (
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
+	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
 	SessionEventTypeAssistantTurnStart                                 = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                     = rpc.SessionEventTypeAssistantUsage
@@ -469,6 +535,8 @@ const (
 	SessionEventTypeHookProgress                                       = rpc.SessionEventTypeHookProgress
 	SessionEventTypeHookStart                                          = rpc.SessionEventTypeHookStart
 	SessionEventTypeMCPAppToolCallComplete                             = rpc.SessionEventTypeMCPAppToolCallComplete
+	SessionEventTypeMCPHeadersRefreshCompleted                         = rpc.SessionEventTypeMCPHeadersRefreshCompleted
+	SessionEventTypeMCPHeadersRefreshRequired                          = rpc.SessionEventTypeMCPHeadersRefreshRequired
 	SessionEventTypeMCPOauthCompleted                                  = rpc.SessionEventTypeMCPOauthCompleted
 	SessionEventTypeMCPOauthRequired                                   = rpc.SessionEventTypeMCPOauthRequired
 	SessionEventTypeModelCallFailure                                   = rpc.SessionEventTypeModelCallFailure
@@ -477,6 +545,7 @@ const (
 	SessionEventTypePermissionRequested                                = rpc.SessionEventTypePermissionRequested
 	SessionEventTypeSamplingCompleted                                  = rpc.SessionEventTypeSamplingCompleted
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
+	SessionEventTypeSessionAutoModeResolved                            = rpc.SessionEventTypeSessionAutoModeResolved
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
 	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
@@ -497,6 +566,8 @@ const (
 	SessionEventTypeSessionHandoff                                     = rpc.SessionEventTypeSessionHandoff
 	SessionEventTypeSessionIdle                                        = rpc.SessionEventTypeSessionIdle
 	SessionEventTypeSessionInfo                                        = rpc.SessionEventTypeSessionInfo
+	SessionEventTypeSessionLimitsExhaustedCompleted                    = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
+	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
@@ -508,6 +579,7 @@ const (
 	SessionEventTypeSessionScheduleCancelled                           = rpc.SessionEventTypeSessionScheduleCancelled
 	SessionEventTypeSessionScheduleCreated                             = rpc.SessionEventTypeSessionScheduleCreated
 	SessionEventTypeSessionScheduleRearmed                             = rpc.SessionEventTypeSessionScheduleRearmed
+	SessionEventTypeSessionSessionLimitsChanged                        = rpc.SessionEventTypeSessionSessionLimitsChanged
 	SessionEventTypeSessionShutdown                                    = rpc.SessionEventTypeSessionShutdown
 	SessionEventTypeSessionSkillsLoaded                                = rpc.SessionEventTypeSessionSkillsLoaded
 	SessionEventTypeSessionSnapshotRewind                              = rpc.SessionEventTypeSessionSnapshotRewind
@@ -517,6 +589,7 @@ const (
 	SessionEventTypeSessionTodosChanged                                = rpc.SessionEventTypeSessionTodosChanged
 	SessionEventTypeSessionToolsUpdated                                = rpc.SessionEventTypeSessionToolsUpdated
 	SessionEventTypeSessionTruncation                                  = rpc.SessionEventTypeSessionTruncation
+	SessionEventTypeSessionUsageCheckpoint                             = rpc.SessionEventTypeSessionUsageCheckpoint
 	SessionEventTypeSessionUsageInfo                                   = rpc.SessionEventTypeSessionUsageInfo
 	SessionEventTypeSessionWarning                                     = rpc.SessionEventTypeSessionWarning
 	SessionEventTypeSessionWorkspaceFileChanged                        = rpc.SessionEventTypeSessionWorkspaceFileChanged
@@ -536,6 +609,10 @@ const (
 	SessionEventTypeUserInputCompleted                                 = rpc.SessionEventTypeUserInputCompleted
 	SessionEventTypeUserInputRequested                                 = rpc.SessionEventTypeUserInputRequested
 	SessionEventTypeUserMessage                                        = rpc.SessionEventTypeUserMessage
+	SessionLimitsExhaustedResponseActionAdd                            = rpc.SessionLimitsExhaustedResponseActionAdd
+	SessionLimitsExhaustedResponseActionCancel                         = rpc.SessionLimitsExhaustedResponseActionCancel
+	SessionLimitsExhaustedResponseActionSet                            = rpc.SessionLimitsExhaustedResponseActionSet
+	SessionLimitsExhaustedResponseActionUnset                          = rpc.SessionLimitsExhaustedResponseActionUnset
 	SessionModeAutopilot                                               = rpc.SessionModeAutopilot
 	SessionModeInteractive                                             = rpc.SessionModeInteractive
 	SessionModePlan                                                    = rpc.SessionModePlan
@@ -567,6 +644,7 @@ const (
 	ToolExecutionCompleteContentTypeImage                              = rpc.ToolExecutionCompleteContentTypeImage
 	ToolExecutionCompleteContentTypeResource                           = rpc.ToolExecutionCompleteContentTypeResource
 	ToolExecutionCompleteContentTypeResourceLink                       = rpc.ToolExecutionCompleteContentTypeResourceLink
+	ToolExecutionCompleteContentTypeShellExit                          = rpc.ToolExecutionCompleteContentTypeShellExit
 	ToolExecutionCompleteContentTypeTerminal                           = rpc.ToolExecutionCompleteContentTypeTerminal
 	ToolExecutionCompleteContentTypeText                               = rpc.ToolExecutionCompleteContentTypeText
 	ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp            = rpc.ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp
@@ -577,6 +655,9 @@ const (
 	UserMessageAgentModeInteractive                                    = rpc.UserMessageAgentModeInteractive
 	UserMessageAgentModePlan                                           = rpc.UserMessageAgentModePlan
 	UserMessageAgentModeShell                                          = rpc.UserMessageAgentModeShell
+	UserMessageDeliveryIdle                                            = rpc.UserMessageDeliveryIdle
+	UserMessageDeliveryQueued                                          = rpc.UserMessageDeliveryQueued
+	UserMessageDeliverySteering                                        = rpc.UserMessageDeliverySteering
 	UserToolSessionApprovalKindCommands                                = rpc.UserToolSessionApprovalKindCommands
 	UserToolSessionApprovalKindCustomTool                              = rpc.UserToolSessionApprovalKindCustomTool
 	UserToolSessionApprovalKindExtensionManagement                     = rpc.UserToolSessionApprovalKindExtensionManagement
@@ -585,6 +666,9 @@ const (
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
+	VerbosityHigh                                                      = rpc.VerbosityHigh
+	VerbosityLow                                                       = rpc.VerbosityLow
+	VerbosityMedium                                                    = rpc.VerbosityMedium
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
 	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

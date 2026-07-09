@@ -1,5 +1,11 @@
+use std::collections::HashMap;
+
 use github_copilot_sdk::rpc::{
-    CommandsHandlePendingCommandRequest, HandlePendingToolCallRequest, PermissionDecision,
+    CommandsHandlePendingCommandRequest, HandlePendingToolCallRequest,
+    McpHeadersHandlePendingHeadersRefreshRequest,
+    McpHeadersHandlePendingHeadersRefreshRequestHeaders,
+    McpHeadersHandlePendingHeadersRefreshRequestHeadersKind,
+    McpHeadersHandlePendingHeadersRefreshRequestRequest, PermissionDecision,
     PermissionDecisionApproveForLocation, PermissionDecisionApproveForLocationApproval,
     PermissionDecisionApproveForLocationApprovalCustomTool,
     PermissionDecisionApproveForLocationApprovalCustomToolKind,
@@ -16,8 +22,9 @@ use github_copilot_sdk::rpc::{
     UIElicitationResponse, UIElicitationResponseAction, UIExitPlanModeResponse,
     UIHandlePendingAutoModeSwitchRequest, UIHandlePendingElicitationRequest,
     UIHandlePendingExitPlanModeRequest, UIHandlePendingSamplingRequest,
-    UIHandlePendingUserInputRequest, UIUnregisterDirectAutoModeSwitchHandlerRequest,
-    UIUserInputResponse,
+    UIHandlePendingSessionLimitsExhaustedRequest, UIHandlePendingUserInputRequest,
+    UISessionLimitsExhaustedResponse, UISessionLimitsExhaustedResponseAction,
+    UIUnregisterDirectAutoModeSwitchHandlerRequest, UIUserInputResponse,
 };
 
 use super::support::with_e2e_context;
@@ -323,6 +330,23 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                     .expect("handle missing exit plan");
                 assert!(!exit_plan.success);
 
+                let session_limits = session
+                    .rpc()
+                    .ui()
+                    .handle_pending_session_limits_exhausted(
+                        UIHandlePendingSessionLimitsExhaustedRequest {
+                            request_id: "missing-session-limits-request".into(),
+                            response: UISessionLimitsExhaustedResponse {
+                                action: UISessionLimitsExhaustedResponseAction::Unset,
+                                additional_ai_credits: None,
+                                max_ai_credits: None,
+                            },
+                        },
+                    )
+                    .await
+                    .expect("handle missing session limits exhausted");
+                assert!(!session_limits.success);
+
                 for (request_id, result) in [
                     (
                         "missing-permission-request",
@@ -384,6 +408,28 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         .expect("handle missing permission");
                     assert!(!permission.success, "{request_id} should not be handled");
                 }
+
+                let headers_refresh = session
+                    .rpc()
+                    .mcp()
+                    .headers()
+                    .handle_pending_headers_refresh_request(
+                        McpHeadersHandlePendingHeadersRefreshRequestRequest {
+                            request_id: "missing-headers-refresh-request".into(),
+                            result: McpHeadersHandlePendingHeadersRefreshRequest::Headers(
+                                McpHeadersHandlePendingHeadersRefreshRequestHeaders {
+                                    headers: HashMap::from([(
+                                        "x-refresh".to_string(),
+                                        "missing".to_string(),
+                                    )]),
+                                    kind: McpHeadersHandlePendingHeadersRefreshRequestHeadersKind::Headers,
+                                },
+                            ),
+                        },
+                    )
+                    .await
+                    .expect("handle missing headers refresh");
+                assert!(!headers_refresh.success);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

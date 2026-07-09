@@ -41,6 +41,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantIdle:
+		var d AssistantIdleData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantIntent:
 		var d AssistantIntentData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -79,6 +85,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeAssistantStreamingDelta:
 		var d AssistantStreamingDeltaData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantToolCallDelta:
+		var d AssistantToolCallDeltaData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -203,6 +215,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeMCPHeadersRefreshCompleted:
+		var d MCPHeadersRefreshCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPHeadersRefreshRequired:
+		var d MCPHeadersRefreshRequiredData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeMCPOauthCompleted:
 		var d MCPOauthCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -247,6 +271,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSamplingRequested:
 		var d SamplingRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionAutoModeResolved:
+		var d SessionAutoModeResolvedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -371,6 +401,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionLimitsExhaustedCompleted:
+		var d SessionLimitsExhaustedCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionLimitsExhaustedRequested:
+		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionMCPServersLoaded:
 		var d SessionMCPServersLoadedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -437,6 +479,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionSessionLimitsChanged:
+		var d SessionSessionLimitsChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionShutdown:
 		var d SessionShutdownData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -487,6 +535,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionTruncation:
 		var d SessionTruncationData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionUsageCheckpoint:
+		var d SessionUsageCheckpointData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -645,6 +699,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
 		Content                          string                `json:"content"`
+		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
 		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
 		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
@@ -669,6 +724,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Content = raw.Content
+	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID
 	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
 	r.NativeDocumentPathFallbackPaths = raw.NativeDocumentPathFallbackPaths
@@ -994,6 +1050,12 @@ func unmarshalToolExecutionCompleteContent(data []byte) (ToolExecutionCompleteCo
 			return nil, err
 		}
 		return &d, nil
+	case ToolExecutionCompleteContentTypeShellExit:
+		var d ToolExecutionCompleteContentShellExit
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case ToolExecutionCompleteContentTypeTerminal:
 		var d ToolExecutionCompleteContentTerminal
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1119,6 +1181,17 @@ func (r ToolExecutionCompleteContentResource) MarshalJSON() ([]byte, error) {
 
 func (r ToolExecutionCompleteContentResourceLink) MarshalJSON() ([]byte, error) {
 	type alias ToolExecutionCompleteContentResourceLink
+	return json.Marshal(struct {
+		Type ToolExecutionCompleteContentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r ToolExecutionCompleteContentShellExit) MarshalJSON() ([]byte, error) {
+	type alias ToolExecutionCompleteContentShellExit
 	return json.Marshal(struct {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias

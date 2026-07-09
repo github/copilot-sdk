@@ -268,7 +268,7 @@ public record ChatCompletionToolCallFunction(string Name, string? Arguments);
 
 public record ChatCompletionTool(string Type, ChatCompletionToolFunction Function);
 
-public record ChatCompletionToolFunction(string Name, string? Description);
+public record ChatCompletionToolFunction(string Name, string? Description, JsonElement? Parameters);
 
 public record ChatCompletionResponse(string Id, string Model, List<ChatCompletionChoice> Choices);
 

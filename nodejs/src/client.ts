@@ -33,7 +33,11 @@ import {
     registerClientGlobalApiHandlers,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
-import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
+import type {
+    GitHubTelemetryNotification,
+    OpenCanvasInstance,
+    SessionUpdateOptionsParams,
+} from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -514,7 +518,8 @@ export class CopilotClient {
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
-    private llmInferenceHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+    private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
+    private clientGlobalHandlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
 
     /**
      * Typed server-scoped RPC methods.
@@ -634,7 +639,8 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
-        this.setupLlmInference();
+        this.onGitHubTelemetry = options.onGitHubTelemetry;
+        this.setupClientGlobalHandlers();
 
         const effectiveEnv = options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
@@ -751,19 +757,30 @@ export class CopilotClient {
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
     }
 
-    private setupLlmInference(): void {
-        if (!this.requestHandler) {
-            return;
-        }
-        this.llmInferenceHandlers = {
-            llmInference: createCopilotRequestAdapter(this.requestHandler, () => {
+    private setupClientGlobalHandlers(): void {
+        const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        if (this.requestHandler) {
+            handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
                     return undefined;
                 }
                 this._rpc ??= createServerRpc(this.connection);
                 return this._rpc;
-            }),
-        };
+            });
+        }
+        if (this.onGitHubTelemetry) {
+            const onGitHubTelemetry = this.onGitHubTelemetry;
+            handlers.gitHubTelemetry = {
+                event: async (notification) => {
+                    try {
+                        await onGitHubTelemetry(notification);
+                    } catch {
+                        // Ignore handler errors
+                    }
+                },
+            };
+        }
+        this.clientGlobalHandlers = handlers;
     }
 
     /**
@@ -1326,7 +1343,8 @@ export class CopilotClient {
                 sessionId,
                 this.connection!,
                 undefined,
-                this.onGetTraceContext
+                this.onGetTraceContext,
+                { mcpAuthHandler: config.onMcpAuthRequest }
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1405,11 +1423,14 @@ export class CopilotClient {
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
+                excludedBuiltinAgents: config.excludedBuiltinAgents,
                 provider: bearerWireProvider,
                 capi: config.capi,
                 providers: bearerWireProviders,
                 models: config.models,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                enableCitations: config.enableCitations,
+                sessionLimits: config.sessionLimits,
                 modelCapabilities: config.modelCapabilities,
                 largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
@@ -1422,6 +1443,9 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
+                ...(this.onGitHubTelemetry != null
+                    ? { enableGitHubTelemetryForwarding: true }
+                    : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
@@ -1448,6 +1472,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
+                enableManagedSettings: config.enableManagedSettings,
             });
 
             const {
@@ -1472,6 +1497,12 @@ export class CopilotClient {
                 // the CLI has told us which id it chose.
                 session = initializeSession(returnedSessionId);
                 registeredId = returnedSessionId;
+            }
+            if (config.onMcpAuthRequest) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId: returnedSessionId,
+                    eventType: "mcp.oauth_required",
+                });
             }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
@@ -1522,7 +1553,8 @@ export class CopilotClient {
             sessionId,
             this.connection!,
             undefined,
-            this.onGetTraceContext
+            this.onGetTraceContext,
+            { mcpAuthHandler: config.onMcpAuthRequest }
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
@@ -1584,6 +1616,9 @@ export class CopilotClient {
                 excludedTools: toolFilterOptions.excludedTools,
                 toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                excludedBuiltinAgents: config.excludedBuiltinAgents,
+                enableCitations: config.enableCitations,
+                sessionLimits: config.sessionLimits,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1628,6 +1663,9 @@ export class CopilotClient {
                 enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
+                ...(this.onGitHubTelemetry != null
+                    ? { enableGitHubTelemetryForwarding: true }
+                    : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
@@ -1646,6 +1684,7 @@ export class CopilotClient {
                 remoteSession: config.remoteSession,
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
+                enableManagedSettings: config.enableManagedSettings,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {
@@ -1657,6 +1696,12 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            if (config.onMcpAuthRequest) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId,
+                    eventType: "mcp.oauth_required",
+                });
+            }
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
@@ -1803,9 +1848,18 @@ export class CopilotClient {
 
         let serverVersion: number | undefined;
         try {
-            const result = await raceAgainstExit(
-                this.internalRpc.connect({ token: this.effectiveConnectionToken })
-            );
+            const connectParams: {
+                token?: string;
+                enableGitHubTelemetryForwarding?: boolean;
+            } = { token: this.effectiveConnectionToken };
+            // Opt in to GitHub telemetry forwarding at the connection level when a
+            // handler is registered (mirrors the runtime, which reads this flag on the
+            // `connect` handshake so the first session's un-replayable `session.start`
+            // event is forwarded). Also sent on session.create/resume for older CLIs.
+            if (this.onGitHubTelemetry != null) {
+                connectParams.enableGitHubTelemetryForwarding = true;
+            }
+            const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
             serverVersion = result.protocolVersion;
         } catch (err) {
             if (
@@ -2545,7 +2599,7 @@ export class CopilotClient {
         // Register client *global* API handlers (e.g. LLM inference) on the
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
-        registerClientGlobalApiHandlers(this.connection, this.llmInferenceHandlers);
+        registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
 
         this.connection.onClose(() => {
             this.state = "disconnected";

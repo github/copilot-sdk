@@ -129,7 +129,9 @@ async fn should_invoke_onerroroccurred_hook_when_error_occurs() {
                     .expect("create session");
 
                 session.send_and_wait("Say hi").await.expect("send");
-                assert!(rx.try_recv().is_err());
+                rx.try_recv()
+                    .map(drop)
+                    .expect_err("errorOccurred hook should not run");
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -267,7 +269,9 @@ async fn should_register_erroroccurred_hook() {
                     .expect("create session");
 
                 session.send_and_wait("Say hi").await.expect("send");
-                assert!(rx.try_recv().is_err());
+                rx.try_recv()
+                    .map(drop)
+                    .expect_err("errorOccurred hook should not run");
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -397,7 +401,10 @@ async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
                     .expect("assistant message");
 
                 let input = recv_with_timeout(&mut failure_rx, "postToolUseFailure hook").await;
-                assert!(post_rx.try_recv().is_err());
+                post_rx
+                    .try_recv()
+                    .map(drop)
+                    .expect_err("postToolUse hook should not run");
                 assert_eq!(input.tool_name, "view");
                 assert!(input.error.contains("does not exist"));
                 assert!(
