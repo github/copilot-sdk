@@ -40,6 +40,13 @@ on:
           - publish
           - publish-force
           - tests-only
+  # TEMPORARY: branch-push trigger so we can validate the pipeline before the
+  # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
+  # inputs, so the resolve job falls back to the currently pinned runtime from
+  # public npm. Remove this trigger once validation is done (coupled with the
+  # resolve `push)` case and the publish.if `event==push` clause).
+  push: # TEMP: remove after on-branch validation
+    branches: [mackinnonbuck-sdk-canary-compat-gate]
 
 permissions:
   contents: read
@@ -83,6 +90,15 @@ jobs:
               SOURCE="$INPUT_SOURCE"
               # Only a human dispatch may pick a non-default publish mode.
               MODE="$INPUT_MODE"
+              ;;
+            push)
+              # TEMP (remove with the push trigger): no dispatch inputs on push,
+              # so use the currently pinned public runtime. A green run proves the
+              # pipeline mechanics end to end on-branch. Hardcoded (not read from
+              # package.json) because the resolve job has no checkout.
+              SOURCE="public"
+              VERSION="1.0.69"
+              MODE="publish"
               ;;
             *)
               echo "::error::Unsupported event '$EVENT_NAME'."
@@ -235,13 +251,16 @@ jobs:
     #    flake override, audited via the ::warning:: step below and the run actor.
     # publish-force only skips the e2e *signal* — the publish job still runs the
     # build (so a broken build can't publish) and enforces the feed-only guards.
+    # TEMP: the `github.event_name == 'push'` clause below is a branch-validation
+    # bypass coupled with the temporary push trigger; remove all three together.
     if: >
       !cancelled() &&
       github.event.repository.fork == false &&
       needs.resolve.result == 'success' &&
       needs.resolve.outputs.PUBLISH_MODE != 'tests-only' &&
       (needs.test.result == 'success' ||
-       needs.resolve.outputs.PUBLISH_MODE == 'publish-force')
+       needs.resolve.outputs.PUBLISH_MODE == 'publish-force' ||
+       github.event_name == 'push')
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
