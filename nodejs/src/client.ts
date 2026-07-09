@@ -907,17 +907,18 @@ export class CopilotClient {
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
-        // Abort any in-flight turn before teardown. A turn still running when
-        // the runtime disposes the session can leave that session's SQLite
-        // session.db handle open in the runtime; over the in-process transport
-        // the runtime shares this process, so the handle is not reclaimed by
-        // terminating a child and the file stays locked (Windows), preventing
-        // removal of the session-state directory. Aborting lets the turn cancel
-        // and release the handle. Best-effort and idempotent: a session with no
-        // active turn is a no-op. Skip for external servers: we don't own that
-        // runtime, and aborting would cancel pending work other clients may
-        // still resume.
-        if (!this.isExternalServer) {
+        // TEMPORARY: over the in-process (FFI) transport the runtime shares this
+        // process, so a turn still running when the runtime disposes the session
+        // can leave that session's SQLite session.db handle open — it isn't
+        // reclaimed by terminating a child process, so the file stays locked
+        // (Windows) and the session-state directory can't be removed. Abort any
+        // in-flight turn first so it cancels and releases the handle. Best-effort
+        // and idempotent: a session with no active turn is a no-op. Scoped to
+        // in-process only: stdio/tcp runtimes run in a child process that we kill
+        // on shutdown (which frees the handle), and for external servers we don't
+        // own the runtime and aborting would cancel pending work other clients
+        // may still resume. Remove once the runtime cleans up fully on shutdown.
+        if (this.connectionConfig.kind === "inprocess") {
             await Promise.allSettled(activeSessions.map((session) => session.abort()));
         }
         for (const session of activeSessions) {
