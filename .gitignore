@@ -7,6 +7,9 @@ docs/.validation/
 # Visual Studio
 .vs/
 
+# Intellij IDEA
+.idea/
+
 # C# Dev Kit
 *.csproj.lscache
 
