@@ -240,7 +240,7 @@ class ManagedIdentityCopilotAgent:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `AZURE_TOKEN_CREDENTIALS` | When running in **Azure**, set it to `ManagedIdentityCredential`. When running **locally**, set it to either `dev` or a developer tool credential name, such as `AzureCliCredential`. | |
+| `AZURE_TOKEN_CREDENTIALS` | When running in **Azure**, set it to `ManagedIdentityCredential`. When running **locally**, set it to either `dev` or a developer tool credential name, such as `AzureCliCredential`. | `ManagedIdentityCredential` |
 | `FOUNDRY_RESOURCE_URL` | Your Microsoft Foundry resource URL | `https://<my-resource>.openai.azure.com` |
 
 No API key environment variable is needed—authentication is handled by `DefaultAzureCredential`, which automatically supports:
