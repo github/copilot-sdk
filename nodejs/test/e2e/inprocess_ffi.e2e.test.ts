@@ -2,18 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 import { CopilotClient, RuntimeConnection } from "../../src/index.js";
-
-function onTestFinishedForceStop(client: CopilotClient) {
-    onTestFinished(async () => {
-        try {
-            await client.stop();
-        } catch {
-            // Ignore cleanup errors - process may already be stopped
-        }
-    });
-}
 
 describe("In-process FFI transport", () => {
     // Smoke test that the in-process FFI transport starts and completes a round-trip.
@@ -25,8 +15,6 @@ describe("In-process FFI transport", () => {
         // bundled platform package) and its sibling native runtime library itself. If
         // neither is available, start() throws and the test fails hard.
         const client = new CopilotClient({ connection: RuntimeConnection.forInProcess() });
-        onTestFinishedForceStop(client);
-
         await client.start();
 
         const pong = await client.ping("ffi message");
