@@ -40,12 +40,6 @@ on:
           - publish
           - publish-force
           - tests-only
-  # TEMPORARY: branch-push trigger so we can validate the pipeline before the
-  # workflow_dispatch entrypoint exists on main. Push events carry no dispatch
-  # inputs, so the resolve job falls back to the currently pinned runtime from
-  # public npm. Remove this trigger once the workflow lands on main.
-  push: # TEMP: remove at finalize (coupled with the publish.if `event==push` clause)
-    branches: [mackinnonbuck-sdk-canary-compat-gate]
 
 permissions:
   contents: read
@@ -90,15 +84,6 @@ jobs:
               SOURCE="$INPUT_SOURCE"
               # Only a human dispatch may pick a non-default publish mode.
               MODE="$INPUT_MODE"
-              ;;
-            push)
-              # No dispatch inputs on push: fall back to the currently pinned
-              # runtime from public npm so the run is self-consistent and a green
-              # result proves the pipeline mechanics. Automated triggers always
-              # publish (green-gated) — they can never force or skip.
-              SOURCE="public"
-              VERSION="$(node -e "const v=require('./nodejs/package.json').dependencies['@github/copilot']; process.stdout.write(String(v).replace(/^[\^~]/, ''))")"
-              MODE="publish"
               ;;
             *)
               echo "::error::Unsupported event '$EVENT_NAME'."
@@ -249,12 +234,7 @@ jobs:
     #    mode automated triggers ever get).
     #  - publish-force: publish even on a non-green gate — a human-acknowledged
     #    flake override, audited via the ::warning:: step below and the run actor.
-    #  - github.event_name == 'push': TEMP: remove at finalize — branch-validation
-    #    bypass coupled with the temporary push trigger so we can exercise the
-    #    publish path on this branch. Drop the `github.event_name == 'push'`
-    #    clause from the `if:` below together with the push trigger; after that,
-    #    the only publish-on-red path is publish-force on a real dispatch.
-    # The bypass only skips the e2e *signal* — the publish job still runs the
+    # publish-force only skips the e2e *signal* — the publish job still runs the
     # build (so a broken build can't publish) and enforces feed-only + read-back.
     if: >
       !cancelled() &&
@@ -262,8 +242,7 @@ jobs:
       needs.resolve.result == 'success' &&
       needs.resolve.outputs.PUBLISH_MODE != 'tests-only' &&
       (needs.test.result == 'success' ||
-       needs.resolve.outputs.PUBLISH_MODE == 'publish-force' ||
-       github.event_name == 'push')
+       needs.resolve.outputs.PUBLISH_MODE == 'publish-force')
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
