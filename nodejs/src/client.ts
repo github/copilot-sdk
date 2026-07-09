@@ -40,7 +40,7 @@ import type {
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
-import { FfiRuntimeHost } from "./ffiRuntimeHost.js";
+import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
@@ -2528,6 +2528,12 @@ export class CopilotClient {
      */
     private async startInProcessFfi(): Promise<void> {
         const entrypoint = this.resolveCliPathForFfi();
+        // Load the FFI host lazily so the native `koffi` addon (and its
+        // platform-specific `koffi.node`) is only loaded on the in-process path;
+        // out-of-process (stdio/tcp) consumers never touch the native dependency.
+        // The transpiled output is per-file (not bundled), so this resolves the
+        // sibling module at runtime in both the ESM and CJS builds.
+        const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
         const host = FfiRuntimeHost.create(
             entrypoint,
             CopilotClient.getNapiPrebuildsFolder(),
