@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use github_copilot_sdk::rpc::{
@@ -7,7 +6,7 @@ use github_copilot_sdk::rpc::{
 };
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::McpServerStatus;
-use github_copilot_sdk::{Error, McpServerConfig, McpStdioServerConfig};
+use github_copilot_sdk::{Error, IndexMap, McpServerConfig, McpStdioServerConfig};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
@@ -330,8 +329,8 @@ async fn should_configure_github_mcp_server() {
 fn create_test_mcp_servers(
     repo_root: &Path,
     server_name: &str,
-) -> HashMap<String, McpServerConfig> {
-    HashMap::from([(server_name.to_string(), test_mcp_server_config(repo_root))])
+) -> IndexMap<String, McpServerConfig> {
+    IndexMap::from([(server_name.to_string(), test_mcp_server_config(repo_root))])
 }
 
 fn test_mcp_server_config(repo_root: &Path) -> McpServerConfig {

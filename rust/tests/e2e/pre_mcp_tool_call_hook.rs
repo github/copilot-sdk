@@ -1,23 +1,22 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::hooks::{
     HookContext, PreMcpToolCallInput, PreMcpToolCallOutput, SessionHooks,
 };
-use github_copilot_sdk::{McpServerConfig, McpStdioServerConfig};
+use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use super::support::{assistant_message_content, recv_with_timeout, with_e2e_context};
 
-fn meta_echo_mcp_servers(repo_root: &std::path::Path) -> HashMap<String, McpServerConfig> {
+fn meta_echo_mcp_servers(repo_root: &std::path::Path) -> IndexMap<String, McpServerConfig> {
     let harness_dir = repo_root.join("test").join("harness");
     let server_path = harness_dir
         .join("test-mcp-meta-echo-server.mjs")
         .to_string_lossy()
         .to_string();
-    HashMap::from([(
+    IndexMap::from([(
         "meta-echo".to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
             tools: Some(vec!["*".to_string()]),
