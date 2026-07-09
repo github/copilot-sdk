@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { PassThrough } from "stream";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
     CopilotClient,
@@ -15,10 +15,6 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
-// Tear down a client created during a test. Over the in-process (FFI) transport the
-// runtime shares this test process, so clients must shut down gracefully with stop()
-// to release their native/SQLite handles and let the vitest worker exit; forceStop()
-// would leave them open and the worker would fail to terminate.
 async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
