@@ -907,6 +907,15 @@ export class CopilotClient {
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
+        // Abort any in-flight turn before teardown. A turn still running when
+        // the runtime disposes the session can leave that session's SQLite
+        // session.db handle open in the runtime; over the in-process transport
+        // the runtime shares this process, so the handle is not reclaimed by
+        // terminating a child and the file stays locked (Windows), preventing
+        // removal of the session-state directory. Aborting lets the turn cancel
+        // and release the handle. Best-effort and idempotent: a session with no
+        // active turn is a no-op.
+        await Promise.allSettled(activeSessions.map((session) => session.abort()));
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
