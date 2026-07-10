@@ -11,6 +11,9 @@ const SYNTHETIC_TEXT = "OK from the synthetic stream.";
 interface InterceptedRequest {
     url: string;
     sessionId?: string;
+    agentId?: string;
+    parentAgentId?: string;
+    interactionType?: string;
 }
 
 function isInferenceUrl(url: string): boolean {
@@ -43,7 +46,13 @@ class RecordingRequestHandler extends CopilotRequestHandler {
         ctx: CopilotRequestContext
     ): Promise<Response> {
         const url = request.url;
-        this.records.push({ url, sessionId: ctx.sessionId });
+        this.records.push({
+            url,
+            sessionId: ctx.sessionId,
+            agentId: ctx.agentId,
+            parentAgentId: ctx.parentAgentId,
+            interactionType: ctx.interactionType,
+        });
         const bodyText = request.body ? await request.text() : "";
         return isInferenceUrl(url)
             ? buildInferenceResponse(url, bodyText)
@@ -103,6 +112,11 @@ function buildNonInferenceResponse(url: string): Response {
         return json(JSON.stringify({ state: "enabled" }));
     }
     return json("{}");
+}
+
+function expectAgentMetadata(r: InterceptedRequest): void {
+    expect(r.agentId).toBeTruthy();
+    expect(r.interactionType).toBeTruthy();
 }
 
 const RESPONSES_STREAM_EVENTS: string[] = [
@@ -273,6 +287,7 @@ describe("CopilotRequestHandler threads the runtime session id (CAPI + BYOK)", a
             expect(r.sessionId, "CAPI inference request must carry the runtime session id").toBe(
                 session.sessionId
             );
+            expectAgentMetadata(r);
         }
 
         // Validate the final assistant response arrived (guards against truncated captures)
@@ -313,6 +328,7 @@ describe("CopilotRequestHandler threads the runtime session id (CAPI + BYOK)", a
             expect(r.sessionId, "BYOK inference request must carry the runtime session id").toBe(
                 byokSessionId
             );
+            expectAgentMetadata(r);
         }
 
         // Session ids are per-session, so the two turns must differ — proves

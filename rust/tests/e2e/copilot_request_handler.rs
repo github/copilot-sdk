@@ -572,16 +572,25 @@ async fn services_http_and_websocket_via_handler() {
 
 #[derive(Default)]
 struct RecordingHandler {
-    records: std::sync::Mutex<Vec<(String, Option<String>)>>,
+    records: std::sync::Mutex<Vec<InterceptedRequest>>,
+}
+
+#[derive(Clone)]
+struct InterceptedRequest {
+    url: String,
+    session_id: Option<String>,
+    agent_id: Option<String>,
+    parent_agent_id: Option<String>,
+    interaction_type: Option<String>,
 }
 
 impl RecordingHandler {
-    fn inference_records(&self) -> Vec<(String, Option<String>)> {
+    fn inference_records(&self) -> Vec<InterceptedRequest> {
         self.records
             .lock()
             .unwrap()
             .iter()
-            .filter(|(url, _)| is_inference_url(url))
+            .filter(|record| is_inference_url(&record.url))
             .cloned()
             .collect()
     }
@@ -594,10 +603,13 @@ impl CopilotRequestHandler for RecordingHandler {
         request: CopilotHttpRequest,
         ctx: &CopilotRequestContext,
     ) -> Result<CopilotHttpResponse, CopilotRequestError> {
-        self.records
-            .lock()
-            .unwrap()
-            .push((request.url.clone(), ctx.session_id.clone()));
+        self.records.lock().unwrap().push(InterceptedRequest {
+            url: request.url.clone(),
+            session_id: ctx.session_id.clone(),
+            agent_id: ctx.agent_id.clone(),
+            parent_agent_id: ctx.parent_agent_id.clone(),
+            interaction_type: ctx.interaction_type.clone(),
+        });
         if is_inference_url(&request.url) {
             Ok(synth_inference_response(
                 &request.url,
@@ -632,12 +644,13 @@ async fn threads_session_id_into_inference() {
                 !inference.is_empty(),
                 "expected at least one intercepted inference request"
             );
-            for (_, session_id) in &inference {
+            for record in &inference {
                 assert_eq!(
-                    session_id.as_deref(),
+                    record.session_id.as_deref(),
                     Some(capi_session_id.as_str()),
                     "CAPI inference request must carry the session id"
                 );
+                assert_agent_metadata(record);
             }
             assert!(
                 assistant_text(&result).contains("OK from the synthetic"),
@@ -671,12 +684,13 @@ async fn threads_session_id_into_inference() {
                 inference.len() > before,
                 "expected at least one intercepted BYOK inference request"
             );
-            for (_, session_id) in &inference[before..] {
+            for record in &inference[before..] {
                 assert_eq!(
-                    session_id.as_deref(),
+                    record.session_id.as_deref(),
                     Some(byok_session_id.as_str()),
                     "BYOK inference request must carry the session id"
                 );
+                assert_agent_metadata(record);
             }
             assert_ne!(
                 byok_session_id, capi_session_id,
@@ -692,6 +706,26 @@ async fn threads_session_id_into_inference() {
         })
     })
     .await;
+}
+
+fn assert_agent_metadata(record: &InterceptedRequest) {
+    assert!(
+        record.agent_id.as_deref().is_some_and(|id| !id.is_empty()),
+        "inference request must carry an agent id"
+    );
+    if let Some(parent_agent_id) = record.parent_agent_id.as_deref() {
+        assert!(
+            !parent_agent_id.is_empty(),
+            "parent agent id must be non-empty when present"
+        );
+    }
+    assert!(
+        record
+            .interaction_type
+            .as_deref()
+            .is_some_and(|kind| !kind.is_empty()),
+        "inference request must carry an interaction type"
+    );
 }
 
 // ---------------------------------------------------------------------------

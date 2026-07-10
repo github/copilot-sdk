@@ -50,8 +50,11 @@ var sharedHTTPTransport = func() http.RoundTripper {
 // CopilotRequestContext is the per-request context handed to every
 // [CopilotRequestHandler] seam.
 type CopilotRequestContext struct {
-	RequestID string
-	SessionID string
+	RequestID       string
+	SessionID       string
+	AgentID         string
+	ParentAgentID   string
+	InteractionType string
 	// Transport is "http" (covering plain HTTP and SSE) or "websocket".
 	Transport string
 	Method    string
@@ -144,12 +147,12 @@ type CopilotWebSocketHandler interface {
 
 // copilotContextKey is used to attach [CopilotRequestContext] to an
 // [http.Request] so custom [http.RoundTripper] implementations can access
-// metadata (e.g. SessionID) without additional parameters.
+// metadata (e.g. SessionID and AgentID) without additional parameters.
 type copilotContextKey struct{}
 
 // RequestContextFrom returns the [CopilotRequestContext] attached to an
 // http.Request by the adapter, or nil if not present. Call this from a custom
-// [http.RoundTripper] to access metadata such as SessionID.
+// [http.RoundTripper] to access metadata such as SessionID and AgentID.
 func RequestContextFrom(r *http.Request) *CopilotRequestContext {
 	v, _ := r.Context().Value(copilotContextKey{}).(*CopilotRequestContext)
 	return v
@@ -194,7 +197,7 @@ func buildHTTPRequest(rctx *CopilotRequestContext) (*http.Request, error) {
 		return nil, err
 	}
 	// Attach rctx so custom RoundTripper implementations can read metadata
-	// (e.g. SessionID) via [RequestContextFrom].
+	// (e.g. SessionID and AgentID) via [RequestContextFrom].
 	httpReq = httpReq.WithContext(context.WithValue(httpReq.Context(), copilotContextKey{}, rctx))
 	for name, values := range rctx.Headers {
 		if isForbiddenRequestHeader(name) {
@@ -615,14 +618,17 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 	}
 
 	rctx := &CopilotRequestContext{
-		RequestID: params.RequestID,
-		SessionID: sessionID,
-		Method:    params.Method,
-		URL:       params.URL,
-		Headers:   headers,
-		Transport: transport,
-		body:      bodyCh,
-		Context:   ctx,
+		RequestID:       params.RequestID,
+		SessionID:       sessionID,
+		AgentID:         stringOrEmpty(params.AgentID),
+		ParentAgentID:   stringOrEmpty(params.ParentAgentID),
+		InteractionType: stringOrEmpty(params.InteractionType),
+		Method:          params.Method,
+		URL:             params.URL,
+		Headers:         headers,
+		Transport:       transport,
+		body:            bodyCh,
+		Context:         ctx,
 	}
 	sink := &responseSink{requestID: params.RequestID, adapter: a, exchange: exchange}
 	go a.runHandler(rctx, sink, exchange)
@@ -704,6 +710,13 @@ func (a *copilotRequestAdapter) removePending(requestID string) {
 	a.mu.Lock()
 	delete(a.pending, requestID)
 	a.mu.Unlock()
+}
+
+func stringOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func decodeChunkData(data string, binary bool) ([]byte, error) {
