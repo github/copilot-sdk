@@ -297,6 +297,7 @@ jobs:
         id: sdkver
         env:
           RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -318,7 +319,10 @@ jobs:
             echo "::error::Could not resolve public SDK latest version (got '$PUBLIC_LATEST'); refusing to publish a canary with an unknown base."
             exit 1
           fi
-          SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.g${SHORT_SHA}"
+          # run_attempt disambiguates re-run attempts: a re-run rebuilds the
+          # tarball, so it must publish under a distinct version to avoid
+          # colliding with the prior attempt's immutable published version.
+          SDK_VERSION="${NEXT}-canary.${RUN_NUMBER}.${RUN_ATTEMPT}.g${SHORT_SHA}"
           if [[ ! "$SDK_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Computed SDK canary version '$SDK_VERSION' is not valid semver."
             exit 1
