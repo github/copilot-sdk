@@ -502,6 +502,9 @@ async fn start_ws_upstream(counters: HandlerCounters) -> String {
 
 #[tokio::test]
 async fn services_http_and_websocket_via_handler() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -624,6 +627,9 @@ impl CopilotRequestHandler for RecordingHandler {
 
 #[tokio::test]
 async fn threads_session_id_into_inference() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -757,6 +763,9 @@ impl CopilotRequestHandler for ThrowingHandler {
 
 #[tokio::test]
 async fn surfaces_handler_errors() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -823,6 +832,9 @@ impl CopilotRequestHandler for CancellingHandler {
 
 #[tokio::test]
 async fn observes_runtime_driven_cancel() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();

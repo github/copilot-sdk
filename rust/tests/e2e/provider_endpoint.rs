@@ -15,6 +15,7 @@ fn opt_in_env() -> (OsString, OsString) {
 }
 
 #[tokio::test]
+#[allow(deprecated)]
 async fn byok_provider_endpoint_returns_configured_endpoint() {
     with_e2e_context(
         "provider-endpoint",
@@ -22,7 +23,9 @@ async fn byok_provider_endpoint_returns_configured_endpoint() {
         |ctx| {
             Box::pin(async move {
                 let mut options = ctx.client_options();
-                options.env.push(opt_in_env());
+                if !super::support::is_inprocess_default() {
+                    options.env.push(opt_in_env());
+                }
                 let client = github_copilot_sdk::Client::start(options)
                     .await
                     .expect("start client");
@@ -86,6 +89,7 @@ async fn byok_provider_endpoint_returns_configured_endpoint() {
 }
 
 #[tokio::test]
+#[allow(deprecated)]
 async fn capi_provider_endpoint_returns_resolved_credentials() {
     with_e2e_context(
         "provider-endpoint",
@@ -93,8 +97,10 @@ async fn capi_provider_endpoint_returns_resolved_credentials() {
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let mut options = ctx.client_options().with_github_token(DEFAULT_TEST_TOKEN);
-                options.env.push(opt_in_env());
+                let mut options = ctx.client_options_with_github_token(DEFAULT_TEST_TOKEN);
+                if !super::support::is_inprocess_default() {
+                    options.env.push(opt_in_env());
+                }
                 let client = github_copilot_sdk::Client::start(options)
                     .await
                     .expect("start client");

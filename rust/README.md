@@ -72,15 +72,15 @@ client.stop().await?;
 
 **`ClientOptions`:**
 
-| Field         | Type                        | Description                                                     |
-| ------------- | --------------------------- | --------------------------------------------------------------- |
-| `program`     | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)  |
-| `prefix_args` | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)              |
-| `cwd`         | `PathBuf`                   | Working directory for CLI process                               |
-| `env`         | `Vec<(OsString, OsString)>` | Environment variables for CLI process                           |
-| `env_remove`  | `Vec<OsString>`             | Environment variables to remove                                 |
-| `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
-| `transport`   | `Transport`                 | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
+| Field               | Type                        | Description                                                       |
+| ------------------- | --------------------------- | ----------------------------------------------------------------- |
+| `program`           | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)    |
+| `prefix_args`       | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)                |
+| `working_directory` | `PathBuf`                   | Working directory for CLI process (empty = host process's cwd)    |
+| `env`               | `Vec<(OsString, OsString)>` | Environment variables for CLI process                             |
+| `env_remove`        | `Vec<OsString>`             | Environment variables to remove                                   |
+| `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
+| `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
 With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 
@@ -749,7 +749,7 @@ none of them are scheduled for removal.
   caller-supplied `AsyncRead` / `AsyncWrite`. Useful for testing,
   in-process embedding, or custom transports. Other SDKs are spawn-only
   or fixed-stdio.
-- **`enum Transport { Stdio, Tcp, External }`** — explicit, exhaustive
+- **`enum Transport { Default, Stdio, InProcess, Tcp, External }`** — explicit
   transport selector on `ClientOptions::transport`. Node/Python/Go rely
   on conditional config field combinations instead.
 - **Split `prefix_args` / `extra_args`** on `ClientOptions` — separate
@@ -776,7 +776,14 @@ none of them are scheduled for removal.
 
 ## Embedded CLI
 
-The SDK provisions the Copilot CLI binary at build time. By default the `bundled-cli` feature embeds the verified binary directly in your compiled crate, so end-user binaries are self-contained — no env var setup, no separate install, just `cargo build`.
+The SDK provisions the Copilot CLI binary at build time. By default the
+`bundled-cli` feature embeds only the verified CLI executable in your compiled
+crate. Enable `bundled-in-process` to additionally embed the native
+runtime library and use `Transport::InProcess`:
+
+```toml
+github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+```
 
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 
@@ -795,7 +802,7 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 > together.
 >
 > **Convenience on the build machine only.** As a special case,
-> `build.rs` downloads and SHA-verifies the compatible CLI version and
+> `build.rs` downloads and integrity-verifies the compatible CLI version and
 > drops it into the build machine's per-user cache; the runtime
 > resolver on that same machine will pick it up automatically. This
 > makes local development and CI ergonomic, but it does **not** carry
@@ -812,8 +819,11 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
    The resolved version is baked into the crate via `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` regardless of mode. The runtime resolver consumes it to recompute the on-disk path by convention, so no absolute paths leak into the rlib.
 
-2. **Build time:** `build.rs` downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), live-fetches the matching `SHA256SUMS.txt`, and verifies the archive hash. Then:
-   - **`bundled-cli` on (default, release):** embeds the raw archive bytes via `include_bytes!()`. Runtime extracts on first `Client::start()`.
+2. **Build time:** `build.rs` downloads the platform-specific npm package and
+   verifies its `sha512` integrity against the lockfile or publish snapshot.
+   Then:
+   - **`bundled-cli` on (default):** creates and embeds a minimal archive containing only the CLI executable.
+   - **`bundled-in-process` on:** the minimal archive additionally contains the platform-native runtime library (`.dll`, `.so`, or `.dylib`); no other npm package files are embedded.
    - **`bundled-cli` off:** extracts the binary directly into the platform cache (staging file + atomic rename), idempotent across rebuilds. If the extracted binary is already present at the expected path, the download is skipped entirely — the extracted binary *is* the cache.
 
 3. **Runtime:** in both modes the binary lives at:
@@ -899,10 +909,11 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 ## Features
 
-| Feature        | Default | Description                                                                                                                                               |
-| -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `tar`+`flate2` (Linux/macOS) or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
-| `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
+| Feature | Default | Description |
+| ------- | ------- | ----------- |
+| `bundled-cli` | ✓ | Embeds only the CLI executable. Disable via `default-features = false` when supplying the CLI via `CliProgram::Path` or `COPILOT_CLI_PATH`. |
+| `bundled-in-process` | — | Enables `Transport::InProcess`, implies `bundled-cli`, and additionally embeds only the platform-native runtime library. |
+| `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). |
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
@@ -911,7 +922,10 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 # Default — bundles the Copilot CLI in your binary.
 github-copilot-sdk = "0.1"
 
-# Opt out of bundling — resolve CLI from COPILOT_CLI_PATH or system PATH instead.
+# Enable the in-process transport and bundle its native runtime library.
+github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
+
+# Opt out of bundling — supply the CLI explicitly at runtime.
 github-copilot-sdk = { version = "0.1", default-features = false }
 
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).

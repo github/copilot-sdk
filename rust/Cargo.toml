@@ -13,6 +13,7 @@ readme = "README.md"
 license = "MIT"
 include = [
     "src/**/*",
+    "build/**/*",
     "examples/**/*",
     "tests/**/*",
     "build.rs",
@@ -20,6 +21,7 @@ include = [
     "README.md",
     "LICENSE",
     "cli-version.txt",
+    "cli-version-in-process.txt",
 ]
 
 [lib]
@@ -28,6 +30,7 @@ name = "github_copilot_sdk"
 [features]
 default = ["bundled-cli"]
 bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
+bundled-in-process = ["bundled-cli", "dep:libloading"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -49,10 +52,13 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
 dirs = "5"
+libloading = { version = "0.8", optional = true }
 parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
+flate2 = { version = "1", optional = true }
+tar = { version = "0.4", optional = true }
 # LLM inference callback transport: idiomatic HTTP/WebSocket forwarding for the
 # `CopilotRequestHandler`, plus base64/byte/stream plumbing for the chunk protocol.
 base64 = "0.22"
@@ -64,10 +70,6 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = ["c
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
-
-[target.'cfg(not(windows))'.dependencies]
-flate2 = { version = "1", optional = true }
-tar = { version = "0.4", optional = true }
 
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
@@ -89,8 +91,10 @@ name = "protocol_version_test"
 required-features = ["test-support"]
 
 [build-dependencies]
+base64 = "0.22"
 dirs = "5"
 flate2 = "1"
+serde_json = "1"
 sha2 = "0.10"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["tls"] }

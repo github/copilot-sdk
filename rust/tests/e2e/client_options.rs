@@ -6,7 +6,7 @@ use github_copilot_sdk::rpc::{OpenCanvasInstance, RemoteSessionMode};
 use github_copilot_sdk::session_events::{ReasoningSummary, SessionLimitsConfig};
 use github_copilot_sdk::{
     CliProgram, Client, ClientOptions, ExtensionInfo, ProviderConfig, ResumeSessionConfig,
-    SessionConfig, SessionId,
+    SessionConfig, SessionId, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -347,6 +347,7 @@ impl FakeCli {
             ])
             .with_github_token(token)
             .with_use_logged_in_user(false)
+            .with_transport(Transport::Stdio)
     }
 
     fn path(&self, name: &str) -> PathBuf {
