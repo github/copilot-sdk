@@ -1235,6 +1235,9 @@ type SessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases, so they survive reconnect and CLI restart.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data for this session,
 	// in the same JSON shape the Copilot CLI fetches from the experimentation
 	// service (CopilotExpAssignmentResponse). When supplied, the runtime feeds
@@ -1247,6 +1250,12 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings, when set to true, opts the runtime into
+	// self-fetching enterprise managed settings (bypass-permissions policy) at
+	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
+	// be set; if omitted, the runtime is expected to reject session creation
+	// (fail-closed). Unset behaves exactly as before.
+	EnableManagedSettings *bool
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1665,6 +1674,9 @@ type ResumeSessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases. See SessionConfig.CanvasProvider.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data on resume. See
 	// SessionConfig.ExpAssignments. Re-supply on resume so the runtime
 	// re-applies the assignments after a CLI process restart.
@@ -1673,6 +1685,10 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings injects the same opt-in flag on resume. See
+	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
+	// re-applies the managed-settings self-fetch after a CLI process restart.
+	EnableManagedSettings *bool
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -2126,7 +2142,9 @@ type createSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2215,7 +2233,9 @@ type resumeSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

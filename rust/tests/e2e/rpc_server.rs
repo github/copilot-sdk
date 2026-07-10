@@ -54,7 +54,7 @@ async fn should_call_rpc_models_list_with_typed_result() {
             Box::pin(async move {
                 let token = "rpc-models-token";
                 ctx.set_copilot_user_by_token_with_login(token, "rpc-user");
-                let client = Client::start(ctx.client_options().with_github_token(token))
+                let client = Client::start(ctx.client_options_with_github_token(token))
                     .await
                     .expect("start client");
 
@@ -95,7 +95,7 @@ async fn should_call_rpc_account_get_quota_when_authenticated() {
                         }
                     })),
                 );
-                let client = Client::start(ctx.client_options().with_github_token(token))
+                let client = Client::start(ctx.client_options_with_github_token(token))
                     .await
                     .expect("start client");
 

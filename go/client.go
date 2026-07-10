@@ -727,11 +727,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
 	req.Canvases = config.Canvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -1090,11 +1093,14 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
 	req.OpenCanvases = config.OpenCanvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}

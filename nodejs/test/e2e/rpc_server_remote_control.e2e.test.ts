@@ -23,7 +23,7 @@ describe("Server-scoped remote-control RPC", async () => {
 
     async function forceStop(client: CopilotClient): Promise<void> {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Runtime may already be gone.
         }

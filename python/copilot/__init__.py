@@ -24,6 +24,7 @@ from .canvas import (
     CanvasHostContext,
     CanvasHostContextCapabilities,
     CanvasJsonSchema,
+    CanvasProviderIdentity,
     ExtensionInfo,
     OpenCanvasInstance,
 )
@@ -200,6 +201,7 @@ __all__ = [
     "CanvasHostContext",
     "CanvasHostContextCapabilities",
     "CanvasJsonSchema",
+    "CanvasProviderIdentity",
     "CapiSessionOptions",
     "ChildProcessRuntimeConnection",
     "CloudSessionOptions",

@@ -167,6 +167,9 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             }
             writer.WriteStringValue(cliEntrypoint);
             writer.WriteStringValue("--embedded-host");
+            // Pin the worker to the bundled pkg matching the loaded cdylib, instead of
+            // drifting to a newer version under the user's ~/.copilot/pkg (ABI skew).
+            writer.WriteStringValue("--no-auto-update");
             writer.WriteEndArray();
         }
         return stream.ToArray();

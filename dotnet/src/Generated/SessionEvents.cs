@@ -58,6 +58,9 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
+[JsonDerivedType(typeof(McpPromptsListChangedEvent), "mcp.prompts.list_changed")]
+[JsonDerivedType(typeof(McpResourcesListChangedEvent), "mcp.resources.list_changed")]
+[JsonDerivedType(typeof(McpToolsListChangedEvent), "mcp.tools.list_changed")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
@@ -66,6 +69,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedCompletedEvent), "session_limits_exhausted.completed")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedRequestedEvent), "session_limits_exhausted.requested")]
+[JsonDerivedType(typeof(SessionAutoModeResolvedEvent), "session.auto_mode_resolved")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
@@ -1262,6 +1266,20 @@ public sealed partial class SessionLimitsExhaustedCompletedEvent : SessionEvent
     public required SessionLimitsExhaustedCompletedData Data { get; set; }
 }
 
+/// <summary>Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.</summary>
+/// <remarks>Represents the <c>session.auto_mode_resolved</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.auto_mode_resolved";
+
+    /// <summary>The <c>session.auto_mode_resolved</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionAutoModeResolvedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public sealed partial class CommandsChangedEvent : SessionEvent
@@ -1390,6 +1408,45 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     /// <summary>The <c>session.mcp_server_status_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionMcpServerStatusChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
+public sealed partial class McpToolsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.tools.list_changed";
+
+    /// <summary>The <c>mcp.tools.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpToolsListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.resources.list_changed</c> event.</remarks>
+public sealed partial class McpResourcesListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.resources.list_changed";
+
+    /// <summary>The <c>mcp.resources.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpResourcesListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.prompts.list_changed</c> event.</remarks>
+public sealed partial class McpPromptsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.prompts.list_changed";
+
+    /// <summary>The <c>mcp.prompts.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpPromptsListChangedData Data { get; set; }
 }
 
 /// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
@@ -2522,6 +2579,11 @@ public sealed partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("citations")]
     public Citations? Citations { get; set; }
+
+    /// <summary>Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientRequestId")]
+    public string? ClientRequestId { get; set; }
 
     /// <summary>The assistant's text response content.</summary>
     [JsonPropertyName("content")]
@@ -3748,6 +3810,40 @@ public sealed partial class SessionLimitsExhaustedCompletedData
     public required SessionLimitsExhaustedResponse Response { get; set; }
 }
 
+/// <summary>Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionAutoModeResolvedData
+{
+    /// <summary>Ordered candidate model list the router returned, when not a fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("candidateModels")]
+    public string[]? CandidateModels { get; set; }
+
+    /// <summary>Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("categoryScores")]
+    public IDictionary<string, double>? CategoryScores { get; set; }
+
+    /// <summary>The concrete model the session will use after any intent refinement.</summary>
+    [JsonPropertyName("chosenModel")]
+    public required string ChosenModel { get; set; }
+
+    /// <summary>Classifier confidence for the predicted label, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("confidence")]
+    public double? Confidence { get; set; }
+
+    /// <summary>The predicted classifier label (e.g. `needs_reasoning`), when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("predictedLabel")]
+    public string? PredictedLabel { get; set; }
+
+    /// <summary>Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningBucket")]
+    public AutoModeResolvedReasoningBucket? ReasoningBucket { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public sealed partial class CommandsChangedData
 {
@@ -3877,6 +3973,30 @@ public sealed partial class SessionMcpServerStatusChangedData
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required McpServerStatus Status { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpToolsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpResourcesListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpPromptsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
 }
 
 /// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
@@ -5283,7 +5403,7 @@ public sealed partial class ToolExecutionStartToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionStartToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionStartToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5969,7 +6089,7 @@ public sealed partial class ToolExecutionCompleteUIResource
     /// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteUIResourceMeta? _meta { get; set; }
+    public ToolExecutionCompleteUIResourceMeta? Meta { get; set; }
 
     /// <summary>Base64-encoded HTML content.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6063,7 +6183,7 @@ public sealed partial class ToolExecutionCompleteToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionCompleteToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -10484,6 +10604,70 @@ public readonly struct SessionLimitsExhaustedResponseAction : IEquatable<Session
     }
 }
 
+/// <summary>Coarse request-difficulty bucket for UX explainability.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoModeResolvedReasoningBucket : IEquatable<AutoModeResolvedReasoningBucket>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoModeResolvedReasoningBucket"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoModeResolvedReasoningBucket"/>.</param>
+    [JsonConstructor]
+    public AutoModeResolvedReasoningBucket(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoModeResolvedReasoningBucket"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request looks low-reasoning; a lighter model is appropriate.</summary>
+    public static AutoModeResolvedReasoningBucket Low { get; } = new("low");
+
+    /// <summary>The request needs a moderate amount of reasoning.</summary>
+    public static AutoModeResolvedReasoningBucket Medium { get; } = new("medium");
+
+    /// <summary>The request looks high-reasoning; a stronger model is appropriate.</summary>
+    public static AutoModeResolvedReasoningBucket High { get; } = new("high");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeResolvedReasoningBucket"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoModeResolvedReasoningBucket left, AutoModeResolvedReasoningBucket right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeResolvedReasoningBucket"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoModeResolvedReasoningBucket left, AutoModeResolvedReasoningBucket right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoModeResolvedReasoningBucket other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoModeResolvedReasoningBucket other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoModeResolvedReasoningBucket}"/> for serializing <see cref="AutoModeResolvedReasoningBucket"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoModeResolvedReasoningBucket>
+    {
+        /// <inheritdoc />
+        public override AutoModeResolvedReasoningBucket Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoModeResolvedReasoningBucket value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoModeResolvedReasoningBucket));
+        }
+    }
+}
+
 /// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -11098,7 +11282,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
 [JsonSerializable(typeof(McpOauthWWWAuthenticateParams))]
+[JsonSerializable(typeof(McpPromptsListChangedData))]
+[JsonSerializable(typeof(McpPromptsListChangedEvent))]
+[JsonSerializable(typeof(McpResourcesListChangedData))]
+[JsonSerializable(typeof(McpResourcesListChangedEvent))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
+[JsonSerializable(typeof(McpToolsListChangedData))]
+[JsonSerializable(typeof(McpToolsListChangedEvent))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]
@@ -11152,6 +11342,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
 [JsonSerializable(typeof(SamplingRequestedEvent))]
+[JsonSerializable(typeof(SessionAutoModeResolvedData))]
+[JsonSerializable(typeof(SessionAutoModeResolvedEvent))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedData))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]

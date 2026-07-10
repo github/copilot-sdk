@@ -96,6 +96,7 @@ export interface TelemetryConfig {
  */
 export type RuntimeConnection =
     | StdioRuntimeConnection
+    | InProcessRuntimeConnection
     | TcpRuntimeConnection
     | UriRuntimeConnection;
 
@@ -109,6 +110,26 @@ export interface StdioRuntimeConnection {
     readonly path?: string;
     /** Extra command-line arguments to pass to the runtime process. */
     readonly args?: readonly string[];
+}
+
+/**
+ * Hosts the runtime in-process by loading the native runtime library and speaking
+ * JSON-RPC over its C ABI (FFI), instead of spawning a runtime child process. The
+ * native host spawns the CLI worker itself. Construct via
+ * {@link RuntimeConnection.forInProcess}.
+ *
+ * @experimental The in-process (FFI) transport is experimental and its behavior may
+ * change. Per-client options that are lowered to environment variables — including
+ * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
+ * {@link CopilotClientOptions.gitHubToken}, and
+ * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
+ * transport, because the native runtime loads into the shared host process and its
+ * worker inherits that process's ambient environment. To configure the in-process
+ * runtime, set the corresponding environment variables on the host process before
+ * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
+ */
+export interface InProcessRuntimeConnection {
+    readonly kind: "inprocess";
 }
 
 /**
@@ -182,6 +203,18 @@ export const RuntimeConnection = {
      */
     forUri(url: string, opts: { connectionToken?: string } = {}): UriRuntimeConnection {
         return { kind: "uri", url, connectionToken: opts.connectionToken };
+    },
+    /**
+     * Host the runtime in-process over the native runtime library's C ABI (FFI).
+     *
+     * @experimental Per-client options lowered to environment variables (`env`,
+     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
+     * the worker inherits the host process's ambient environment. Set the
+     * corresponding environment variables on the host process instead. See
+     * https://github.com/github/copilot-sdk/issues/1934.
+     */
+    forInProcess(): InProcessRuntimeConnection {
+        return { kind: "inprocess" };
     },
 } as const;
 
@@ -1724,6 +1757,23 @@ export interface ExtensionInfo {
 }
 
 /**
+ * Stable identity for a host/SDK connection that supplies built-in canvases.
+ *
+ * When set on session create or resume, the runtime uses {@link id} verbatim
+ * as the agent-facing canvas extension id, so canvases declared on a control
+ * connection survive stdio reconnect and CLI process restart instead of being
+ * re-keyed to a per-connection id. The id is opaque to the runtime; a
+ * per-window-stable value such as `app:builtin:<windowId>` is recommended. An
+ * id beginning with `connection:` is reserved and ignored by the runtime.
+ */
+export interface CanvasProviderIdentity {
+    /** Opaque, stable provider id used verbatim as the canvas extension id. */
+    id: string;
+    /** Optional display name surfaced as the canvas extension name. */
+    name?: string;
+}
+
+/**
  * Provider-scoped options for the Copilot API (CAPI).
  *
  * These settings apply to the built-in Copilot API provider only. They live
@@ -1866,6 +1916,14 @@ export interface SessionConfigBase {
      * id instead of a reconnect-specific connection id.
      */
     extensionInfo?: ExtensionInfo;
+
+    /**
+     * Stable identity for a host/SDK connection that supplies built-in
+     * canvases. When set, the runtime uses `id` verbatim as the agent-facing
+     * canvas extension id, so canvases declared on a control connection survive
+     * reconnect and CLI restart. Honored on session create and resume.
+     */
+    canvasProvider?: CanvasProviderIdentity;
 
     /**
      * Slash commands registered for this session.
@@ -2197,6 +2255,14 @@ export interface SessionConfigBase {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * Opt-in: when true, the runtime self-fetches enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap using the session's
+     * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
+     * if omitted, the runtime is expected to reject session creation (fail-closed).
+     */
+    enableManagedSettings?: boolean;
 
     /**
      * When true, skips embedding-based retrieval for this session.

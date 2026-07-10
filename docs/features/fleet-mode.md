@@ -8,18 +8,18 @@ Fleet mode is useful when the work can be decomposed before execution and each u
 
 Good fits include:
 
-- Multi-file refactors where each worker owns a file, package, or language SDK.
-- Batch reviews where each worker checks a separate diff, module, or alert group.
-- Parallel research across independent repositories, services, or feature areas.
-- Documentation refreshes where each worker owns a page or topic.
-- Migration tasks where each worker can validate its own slice and report back.
+* Multi-file refactors where each worker owns a file, package, or language SDK.
+* Batch reviews where each worker checks a separate diff, module, or alert group.
+* Parallel research across independent repositories, services, or feature areas.
+* Documentation refreshes where each worker owns a page or topic.
+* Migration tasks where each worker can validate its own slice and report back.
 
 Avoid fleet mode for:
 
-- Sequential tasks where step 2 needs the concrete output from step 1.
-- Tightly coupled edits where workers would contend for the same files.
-- Small tasks that one synchronous sub-agent or the parent agent can finish quickly.
-- Tasks that require continuous shared reasoning rather than clear ownership.
+* Sequential tasks where step 2 needs the concrete output from step 1.
+* Tightly coupled edits where workers would contend for the same files.
+* Small tasks that one synchronous sub-agent or the parent agent can finish quickly.
+* Tasks that require continuous shared reasoning rather than clear ownership.
 
 Fleet mode works best when the parent session can create clear units of work, assign one owner per unit, and define what each worker must return.
 
@@ -321,29 +321,29 @@ Keep plugin-provided sub-agent types narrow and descriptive so the orchestrator 
 
 ## Best practices
 
-- Decompose the work into independent units before starting fleet mode.
-- Minimize dependencies between todos; dependencies reduce parallelism.
-- Give each todo a durable ID, a clear title, and a complete description.
-- Make each sub-agent own exactly one todo at a time.
-- Use background sub-agents for truly parallel work.
-- Use synchronous sub-agent calls for serialized steps or validation gates.
-- Provide each sub-agent with complete context; sub-agents are stateless across calls.
-- Include file paths, commands, expected outputs, and constraints in each worker prompt.
-- Do not dispatch a single background sub-agent; prefer a synchronous call or batch multiple workers in parallel.
-- Avoid assigning overlapping files to different workers unless the parent agent will reconcile conflicts explicitly.
-- Require every worker to report what it changed, how it validated the change, and what remains blocked.
-- Have the parent agent verify the combined result after workers finish.
+* Decompose the work into independent units before starting fleet mode.
+* Minimize dependencies between todos; dependencies reduce parallelism.
+* Give each todo a durable ID, a clear title, and a complete description.
+* Make each sub-agent own exactly one todo at a time.
+* Use background sub-agents for truly parallel work.
+* Use synchronous sub-agent calls for serialized steps or validation gates.
+* Provide each sub-agent with complete context; sub-agents are stateless across calls.
+* Include file paths, commands, expected outputs, and constraints in each worker prompt.
+* Do not dispatch a single background sub-agent; prefer a synchronous call or batch multiple workers in parallel.
+* Avoid assigning overlapping files to different workers unless the parent agent will reconcile conflicts explicitly.
+* Require every worker to report what it changed, how it validated the change, and what remains blocked.
+* Have the parent agent verify the combined result after workers finish.
 
 ## Limitations and open questions
 
-- Fleet mode is exposed through generated session RPC bindings and is marked experimental in several SDKs.
-- The SQL todos pattern is the canonical coordination model in the runtime guidance, but whether it is a stable extensibility contract for SDK consumers is still an open question.
-- `subagentStart` and `subagentStop` are runtime hook names; this branch exposes sub-agent lifecycle to SDK consumers through the generic session event stream, not dedicated hook callbacks.
-- Plugin sub-agent registration is configured at the runtime layer through `--plugin-dir`; no SDK-level plugin registration helper was verified on this branch.
-- Java native typed bindings for `session.fleet.start` were not found in the Java SDK source on this branch.
-- Fleet mode does not remove the need for parent-agent review. Parallel workers can produce inconsistent assumptions that the orchestrator must reconcile.
+* Fleet mode is exposed through generated session RPC bindings and is marked experimental in several SDKs.
+* The SQL todos pattern is the canonical coordination model in the runtime guidance, but whether it is a stable extensibility contract for SDK consumers is still an open question.
+* `subagentStart` and `subagentStop` are runtime hook names; this branch exposes sub-agent lifecycle to SDK consumers through the generic session event stream, not dedicated hook callbacks.
+* Plugin sub-agent registration is configured at the runtime layer through `--plugin-dir`; no SDK-level plugin registration helper was verified on this branch.
+* Java native typed bindings for `session.fleet.start` were not found in the Java SDK source on this branch.
+* Fleet mode does not remove the need for parent-agent review. Parallel workers can produce inconsistent assumptions that the orchestrator must reconcile.
 
 ## See also
 
-- [Custom agents and sub-agent orchestration](custom-agents.md)
-- [Hooks](hooks.md)
+* [Custom agents and sub-agent orchestration](custom-agents.md)
+* [Hooks](hooks.md)

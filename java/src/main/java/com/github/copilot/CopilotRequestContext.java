@@ -22,6 +22,12 @@ public final class CopilotRequestContext {
     private final String requestId;
     @Nullable
     private final String sessionId;
+    @Nullable
+    private final String agentId;
+    @Nullable
+    private final String parentAgentId;
+    @Nullable
+    private final String interactionType;
     private final CopilotRequestTransport transport;
     private final String url;
     private final Map<String, List<String>> headers;
@@ -29,20 +35,25 @@ public final class CopilotRequestContext {
 
     private LlmWebSocketResponseBridge webSocketResponse;
 
-    CopilotRequestContext(String requestId, @Nullable String sessionId, CopilotRequestTransport transport, String url,
-            Map<String, List<String>> headers, CompletableFuture<Void> cancellation) {
+    CopilotRequestContext(String requestId, @Nullable String sessionId, @Nullable String agentId,
+            @Nullable String parentAgentId, @Nullable String interactionType, CopilotRequestTransport transport,
+            String url, Map<String, List<String>> headers, CompletableFuture<Void> cancellation) {
         this.requestId = requestId;
         this.sessionId = sessionId;
+        this.agentId = agentId;
+        this.parentAgentId = parentAgentId;
+        this.interactionType = interactionType;
         this.transport = transport;
         this.url = url;
         this.headers = headers;
         this.cancellation = cancellation;
     }
 
-    private CopilotRequestContext(String requestId, @Nullable String sessionId, CopilotRequestTransport transport,
+    private CopilotRequestContext(String requestId, @Nullable String sessionId, @Nullable String agentId,
+            @Nullable String parentAgentId, @Nullable String interactionType, CopilotRequestTransport transport,
             String url, Map<String, List<String>> headers, CompletableFuture<Void> cancellation,
             LlmWebSocketResponseBridge webSocketResponse) {
-        this(requestId, sessionId, transport, url, headers, cancellation);
+        this(requestId, sessionId, agentId, parentAgentId, interactionType, transport, url, headers, cancellation);
         this.webSocketResponse = webSocketResponse;
     }
 
@@ -66,6 +77,39 @@ public final class CopilotRequestContext {
     @Nullable
     public String sessionId() {
         return sessionId;
+    }
+
+    /**
+     * Gets the stable per-agent-instance id for the agent trajectory that issued
+     * this request, or {@code null} when no agent is in scope.
+     *
+     * @return the agent id, or {@code null}
+     */
+    @Nullable
+    public String agentId() {
+        return agentId;
+    }
+
+    /**
+     * Gets the id of the parent agent when this request was issued by a subagent,
+     * or {@code null} for root-agent and non-agent requests.
+     *
+     * @return the parent agent id, or {@code null}
+     */
+    @Nullable
+    public String parentAgentId() {
+        return parentAgentId;
+    }
+
+    /**
+     * Gets the runtime classification for the interaction that produced this
+     * request, or {@code null} when the runtime did not classify it.
+     *
+     * @return the interaction type, or {@code null}
+     */
+    @Nullable
+    public String interactionType() {
+        return interactionType;
     }
 
     /**
@@ -103,8 +147,8 @@ public final class CopilotRequestContext {
      * @return the copied context
      */
     public CopilotRequestContext withUrl(String url) {
-        return new CopilotRequestContext(requestId, sessionId, transport, url, headers, cancellation,
-                webSocketResponse);
+        return new CopilotRequestContext(requestId, sessionId, agentId, parentAgentId, interactionType, transport, url,
+                headers, cancellation, webSocketResponse);
     }
 
     /**
@@ -115,8 +159,8 @@ public final class CopilotRequestContext {
      * @return the copied context
      */
     public CopilotRequestContext withHeaders(Map<String, List<String>> headers) {
-        return new CopilotRequestContext(requestId, sessionId, transport, url, headers, cancellation,
-                webSocketResponse);
+        return new CopilotRequestContext(requestId, sessionId, agentId, parentAgentId, interactionType, transport, url,
+                headers, cancellation, webSocketResponse);
     }
 
     /**

@@ -42,6 +42,24 @@ type ExtensionInfo struct {
 	Name string `json:"name"`
 }
 
+// CanvasProviderIdentity is the stable identity for a host/SDK connection
+// that supplies built-in canvases.
+//
+// When set on session create or resume, the runtime uses ID verbatim as the
+// agent-facing canvas extension id, so host-provided canvases survive
+// reconnect and CLI restart.
+//
+// Experimental: CanvasProviderIdentity is part of an experimental
+// wire-protocol surface and may change or be removed in future SDK or CLI
+// releases.
+type CanvasProviderIdentity struct {
+	// ID is an opaque, stable provider id used verbatim as the canvas
+	// extension id.
+	ID string `json:"id"`
+	// Name is an optional display name surfaced as the canvas extension name.
+	Name *string `json:"name,omitempty"`
+}
+
 // CanvasError is a structured error returned from canvas handlers.
 //
 // Wire envelope:

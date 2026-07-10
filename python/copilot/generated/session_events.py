@@ -207,6 +207,8 @@ class SessionEventType(Enum):
     AUTO_MODE_SWITCH_COMPLETED = "auto_mode_switch.completed"
     SESSION_LIMITS_EXHAUSTED_REQUESTED = "session_limits_exhausted.requested"
     SESSION_LIMITS_EXHAUSTED_COMPLETED = "session_limits_exhausted.completed"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_AUTO_MODE_RESOLVED = "session.auto_mode_resolved"
     COMMANDS_CHANGED = "commands.changed"
     CAPABILITIES_CHANGED = "capabilities.changed"
     EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
@@ -217,6 +219,9 @@ class SessionEventType(Enum):
     SESSION_CUSTOM_AGENTS_UPDATED = "session.custom_agents_updated"
     SESSION_MCP_SERVERS_LOADED = "session.mcp_servers_loaded"
     SESSION_MCP_SERVER_STATUS_CHANGED = "session.mcp_server_status_changed"
+    MCP_TOOLS_LIST_CHANGED = "mcp.tools.list_changed"
+    MCP_RESOURCES_LIST_CHANGED = "mcp.resources.list_changed"
+    MCP_PROMPTS_LIST_CHANGED = "mcp.prompts.list_changed"
     SESSION_EXTENSIONS_LOADED = "session.extensions_loaded"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_CANVAS_OPENED = "session.canvas.opened"
@@ -825,6 +830,51 @@ class PermissionAutoApproval:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SessionAutoModeResolvedData:
+    "Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability."
+    chosen_model: str
+    candidate_models: list[str] | None = None
+    category_scores: dict[str, float] | None = None
+    confidence: float | None = None
+    predicted_label: str | None = None
+    reasoning_bucket: AutoModeResolvedReasoningBucket | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionAutoModeResolvedData":
+        assert isinstance(obj, dict)
+        chosen_model = from_str(obj.get("chosenModel"))
+        candidate_models = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("candidateModels"))
+        category_scores = from_union([from_none, lambda x: from_dict(from_float, x)], obj.get("categoryScores"))
+        confidence = from_union([from_none, from_float], obj.get("confidence"))
+        predicted_label = from_union([from_none, from_str], obj.get("predictedLabel"))
+        reasoning_bucket = from_union([from_none, lambda x: parse_enum(AutoModeResolvedReasoningBucket, x)], obj.get("reasoningBucket"))
+        return SessionAutoModeResolvedData(
+            chosen_model=chosen_model,
+            candidate_models=candidate_models,
+            category_scores=category_scores,
+            confidence=confidence,
+            predicted_label=predicted_label,
+            reasoning_bucket=reasoning_bucket,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["chosenModel"] = from_str(self.chosen_model)
+        if self.candidate_models is not None:
+            result["candidateModels"] = from_union([from_none, lambda x: from_list(from_str, x)], self.candidate_models)
+        if self.category_scores is not None:
+            result["categoryScores"] = from_union([from_none, lambda x: from_dict(to_float, x)], self.category_scores)
+        if self.confidence is not None:
+            result["confidence"] = from_union([from_none, to_float], self.confidence)
+        if self.predicted_label is not None:
+            result["predictedLabel"] = from_union([from_none, from_str], self.predicted_label)
+        if self.reasoning_bucket is not None:
+            result["reasoningBucket"] = from_union([from_none, lambda x: to_enum(AutoModeResolvedReasoningBucket, x)], self.reasoning_bucket)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SessionCanvasClosedData:
     "Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID."
     canvas_id: str
@@ -1084,6 +1134,7 @@ class AssistantMessageData:
     api_call_id: str | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     citations: Citations | None = None
+    client_request_id: str | None = None
     encrypted_content: str | None = None
     interaction_id: str | None = None
     model: str | None = None
@@ -1107,6 +1158,7 @@ class AssistantMessageData:
         message_id = from_str(obj.get("messageId"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
         citations = from_union([from_none, Citations.from_dict], obj.get("citations"))
+        client_request_id = from_union([from_none, from_str], obj.get("clientRequestId"))
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         model = from_union([from_none, from_str], obj.get("model"))
@@ -1126,6 +1178,7 @@ class AssistantMessageData:
             message_id=message_id,
             api_call_id=api_call_id,
             citations=citations,
+            client_request_id=client_request_id,
             encrypted_content=encrypted_content,
             interaction_id=interaction_id,
             model=model,
@@ -1150,6 +1203,8 @@ class AssistantMessageData:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.citations is not None:
             result["citations"] = from_union([from_none, lambda x: to_class(Citations, x)], self.citations)
+        if self.client_request_id is not None:
+            result["clientRequestId"] = from_union([from_none, from_str], self.client_request_id)
         if self.encrypted_content is not None:
             result["encryptedContent"] = from_union([from_none, from_str], self.encrypted_content)
         if self.interaction_id is not None:
@@ -3557,6 +3612,44 @@ class McpOauthWWWAuthenticateParams:
 
 
 @dataclass
+class McpPromptsListChangedData:
+    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    server_name: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpPromptsListChangedData":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        return McpPromptsListChangedData(
+            server_name=server_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        return result
+
+
+@dataclass
+class McpResourcesListChangedData:
+    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    server_name: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpResourcesListChangedData":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        return McpResourcesListChangedData(
+            server_name=server_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
+        return result
+
+
+@dataclass
 class McpServersLoadedServer:
     "A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata."
     name: str
@@ -3601,6 +3694,25 @@ class McpServersLoadedServer:
             result["source"] = from_union([from_none, lambda x: to_enum(McpServerSource, x)], self.source)
         if self.transport is not None:
             result["transport"] = from_union([from_none, lambda x: to_enum(McpServerTransport, x)], self.transport)
+        return result
+
+
+@dataclass
+class McpToolsListChangedData:
+    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    server_name: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpToolsListChangedData":
+        assert isinstance(obj, dict)
+        server_name = from_str(obj.get("serverName"))
+        return McpToolsListChangedData(
+            server_name=server_name,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["serverName"] = from_str(self.server_name)
         return result
 
 
@@ -8758,6 +8870,16 @@ class AttachmentGitHubReferenceType(Enum):
     DISCUSSION = "discussion"
 
 
+class AutoModeResolvedReasoningBucket(Enum):
+    "Coarse request-difficulty bucket for UX explainability"
+    # The request looks low-reasoning; a lighter model is appropriate.
+    LOW = "low"
+    # The request needs a moderate amount of reasoning.
+    MEDIUM = "medium"
+    # The request looks high-reasoning; a stronger model is appropriate.
+    HIGH = "high"
+
+
 class AutoModeSwitchResponse(Enum):
     "The user's auto-mode-switch choice"
     # Switch models for this request.
@@ -9190,7 +9312,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -9300,6 +9422,7 @@ class SessionEvent:
             case SessionEventType.AUTO_MODE_SWITCH_COMPLETED: data = AutoModeSwitchCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_REQUESTED: data = SessionLimitsExhaustedRequestedData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_COMPLETED: data = SessionLimitsExhaustedCompletedData.from_dict(data_obj)
+            case SessionEventType.SESSION_AUTO_MODE_RESOLVED: data = SessionAutoModeResolvedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
             case SessionEventType.CAPABILITIES_CHANGED: data = CapabilitiesChangedData.from_dict(data_obj)
             case SessionEventType.EXIT_PLAN_MODE_REQUESTED: data = ExitPlanModeRequestedData.from_dict(data_obj)
@@ -9310,6 +9433,9 @@ class SessionEvent:
             case SessionEventType.SESSION_CUSTOM_AGENTS_UPDATED: data = SessionCustomAgentsUpdatedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVERS_LOADED: data = SessionMcpServersLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVER_STATUS_CHANGED: data = SessionMcpServerStatusChangedData.from_dict(data_obj)
+            case SessionEventType.MCP_TOOLS_LIST_CHANGED: data = McpToolsListChangedData.from_dict(data_obj)
+            case SessionEventType.MCP_RESOURCES_LIST_CHANGED: data = McpResourcesListChangedData.from_dict(data_obj)
+            case SessionEventType.MCP_PROMPTS_LIST_CHANGED: data = McpPromptsListChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_EXTENSIONS_LOADED: data = SessionExtensionsLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_OPENED: data = SessionCanvasOpenedData.from_dict(data_obj)
             case SessionEventType.SESSION_CANVAS_REGISTRY_CHANGED: data = SessionCanvasRegistryChangedData.from_dict(data_obj)
@@ -9397,6 +9523,7 @@ __all__ = [
     "AttachmentSelectionDetailsEnd",
     "AttachmentSelectionDetailsStart",
     "AutoApprovalRecommendation",
+    "AutoModeResolvedReasoningBucket",
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
     "AutoModeSwitchResponse",
@@ -9465,10 +9592,13 @@ __all__ = [
     "McpOauthRequiredData",
     "McpOauthRequiredStaticClientConfig",
     "McpOauthWWWAuthenticateParams",
+    "McpPromptsListChangedData",
+    "McpResourcesListChangedData",
     "McpServerSource",
     "McpServerStatus",
     "McpServerTransport",
     "McpServersLoadedServer",
+    "McpToolsListChangedData",
     "ModelCallFailureBadRequestKind",
     "ModelCallFailureData",
     "ModelCallFailureRequestFingerprint",
@@ -9528,6 +9658,7 @@ __all__ = [
     "ReasoningSummary",
     "SamplingCompletedData",
     "SamplingRequestedData",
+    "SessionAutoModeResolvedData",
     "SessionAutopilotObjectiveChangedData",
     "SessionBackgroundTasksChangedData",
     "SessionBinaryAssetData",

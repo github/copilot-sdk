@@ -3063,17 +3063,23 @@ type MCPAppsListToolsResult struct {
 	Tools []map[string]any `json:"tools"`
 }
 
-// MCP server and resource URI to fetch.
+// Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
+// `session.mcp.resources.read` instead.
 // Experimental: MCPAppsReadResourceRequest is part of an experimental API and may change or
 // be removed.
+// Deprecated: MCPAppsReadResourceRequest is deprecated and will be removed in a future
+// version.
 type MCPAppsReadResourceRequest struct {
 	// Name of the MCP server hosting the resource
 	ServerName string `json:"serverName"`
-	// Resource URI (typically ui://...)
+	// Resource URI
 	URI string `json:"uri"`
 }
 
-// Resource contents returned by the MCP server.
+// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: MCPAppsReadResourceResult is deprecated and will be removed in a future
+// version.
 // Experimental: MCPAppsReadResourceResult is part of an experimental API and may change or
 // be removed.
 type MCPAppsReadResourceResult struct {
@@ -3081,20 +3087,21 @@ type MCPAppsReadResourceResult struct {
 	Contents []MCPAppsResourceContent `json:"contents"`
 }
 
-// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
-// metadata.
+// Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: MCPAppsResourceContent is deprecated and will be removed in a future version.
 // Experimental: MCPAppsResourceContent is part of an experimental API and may change or be
 // removed.
 type MCPAppsResourceContent struct {
 	// Base64-encoded binary content
 	Blob *string `json:"blob,omitempty"`
-	// Resource-level metadata (CSP, permissions, etc.)
+	// Resource-level metadata
 	Meta map[string]any `json:"_meta,omitzero"`
 	// MIME type of the content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Text content (e.g. HTML)
 	Text *string `json:"text,omitempty"`
-	// The resource URI (typically ui://...)
+	// The resource URI
 	URI string `json:"uri"`
 }
 
@@ -3595,15 +3602,172 @@ type MCPRemoveGitHubResult struct {
 	Removed bool `json:"removed"`
 }
 
-// Server name and opaque configuration for an individual MCP server restart.
+// An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description,
+// MIME type, size, icons, annotations, and metadata. Server-provided fields outside the
+// standard descriptor shape are exposed under `additionalProperties`.
+// Experimental: MCPResource is part of an experimental API and may change or be removed.
+type MCPResource struct {
+	// Server-provided non-standard descriptor fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Model/client annotations associated with this resource
+	Annotations *MCPResourceAnnotations `json:"annotations,omitempty"`
+	// Optional description of what this resource represents
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []MCPResourceIcon `json:"icons,omitzero"`
+	// Resource-level metadata
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type of the resource, if known
+	MIMEType *string `json:"mimeType,omitempty"`
+	// The programmatic name of the resource
+	Name string `json:"name"`
+	// Resource size in bytes, when known
+	Size *int64 `json:"size,omitempty"`
+	// Optional human-readable display title
+	Title *string `json:"title,omitempty"`
+	// The resource URI (e.g. ui://... or file:///...)
+	URI string `json:"uri"`
+}
+
+// Standard MCP resource annotations plus preserved non-standard annotation fields.
+// Experimental: MCPResourceAnnotations is part of an experimental API and may change or be
+// removed.
+type MCPResourceAnnotations struct {
+	// Server-provided non-standard annotation fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Intended audience roles for this resource
+	Audience []string `json:"audience,omitzero"`
+	// Last-modified timestamp hint
+	LastModified *string `json:"lastModified,omitempty"`
+	// Priority hint for model/client use
+	Priority *float64 `json:"priority,omitempty"`
+}
+
+// MCP resource content with URI, optional MIME type, text or base64 blob, and resource
+// metadata.
+// Experimental: MCPResourceContent is part of an experimental API and may change or be
+// removed.
+type MCPResourceContent struct {
+	// Base64-encoded binary content
+	Blob *string `json:"blob,omitempty"`
+	// Resource-level metadata (CSP, permissions, etc.)
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type of the content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content (e.g. HTML)
+	Text *string `json:"text,omitempty"`
+	// The resource URI
+	URI string `json:"uri"`
+}
+
+// A resource icon descriptor plus preserved non-standard icon fields.
+// Experimental: MCPResourceIcon is part of an experimental API and may change or be removed.
+type MCPResourceIcon struct {
+	// Server-provided non-standard icon fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Icon MIME type, when known
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Icon sizes hint
+	Sizes *string `json:"sizes,omitempty"`
+	// Icon URI
+	Src string `json:"src"`
+	// Theme hint for this icon
+	Theme *string `json:"theme,omitempty"`
+}
+
+// MCP server whose resources to enumerate.
+// Experimental: MCPResourcesListRequest is part of an experimental API and may change or be
+// removed.
+type MCPResourcesListRequest struct {
+	// Opaque MCP pagination cursor from a prior `nextCursor` value
+	Cursor *string `json:"cursor,omitempty"`
+	// Name of the MCP server whose resources to enumerate
+	ServerName string `json:"serverName"`
+}
+
+// One page of resources advertised by the named MCP server.
+// Experimental: MCPResourcesListResult is part of an experimental API and may change or be
+// removed.
+type MCPResourcesListResult struct {
+	// Opaque cursor for the next page, if the server has more resources
+	NextCursor *string `json:"nextCursor,omitempty"`
+	// Resources advertised by the server (proxied MCP `resources/list`)
+	Resources []MCPResource `json:"resources"`
+}
+
+// MCP server whose resource templates to enumerate.
+// Experimental: MCPResourcesListTemplatesRequest is part of an experimental API and may
+// change or be removed.
+type MCPResourcesListTemplatesRequest struct {
+	// Opaque MCP pagination cursor from a prior `nextCursor` value
+	Cursor *string `json:"cursor,omitempty"`
+	// Name of the MCP server whose resource templates to enumerate
+	ServerName string `json:"serverName"`
+}
+
+// One page of resource templates advertised by the named MCP server.
+// Experimental: MCPResourcesListTemplatesResult is part of an experimental API and may
+// change or be removed.
+type MCPResourcesListTemplatesResult struct {
+	// Opaque cursor for the next page, if the server has more resource templates
+	NextCursor *string `json:"nextCursor,omitempty"`
+	// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+	ResourceTemplates []MCPResourceTemplate `json:"resourceTemplates"`
+}
+
+// MCP server and resource URI to fetch.
+// Experimental: MCPResourcesReadRequest is part of an experimental API and may change or be
+// removed.
+type MCPResourcesReadRequest struct {
+	// Name of the MCP server hosting the resource
+	ServerName string `json:"serverName"`
+	// Resource URI
+	URI string `json:"uri"`
+}
+
+// Resource contents returned by the MCP server.
+// Experimental: MCPResourcesReadResult is part of an experimental API and may change or be
+// removed.
+type MCPResourcesReadResult struct {
+	// Resource contents returned by the server
+	Contents []MCPResourceContent `json:"contents"`
+}
+
+// An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template,
+// name, and optional title, description, MIME type, icons, annotations, and metadata.
+// Server-provided fields outside the standard descriptor shape are exposed under
+// `additionalProperties`.
+// Experimental: MCPResourceTemplate is part of an experimental API and may change or be
+// removed.
+type MCPResourceTemplate struct {
+	// Server-provided non-standard descriptor fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Model/client annotations associated with this template
+	Annotations *MCPResourceAnnotations `json:"annotations,omitempty"`
+	// Optional description of what this template is for
+	Description *string `json:"description,omitempty"`
+	// Icons associated with resources matching this template
+	Icons []MCPResourceIcon `json:"icons,omitzero"`
+	// Resource-template-level metadata
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type for resources matching this template, if uniform
+	MIMEType *string `json:"mimeType,omitempty"`
+	// The programmatic name of the resource template
+	Name string `json:"name"`
+	// Optional human-readable display title
+	Title *string `json:"title,omitempty"`
+	// An RFC 6570 URI template for constructing resource URIs
+	URITemplate string `json:"uriTemplate"`
+}
+
+// Server name and optional replacement configuration for an individual MCP server restart.
+// Omit `config` for a config-free restart-by-name of an already-configured server.
 // Experimental: MCPRestartServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPRestartServerRequest struct {
-	// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
-	// shape supplied only by in-process CLI callers.
-	// Internal: Config is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Config any `json:"config"`
+	// Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart
+	// the server with its already-registered configuration (config-free restart-by-name).
+	Config MCPServerConfig `json:"config,omitempty"`
 	// Name of the MCP server to restart
 	ServerName string `json:"serverName"`
 }
@@ -3791,15 +3955,12 @@ type MCPSetEnvValueModeResult struct {
 	Mode MCPSetEnvValueModeDetails `json:"mode"`
 }
 
-// Server name and opaque configuration for an individual MCP server start.
+// Server name and configuration for an individual MCP server start.
 // Experimental: MCPStartServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStartServerRequest struct {
-	// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime
-	// shape supplied only by in-process CLI callers.
-	// Internal: Config is part of the SDK's internal API surface and is not intended for
-	// external use.
-	Config any `json:"config"`
+	// MCP server configuration (stdio process or remote HTTP/SSE)
+	Config MCPServerConfig `json:"config"`
 	// Name of the MCP server to start
 	ServerName string `json:"serverName"`
 }
@@ -5738,6 +5899,10 @@ type PluginsReloadRequest struct {
 	DeferRepoHooks *bool `json:"deferRepoHooks,omitempty"`
 	// Re-run custom-agent discovery after refreshing plugins. Defaults to true.
 	ReloadCustomAgents *bool `json:"reloadCustomAgents,omitempty"`
+	// Re-discover and relaunch subprocess extensions (including plugin-shipped extensions)
+	// after refreshing plugins. Defaults to true. Has no effect when the session has no active
+	// extension controller (e.g. extensions were not requested for the session).
+	ReloadExtensions *bool `json:"reloadExtensions,omitempty"`
 	// Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has
 	// no effect when the host has not registered a hook reloader (e.g. remote sessions).
 	ReloadHooks *bool `json:"reloadHooks,omitempty"`
@@ -6865,6 +7030,73 @@ type SendAttachmentsToMessageParams struct {
 	// canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs
 	// and those fields stay unset on the attachment.
 	InstanceID *string `json:"instanceId,omitempty"`
+}
+
+// A single user message to append to the session as part of a `session.sendMessages` turn
+// Experimental: SendMessageItem is part of an experimental API and may change or be removed.
+type SendMessageItem struct {
+	// Optional attachments (files, directories, selections, blobs, GitHub references) to
+	// include with this message
+	Attachments []Attachment `json:"attachments,omitzero"`
+	// If false, this message will not trigger a Premium Request Unit charge. User messages
+	// default to billable.
+	// Internal: Billable is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Billable *bool `json:"billable,omitempty"`
+	// If provided, this is shown in the timeline instead of `prompt`
+	DisplayPrompt *string `json:"displayPrompt,omitempty"`
+	// The user message text
+	Prompt string `json:"prompt"`
+	// If set, the request will fail if the named tool is not available when this message is
+	// among the user messages at the start of the current exchange
+	RequiredTool *string `json:"requiredTool,omitempty"`
+	// Optional provenance tag copied to the resulting user.message event. Must match one of
+	// three forms: the literal `system`, `command-<command-id>` for messages originating from a
+	// command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for
+	// messages originating from a scheduled job.
+	// Internal: Source is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Source *string `json:"source,omitempty"`
+}
+
+// Parameters for sending zero or more user messages to the session in a single turn.
+// Remote-backed (Mission Control) sessions do not support this method and will return an
+// error.
+// Experimental: SendMessagesRequest is part of an experimental API and may change or be
+// removed.
+type SendMessagesRequest struct {
+	// The UI mode the agent was in when these messages were sent. Defaults to the session's
+	// current mode.
+	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
+	// The user messages to append to the conversation, in order. May be empty, in which case a
+	// single turn runs over the existing history with no new user message.
+	Messages []SendMessageItem `json:"messages"`
+	// How to deliver the messages. `enqueue` (default) appends to the message queue.
+	// `immediate` interjects during an in-progress turn.
+	Mode *SendMode `json:"mode,omitempty"`
+	// If true, adds the messages to the front of the queue instead of the end
+	Prepend *bool `json:"prepend,omitempty"`
+	// Custom HTTP headers to include in outbound model requests for this turn. Merged with
+	// session-level provider headers; per-turn headers augment and overwrite session-level
+	// headers with the same key.
+	RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
+	// W3C Trace Context traceparent header for distributed tracing of this agent turn
+	Traceparent *string `json:"traceparent,omitempty"`
+	// W3C Trace Context tracestate header for distributed tracing
+	Tracestate *string `json:"tracestate,omitempty"`
+	// If true, await completion of the agentic loop for this turn before returning. Defaults to
+	// false (fire-and-forget). When true, the result still contains the same `messageIds`; the
+	// caller can rely on the agent having processed the messages before the call resolves.
+	Wait *bool `json:"wait,omitempty"`
+}
+
+// Result of sending zero or more user messages
+// Experimental: SendMessagesResult is part of an experimental API and may change or be
+// removed.
+type SendMessagesResult struct {
+	// Unique identifiers assigned to the messages, one per provided message in order. Empty
+	// when no messages were provided.
+	MessageIDs []string `json:"messageIds"`
 }
 
 // Parameters for sending a user message to the session
@@ -12816,6 +13048,29 @@ func (a *ServerAgentsAPI) GetDiscoveryPaths(ctx context.Context, params *AgentsG
 	return &result, nil
 }
 
+// Experimental: ServerCommandsAPI contains experimental APIs that may change or be removed.
+type ServerCommandsAPI serverAPI
+
+// Lists the well-known built-in slash commands that work as the first message in a new
+// session (e.g. /plan, /env), without requiring an active session. Commands that depend on
+// session state, authentication, or a synced session are omitted.
+//
+// RPC method: commands.list.
+//
+// Returns: Slash commands available in the session, after applying any include/exclude
+// filters.
+func (a *ServerCommandsAPI) List(ctx context.Context) (*CommandList, error) {
+	raw, err := a.client.Request(ctx, "commands.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result CommandList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerInstructionsAPI contains experimental APIs that may change or be
 // removed.
 type ServerInstructionsAPI serverAPI
@@ -14052,6 +14307,7 @@ type ServerRPC struct {
 	Account       *ServerAccountAPI
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
+	Commands      *ServerCommandsAPI
 	Instructions  *ServerInstructionsAPI
 	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
@@ -14093,6 +14349,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Account = (*ServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
+	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
@@ -15426,6 +15683,35 @@ func (a *MCPAPI) RemoveGitHub(ctx context.Context) (*MCPRemoveGitHubResult, erro
 	return &result, nil
 }
 
+// RestartServer restarts an individual MCP server on the live session (stops then starts).
+// Omit `config` for a config-free restart-by-name of an already-configured server; supply
+// `config` to restart with a replacement configuration. Session-scoped and ephemeral: does
+// NOT modify persistent user configuration (`mcp.config.*`).
+//
+// RPC method: session.mcp.restartServer.
+//
+// Parameters: Server name and optional replacement configuration for an individual MCP
+// server restart. Omit `config` for a config-free restart-by-name of an already-configured
+// server.
+func (a *MCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Config != nil {
+			req["config"] = params.Config
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPRestartServerResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SetEnvValueMode sets how environment-variable values supplied to MCP servers are resolved
 // (direct or indirect).
 //
@@ -15445,6 +15731,33 @@ func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueMode
 		return nil, err
 	}
 	var result MCPSetEnvValueModeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StartServer starts an individual MCP server on the live session from a caller-supplied
+// config. Session-scoped and ephemeral: the server is added to this session's running set
+// only and is reaped when the session ends. Does NOT modify persistent user configuration
+// (`mcp.config.*`), so it does not affect future sessions. The server surfaces through
+// `session.mcp.list` and the `session.mcp_servers_loaded` /
+// `session.mcp_server_status_changed` events like any other server.
+//
+// RPC method: session.mcp.startServer.
+//
+// Parameters: Server name and configuration for an individual MCP server start.
+func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["config"] = params.Config
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPStartServerResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -15573,14 +15886,17 @@ func (a *MCPAppsAPI) ListTools(ctx context.Context, params *MCPAppsListToolsRequ
 	return &result, nil
 }
 
-// ReadResource fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865)
-// from a connected server. Requires the `mcp-apps` session capability.
+// ReadResource deprecated/obsolete alias for `session.mcp.resources.read`; retained for
+// backwards compatibility with earlier MCP Apps host integrations.
 //
 // RPC method: session.mcp.apps.readResource.
 //
-// Parameters: MCP server and resource URI to fetch.
+// Parameters: Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
+// `session.mcp.resources.read` instead.
 //
-// Returns: Resource contents returned by the MCP server.
+// Returns: Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: ReadResource is deprecated and will be removed in a future version.
 func (a *MCPAppsAPI) ReadResource(ctx context.Context, params *MCPAppsReadResourceRequest) (*MCPAppsReadResourceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -15738,6 +16054,93 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 // Experimental: Oauth returns experimental APIs that may change or be removed.
 func (s *MCPAPI) Oauth() *MCPOauthAPI {
 	return (*MCPOauthAPI)(s)
+}
+
+// Experimental: MCPResourcesAPI contains experimental APIs that may change or be removed.
+type MCPResourcesAPI sessionAPI
+
+// List enumerate one page of resources a connected MCP server exposes (proxies MCP
+// `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
+//
+// RPC method: session.mcp.resources.list.
+//
+// Parameters: MCP server whose resources to enumerate.
+//
+// Returns: One page of resources advertised by the named MCP server.
+func (a *MCPResourcesAPI) List(ctx context.Context, params *MCPResourcesListRequest) (*MCPResourcesListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cursor != nil {
+			req["cursor"] = *params.Cursor
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListTemplates enumerate one page of resource templates a connected MCP server exposes
+// (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's
+// `nextCursor`.
+//
+// RPC method: session.mcp.resources.listTemplates.
+//
+// Parameters: MCP server whose resource templates to enumerate.
+//
+// Returns: One page of resource templates advertised by the named MCP server.
+func (a *MCPResourcesAPI) ListTemplates(ctx context.Context, params *MCPResourcesListTemplatesRequest) (*MCPResourcesListTemplatesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cursor != nil {
+			req["cursor"] = *params.Cursor
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.listTemplates", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesListTemplatesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Read fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).
+//
+// RPC method: session.mcp.resources.read.
+//
+// Parameters: MCP server and resource URI to fetch.
+//
+// Returns: Resource contents returned by the MCP server.
+func (a *MCPResourcesAPI) Read(ctx context.Context, params *MCPResourcesReadRequest) (*MCPResourcesReadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+		req["uri"] = params.URI
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.read", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Resources returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Resources() *MCPResourcesAPI {
+	return (*MCPResourcesAPI)(s)
 }
 
 // Experimental: MetadataAPI contains experimental APIs that may change or be removed.
@@ -17080,6 +17483,9 @@ func (a *PluginsAPI) Reload(ctx context.Context, params ...*PluginsReloadRequest
 		}
 		if requestParams.ReloadCustomAgents != nil {
 			req["reloadCustomAgents"] = *requestParams.ReloadCustomAgents
+		}
+		if requestParams.ReloadExtensions != nil {
+			req["reloadExtensions"] = *requestParams.ReloadExtensions
 		}
 		if requestParams.ReloadHooks != nil {
 			req["reloadHooks"] = *requestParams.ReloadHooks
@@ -18650,6 +19056,58 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 	return &result, nil
 }
 
+// SendMessages sends zero or more user messages to the session in a single turn and returns
+// their message IDs. All provided messages are appended to the conversation in order, then
+// exactly one agent turn runs over the resulting history. When the list is empty, one turn
+// runs over the existing history with no new user message. Remote-backed (Mission Control)
+// sessions do not support this method and will return an error.
+//
+// RPC method: session.sendMessages.
+//
+// Parameters: Parameters for sending zero or more user messages to the session in a single
+// turn. Remote-backed (Mission Control) sessions do not support this method and will return
+// an error.
+//
+// Returns: Result of sending zero or more user messages
+// Experimental: SendMessages is an experimental API and may change or be removed in future
+// versions.
+func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesRequest) (*SendMessagesResult, error) {
+	req := map[string]any{"sessionId": a.common.sessionID}
+	if params != nil {
+		if params.AgentMode != nil {
+			req["agentMode"] = *params.AgentMode
+		}
+		req["messages"] = params.Messages
+		if params.Mode != nil {
+			req["mode"] = *params.Mode
+		}
+		if params.Prepend != nil {
+			req["prepend"] = *params.Prepend
+		}
+		if params.RequestHeaders != nil {
+			req["requestHeaders"] = params.RequestHeaders
+		}
+		if params.Traceparent != nil {
+			req["traceparent"] = *params.Traceparent
+		}
+		if params.Tracestate != nil {
+			req["tracestate"] = *params.Tracestate
+		}
+		if params.Wait != nil {
+			req["wait"] = *params.Wait
+		}
+	}
+	raw, err := a.common.client.Request(ctx, "session.sendMessages", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SendMessagesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Shutdown shuts down the session and persists its final state. Awaits any deferred
 // sessionEnd hooks before resolving so user-supplied hook scripts complete before the
 // runtime tears down.
@@ -18823,54 +19281,6 @@ func (a *InternalMCPAPI) ReloadWithConfig(ctx context.Context, params *MCPReload
 		return nil, err
 	}
 	var result MCPStartServersResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// RestartServer restarts an individual MCP server on the session's host (stops then starts).
-//
-// RPC method: session.mcp.restartServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server restart.
-// Internal: RestartServer is part of the SDK's internal handshake/plumbing; external
-// callers should not use it.
-func (a *InternalMCPAPI) RestartServer(ctx context.Context, params *MCPRestartServerRequest) (*SessionMCPRestartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.restartServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPRestartServerResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// StartServer starts an individual MCP server on the session's host.
-//
-// RPC method: session.mcp.startServer.
-//
-// Parameters: Server name and opaque configuration for an individual MCP server start.
-// Internal: StartServer is part of the SDK's internal handshake/plumbing; external callers
-// should not use it.
-func (a *InternalMCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest) (*SessionMCPStartServerResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["config"] = params.Config
-		req["serverName"] = params.ServerName
-	}
-	raw, err := a.client.Request(ctx, "session.mcp.startServer", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionMCPStartServerResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

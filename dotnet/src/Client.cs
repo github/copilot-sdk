@@ -1144,10 +1144,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestExtensions: config.RequestExtensions,
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
+                CanvasProvider: config.CanvasProvider,
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
+                EnableManagedSettings: config.EnableManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -1353,11 +1355,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestExtensions: config.RequestExtensions,
                 ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
+                CanvasProvider: config.CanvasProvider,
                 OpenCanvases: config.OpenCanvases,
                 Providers: config.Providers,
                 Models: config.Models,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
+                EnableManagedSettings: config.EnableManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
@@ -2693,10 +2697,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestExtensions = null,
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
+        CanvasProviderIdentity? CanvasProvider = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 
@@ -2795,11 +2801,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestExtensions = null,
         string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
+        CanvasProviderIdentity? CanvasProvider = null,
         IList<OpenCanvasInstance>? OpenCanvases = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
 

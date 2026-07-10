@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -10,10 +11,77 @@ import (
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 )
 
+type subagentRequestRecord struct {
+	agentID         string
+	parentAgentID   string
+	interactionType string
+}
+
+type recordingForwardingTransport struct {
+	inner   http.RoundTripper
+	mu      sync.Mutex
+	records []subagentRequestRecord
+}
+
+func newRecordingForwardingTransport() *recordingForwardingTransport {
+	inner := http.DefaultTransport.(*http.Transport).Clone()
+	inner.DisableCompression = true
+	return &recordingForwardingTransport{inner: inner}
+}
+
+func (rt *recordingForwardingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if isInferenceURL(req.URL.String()) {
+		rctx := copilot.RequestContextFrom(req)
+		record := subagentRequestRecord{}
+		if rctx != nil {
+			record.agentID = rctx.AgentID
+			record.parentAgentID = rctx.ParentAgentID
+			record.interactionType = rctx.InteractionType
+		}
+		rt.mu.Lock()
+		rt.records = append(rt.records, record)
+		rt.mu.Unlock()
+	}
+	return rt.inner.RoundTrip(req)
+}
+
+func (rt *recordingForwardingTransport) inferenceRecords() []subagentRequestRecord {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	out := make([]subagentRequestRecord, len(rt.records))
+	copy(out, rt.records)
+	return out
+}
+
+func assertSubagentRequestMetadata(t *testing.T, records []subagentRequestRecord) {
+	t.Helper()
+	if len(records) == 0 {
+		t.Fatal("request handler should observe inference requests")
+	}
+	for _, r := range records {
+		if r.parentAgentID == "" {
+			continue
+		}
+		if r.agentID == "" {
+			t.Fatal("sub-agent inference request should carry an agent id")
+		}
+		if r.interactionType == "" {
+			t.Fatal("sub-agent inference request should carry an interaction type")
+		}
+		if r.parentAgentID == r.agentID {
+			t.Fatal("sub-agent inference request should have distinct parent and child agent ids")
+		}
+		return
+	}
+	t.Fatal("sub-agent inference request should carry a parent agent id")
+}
+
 func TestSubagentHooksE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
+	transport := newRecordingForwardingTransport()
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
 		o.Env = append(o.Env, "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS=true")
+		o.RequestHandler = &copilot.CopilotRequestHandler{Transport: transport}
 	})
 	t.Cleanup(func() { client.ForceStop() })
 
@@ -100,5 +168,6 @@ func TestSubagentHooksE2E(t *testing.T) {
 		if viewPre[0].sessionID == taskPre.sessionID {
 			t.Error("Sub-agent tool hooks should have a different sessionId than parent tool hooks")
 		}
+		assertSubagentRequestMetadata(t, transport.inferenceRecords())
 	})
 }

@@ -214,6 +214,10 @@ public final class ResumeSessionRequest {
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
 
+    @JsonProperty("enableManagedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableManagedSettings;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -980,5 +984,28 @@ public final class ResumeSessionRequest {
      */
     public void setExpAssignments(JsonNode expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /**
+     * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
+     * if not set
+     */
+    public Boolean getEnableManagedSettings() {
+        return enableManagedSettings;
+    }
+
+    /**
+     * Sets the self-fetch managed settings flag. @param enableManagedSettings the
+     * flag
+     */
+    public void setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+    }
+
+    /**
+     * Clears the enableManagedSettings setting, reverting to the default behavior.
+     */
+    public void clearEnableManagedSettings() {
+        this.enableManagedSettings = null;
     }
 }
