@@ -26,10 +26,23 @@ include = [
 name = "github_copilot_sdk"
 
 [features]
-default = ["bundled-cli"]
+default = ["bundled-cli", "rustls-tls"]
 bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
+
+# TLS backend for the request-handler HTTP/WebSocket transport; enable at least
+# one. `rustls-tls` (default) uses rustls + `ring`, keeping the SDK OpenSSL-free
+# for musl/static builds. `native-tls` links the platform stack. Features are
+# additive: with both enabled the transport prefers native-tls.
+rustls-tls = [
+    "reqwest/rustls-tls-native-roots",
+    "tokio-tungstenite/rustls-tls-native-roots",
+]
+native-tls = [
+    "reqwest/native-tls",
+    "tokio-tungstenite/native-tls",
+]
 
 # Build docs.rs documentation with all features so feature-gated APIs
 # (e.g. `define_tool`, `schema_for`) appear and intra-doc links resolve.
@@ -59,8 +72,8 @@ base64 = "0.22"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["stream", "http2"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect"] }
 
 [target.'cfg(windows)'.dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
