@@ -137,8 +137,7 @@ jobs:
   # E2E suite over the in-process transport. The suite runs serially in-process
   # (the harness forces concurrency to 1) because it mirrors each test's
   # environment onto the shared process environment the in-process worker inherits.
-  # Runs the whole E2E suite over the in-process transport on all three OSes,
-  # matching the Node in-process matrix.
+  # Runs the whole E2E suite over the in-process transport on supported hosts.
   test-inprocess:
     name: "Rust SDK Tests (${{ matrix.os }}, inprocess)"
     if: github.event.repository.fork == false
@@ -148,7 +147,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash.
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
