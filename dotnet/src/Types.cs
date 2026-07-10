@@ -173,6 +173,16 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 
     /// <summary>Extra command-line arguments to pass to the runtime process.</summary>
     public IList<string>? Args { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment variables passed to the spawned runtime process,
+    /// replacing the inherited environment.
+    /// </summary>
+    /// <remarks>
+    /// Cannot be combined with <see cref="CopilotClientOptions.Environment"/>; setting both throws
+    /// an <see cref="ArgumentException"/> when the client is constructed.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string>? Environment { get; set; }
 }
 
 /// <summary>
@@ -358,7 +368,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
 
-    /// <summary>Environment variables to pass to the runtime process.</summary>
+    /// <summary>
+    /// Gets or sets environment variables passed to the runtime process.
+    /// </summary>
+    /// <remarks>
+    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
+    /// which runs the runtime in the host process; setting this option there throws an
+    /// <see cref="ArgumentException"/>. For child-process transports, prefer
+    /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
+    /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
 
     /// <summary>Logger instance for SDK diagnostic output.</summary>
@@ -2882,12 +2900,14 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
+        EnableManagedSettings = other.EnableManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
         RequestExtensions = other.RequestExtensions;
         ExtensionSdkPath = other.ExtensionSdkPath;
         ExtensionInfo = other.ExtensionInfo;
+        CanvasProvider = other.CanvasProvider;
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
@@ -3313,6 +3333,16 @@ public abstract class SessionConfigBase
     [EditorBrowsable(EditorBrowsableState.Never)]
     public JsonElement? ExpAssignments { get; set; }
 
+    /// <summary>
+    /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's <see cref="GitHubToken"/>. Requires <see cref="GitHubToken"/> to
+    /// be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When unset, behaves exactly as before. Serialized on the
+    /// wire as <c>enableManagedSettings</c>.
+    /// </summary>
+    public bool? EnableManagedSettings { get; set; }
+
 #pragma warning disable GHCP001
     /// <summary>
     /// Canvas declarations advertised by this connection. The runtime forwards
@@ -3353,6 +3383,16 @@ public abstract class SessionConfigBase
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public ExtensionInfo? ExtensionInfo { get; set; }
+
+    /// <summary>
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases. When set, the runtime uses <see cref="CanvasProviderIdentity.Id"/>
+    /// verbatim as the agent-facing canvas extension id, so canvases declared on
+    /// a control connection survive reconnect and CLI restart. Honored on
+    /// session create and resume.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public CanvasProviderIdentity? CanvasProvider { get; set; }
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
@@ -4038,5 +4078,6 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(CanvasProviderOpenResult))]
 [JsonSerializable(typeof(CanvasHostContext))]
 [JsonSerializable(typeof(ExtensionInfo))]
+[JsonSerializable(typeof(CanvasProviderIdentity))]
 #pragma warning restore GHCP001
 internal partial class TypesJsonContext : JsonSerializerContext;

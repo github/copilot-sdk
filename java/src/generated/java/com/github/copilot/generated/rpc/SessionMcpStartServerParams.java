@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Server name and opaque configuration for an individual MCP server start.
+ * Server name and configuration for an individual MCP server start.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -28,7 +28,7 @@ public record SessionMcpStartServerParams(
     @JsonProperty("sessionId") String sessionId,
     /** Name of the MCP server to start */
     @JsonProperty("serverName") String serverName,
-    /** Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers. */
+    /** MCP server configuration (stdio process or remote HTTP/SSE) */
     @JsonProperty("config") Object config
 ) {
 }

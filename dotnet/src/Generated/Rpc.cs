@@ -1784,6 +1784,90 @@ internal sealed class InstructionsGetDiscoveryPathsRequest
     public IList<string>? ProjectPaths { get; set; }
 }
 
+/// <summary>A literal choice the command input accepts, with a human-facing description.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SlashCommandInputChoice
+{
+    /// <summary>Human-readable description shown alongside the choice.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>The literal choice value (e.g. 'on', 'off', 'show').</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Optional unstructured input hint.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SlashCommandInput
+{
+    /// <summary>Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options.</summary>
+    [JsonPropertyName("choices")]
+    public IList<SlashCommandInputChoice>? Choices { get; set; }
+
+    /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
+    [JsonPropertyName("completion")]
+    public SlashCommandInputCompletion? Completion { get; set; }
+
+    /// <summary>Hint to display when command input has not been provided.</summary>
+    [JsonPropertyName("hint")]
+    public string Hint { get; set; } = string.Empty;
+
+    /// <summary>When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace.</summary>
+    [JsonPropertyName("preserveMultilineInput")]
+    public bool? PreserveMultilineInput { get; set; }
+
+    /// <summary>When true, the command requires non-empty input; clients should render the input hint as required.</summary>
+    [JsonPropertyName("required")]
+    public bool? Required { get; set; }
+}
+
+/// <summary>Slash-command metadata with name, aliases, description, kind, input hint, execution allowance, and schedulability.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SlashCommandInfo
+{
+    /// <summary>Canonical aliases without leading slashes.</summary>
+    [JsonPropertyName("aliases")]
+    public IList<string>? Aliases { get; set; }
+
+    /// <summary>Whether the command may run while an agent turn is active.</summary>
+    [JsonPropertyName("allowDuringAgentExecution")]
+    public bool AllowDuringAgentExecution { get; set; }
+
+    /// <summary>Human-readable command description.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Whether the command is experimental.</summary>
+    [JsonPropertyName("experimental")]
+    public bool? Experimental { get; set; }
+
+    /// <summary>Optional unstructured input hint.</summary>
+    [JsonPropertyName("input")]
+    public SlashCommandInput? Input { get; set; }
+
+    /// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
+    [JsonPropertyName("kind")]
+    public SlashCommandKind Kind { get; set; }
+
+    /// <summary>Canonical command name without a leading slash.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt.</summary>
+    [JsonPropertyName("schedulable")]
+    public bool? Schedulable { get; set; }
+}
+
+/// <summary>Slash commands available in the session, after applying any include/exclude filters.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CommandList
+{
+    /// <summary>Commands available in this session.</summary>
+    [JsonPropertyName("commands")]
+    public IList<SlashCommandInfo> Commands { get => field ??= []; set; }
+}
+
 /// <summary>A single user setting's effective value alongside its default, so consumers can render settings left at their default.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class UserSettingMetadata
@@ -2818,6 +2902,12 @@ public partial class RemoteControlStatusActive : RemoteControlStatus
     [JsonPropertyName("attachedSessionId")]
     public required string AttachedSessionId { get; set; }
 
+    /// <summary>True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("awaitingFirstMessage")]
+    internal bool? AwaitingFirstMessage { get; set; }
+
     /// <summary>MC frontend URL for this session, when known.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("frontendUrl")]
@@ -3343,6 +3433,88 @@ internal sealed class SendRequest
     public string? Tracestate { get; set; }
 
     /// <summary>If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves.</summary>
+    [JsonPropertyName("wait")]
+    public bool? Wait { get; set; }
+}
+
+/// <summary>Result of sending zero or more user messages.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SendMessagesResult
+{
+    /// <summary>Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.</summary>
+    [JsonPropertyName("messageIds")]
+    public IList<string> MessageIds { get => field ??= []; set; }
+}
+
+/// <summary>A single user message to append to the session as part of a `session.sendMessages` turn.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SendMessageItem
+{
+    /// <summary>Optional attachments (files, directories, selections, blobs, GitHub references) to include with this message.</summary>
+    [JsonPropertyName("attachments")]
+    public IList<Attachment>? Attachments { get; set; }
+
+    /// <summary>If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</summary>
+    [JsonInclude]
+    [JsonPropertyName("billable")]
+    internal bool? Billable { get; set; }
+
+    /// <summary>If provided, this is shown in the timeline instead of `prompt`.</summary>
+    [JsonPropertyName("displayPrompt")]
+    public string? DisplayPrompt { get; set; }
+
+    /// <summary>The user message text.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange.</summary>
+    [JsonPropertyName("requiredTool")]
+    public string? RequiredTool { get; set; }
+
+    /// <summary>Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-&lt;command-id&gt;` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-&lt;numeric-id&gt;` for messages originating from a scheduled job.</summary>
+    [RegularExpression("^(system|command-.*|schedule-\\d+)$")]
+    [JsonInclude]
+    [JsonPropertyName("source")]
+    internal string? Source { get; set; }
+}
+
+/// <summary>Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SendMessagesRequest
+{
+    /// <summary>The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.</summary>
+    [JsonPropertyName("agentMode")]
+    public SendAgentMode? AgentMode { get; set; }
+
+    /// <summary>The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</summary>
+    [JsonPropertyName("messages")]
+    public IList<SendMessageItem> Messages { get => field ??= []; set; }
+
+    /// <summary>How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</summary>
+    [JsonPropertyName("mode")]
+    public SendMode? Mode { get; set; }
+
+    /// <summary>If true, adds the messages to the front of the queue instead of the end.</summary>
+    [JsonPropertyName("prepend")]
+    public bool? Prepend { get; set; }
+
+    /// <summary>Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</summary>
+    [JsonPropertyName("requestHeaders")]
+    public IDictionary<string, string>? RequestHeaders { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>W3C Trace Context traceparent header for distributed tracing of this agent turn.</summary>
+    [JsonPropertyName("traceparent")]
+    public string? Traceparent { get; set; }
+
+    /// <summary>W3C Trace Context tracestate header for distributed tracing.</summary>
+    [JsonPropertyName("tracestate")]
+    public string? Tracestate { get; set; }
+
+    /// <summary>If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves.</summary>
     [JsonPropertyName("wait")]
     public bool? Wait { get; set; }
 }
@@ -4004,6 +4176,10 @@ internal sealed class ModelSwitchToRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Output verbosity level to request for supported models.</summary>
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 }
 
 /// <summary>Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.</summary>
@@ -5791,14 +5967,13 @@ internal sealed class McpConfigureGitHubRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Server name and opaque configuration for an individual MCP server start.</summary>
+/// <summary>Server name and configuration for an individual MCP server start.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpStartServerRequest
 {
-    /// <summary>Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</summary>
-    [JsonInclude]
+    /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
     [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
+    public JsonElement Config { get; set; }
 
     /// <summary>Name of the MCP server to start.</summary>
     [JsonPropertyName("serverName")]
@@ -5809,14 +5984,13 @@ internal sealed class McpStartServerRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Server name and opaque configuration for an individual MCP server restart.</summary>
+/// <summary>Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpRestartServerRequest
 {
-    /// <summary>Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</summary>
-    [JsonInclude]
+    /// <summary>Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name).</summary>
     [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
+    public JsonElement? Config { get; set; }
 
     /// <summary>Name of the MCP server to restart.</summary>
     [JsonPropertyName("serverName")]
@@ -6096,13 +6270,17 @@ internal sealed class McpHeadersHandlePendingHeadersRefreshRequestRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 public sealed class McpAppsResourceContent
 {
-    /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
+    /// <summary>Resource-level metadata.</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Base64-encoded binary content.</summary>
     [JsonPropertyName("blob")]
@@ -6116,13 +6294,17 @@ public sealed class McpAppsResourceContent
     [JsonPropertyName("text")]
     public string? Text { get; set; }
 
-    /// <summary>The resource URI (typically ui://...).</summary>
+    /// <summary>The resource URI.</summary>
     [JsonPropertyName("uri")]
     public string Uri { get; set; } = string.Empty;
 }
 
-/// <summary>Resource contents returned by the MCP server.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 public sealed class McpAppsReadResourceResult
 {
     /// <summary>Resource contents returned by the server.</summary>
@@ -6130,8 +6312,12 @@ public sealed class McpAppsReadResourceResult
     public IList<McpAppsResourceContent> Contents { get => field ??= []; set; }
 }
 
-/// <summary>MCP server and resource URI to fetch.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 internal sealed class McpAppsReadResourceRequest
 {
     /// <summary>Name of the MCP server hosting the resource.</summary>
@@ -6145,7 +6331,7 @@ internal sealed class McpAppsReadResourceRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Resource URI (typically ui://...).</summary>
+    /// <summary>Resource URI.</summary>
     [JsonPropertyName("uri")]
     public string Uri { get; set; } = string.Empty;
 }
@@ -6377,6 +6563,258 @@ internal sealed class McpAppsDiagnoseRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceContent
+{
+    /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Base64-encoded binary content.</summary>
+    [JsonPropertyName("blob")]
+    public string? Blob { get; set; }
+
+    /// <summary>MIME type of the content.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Text content (e.g. HTML).</summary>
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    /// <summary>The resource URI.</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Resource contents returned by the MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesReadResult
+{
+    /// <summary>Resource contents returned by the server.</summary>
+    [JsonPropertyName("contents")]
+    public IList<McpResourceContent> Contents { get => field ??= []; set; }
+}
+
+/// <summary>MCP server and resource URI to fetch.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesReadRequest
+{
+    /// <summary>Name of the MCP server hosting the resource.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Resource URI.</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Standard MCP resource annotations plus preserved non-standard annotation fields.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceAnnotations
+{
+    /// <summary>Server-provided non-standard annotation fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Intended audience roles for this resource.</summary>
+    [JsonPropertyName("audience")]
+    public IList<string>? Audience { get; set; }
+
+    /// <summary>Last-modified timestamp hint.</summary>
+    [JsonPropertyName("lastModified")]
+    public string? LastModified { get; set; }
+
+    /// <summary>Priority hint for model/client use.</summary>
+    [JsonPropertyName("priority")]
+    public double? Priority { get; set; }
+}
+
+/// <summary>A resource icon descriptor plus preserved non-standard icon fields.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceIcon
+{
+    /// <summary>Server-provided non-standard icon fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Icon MIME type, when known.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Icon sizes hint.</summary>
+    [JsonPropertyName("sizes")]
+    public string? Sizes { get; set; }
+
+    /// <summary>Icon URI.</summary>
+    [JsonPropertyName("src")]
+    public string Src { get; set; } = string.Empty;
+
+    /// <summary>Theme hint for this icon.</summary>
+    [JsonPropertyName("theme")]
+    public string? Theme { get; set; }
+}
+
+/// <summary>An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description, MIME type, size, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResource
+{
+    /// <summary>Resource-level metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Model/client annotations associated with this resource.</summary>
+    [JsonPropertyName("annotations")]
+    public McpResourceAnnotations? Annotations { get; set; }
+
+    /// <summary>Optional description of what this resource represents.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Icons associated with this resource.</summary>
+    [JsonPropertyName("icons")]
+    public IList<McpResourceIcon>? Icons { get; set; }
+
+    /// <summary>MIME type of the resource, if known.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>The programmatic name of the resource.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Resource size in bytes, when known.</summary>
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+
+    /// <summary>Optional human-readable display title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>The resource URI (e.g. ui://... or file:///...).</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>One page of resources advertised by the named MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesListResult
+{
+    /// <summary>Opaque cursor for the next page, if the server has more resources.</summary>
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+
+    /// <summary>Resources advertised by the server (proxied MCP `resources/list`).</summary>
+    [JsonPropertyName("resources")]
+    public IList<McpResource> Resources { get => field ??= []; set; }
+}
+
+/// <summary>MCP server whose resources to enumerate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesListRequest
+{
+    /// <summary>Opaque MCP pagination cursor from a prior `nextCursor` value.</summary>
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+
+    /// <summary>Name of the MCP server whose resources to enumerate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template, name, and optional title, description, MIME type, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceTemplate
+{
+    /// <summary>Resource-template-level metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Model/client annotations associated with this template.</summary>
+    [JsonPropertyName("annotations")]
+    public McpResourceAnnotations? Annotations { get; set; }
+
+    /// <summary>Optional description of what this template is for.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Icons associated with resources matching this template.</summary>
+    [JsonPropertyName("icons")]
+    public IList<McpResourceIcon>? Icons { get; set; }
+
+    /// <summary>MIME type for resources matching this template, if uniform.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>The programmatic name of the resource template.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Optional human-readable display title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>An RFC 6570 URI template for constructing resource URIs.</summary>
+    [JsonPropertyName("uriTemplate")]
+    public string UriTemplate { get; set; } = string.Empty;
+}
+
+/// <summary>One page of resource templates advertised by the named MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesListTemplatesResult
+{
+    /// <summary>Opaque cursor for the next page, if the server has more resource templates.</summary>
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+
+    /// <summary>Resource templates advertised by the server (proxied MCP `resources/templates/list`).</summary>
+    [JsonPropertyName("resourceTemplates")]
+    public IList<McpResourceTemplate> ResourceTemplates { get => field ??= []; set; }
+}
+
+/// <summary>MCP server whose resource templates to enumerate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesListTemplatesRequest
+{
+    /// <summary>Opaque MCP pagination cursor from a prior `nextCursor` value.</summary>
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+
+    /// <summary>Name of the MCP server whose resource templates to enumerate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Session plugin metadata, with name, marketplace, optional version, and enabled state.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class Plugin
@@ -6428,6 +6866,10 @@ public sealed class PluginsReloadRequest
     [JsonPropertyName("reloadCustomAgents")]
     public bool? ReloadCustomAgents { get; set; }
 
+    /// <summary>Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).</summary>
+    [JsonPropertyName("reloadExtensions")]
+    public bool? ReloadExtensions { get; set; }
+
     /// <summary>Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).</summary>
     [JsonPropertyName("reloadHooks")]
     public bool? ReloadHooks { get; set; }
@@ -6448,6 +6890,10 @@ internal sealed class PluginsReloadRequestWithSession
     /// <summary>Re-run custom-agent discovery after refreshing plugins. Defaults to true.</summary>
     [JsonPropertyName("reloadCustomAgents")]
     public bool? ReloadCustomAgents { get; set; }
+
+    /// <summary>Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).</summary>
+    [JsonPropertyName("reloadExtensions")]
+    public bool? ReloadExtensions { get; set; }
 
     /// <summary>Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).</summary>
     [JsonPropertyName("reloadHooks")]
@@ -7139,6 +7585,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Optional path for trajectory output.</summary>
     [JsonPropertyName("trajectoryFile")]
     public string? TrajectoryFile { get; set; }
+
+    /// <summary>Output verbosity level for supported models.</summary>
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 
     /// <summary>Absolute working-directory path for shell tools.</summary>
     [JsonPropertyName("workingDirectory")]
@@ -7911,90 +8361,6 @@ internal sealed class UpdateSubagentSettingsRequest
     /// <summary>Subagent settings to apply, or null to clear the live session override.</summary>
     [JsonPropertyName("subagents")]
     public UpdateSubagentSettingsRequestSubagents? Subagents { get; set; }
-}
-
-/// <summary>A literal choice the command input accepts, with a human-facing description.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SlashCommandInputChoice
-{
-    /// <summary>Human-readable description shown alongside the choice.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>The literal choice value (e.g. 'on', 'off', 'show').</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>Optional unstructured input hint.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SlashCommandInput
-{
-    /// <summary>Optional literal choices the input accepts, each with a human-facing description; clients may render these as selectable options.</summary>
-    [JsonPropertyName("choices")]
-    public IList<SlashCommandInputChoice>? Choices { get; set; }
-
-    /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
-    [JsonPropertyName("completion")]
-    public SlashCommandInputCompletion? Completion { get; set; }
-
-    /// <summary>Hint to display when command input has not been provided.</summary>
-    [JsonPropertyName("hint")]
-    public string Hint { get; set; } = string.Empty;
-
-    /// <summary>When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace.</summary>
-    [JsonPropertyName("preserveMultilineInput")]
-    public bool? PreserveMultilineInput { get; set; }
-
-    /// <summary>When true, the command requires non-empty input; clients should render the input hint as required.</summary>
-    [JsonPropertyName("required")]
-    public bool? Required { get; set; }
-}
-
-/// <summary>Slash-command metadata with name, aliases, description, kind, input hint, execution allowance, and schedulability.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SlashCommandInfo
-{
-    /// <summary>Canonical aliases without leading slashes.</summary>
-    [JsonPropertyName("aliases")]
-    public IList<string>? Aliases { get; set; }
-
-    /// <summary>Whether the command may run while an agent turn is active.</summary>
-    [JsonPropertyName("allowDuringAgentExecution")]
-    public bool AllowDuringAgentExecution { get; set; }
-
-    /// <summary>Human-readable command description.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Whether the command is experimental.</summary>
-    [JsonPropertyName("experimental")]
-    public bool? Experimental { get; set; }
-
-    /// <summary>Optional unstructured input hint.</summary>
-    [JsonPropertyName("input")]
-    public SlashCommandInput? Input { get; set; }
-
-    /// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
-    [JsonPropertyName("kind")]
-    public SlashCommandKind Kind { get; set; }
-
-    /// <summary>Canonical command name without a leading slash.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt.</summary>
-    [JsonPropertyName("schedulable")]
-    public bool? Schedulable { get; set; }
-}
-
-/// <summary>Slash commands available in the session, after applying any include/exclude filters.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CommandList
-{
-    /// <summary>Commands available in this session.</summary>
-    [JsonPropertyName("commands")]
-    public IList<SlashCommandInfo> Commands { get => field ??= []; set; }
 }
 
 /// <summary>Optional filters controlling which command sources to include in the listing.</summary>
@@ -11119,7 +11485,7 @@ public sealed class RegisterEventInterestResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterEventInterestParams
 {
-    /// <summary>The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</summary>
+    /// <summary>The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</summary>
     [JsonPropertyName("eventType")]
     public string EventType { get; set; } = string.Empty;
 
@@ -13012,6 +13378,132 @@ public readonly struct InstructionDiscoveryPathLocation : IEquatable<Instruction
         public override void Write(Utf8JsonWriter writer, InstructionDiscoveryPathLocation value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionDiscoveryPathLocation));
+        }
+    }
+}
+
+
+/// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInputCompletion>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SlashCommandInputCompletion"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SlashCommandInputCompletion"/>.</param>
+    [JsonConstructor]
+    public SlashCommandInputCompletion(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SlashCommandInputCompletion"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Input should complete filesystem directories.</summary>
+    public static SlashCommandInputCompletion Directory { get; } = new("directory");
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are equivalent.</summary>
+    public static bool operator ==(SlashCommandInputCompletion left, SlashCommandInputCompletion right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are not equivalent.</summary>
+    public static bool operator !=(SlashCommandInputCompletion left, SlashCommandInputCompletion right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SlashCommandInputCompletion other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SlashCommandInputCompletion other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SlashCommandInputCompletion}"/> for serializing <see cref="SlashCommandInputCompletion"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SlashCommandInputCompletion>
+    {
+        /// <inheritdoc />
+        public override SlashCommandInputCompletion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SlashCommandInputCompletion value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
+        }
+    }
+}
+
+
+/// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SlashCommandKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SlashCommandKind"/>.</param>
+    [JsonConstructor]
+    public SlashCommandKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SlashCommandKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Command implemented by the runtime.</summary>
+    public static SlashCommandKind Builtin { get; } = new("builtin");
+
+    /// <summary>Command backed by a skill.</summary>
+    public static SlashCommandKind Skill { get; } = new("skill");
+
+    /// <summary>Command registered by an SDK client or extension.</summary>
+    public static SlashCommandKind Client { get; } = new("client");
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are equivalent.</summary>
+    public static bool operator ==(SlashCommandKind left, SlashCommandKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(SlashCommandKind left, SlashCommandKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SlashCommandKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SlashCommandKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SlashCommandKind}"/> for serializing <see cref="SlashCommandKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SlashCommandKind>
+    {
+        /// <inheritdoc />
+        public override SlashCommandKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SlashCommandKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
         }
     }
 }
@@ -16794,132 +17286,6 @@ public readonly struct SubagentSettingsEntryContextTier : IEquatable<SubagentSet
 }
 
 
-/// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInputCompletion>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SlashCommandInputCompletion"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SlashCommandInputCompletion"/>.</param>
-    [JsonConstructor]
-    public SlashCommandInputCompletion(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SlashCommandInputCompletion"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Input should complete filesystem directories.</summary>
-    public static SlashCommandInputCompletion Directory { get; } = new("directory");
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are equivalent.</summary>
-    public static bool operator ==(SlashCommandInputCompletion left, SlashCommandInputCompletion right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are not equivalent.</summary>
-    public static bool operator !=(SlashCommandInputCompletion left, SlashCommandInputCompletion right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SlashCommandInputCompletion other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SlashCommandInputCompletion other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SlashCommandInputCompletion}"/> for serializing <see cref="SlashCommandInputCompletion"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SlashCommandInputCompletion>
-    {
-        /// <inheritdoc />
-        public override SlashCommandInputCompletion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SlashCommandInputCompletion value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
-        }
-    }
-}
-
-
-/// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SlashCommandKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SlashCommandKind"/>.</param>
-    [JsonConstructor]
-    public SlashCommandKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SlashCommandKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Command implemented by the runtime.</summary>
-    public static SlashCommandKind Builtin { get; } = new("builtin");
-
-    /// <summary>Command backed by a skill.</summary>
-    public static SlashCommandKind Skill { get; } = new("skill");
-
-    /// <summary>Command registered by an SDK client or extension.</summary>
-    public static SlashCommandKind Client { get; } = new("client");
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are equivalent.</summary>
-    public static bool operator ==(SlashCommandKind left, SlashCommandKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(SlashCommandKind left, SlashCommandKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SlashCommandKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SlashCommandKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SlashCommandKind}"/> for serializing <see cref="SlashCommandKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SlashCommandKind>
-    {
-        /// <inheritdoc />
-        public override SlashCommandKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SlashCommandKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
-        }
-    }
-}
-
-
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -18678,6 +19044,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Commands APIs.</summary>
+    public ServerCommandsApi Commands =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>User APIs.</summary>
     public ServerUserApi User =>
         field ??
@@ -19252,6 +19624,26 @@ public sealed class ServerInstructionsApi
     {
         var request = new InstructionsGetDiscoveryPathsRequest { ProjectPaths = projectPaths, ExcludeHostInstructions = excludeHostInstructions };
         return await CopilotClient.InvokeRpcAsync<InstructionDiscoveryPathList>(_rpc, "instructions.getDiscoveryPaths", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Commands APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerCommandsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerCommandsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Lists the well-known built-in slash commands that work as the first message in a new session (e.g. /plan, /env), without requiring an active session. Commands that depend on session state, authentication, or a synced session are omitted.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Slash commands available in the session, after applying any include/exclude filters.</returns>
+    public async Task<CommandList> ListAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<CommandList>(_rpc, "commands.list", [], cancellationToken);
     }
 }
 
@@ -20043,6 +20435,27 @@ public sealed class SessionRpc
         return await CopilotClient.InvokeRpcAsync<SendResult>(_session.Rpc, "session.send", [request], cancellationToken);
     }
 
+    /// <summary>Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.</summary>
+    /// <param name="messages">The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.</param>
+    /// <param name="mode">How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</param>
+    /// <param name="prepend">If true, adds the messages to the front of the queue instead of the end.</param>
+    /// <param name="agentMode">The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.</param>
+    /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
+    /// <param name="traceparent">W3C Trace Context traceparent header for distributed tracing of this agent turn.</param>
+    /// <param name="tracestate">W3C Trace Context tracestate header for distributed tracing.</param>
+    /// <param name="wait">If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of sending zero or more user messages.</returns>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task<SendMessagesResult> SendMessagesAsync(IList<SendMessageItem> messages, SendMode? mode = null, bool? prepend = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        _session.ThrowIfDisposed();
+
+        var request = new SendMessagesRequest { SessionId = _session.SessionId, Messages = messages, Mode = mode, Prepend = prepend, AgentMode = agentMode, RequestHeaders = requestHeaders, Traceparent = traceparent, Tracestate = tracestate, Wait = wait };
+        return await CopilotClient.InvokeRpcAsync<SendMessagesResult>(_session.Rpc, "session.sendMessages", [request], cancellationToken);
+    }
+
     /// <summary>Aborts the current agent turn.</summary>
     /// <param name="reason">Finite reason code describing why the current turn was aborted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -20274,16 +20687,17 @@ public sealed class ModelApi
     /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
+    /// <param name="verbosity">Output verbosity level to request for supported models.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
     /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
 
-        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities, ContextTier = contextTier };
+        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ModelCapabilities = modelCapabilities, ContextTier = contextTier };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
     }
 
@@ -21107,11 +21521,11 @@ public sealed class McpApi
         return await CopilotClient.InvokeRpcAsync<McpConfigureGitHubResult>(_session.Rpc, "session.mcp.configureGitHub", [request], cancellationToken);
     }
 
-    /// <summary>Starts an individual MCP server on the session's host.</summary>
+    /// <summary>Starts an individual MCP server on the live session from a caller-supplied config. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.</summary>
     /// <param name="serverName">Name of the MCP server to start.</param>
-    /// <param name="config">Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</param>
+    /// <param name="config">MCP server configuration (stdio process or remote HTTP/SSE).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task StartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
+    public async Task StartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
         ArgumentNullException.ThrowIfNull(config);
@@ -21121,17 +21535,16 @@ public sealed class McpApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.startServer", [request], cancellationToken);
     }
 
-    /// <summary>Restarts an individual MCP server on the session's host (stops then starts).</summary>
+    /// <summary>Restarts an individual MCP server on the live session (stops then starts). Omit `config` for a config-free restart-by-name of an already-configured server; supply `config` to restart with a replacement configuration. Session-scoped and ephemeral: does NOT modify persistent user configuration (`mcp.config.*`).</summary>
     /// <param name="serverName">Name of the MCP server to restart.</param>
-    /// <param name="config">Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.</param>
+    /// <param name="config">Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task RestartServerAsync(string serverName, object config, CancellationToken cancellationToken = default)
+    public async Task RestartServerAsync(string serverName, object? config = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
-        ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
 
-        var request = new McpRestartServerRequest { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config)!.Value };
+        var request = new McpRestartServerRequest { SessionId = _session.SessionId, ServerName = serverName, Config = CopilotClient.ToJsonElementForWire(config) };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.restartServer", [request], cancellationToken);
     }
 
@@ -21204,6 +21617,12 @@ public sealed class McpApi
 
     /// <summary>Apps APIs.</summary>
     public McpAppsApi Apps =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>Resources APIs.</summary>
+    public McpResourcesApi Resources =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -21294,11 +21713,15 @@ public sealed class McpAppsApi
         _session = session;
     }
 
-    /// <summary>Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.</summary>
+    /// <summary>Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.</summary>
     /// <param name="serverName">Name of the MCP server hosting the resource.</param>
-    /// <param name="uri">Resource URI (typically ui://...).</param>
+    /// <param name="uri">Resource URI.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Resource contents returned by the MCP server.</returns>
+    /// <returns>Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     public async Task<McpAppsReadResourceResult> ReadResourceAsync(string serverName, string uri, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
@@ -21379,6 +21802,61 @@ public sealed class McpAppsApi
     }
 }
 
+/// <summary>Provides session-scoped McpResources APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesApi
+{
+    private readonly CopilotSession _session;
+
+    internal McpResourcesApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).</summary>
+    /// <param name="serverName">Name of the MCP server hosting the resource.</param>
+    /// <param name="uri">Resource URI.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Resource contents returned by the MCP server.</returns>
+    public async Task<McpResourcesReadResult> ReadAsync(string serverName, string uri, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(uri);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesReadRequest { SessionId = _session.SessionId, ServerName = serverName, Uri = uri };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesReadResult>(_session.Rpc, "session.mcp.resources.read", [request], cancellationToken);
+    }
+
+    /// <summary>Enumerate one page of resources a connected MCP server exposes (proxies MCP `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.</summary>
+    /// <param name="serverName">Name of the MCP server whose resources to enumerate.</param>
+    /// <param name="cursor">Opaque MCP pagination cursor from a prior `nextCursor` value.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One page of resources advertised by the named MCP server.</returns>
+    public async Task<McpResourcesListResult> ListAsync(string serverName, string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesListRequest { SessionId = _session.SessionId, ServerName = serverName, Cursor = cursor };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesListResult>(_session.Rpc, "session.mcp.resources.list", [request], cancellationToken);
+    }
+
+    /// <summary>Enumerate one page of resource templates a connected MCP server exposes (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's `nextCursor`.</summary>
+    /// <param name="serverName">Name of the MCP server whose resource templates to enumerate.</param>
+    /// <param name="cursor">Opaque MCP pagination cursor from a prior `nextCursor` value.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One page of resource templates advertised by the named MCP server.</returns>
+    public async Task<McpResourcesListTemplatesResult> ListTemplatesAsync(string serverName, string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesListTemplatesRequest { SessionId = _session.SessionId, ServerName = serverName, Cursor = cursor };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesListTemplatesResult>(_session.Rpc, "session.mcp.resources.listTemplates", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped Plugins APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class PluginsApi
@@ -21408,7 +21886,7 @@ public sealed class PluginsApi
     {
         _session.ThrowIfDisposed();
 
-        var rpcRequest = new PluginsReloadRequestWithSession { SessionId = _session.SessionId, ReloadMcp = request?.ReloadMcp, ReloadCustomAgents = request?.ReloadCustomAgents, ReloadHooks = request?.ReloadHooks, DeferRepoHooks = request?.DeferRepoHooks };
+        var rpcRequest = new PluginsReloadRequestWithSession { SessionId = _session.SessionId, ReloadMcp = request?.ReloadMcp, ReloadCustomAgents = request?.ReloadCustomAgents, ReloadHooks = request?.ReloadHooks, ReloadExtensions = request?.ReloadExtensions, DeferRepoHooks = request?.DeferRepoHooks };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.plugins.reload", [rpcRequest], cancellationToken);
     }
 }
@@ -21466,6 +21944,7 @@ public sealed class OptionsApi
     /// <param name="modelCapabilitiesOverrides">Per-property model capability overrides for the selected model.</param>
     /// <param name="reasoningEffort">Reasoning effort for the selected model (model-defined enum).</param>
     /// <param name="reasoningSummary">Reasoning summary mode for supported model clients.</param>
+    /// <param name="verbosity">Output verbosity level for supported models.</param>
     /// <param name="clientName">Identifier of the client driving the session.</param>
     /// <param name="lspClientName">Identifier sent to LSP-style integrations.</param>
     /// <param name="integrationId">Stable integration identifier used for analytics and rate-limit attribution.</param>
@@ -21517,11 +21996,11 @@ public sealed class OptionsApi
     /// <param name="sessionLimits">Optional session limits. Pass null to clear the session limits.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, ModelCapabilitiesOverride? modelCapabilitiesOverrides = null, string? reasoningEffort = null, OptionsUpdateReasoningSummary? reasoningSummary = null, Verbosity? verbosity = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, ProviderConfig? provider = null, CapiSessionOptions? capi = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, IList<string>? excludedBuiltinAgents = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, SandboxConfig? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, bool? allowAllMcpServerInstructions = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, long? maxInlineBinaryBytes = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? suppressCustomAgentPrompt = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<OptionsUpdateAdditionalContentExclusionPolicy>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, IList<SessionCapability>? sessionCapabilities = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, OptionsUpdateContextTier? contextTier = null, SessionLimitsConfig? sessionLimits = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ModelCapabilitiesOverrides = modelCapabilitiesOverrides, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, Verbosity = verbosity, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = provider, Capi = capi, WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ExcludedBuiltinAgents = excludedBuiltinAgents, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = sandboxConfig, LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, AllowAllMcpServerInstructions = allowAllMcpServerInstructions, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, MaxInlineBinaryBytes = maxInlineBinaryBytes, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SuppressCustomAgentPrompt = suppressCustomAgentPrompt, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies, ManageScheduleEnabled = manageScheduleEnabled, SessionCapabilities = sessionCapabilities, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills, ContextTier = contextTier, SessionLimits = sessionLimits };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -22704,7 +23183,7 @@ public sealed class EventLogApi
     }
 
     /// <summary>Registers consumer interest in an event type for runtime gating purposes.</summary>
-    /// <param name="eventType">The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</param>
+    /// <param name="eventType">The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Opaque handle representing an event-type interest registration.</returns>
     public async Task<RegisterEventInterestResult> RegisterInterestAsync(string eventType, CancellationToken cancellationToken = default)
@@ -23184,6 +23663,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantToolCallDeltaData), TypeInfoPropertyName = "SessionEventsAssistantToolCallDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantToolCallDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantToolCallDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndData), TypeInfoPropertyName = "SessionEventsAssistantTurnEndData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnEndEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
@@ -23217,6 +23698,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsEnd")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsStart")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoApprovalRecommendation), TypeInfoPropertyName = "SessionEventsAutoApprovalRecommendation")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeResolvedReasoningBucket), TypeInfoPropertyName = "SessionEventsAutoModeResolvedReasoningBucket")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
@@ -23305,10 +23787,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthWWWAuthenticateParams), TypeInfoPropertyName = "SessionEventsMcpOauthWWWAuthenticateParams")]
+[JsonSerializable(typeof(GitHub.Copilot.McpPromptsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpPromptsListChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpResourcesListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpResourcesListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
+[JsonSerializable(typeof(GitHub.Copilot.McpToolsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpToolsListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureBadRequestKind), TypeInfoPropertyName = "SessionEventsModelCallFailureBadRequestKind")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
@@ -23466,6 +23951,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.Verbosity), TypeInfoPropertyName = "SessionEventsVerbosity")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
 [JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
@@ -23661,6 +24147,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
 [JsonSerializable(typeof(McpReloadWithConfigRequest))]
 [JsonSerializable(typeof(McpRemoveGitHubResult))]
+[JsonSerializable(typeof(McpResource))]
+[JsonSerializable(typeof(McpResourceAnnotations))]
+[JsonSerializable(typeof(McpResourceContent))]
+[JsonSerializable(typeof(McpResourceIcon))]
+[JsonSerializable(typeof(McpResourceTemplate))]
+[JsonSerializable(typeof(McpResourcesListRequest))]
+[JsonSerializable(typeof(McpResourcesListResult))]
+[JsonSerializable(typeof(McpResourcesListTemplatesRequest))]
+[JsonSerializable(typeof(McpResourcesListTemplatesResult))]
+[JsonSerializable(typeof(McpResourcesReadRequest))]
+[JsonSerializable(typeof(McpResourcesReadResult))]
 [JsonSerializable(typeof(McpRestartServerRequest))]
 [JsonSerializable(typeof(McpSamplingExecutionResult))]
 [JsonSerializable(typeof(McpServer))]
@@ -23852,6 +24349,9 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
 [JsonSerializable(typeof(SecretsAddFilterValuesResult))]
 [JsonSerializable(typeof(SendAttachmentsToMessageParams))]
+[JsonSerializable(typeof(SendMessageItem))]
+[JsonSerializable(typeof(SendMessagesRequest))]
+[JsonSerializable(typeof(SendMessagesResult))]
 [JsonSerializable(typeof(SendRequest))]
 [JsonSerializable(typeof(SendResult))]
 [JsonSerializable(typeof(ServerAgentList))]

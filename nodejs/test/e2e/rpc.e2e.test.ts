@@ -2,10 +2,10 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
-function onTestFinishedForceStop(client: CopilotClient) {
+function onTestFinishedStop(client: CopilotClient) {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors - process may already be stopped
         }
@@ -15,7 +15,7 @@ function onTestFinishedForceStop(client: CopilotClient) {
 describe("RPC", () => {
     it("should call rpc.ping with typed params and result", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -28,7 +28,7 @@ describe("RPC", () => {
 
     it("should call rpc.models.list with typed result", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 
@@ -48,7 +48,7 @@ describe("RPC", () => {
     // account.getQuota is defined in schema but not yet implemented in CLI
     it.skip("should call rpc.account.getQuota when authenticated", async () => {
         const client = new CopilotClient();
-        onTestFinishedForceStop(client);
+        onTestFinishedStop(client);
 
         await client.start();
 

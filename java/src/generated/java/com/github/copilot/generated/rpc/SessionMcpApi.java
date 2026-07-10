@@ -30,6 +30,8 @@ public final class SessionMcpApi {
     public final SessionMcpHeadersApi headers;
     /** API methods for the {@code mcp.apps} sub-namespace. */
     public final SessionMcpAppsApi apps;
+    /** API methods for the {@code mcp.resources} sub-namespace. */
+    public final SessionMcpResourcesApi resources;
 
     /** @param caller the RPC transport function */
     SessionMcpApi(RpcCaller caller, String sessionId) {
@@ -38,6 +40,7 @@ public final class SessionMcpApi {
         this.oauth = new SessionMcpOauthApi(caller, sessionId);
         this.headers = new SessionMcpHeadersApi(caller, sessionId);
         this.apps = new SessionMcpAppsApi(caller, sessionId);
+        this.resources = new SessionMcpResourcesApi(caller, sessionId);
     }
 
     /**
@@ -202,7 +205,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Server name and opaque configuration for an individual MCP server start.
+     * Server name and configuration for an individual MCP server start.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -218,7 +221,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Server name and opaque configuration for an individual MCP server restart.
+     * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

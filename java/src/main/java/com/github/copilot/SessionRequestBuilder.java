@@ -186,6 +186,7 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
         request.setExpAssignments(config.getExpAssignments());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }
@@ -308,6 +309,7 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setExpAssignments(config.getExpAssignments());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }

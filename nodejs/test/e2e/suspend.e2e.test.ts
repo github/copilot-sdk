@@ -4,8 +4,8 @@
 
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import type { PermissionRequest, PermissionRequestResult, SessionEvent } from "../../src/index.js";
+import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
 
 const SUSPEND_TIMEOUT_MS = 60_000;
@@ -47,10 +47,10 @@ async function waitWithTimeout<T>(
     }
 }
 
-function onTestFinishedForceStop(client: CopilotClient): void {
+function onTestFinishedStop(client: CopilotClient): void {
     onTestFinished(async () => {
         try {
-            await client.forceStop();
+            await client.stop();
         } catch {
             // Ignore cleanup errors
         }
@@ -71,7 +71,7 @@ describe("Suspend RPC", async () => {
                 connectionToken: SHARED_TOKEN,
             }),
         });
-        onTestFinishedForceStop(server);
+        onTestFinishedStop(server);
         return server;
     }
 
@@ -79,7 +79,7 @@ describe("Suspend RPC", async () => {
         const connectedClient = new CopilotClient({
             connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
         });
-        onTestFinishedForceStop(connectedClient);
+        onTestFinishedStop(connectedClient);
         return connectedClient;
     }
 

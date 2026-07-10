@@ -5,7 +5,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 
 describe("UI Elicitation", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -116,7 +116,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
         }
     );
 
-    it(
+    it.skipIf(isInProcessTransport)(
         "capabilities.changed fires when elicitation provider disconnects",
         { timeout: 60_000 },
         async () => {

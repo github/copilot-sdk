@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::session_events::{
     AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
     PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
-    UserToolSessionApproval,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
@@ -92,6 +92,8 @@ pub mod rpc_methods {
     pub const INSTRUCTIONS_DISCOVER: &str = "instructions.discover";
     /// `instructions.getDiscoveryPaths`
     pub const INSTRUCTIONS_GETDISCOVERYPATHS: &str = "instructions.getDiscoveryPaths";
+    /// `commands.list`
+    pub const COMMANDS_LIST: &str = "commands.list";
     /// `user.settings.reload`
     pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
     /// `user.settings.get`
@@ -171,6 +173,8 @@ pub mod rpc_methods {
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.send`
     pub const SESSION_SEND: &str = "session.send";
+    /// `session.sendMessages`
+    pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.abort`
     pub const SESSION_ABORT: &str = "session.abort";
     /// `session.shutdown`
@@ -344,6 +348,12 @@ pub mod rpc_methods {
     pub const SESSION_MCP_APPS_GETHOSTCONTEXT: &str = "session.mcp.apps.getHostContext";
     /// `session.mcp.apps.diagnose`
     pub const SESSION_MCP_APPS_DIAGNOSE: &str = "session.mcp.apps.diagnose";
+    /// `session.mcp.resources.read`
+    pub const SESSION_MCP_RESOURCES_READ: &str = "session.mcp.resources.read";
+    /// `session.mcp.resources.list`
+    pub const SESSION_MCP_RESOURCES_LIST: &str = "session.mcp.resources.list";
+    /// `session.mcp.resources.listTemplates`
+    pub const SESSION_MCP_RESOURCES_LISTTEMPLATES: &str = "session.mcp.resources.listTemplates";
     /// `session.plugins.list`
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
     /// `session.plugins.reload`
@@ -4912,7 +4922,7 @@ pub struct McpAppsListToolsResult {
     pub tools: Vec<HashMap<String, serde_json::Value>>,
 }
 
-/// MCP server and resource URI to fetch.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4920,16 +4930,18 @@ pub struct McpAppsListToolsResult {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsReadResourceRequest {
     /// Name of the MCP server hosting the resource
     pub server_name: String,
-    /// Resource URI (typically ui://...)
+    /// Resource URI
     pub uri: String,
 }
 
-/// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+/// Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4937,10 +4949,12 @@ pub struct McpAppsReadResourceRequest {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsResourceContent {
-    /// Resource-level metadata (CSP, permissions, etc.)
+    /// Resource-level metadata
     #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
     pub meta: Option<HashMap<String, serde_json::Value>>,
     /// Base64-encoded binary content
@@ -4952,11 +4966,11 @@ pub struct McpAppsResourceContent {
     /// Text content (e.g. HTML)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-    /// The resource URI (typically ui://...)
+    /// The resource URI
     pub uri: String,
 }
 
-/// Resource contents returned by the MCP server.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4964,6 +4978,8 @@ pub struct McpAppsResourceContent {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsReadResourceResult {
@@ -5634,7 +5650,7 @@ pub struct McpRemoveGitHubResult {
     pub removed: bool,
 }
 
-/// Server name and opaque configuration for an individual MCP server restart.
+/// Standard MCP resource annotations plus preserved non-standard annotation fields.
 ///
 /// <div class="warning">
 ///
@@ -5644,10 +5660,272 @@ pub struct McpRemoveGitHubResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct McpRestartServerRequest {
-    /// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.
-    #[doc(hidden)]
-    pub(crate) config: serde_json::Value,
+pub struct McpResourceAnnotations {
+    /// Server-provided non-standard annotation fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Intended audience roles for this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<Vec<String>>,
+    /// Last-modified timestamp hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<String>,
+    /// Priority hint for model/client use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<f64>,
+}
+
+/// A resource icon descriptor plus preserved non-standard icon fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceIcon {
+    /// Server-provided non-standard icon fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Icon MIME type, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Icon sizes hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sizes: Option<String>,
+    /// Icon URI
+    pub src: String,
+    /// Theme hint for this icon
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+}
+
+/// An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description, MIME type, size, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResource {
+    /// Resource-level metadata
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Server-provided non-standard descriptor fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Model/client annotations associated with this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<McpResourceAnnotations>,
+    /// Optional description of what this resource represents
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<McpResourceIcon>>,
+    /// MIME type of the resource, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// The programmatic name of the resource
+    pub name: String,
+    /// Resource size in bytes, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    /// Optional human-readable display title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// The resource URI (e.g. ui://... or file:///...)
+    pub uri: String,
+}
+
+/// MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceContent {
+    /// Resource-level metadata (CSP, permissions, etc.)
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Base64-encoded binary content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>,
+    /// MIME type of the content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content (e.g. HTML)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// The resource URI
+    pub uri: String,
+}
+
+/// MCP server whose resources to enumerate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListRequest {
+    /// Opaque MCP pagination cursor from a prior `nextCursor` value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Name of the MCP server whose resources to enumerate
+    pub server_name: String,
+}
+
+/// One page of resources advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListResult {
+    /// Opaque cursor for the next page, if the server has more resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resources advertised by the server (proxied MCP `resources/list`)
+    pub resources: Vec<McpResource>,
+}
+
+/// MCP server whose resource templates to enumerate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListTemplatesRequest {
+    /// Opaque MCP pagination cursor from a prior `nextCursor` value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Name of the MCP server whose resource templates to enumerate
+    pub server_name: String,
+}
+
+/// An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template, name, and optional title, description, MIME type, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceTemplate {
+    /// Resource-template-level metadata
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Server-provided non-standard descriptor fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Model/client annotations associated with this template
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<McpResourceAnnotations>,
+    /// Optional description of what this template is for
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with resources matching this template
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<McpResourceIcon>>,
+    /// MIME type for resources matching this template, if uniform
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// The programmatic name of the resource template
+    pub name: String,
+    /// Optional human-readable display title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// An RFC 6570 URI template for constructing resource URIs
+    pub uri_template: String,
+}
+
+/// One page of resource templates advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListTemplatesResult {
+    /// Opaque cursor for the next page, if the server has more resource templates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+    pub resource_templates: Vec<McpResourceTemplate>,
+}
+
+/// MCP server and resource URI to fetch.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesReadRequest {
+    /// Name of the MCP server hosting the resource
+    pub server_name: String,
+    /// Resource URI
+    pub uri: String,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesReadResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpResourceContent>,
+}
+
+/// Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpRestartServerRequest {
+    /// Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<serde_json::Value>,
     /// Name of the MCP server to restart
     pub server_name: String,
 }
@@ -5862,7 +6140,7 @@ pub struct McpSetEnvValueModeResult {
     pub mode: McpSetEnvValueModeDetails,
 }
 
-/// Server name and opaque configuration for an individual MCP server start.
+/// Server name and configuration for an individual MCP server start.
 ///
 /// <div class="warning">
 ///
@@ -5872,10 +6150,9 @@ pub struct McpSetEnvValueModeResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct McpStartServerRequest {
-    /// Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers.
-    #[doc(hidden)]
-    pub(crate) config: serde_json::Value,
+pub struct McpStartServerRequest {
+    /// MCP server configuration (stdio process or remote HTTP/SSE)
+    pub config: serde_json::Value,
     /// Name of the MCP server to start
     pub server_name: String,
 }
@@ -6725,6 +7002,9 @@ pub struct ModelSwitchToRequest {
     /// Reasoning summary mode to request for supported model clients
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Output verbosity level to request for supported models
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
 }
 
 /// The model identifier active on the session after the switch.
@@ -8723,6 +9003,9 @@ pub struct PluginsReloadRequest {
     /// Re-run custom-agent discovery after refreshing plugins. Defaults to true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_custom_agents: Option<bool>,
+    /// Re-discover and relaunch subprocess extensions (including plugin-shipped extensions) after refreshing plugins. Defaults to true. Has no effect when the session has no active extension controller (e.g. extensions were not requested for the session).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reload_extensions: Option<bool>,
     /// Re-load user, plugin, and (subject to `deferRepoHooks`) repo hooks. Defaults to true. Has no effect when the host has not registered a hook reloader (e.g. remote sessions).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reload_hooks: Option<bool>,
@@ -9595,7 +9878,7 @@ pub struct QueueRemoveMostRecentResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterEventInterestParams {
-    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates the full interactive OAuth flow to the consumer; when no interest is registered the runtime installs a browserless fallback that silently reuses cached tokens). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+    /// The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
     pub event_type: String,
 }
 
@@ -9740,6 +10023,10 @@ pub struct RemoteControlConfig {
 pub struct RemoteControlStatusActive {
     /// Session id remote control is pointed at.
     pub attached_session_id: String,
+    /// True while a read-only/session-sync export is deferred, awaiting the first `user.message` before its MC session exists. Marked internal: this field is excluded from the public SDK surface and is populated only on the CLI in-process path.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) awaiting_first_message: Option<bool>,
     /// MC frontend URL for this session, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
@@ -10289,6 +10576,89 @@ pub struct SendAttachmentsToMessageParams {
     /// Optional canvas instance binding the push for provenance. When supplied, the runtime resolves the canvas, verifies it is owned by the calling extension, and stamps canvasId/instanceId onto each extension_context entry. When omitted, no resolution runs and those fields stay unset on the attachment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<String>,
+}
+
+/// A single user message to append to the session as part of a `session.sendMessages` turn
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessageItem {
+    /// Optional attachments (files, directories, selections, blobs, GitHub references) to include with this message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Value>>,
+    /// If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) billable: Option<bool>,
+    /// If provided, this is shown in the timeline instead of `prompt`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_prompt: Option<String>,
+    /// The user message text
+    pub prompt: String,
+    /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required_tool: Option<String>,
+    /// Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-<command-id>` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for messages originating from a scheduled job.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) source: Option<String>,
+}
+
+/// Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesRequest {
+    /// The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_mode: Option<SendAgentMode>,
+    /// The user messages to append to the conversation, in order. May be empty, in which case a single turn runs over the existing history with no new user message.
+    pub messages: Vec<SendMessageItem>,
+    /// How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<SendMode>,
+    /// If true, adds the messages to the front of the queue instead of the end
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prepend: Option<bool>,
+    /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_headers: Option<HashMap<String, String>>,
+    /// W3C Trace Context traceparent header for distributed tracing of this agent turn
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+    /// W3C Trace Context tracestate header for distributed tracing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracestate: Option<String>,
+    /// If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<bool>,
+}
+
+/// Result of sending zero or more user messages
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesResult {
+    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    pub message_ids: Vec<String>,
 }
 
 /// Parameters for sending a user message to the session
@@ -11411,6 +11781,9 @@ pub struct SessionOpenOptions {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_citations: Option<bool>,
+    /// Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
     /// Whether on-demand custom instruction discovery is enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -11513,9 +11886,6 @@ pub struct SessionOpenOptions {
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
-    /// Opt-in: self-fetch enterprise managed settings at session bootstrap.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub self_fetch_managed_settings: Option<bool>,
     /// Capabilities enabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_capabilities: Option<Vec<SessionCapability>>,
@@ -11540,6 +11910,9 @@ pub struct SessionOpenOptions {
     /// Optional trajectory output file path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Initial output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Working directory to anchor the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -11702,6 +12075,10 @@ pub struct SessionsOpenHandoff {
     pub kind: SessionsOpenHandoffKind,
     /// Remote session metadata for the session to hand off (typically obtained from `sessions.list` with `source: "remote"`).
     pub metadata: RemoteSessionMetadataValue,
+    /// In-process confirmation callback `(request) => boolean | Promise<boolean>` invoked when the handoff needs the caller to confirm a non-fatal blocker (e.g. a repository mismatch between the current working directory and the remote session). Returning `true` proceeds with the handoff; returning `false` (or omitting the callback) aborts it. Marked internal because a function reference cannot cross the JSON-RPC boundary, for the same reasons as `onProgress`.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) on_confirm: Option<serde_json::Value>,
     /// In-process progress callback `(update) => void` invoked for each handoff step. Marked internal because a function reference cannot cross the JSON-RPC boundary. The host-side `handoffSession` is already declared as `AsyncGenerator<HandoffProgress, HandoffResult>`; the schema layer flattens it because it does not yet support streaming methods. The wire-clean replacement is to expose the AsyncGenerator directly (or use vscode-jsonrpc `$/progress` notifications) once the schema/transport layer supports it.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12790,6 +13167,9 @@ pub struct SessionUpdateOptionsParams {
     /// Optional path for trajectory output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
+    /// Output verbosity level for supported models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verbosity: Option<Verbosity>,
     /// Absolute working-directory path for shell tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -15476,6 +15856,21 @@ pub struct InstructionsGetDiscoveryPathsResult {
     pub paths: Vec<InstructionDiscoveryPath>,
 }
 
+/// Slash commands available in the session, after applying any include/exclude filters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandsListResult {
+    /// Commands available in this session
+    pub commands: Vec<SlashCommandInfo>,
+}
+
 /// Result of opening a session.
 ///
 /// <div class="warning">
@@ -15766,6 +16161,21 @@ pub struct SessionSuspendParams {
 pub struct SessionSendResult {
     /// Unique identifier assigned to the message
     pub message_id: String,
+}
+
+/// Result of sending zero or more user messages
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSendMessagesResult {
+    /// Unique identifiers assigned to the messages, one per provided message in order. Empty when no messages were provided.
+    pub message_ids: Vec<String>,
 }
 
 /// Result of aborting the current turn
@@ -17247,7 +17657,7 @@ pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
     pub success: bool,
 }
 
-/// Resource contents returned by the MCP server.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -17255,6 +17665,8 @@ pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpAppsReadResourceResult {
@@ -17322,6 +17734,57 @@ pub struct SessionMcpAppsDiagnoseResult {
     pub capability: McpAppsDiagnoseCapability,
     /// What the server returned for this session
     pub server: McpAppsDiagnoseServer,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesReadResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpResourceContent>,
+}
+
+/// One page of resources advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesListResult {
+    /// Opaque cursor for the next page, if the server has more resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resources advertised by the server (proxied MCP `resources/list`)
+    pub resources: Vec<McpResource>,
+}
+
+/// One page of resource templates advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesListTemplatesResult {
+    /// Opaque cursor for the next page, if the server has more resource templates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+    pub resource_templates: Vec<McpResourceTemplate>,
 }
 
 /// Identifies the target session.

@@ -1814,6 +1814,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             model,
             options.ReasoningEffort,
             options.ReasoningSummary,
+            null,
             options.ModelCapabilities,
             options.ContextTier,
             cancellationToken);

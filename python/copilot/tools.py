@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
     from .generated.rpc import CurrentToolMetadata
@@ -223,7 +223,21 @@ def define_tool(
                 if takes_params:
                     args = invocation.arguments or {}
                     if ptype is not None and _is_pydantic_model(ptype):
-                        call_args.append(ptype.model_validate(args))
+                        try:
+                            call_args.append(ptype.model_validate(args))
+                        except ValidationError as exc:
+                            # Highlight input validation problems to the LLM.
+                            parts = []
+                            for err in exc.errors():
+                                loc = ".".join(map(str, err["loc"]))
+                                msg = err["msg"]
+                                parts.append(f"{loc}: {msg}" if loc else msg)
+                            return ToolResult(
+                                text_result_for_llm="Invalid tool arguments:\n" + "\n".join(parts),
+                                result_type="failure",
+                                error=str(exc),
+                                tool_telemetry={},
+                            )
                     else:
                         call_args.append(args)
                 if takes_invocation:

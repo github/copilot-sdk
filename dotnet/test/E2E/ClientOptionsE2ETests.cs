@@ -71,7 +71,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         {
             Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             BaseDirectory = copilotHomeFromOption,
-            Environment = clientEnv,
             GitHubToken = "process-option-token",
             LogLevel = CopilotLogLevel.Debug,
             SessionIdleTimeoutSeconds = 17,
@@ -85,7 +84,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 CaptureContent = true,
             },
             UseLoggedInUser = false,
-        });
+        }, environment: clientEnv);
 
         await client.StartAsync();
 

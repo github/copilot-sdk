@@ -65,6 +65,9 @@ final class LlmInferenceAdapter {
     private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {
         String requestId = params.get("requestId").asText();
         String sessionId = textOrNull(params, "sessionId");
+        String agentId = textOrNull(params, "agentId");
+        String parentAgentId = textOrNull(params, "parentAgentId");
+        String interactionType = textOrNull(params, "interactionType");
         String method = textOrNull(params, "method");
         String url = textOrNull(params, "url");
         CopilotRequestTransport transport = CopilotRequestTransport.fromWire(textOrNull(params, "transport"));
@@ -74,8 +77,8 @@ final class LlmInferenceAdapter {
         // body — rather than dropping those frames.
         LlmInferenceExchange exchange = getOrCreateExchange(requestId);
         exchange.setMethod(method);
-        exchange.setContext(
-                new CopilotRequestContext(requestId, sessionId, transport, url, headers, exchange.cancellation()));
+        exchange.setContext(new CopilotRequestContext(requestId, sessionId, agentId, parentAgentId, interactionType,
+                transport, url, headers, exchange.cancellation()));
 
         // Return from httpRequestStart immediately (after registering state) so the
         // runtime's RPC reply is not gated on the consumer's I/O. The actual handler

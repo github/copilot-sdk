@@ -20,6 +20,7 @@ type (
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
+	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                         = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                      = rpc.AssistantUsageAPIEndpoint
@@ -51,6 +52,7 @@ type (
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentType                                                 = rpc.AttachmentType
 	AutoApprovalRecommendation                                     = rpc.AutoApprovalRecommendation
+	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
@@ -121,10 +123,13 @@ type (
 	MCPOauthRequiredStaticClientConfig                             = rpc.MCPOauthRequiredStaticClientConfig
 	MCPOauthRequiredStaticClientConfigGrantType                    = rpc.MCPOauthRequiredStaticClientConfigGrantType
 	MCPOauthWwwAuthenticateParams                                  = rpc.MCPOauthWwwAuthenticateParams
+	MCPPromptsListChangedData                                      = rpc.MCPPromptsListChangedData
+	MCPResourcesListChangedData                                    = rpc.MCPResourcesListChangedData
 	MCPServersLoadedServer                                         = rpc.MCPServersLoadedServer
 	MCPServerSource                                                = rpc.MCPServerSource
 	MCPServerStatus                                                = rpc.MCPServerStatus
 	MCPServerTransport                                             = rpc.MCPServerTransport
+	MCPToolsListChangedData                                        = rpc.MCPToolsListChangedData
 	ModelCallFailureBadRequestKind                                 = rpc.ModelCallFailureBadRequestKind
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
 	ModelCallFailureRequestFingerprint                             = rpc.ModelCallFailureRequestFingerprint
@@ -197,6 +202,7 @@ type (
 	ReasoningSummary                                               = rpc.ReasoningSummary
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
+	SessionAutoModeResolvedData                                    = rpc.SessionAutoModeResolvedData
 	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
 	SessionBinaryAssetData                                         = rpc.SessionBinaryAssetData
@@ -332,6 +338,7 @@ type (
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                    = rpc.UserToolSessionApprovalRead
 	UserToolSessionApprovalWrite                                   = rpc.UserToolSessionApprovalWrite
+	Verbosity                                                      = rpc.Verbosity
 	WorkingDirectoryContext                                        = rpc.WorkingDirectoryContext
 	WorkingDirectoryContextHostType                                = rpc.WorkingDirectoryContextHostType
 	WorkspaceFileChangedOperation                                  = rpc.WorkspaceFileChangedOperation
@@ -370,6 +377,9 @@ const (
 	AutoApprovalRecommendationError                                    = rpc.AutoApprovalRecommendationError
 	AutoApprovalRecommendationExcluded                                 = rpc.AutoApprovalRecommendationExcluded
 	AutoApprovalRecommendationRequireApproval                          = rpc.AutoApprovalRecommendationRequireApproval
+	AutoModeResolvedReasoningBucketHigh                                = rpc.AutoModeResolvedReasoningBucketHigh
+	AutoModeResolvedReasoningBucketLow                                 = rpc.AutoModeResolvedReasoningBucketLow
+	AutoModeResolvedReasoningBucketMedium                              = rpc.AutoModeResolvedReasoningBucketMedium
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
@@ -507,6 +517,7 @@ const (
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
+	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
 	SessionEventTypeAssistantTurnStart                                 = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                     = rpc.SessionEventTypeAssistantUsage
@@ -531,12 +542,16 @@ const (
 	SessionEventTypeMCPHeadersRefreshRequired                          = rpc.SessionEventTypeMCPHeadersRefreshRequired
 	SessionEventTypeMCPOauthCompleted                                  = rpc.SessionEventTypeMCPOauthCompleted
 	SessionEventTypeMCPOauthRequired                                   = rpc.SessionEventTypeMCPOauthRequired
+	SessionEventTypeMCPPromptsListChanged                              = rpc.SessionEventTypeMCPPromptsListChanged
+	SessionEventTypeMCPResourcesListChanged                            = rpc.SessionEventTypeMCPResourcesListChanged
+	SessionEventTypeMCPToolsListChanged                                = rpc.SessionEventTypeMCPToolsListChanged
 	SessionEventTypeModelCallFailure                                   = rpc.SessionEventTypeModelCallFailure
 	SessionEventTypePendingMessagesModified                            = rpc.SessionEventTypePendingMessagesModified
 	SessionEventTypePermissionCompleted                                = rpc.SessionEventTypePermissionCompleted
 	SessionEventTypePermissionRequested                                = rpc.SessionEventTypePermissionRequested
 	SessionEventTypeSamplingCompleted                                  = rpc.SessionEventTypeSamplingCompleted
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
+	SessionEventTypeSessionAutoModeResolved                            = rpc.SessionEventTypeSessionAutoModeResolved
 	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
 	SessionEventTypeSessionBinaryAsset                                 = rpc.SessionEventTypeSessionBinaryAsset
@@ -657,6 +672,9 @@ const (
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
 	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
+	VerbosityHigh                                                      = rpc.VerbosityHigh
+	VerbosityLow                                                       = rpc.VerbosityLow
+	VerbosityMedium                                                    = rpc.VerbosityMedium
 	WorkingDirectoryContextHostTypeADO                                 = rpc.WorkingDirectoryContextHostTypeADO
 	WorkingDirectoryContextHostTypeGitHub                              = rpc.WorkingDirectoryContextHostTypeGitHub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

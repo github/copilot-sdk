@@ -237,64 +237,75 @@ public sealed class E2ETestContext : IAsyncDisposable
     }
 
     public CopilotClient CreateClient(
-        bool? useStdio = null,
         CopilotClientOptions? options = null,
         bool autoInjectGitHubToken = true,
-        bool persistent = false)
+        bool persistent = false,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         options ??= new CopilotClientOptions();
 
         options.WorkingDirectory ??= WorkDir;
-        options.Environment ??= GetEnvironment();
         options.Logger ??= Logger;
 
-        // Build the connection. If the caller supplied one, just ensure the runtime path is set.
-        // When neither a Connection nor useStdio is specified, leave Connection null so
-        // CopilotClient honors COPILOT_SDK_DEFAULT_CONNECTION (defaulting to stdio); useStdio
-        // is a convenience shortcut to pin stdio/tcp. Passing both a Connection and useStdio is ambiguous.
-        if (useStdio is not null && options.Connection is not null)
+        // Tests must supply environment via the 'environment' parameter, which the
+        // harness routes to the right place per transport (the connection for
+        // child-process transports, the host process for in-process). Setting
+        // options.Environment directly bypasses that routing and is unsupported
+        // in-process, so reject it here.
+        if (options.Environment is not null)
         {
             throw new ArgumentException(
-                "Specify either useStdio or options.Connection, not both. " +
-                "Use options.Connection (e.g. RuntimeConnection.ForStdio() / RuntimeConnection.ForTcp()) to control transport when supplying a Connection.",
-                nameof(useStdio));
+                "Do not set options.Environment in E2E tests; pass the 'environment' parameter to CreateClient instead.",
+                nameof(options));
         }
 
+        // The full environment the client runs with: harness defaults (proxy
+        // redirect, isolated home, cleared HMAC/tokens, etc.) unless the test
+        // supplied a complete replacement.
+        var env = environment is not null
+            ? environment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+            : GetEnvironment();
+
+        // When the test doesn't pin a transport, leave Connection null so
+        // CopilotClient honors COPILOT_SDK_DEFAULT_CONNECTION (stdio by default,
+        // or in-process); the CI matrix uses this to run the suite under both.
+        // Tests that need a specific transport set options.Connection directly.
         var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {
-            case null when useStdio == true:
+            case null when !IsInProcess(null):
+                // No explicit connection and not the in-process default: the
+                // default resolves to stdio, so materialize it here so the
+                // environment can be attached to the connection below.
                 options.Connection = RuntimeConnection.ForStdio(path: cliPath);
                 break;
-            case null when useStdio == false:
-                options.Connection = RuntimeConnection.ForTcp(path: cliPath);
-                break;
             case null:
-                // useStdio is null: leave Connection unset so CopilotClient's
-                // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION
-                // (stdio by default, or in-process). The CLI path flows through
-                // options.Environment["COPILOT_CLI_PATH"] (GetEnvironment copies
-                // the process env, where CI's setup-copilot sets it).
+                // In-process default: leave Connection unset so CopilotClient's
+                // ResolveDefaultConnection honors COPILOT_SDK_DEFAULT_CONNECTION.
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
                 break;
         }
 
-        // In-process hosting workaround: several runtime code paths run host-side
-        // in this process (the loaded cdylib) and read the ambient process
-        // environment rather than the environment passed to
-        // copilot_runtime_host_start, so our per-test redirects, cleared tokens,
-        // cleared HMAC keys, and isolated home in options.Environment are
-        // invisible to them unless mirrored onto this process's real environment.
-        // All of this hackery lives in InProcessEnvIsolation so it can be deleted
-        // in one place once the runtime stops reading the ambient process env.
-        if (InProcessEnvIsolation.IsActive(options.Environment))
+        if (IsInProcess(options.Connection))
         {
-            foreach (var (name, value) in options.Environment)
+            // In-process hosting: runtime code runs host-side in this process (the
+            // loaded cdylib) and reads the ambient process environment rather than
+            // the environment passed to copilot_runtime_host_start, so the per-test
+            // redirects, cleared tokens/HMAC, and isolated home must be mirrored
+            // onto this process's real environment. Restored after each test by
+            // InProcessEnvIsolationAttribute.
+            foreach (var (name, value) in env)
             {
-                InProcessEnvIsolation.Mirror(name, value);
+                InProcessEnvIsolation.Apply(name, value);
             }
+        }
+        else if (options.Connection is ChildProcessRuntimeConnection child)
+        {
+            // Child-process transport: hand the environment to the spawned child
+            // via the connection, where per-client environment is coherent.
+            child.Environment = env;
         }
 
         // Auto-inject auth token unless connecting to an existing runtime via URI.
@@ -343,27 +354,16 @@ public sealed class E2ETestContext : IAsyncDisposable
             _transientClients.Clear();
         }
 
-        try
+        foreach (var client in transientClients)
         {
-            foreach (var client in transientClients)
+            try
             {
-                try
-                {
-                    await StopClientForCleanupAsync(client);
-                }
-                catch (Exception ex) when (IsTransientCleanupException(ex))
-                {
-                    errors.Add(ex);
-                }
+                await StopClientForCleanupAsync(client);
             }
-        }
-        finally
-        {
-            // Undo any in-process env mirroring so it cannot leak into the next
-            // test. In a finally so a non-transient force-stop failure above can
-            // never skip it (a skipped restore would otherwise strand the shared
-            // process env in its cleared/redirected state until the next mirror).
-            InProcessEnvIsolation.Restore();
+            catch (Exception ex) when (IsTransientCleanupException(ex))
+            {
+                errors.Add(ex);
+            }
         }
 
         if (errors.Count == 1)
@@ -399,11 +399,6 @@ public sealed class E2ETestContext : IAsyncDisposable
                 errors.Add(ex);
             }
         }
-
-        // Backstop: revert any in-process env mirroring at fixture teardown too,
-        // so a class's mutations cannot survive into the next class even if a
-        // per-test cleanup was bypassed.
-        InProcessEnvIsolation.Restore();
 
         // Skip writing snapshots in CI to avoid corrupting them on test failures
         var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
@@ -459,10 +454,36 @@ public sealed class E2ETestContext : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Determines whether the resolved transport is the in-process (FFI) host,
+    /// mirroring <see cref="CopilotClient"/>'s own default-connection resolution:
+    /// an explicit <see cref="InProcessRuntimeConnection"/>, or (when no connection
+    /// is given) the COPILOT_SDK_DEFAULT_CONNECTION=inprocess default.
+    /// </summary>
+    private static bool IsInProcess(RuntimeConnection? connection)
+    {
+        if (connection is InProcessRuntimeConnection)
+        {
+            return true;
+        }
+        if (connection is null)
+        {
+            return string.Equals(
+                Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION"),
+                "inprocess",
+                StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
+    }
+
     // Inproc holds the session-store SQLite handle in-process; graceful StopAsync releases it so the temp-dir delete succeeds on Windows.
     private static async Task StopClientForCleanupAsync(CopilotClient client)
     {
-        if (InProcessEnvIsolation.IsActive())
+        var isInProcess = string.Equals(
+            Environment.GetEnvironmentVariable("COPILOT_SDK_DEFAULT_CONNECTION"),
+            "inprocess",
+            StringComparison.OrdinalIgnoreCase);
+        if (isInProcess)
         {
             await client.StopAsync();
         }

@@ -3,16 +3,15 @@ use std::path::Path;
 
 use github_copilot_sdk::rpc::{
     ExtensionsDisableRequest, ExtensionsEnableRequest, McpAppsCallToolRequest,
-    McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsReadResourceRequest,
-    McpAppsSetHostContextDetails, McpAppsSetHostContextDetailsAvailableDisplayMode,
-    McpAppsSetHostContextDetailsDisplayMode, McpAppsSetHostContextDetailsPlatform,
-    McpAppsSetHostContextDetailsTheme, McpAppsSetHostContextRequest,
-    McpCancelSamplingExecutionParams, McpDisableRequest, McpEnableRequest,
-    McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
-    McpSamplingExecutionAction, McpSetEnvValueModeDetails, McpSetEnvValueModeParams,
-    SkillsDisableRequest, SkillsEnableRequest,
+    McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsSetHostContextDetails,
+    McpAppsSetHostContextDetailsAvailableDisplayMode, McpAppsSetHostContextDetailsDisplayMode,
+    McpAppsSetHostContextDetailsPlatform, McpAppsSetHostContextDetailsTheme,
+    McpAppsSetHostContextRequest, McpCancelSamplingExecutionParams, McpDisableRequest,
+    McpEnableRequest, McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
+    McpResourcesReadRequest, McpSamplingExecutionAction, McpSetEnvValueModeDetails,
+    McpSetEnvValueModeParams, SkillsDisableRequest, SkillsEnableRequest,
 };
-use github_copilot_sdk::{McpServerConfig, McpStdioServerConfig};
+use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
 use super::support::with_e2e_context;
 
@@ -510,8 +509,8 @@ async fn should_report_error_when_mcp_app_resource_is_not_available() {
                 let err = session
                     .rpc()
                     .mcp()
-                    .apps()
-                    .read_resource(McpAppsReadResourceRequest {
+                    .resources()
+                    .read(McpResourcesReadRequest {
                         server_name: "missing-app-server".to_string(),
                         uri: "ui://missing/resource.html".to_string(),
                     })
@@ -761,14 +760,14 @@ fn assert_skill(
     skill
 }
 
-fn test_mcp_servers(repo_root: &Path, server_name: &str) -> HashMap<String, McpServerConfig> {
+fn test_mcp_servers(repo_root: &Path, server_name: &str) -> IndexMap<String, McpServerConfig> {
     let harness_dir = repo_root.join("test").join("harness");
     let server_path = harness_dir
         .join("test-mcp-server.mjs")
         .to_string_lossy()
         .to_string();
 
-    HashMap::from([(
+    IndexMap::from([(
         server_name.to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
             tools: Some(vec!["*".to_string()]),
