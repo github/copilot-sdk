@@ -48,13 +48,6 @@ final class RpcHandlerDispatcher {
     private static final Logger LOG = Logger.getLogger(RpcHandlerDispatcher.class.getName());
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
-    /**
-     * Fixed name of the runtime's built-in tool-search tool. A client can replace
-     * its behavior by registering a tool with this exact name and
-     * {@code overridesBuiltInTool} set to {@code true}.
-     */
-    private static final String TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
-
     private final Map<String, CopilotSession> sessions;
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
@@ -169,19 +162,7 @@ final class RpcHandlerDispatcher {
                 var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
                         .setToolName(toolName).setArguments(arguments);
 
-                // The built-in tool-search tool receives a snapshot of the session's
-                // currently initialized tools so an override can filter the live
-                // catalog without issuing its own RPC. Fetch it only for that tool to
-                // avoid a round-trip on every tool call; a failed fetch leaves the
-                // snapshot null rather than failing the tool.
-                if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
-                    try {
-                        var metadata = session.getRpc().tools.getCurrentMetadata().join();
-                        invocation.setAvailableTools(metadata.tools());
-                    } catch (Exception e) {
-                        LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
-                    }
-                }
+                session.populateToolSearchMetadata(toolName, invocation);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {

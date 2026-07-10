@@ -906,6 +906,32 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Populates the invocation's available-tools snapshot when it targets the
+     * built-in tool-search tool, so an override can filter the live catalog
+     * without issuing its own RPC. The snapshot is fetched only for that tool to
+     * avoid a round-trip on every ordinary tool call; a failed fetch leaves the
+     * snapshot {@code null} rather than failing the tool. Shared by both
+     * server-to-client tool dispatch paths ({@link RpcHandlerDispatcher} and
+     * {@link #executeToolAndRespondAsync}).
+     *
+     * @param toolName
+     *            the name of the tool being invoked
+     * @param invocation
+     *            the invocation to populate in place
+     */
+    void populateToolSearchMetadata(String toolName, com.github.copilot.rpc.ToolInvocation invocation) {
+        if (!TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+            return;
+        }
+        try {
+            var metadata = getRpc().tools.getCurrentMetadata().join();
+            invocation.setAvailableTools(metadata.tools());
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+        }
+    }
+
+    /**
      * Executes a tool handler and sends the result back via
      * {@code session.tools.handlePendingToolCall}.
      */
@@ -919,19 +945,7 @@ public final class CopilotSession implements AutoCloseable {
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
 
-                // The built-in tool-search tool receives a snapshot of the session's
-                // currently initialized tools so an override can filter the live
-                // catalog without issuing its own RPC. Fetch it only for that tool to
-                // avoid a round-trip on every tool call; a failed fetch leaves the
-                // snapshot null rather than failing the tool.
-                if (TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
-                    try {
-                        var metadata = getRpc().tools.getCurrentMetadata().join();
-                        invocation.setAvailableTools(metadata.tools());
-                    } catch (Exception e) {
-                        LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
-                    }
-                }
+                populateToolSearchMetadata(toolName, invocation);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {

@@ -188,7 +188,7 @@ public final class ToolInvocation {
      * invocation.
      *
      * @return the available tools snapshot, or {@code null} if not applicable
-     * @since 1.0.0
+     * @since 1.0.7
      */
     public List<CurrentToolMetadata> getAvailableTools() {
         return availableTools;

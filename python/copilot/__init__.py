@@ -74,6 +74,7 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    CurrentToolMetadata,
     GitHubTelemetryClientInfo,
     GitHubTelemetryEvent,
     GitHubTelemetryNotification,
@@ -215,6 +216,7 @@ __all__ = [
     "CopilotWebSocketCloseStatus",
     "CopilotWebSocketHandler",
     "CreateSessionFsHandler",
+    "CurrentToolMetadata",
     "ElicitationContext",
     "ElicitationHandler",
     "ElicitationParams",

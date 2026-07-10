@@ -97,6 +97,8 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
+const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
+
 /**
  * Represents a single conversation session with the Copilot CLI.
  *
@@ -127,7 +129,6 @@ export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.mes
  * its behavior by registering a {@link Tool} with this exact name and
  * `overridesBuiltInTool: true`.
  */
-const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
 export class CopilotSession {
     private eventHandlers: Set<SessionEventHandler> = new Set();

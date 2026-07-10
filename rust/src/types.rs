@@ -4815,10 +4815,10 @@ pub struct ToolInvocation {
     /// The SDK populates this only when the invocation targets the built-in
     /// tool-search tool (`tool_search_tool`), so a tool-search override can
     /// rank/filter the live catalog — including MCP tools configured in
-    /// settings — without issuing its own RPC. Empty for every other tool
+    /// settings — without issuing its own RPC. `None` for every other tool
     /// invocation. This field is not part of the wire protocol.
     #[serde(skip)]
-    pub available_tools: Vec<CurrentToolMetadata>,
+    pub available_tools: Option<Vec<CurrentToolMetadata>>,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI
@@ -4882,8 +4882,14 @@ pub struct ToolBinaryResult {
 }
 
 /// Expanded tool result with metadata for the LLM and session log.
+///
+/// This type is `#[non_exhaustive]`: it mirrors a growing wire shape, so
+/// construct it via [`ToolResultExpanded::new`] plus the `with_*` chain
+/// rather than a struct literal, allowing new fields to land without
+/// breaking callers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ToolResultExpanded {
     /// Result text sent back to the LLM.
     pub text_result_for_llm: String,
@@ -4904,6 +4910,60 @@ pub struct ToolResultExpanded {
     /// Names of tools returned by a tool-search tool.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_references: Option<Vec<String>>,
+}
+
+impl ToolResultExpanded {
+    /// Construct an expanded result with the required `text_result_for_llm`
+    /// and `result_type` (`"success"` or `"failure"`). All optional metadata
+    /// fields start unset; populate them with the `with_*` builders.
+    pub fn new(
+        text_result_for_llm: impl Into<String>,
+        result_type: impl Into<String>,
+    ) -> Self {
+        Self {
+            text_result_for_llm: text_result_for_llm.into(),
+            result_type: result_type.into(),
+            binary_results_for_llm: None,
+            session_log: None,
+            error: None,
+            tool_telemetry: None,
+            tool_references: None,
+        }
+    }
+
+    /// Set the binary payloads returned to the LLM.
+    pub fn with_binary_results(mut self, results: Vec<ToolBinaryResult>) -> Self {
+        self.binary_results_for_llm = Some(results);
+        self
+    }
+
+    /// Set the log message for the session timeline.
+    pub fn with_session_log(mut self, session_log: impl Into<String>) -> Self {
+        self.session_log = Some(session_log.into());
+        self
+    }
+
+    /// Set the error message, marking the tool as failed.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
+        self
+    }
+
+    /// Set the tool-specific telemetry emitted with the result.
+    pub fn with_tool_telemetry(mut self, telemetry: HashMap<String, Value>) -> Self {
+        self.tool_telemetry = Some(telemetry);
+        self
+    }
+
+    /// Set the names of tools returned by a tool-search tool.
+    pub fn with_tool_references<I, S>(mut self, references: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.tool_references = Some(references.into_iter().map(Into::into).collect());
+        self
+    }
 }
 
 /// Result of a tool invocation — either a plain text string or an expanded result.
@@ -5376,6 +5436,70 @@ mod tests {
 
         assert_eq!(wire["result"]["textResultForLlm"], "ok");
         assert!(wire["result"].get("binaryResultsForLlm").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_serializes_tool_references() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(
+                ToolResultExpanded::new("found 2 tools", "success")
+                    .with_tool_references(["get_weather", "check_status"]),
+            ),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(
+            wire,
+            json!({
+                "result": {
+                    "textResultForLlm": "found 2 tools",
+                    "resultType": "success",
+                    "toolReferences": ["get_weather", "check_status"]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_omits_tool_references_when_none() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(ToolResultExpanded::new("ok", "success")),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(wire["result"]["textResultForLlm"], "ok");
+        assert!(wire["result"].get("toolReferences").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_with_tool_references_accepts_owned_strings() {
+        // The builder is generic over `Into<String>`, so an owned `Vec<String>`
+        // must compile and populate the field just like a `&str` array.
+        let names: Vec<String> = vec!["alpha".to_string(), "beta".to_string()];
+        let expanded = ToolResultExpanded::new("ok", "success").with_tool_references(names);
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_deserializes_tool_references() {
+        let wire = json!({
+            "textResultForLlm": "found tools",
+            "resultType": "success",
+            "toolReferences": ["alpha", "beta"]
+        });
+
+        let expanded: ToolResultExpanded = serde_json::from_value(wire).unwrap();
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
     }
 
     #[test]

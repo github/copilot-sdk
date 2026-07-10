@@ -1817,7 +1817,7 @@ async fn handle_notification(
                     // session's currently initialized tools so an override can
                     // filter the live catalog without issuing its own RPC. Fetch
                     // it only for that tool to avoid a round-trip on every tool
-                    // call; a failed fetch leaves the snapshot empty rather than
+                    // call; a failed fetch leaves the snapshot `None` rather than
                     // failing the tool.
                     let available_tools = if tool_name == TOOL_SEARCH_TOOL_NAME {
                         match client
@@ -1831,12 +1831,11 @@ async fn handle_notification(
                                 serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
                                     .ok()
                                     .and_then(|result| result.tools)
-                                    .unwrap_or_default()
                             }
-                            Err(_) => Vec::new(),
+                            Err(_) => None,
                         }
                     } else {
-                        Vec::new()
+                        None
                     };
                     let invocation = ToolInvocation {
                         session_id: sid.clone(),

@@ -61,6 +61,31 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
         @JsonProperty("toolReferences") List<String> toolReferences) {
 
     /**
+     * Creates a result without tool references.
+     * <p>
+     * Provided for source and binary compatibility with callers written or
+     * compiled before the {@code toolReferences} component was added. Delegates to
+     * the canonical constructor with {@code toolReferences} set to {@code null}.
+     *
+     * @param resultType
+     *            the result type ("success" or "error"), defaults to "success"
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param binaryResultsForLlm
+     *            the list of binary results to be sent to the LLM
+     * @param error
+     *            the error message, or {@code null} if successful
+     * @param sessionLog
+     *            the session log text
+     * @param toolTelemetry
+     *            the tool telemetry data
+     */
+    public ToolResultObject(String resultType, String textResultForLlm, List<ToolBinaryResult> binaryResultsForLlm,
+            String error, String sessionLog, Map<String, Object> toolTelemetry) {
+        this(resultType, textResultForLlm, binaryResultsForLlm, error, sessionLog, toolTelemetry, null);
+    }
+
+    /**
      * Creates a success result with the given text.
      *
      * @param textResultForLlm

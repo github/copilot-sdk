@@ -567,7 +567,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({"msg": "hello"}),
-            available_tools: Vec::new(),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -608,7 +608,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "weather".to_string(),
             arguments: serde_json::json!({"city": "Seattle"}),
-            available_tools: Vec::new(),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -691,7 +691,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"city": "Seattle", "unit": "celsius"}),
-                available_tools: Vec::new(),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -711,7 +711,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"wrong_field": 42}),
-                available_tools: Vec::new(),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -733,7 +733,7 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
                     arguments: serde_json::json!({"city": "Portland"}),
-                    available_tools: Vec::new(),
+                    available_tools: None,
                     traceparent: None,
                     tracestate: None,
                 })
