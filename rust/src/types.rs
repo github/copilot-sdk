@@ -5015,10 +5015,7 @@ impl ToolResultExpanded {
     /// Construct an expanded result with the required `text_result_for_llm`
     /// and `result_type` (`"success"` or `"failure"`). All optional metadata
     /// fields start unset; populate them with the `with_*` builders.
-    pub fn new(
-        text_result_for_llm: impl Into<String>,
-        result_type: impl Into<String>,
-    ) -> Self {
+    pub fn new(text_result_for_llm: impl Into<String>, result_type: impl Into<String>) -> Self {
         Self {
             text_result_for_llm: text_result_for_llm.into(),
             result_type: result_type.into(),
