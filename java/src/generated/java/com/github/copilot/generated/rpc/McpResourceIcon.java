@@ -10,23 +10,27 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
-import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+ * A resource icon descriptor plus preserved non-standard icon fields.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@Deprecated
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpAppsReadResourceResult(
-    /** Resource contents returned by the server */
-    @JsonProperty("contents") List<McpAppsResourceContent> contents
+public record McpResourceIcon(
+    /** Icon URI */
+    @JsonProperty("src") String src,
+    /** Icon MIME type, when known */
+    @JsonProperty("mimeType") String mimeType,
+    /** Icon sizes hint */
+    @JsonProperty("sizes") String sizes,
+    /** Theme hint for this icon */
+    @JsonProperty("theme") String theme,
+    /** Server-provided non-standard icon fields preserved from the MCP response */
+    @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 }

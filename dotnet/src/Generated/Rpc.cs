@@ -6270,13 +6270,17 @@ internal sealed class McpHeadersHandlePendingHeadersRefreshRequestRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 public sealed class McpAppsResourceContent
 {
-    /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
+    /// <summary>Resource-level metadata.</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Base64-encoded binary content.</summary>
     [JsonPropertyName("blob")]
@@ -6290,13 +6294,17 @@ public sealed class McpAppsResourceContent
     [JsonPropertyName("text")]
     public string? Text { get; set; }
 
-    /// <summary>The resource URI (typically ui://...).</summary>
+    /// <summary>The resource URI.</summary>
     [JsonPropertyName("uri")]
     public string Uri { get; set; } = string.Empty;
 }
 
-/// <summary>Resource contents returned by the MCP server.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 public sealed class McpAppsReadResourceResult
 {
     /// <summary>Resource contents returned by the server.</summary>
@@ -6304,8 +6312,12 @@ public sealed class McpAppsReadResourceResult
     public IList<McpAppsResourceContent> Contents { get => field ??= []; set; }
 }
 
-/// <summary>MCP server and resource URI to fetch.</summary>
+/// <summary>Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.</summary>
 [Experimental(Diagnostics.Experimental)]
+[EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+[Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
 internal sealed class McpAppsReadResourceRequest
 {
     /// <summary>Name of the MCP server hosting the resource.</summary>
@@ -6319,7 +6331,7 @@ internal sealed class McpAppsReadResourceRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Resource URI (typically ui://...).</summary>
+    /// <summary>Resource URI.</summary>
     [JsonPropertyName("uri")]
     public string Uri { get; set; } = string.Empty;
 }
@@ -6540,6 +6552,258 @@ public sealed class McpAppsDiagnoseResult
 internal sealed class McpAppsDiagnoseRequest
 {
     /// <summary>MCP server to probe.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceContent
+{
+    /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Base64-encoded binary content.</summary>
+    [JsonPropertyName("blob")]
+    public string? Blob { get; set; }
+
+    /// <summary>MIME type of the content.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Text content (e.g. HTML).</summary>
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    /// <summary>The resource URI.</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Resource contents returned by the MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesReadResult
+{
+    /// <summary>Resource contents returned by the server.</summary>
+    [JsonPropertyName("contents")]
+    public IList<McpResourceContent> Contents { get => field ??= []; set; }
+}
+
+/// <summary>MCP server and resource URI to fetch.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesReadRequest
+{
+    /// <summary>Name of the MCP server hosting the resource.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Resource URI.</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Standard MCP resource annotations plus preserved non-standard annotation fields.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceAnnotations
+{
+    /// <summary>Server-provided non-standard annotation fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Intended audience roles for this resource.</summary>
+    [JsonPropertyName("audience")]
+    public IList<string>? Audience { get; set; }
+
+    /// <summary>Last-modified timestamp hint.</summary>
+    [JsonPropertyName("lastModified")]
+    public string? LastModified { get; set; }
+
+    /// <summary>Priority hint for model/client use.</summary>
+    [JsonPropertyName("priority")]
+    public double? Priority { get; set; }
+}
+
+/// <summary>A resource icon descriptor plus preserved non-standard icon fields.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceIcon
+{
+    /// <summary>Server-provided non-standard icon fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Icon MIME type, when known.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Icon sizes hint.</summary>
+    [JsonPropertyName("sizes")]
+    public string? Sizes { get; set; }
+
+    /// <summary>Icon URI.</summary>
+    [JsonPropertyName("src")]
+    public string Src { get; set; } = string.Empty;
+
+    /// <summary>Theme hint for this icon.</summary>
+    [JsonPropertyName("theme")]
+    public string? Theme { get; set; }
+}
+
+/// <summary>An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description, MIME type, size, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResource
+{
+    /// <summary>Resource-level metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Model/client annotations associated with this resource.</summary>
+    [JsonPropertyName("annotations")]
+    public McpResourceAnnotations? Annotations { get; set; }
+
+    /// <summary>Optional description of what this resource represents.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Icons associated with this resource.</summary>
+    [JsonPropertyName("icons")]
+    public IList<McpResourceIcon>? Icons { get; set; }
+
+    /// <summary>MIME type of the resource, if known.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>The programmatic name of the resource.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Resource size in bytes, when known.</summary>
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+
+    /// <summary>Optional human-readable display title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>The resource URI (e.g. ui://... or file:///...).</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>One page of resources advertised by the named MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesListResult
+{
+    /// <summary>Opaque cursor for the next page, if the server has more resources.</summary>
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+
+    /// <summary>Resources advertised by the server (proxied MCP `resources/list`).</summary>
+    [JsonPropertyName("resources")]
+    public IList<McpResource> Resources { get => field ??= []; set; }
+}
+
+/// <summary>MCP server whose resources to enumerate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesListRequest
+{
+    /// <summary>Opaque MCP pagination cursor from a prior `nextCursor` value.</summary>
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+
+    /// <summary>Name of the MCP server whose resources to enumerate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template, name, and optional title, description, MIME type, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourceTemplate
+{
+    /// <summary>Resource-template-level metadata.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
+    [JsonPropertyName("additionalProperties")]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+    /// <summary>Model/client annotations associated with this template.</summary>
+    [JsonPropertyName("annotations")]
+    public McpResourceAnnotations? Annotations { get; set; }
+
+    /// <summary>Optional description of what this template is for.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Icons associated with resources matching this template.</summary>
+    [JsonPropertyName("icons")]
+    public IList<McpResourceIcon>? Icons { get; set; }
+
+    /// <summary>MIME type for resources matching this template, if uniform.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>The programmatic name of the resource template.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Optional human-readable display title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>An RFC 6570 URI template for constructing resource URIs.</summary>
+    [JsonPropertyName("uriTemplate")]
+    public string UriTemplate { get; set; } = string.Empty;
+}
+
+/// <summary>One page of resource templates advertised by the named MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesListTemplatesResult
+{
+    /// <summary>Opaque cursor for the next page, if the server has more resource templates.</summary>
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+
+    /// <summary>Resource templates advertised by the server (proxied MCP `resources/templates/list`).</summary>
+    [JsonPropertyName("resourceTemplates")]
+    public IList<McpResourceTemplate> ResourceTemplates { get => field ??= []; set; }
+}
+
+/// <summary>MCP server whose resource templates to enumerate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpResourcesListTemplatesRequest
+{
+    /// <summary>Opaque MCP pagination cursor from a prior `nextCursor` value.</summary>
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+
+    /// <summary>Name of the MCP server whose resource templates to enumerate.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
@@ -21356,6 +21620,12 @@ public sealed class McpApi
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
+
+    /// <summary>Resources APIs.</summary>
+    public McpResourcesApi Resources =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 }
 
 /// <summary>Provides session-scoped McpOauth APIs.</summary>
@@ -21443,11 +21713,15 @@ public sealed class McpAppsApi
         _session = session;
     }
 
-    /// <summary>Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.</summary>
+    /// <summary>Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.</summary>
     /// <param name="serverName">Name of the MCP server hosting the resource.</param>
-    /// <param name="uri">Resource URI (typically ui://...).</param>
+    /// <param name="uri">Resource URI.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Resource contents returned by the MCP server.</returns>
+    /// <returns>Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+#if NET5_0_OR_GREATER
+    [Obsolete("This member is deprecated and will be removed in a future version.", DiagnosticId = "GHCP001")]
+#endif
     public async Task<McpAppsReadResourceResult> ReadResourceAsync(string serverName, string uri, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
@@ -21525,6 +21799,61 @@ public sealed class McpAppsApi
 
         var request = new McpAppsDiagnoseRequest { SessionId = _session.SessionId, ServerName = serverName };
         return await CopilotClient.InvokeRpcAsync<McpAppsDiagnoseResult>(_session.Rpc, "session.mcp.apps.diagnose", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped McpResources APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpResourcesApi
+{
+    private readonly CopilotSession _session;
+
+    internal McpResourcesApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).</summary>
+    /// <param name="serverName">Name of the MCP server hosting the resource.</param>
+    /// <param name="uri">Resource URI.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Resource contents returned by the MCP server.</returns>
+    public async Task<McpResourcesReadResult> ReadAsync(string serverName, string uri, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(uri);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesReadRequest { SessionId = _session.SessionId, ServerName = serverName, Uri = uri };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesReadResult>(_session.Rpc, "session.mcp.resources.read", [request], cancellationToken);
+    }
+
+    /// <summary>Enumerate one page of resources a connected MCP server exposes (proxies MCP `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.</summary>
+    /// <param name="serverName">Name of the MCP server whose resources to enumerate.</param>
+    /// <param name="cursor">Opaque MCP pagination cursor from a prior `nextCursor` value.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One page of resources advertised by the named MCP server.</returns>
+    public async Task<McpResourcesListResult> ListAsync(string serverName, string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesListRequest { SessionId = _session.SessionId, ServerName = serverName, Cursor = cursor };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesListResult>(_session.Rpc, "session.mcp.resources.list", [request], cancellationToken);
+    }
+
+    /// <summary>Enumerate one page of resource templates a connected MCP server exposes (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's `nextCursor`.</summary>
+    /// <param name="serverName">Name of the MCP server whose resource templates to enumerate.</param>
+    /// <param name="cursor">Opaque MCP pagination cursor from a prior `nextCursor` value.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One page of resource templates advertised by the named MCP server.</returns>
+    public async Task<McpResourcesListTemplatesResult> ListTemplatesAsync(string serverName, string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpResourcesListTemplatesRequest { SessionId = _session.SessionId, ServerName = serverName, Cursor = cursor };
+        return await CopilotClient.InvokeRpcAsync<McpResourcesListTemplatesResult>(_session.Rpc, "session.mcp.resources.listTemplates", [request], cancellationToken);
     }
 }
 
@@ -23458,10 +23787,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthWWWAuthenticateParams), TypeInfoPropertyName = "SessionEventsMcpOauthWWWAuthenticateParams")]
+[JsonSerializable(typeof(GitHub.Copilot.McpPromptsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpPromptsListChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpResourcesListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpResourcesListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
+[JsonSerializable(typeof(GitHub.Copilot.McpToolsListChangedEvent), TypeInfoPropertyName = "SessionEventsMcpToolsListChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureBadRequestKind), TypeInfoPropertyName = "SessionEventsModelCallFailureBadRequestKind")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
@@ -23815,6 +24147,17 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpRegisterExternalClientRequest))]
 [JsonSerializable(typeof(McpReloadWithConfigRequest))]
 [JsonSerializable(typeof(McpRemoveGitHubResult))]
+[JsonSerializable(typeof(McpResource))]
+[JsonSerializable(typeof(McpResourceAnnotations))]
+[JsonSerializable(typeof(McpResourceContent))]
+[JsonSerializable(typeof(McpResourceIcon))]
+[JsonSerializable(typeof(McpResourceTemplate))]
+[JsonSerializable(typeof(McpResourcesListRequest))]
+[JsonSerializable(typeof(McpResourcesListResult))]
+[JsonSerializable(typeof(McpResourcesListTemplatesRequest))]
+[JsonSerializable(typeof(McpResourcesListTemplatesResult))]
+[JsonSerializable(typeof(McpResourcesReadRequest))]
+[JsonSerializable(typeof(McpResourcesReadResult))]
 [JsonSerializable(typeof(McpRestartServerRequest))]
 [JsonSerializable(typeof(McpSamplingExecutionResult))]
 [JsonSerializable(typeof(McpServer))]

@@ -6009,24 +6009,27 @@ export interface McpAppsListToolsResult {
   }[];
 }
 /**
- * MCP server and resource URI to fetch.
+ * @deprecated
+ * Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsReadResourceRequest".
  */
 /** @experimental */
+/** @deprecated */
 export interface McpAppsReadResourceRequest {
   /**
    * Name of the MCP server hosting the resource
    */
   serverName: string;
   /**
-   * Resource URI (typically ui://...)
+   * Resource URI
    */
   uri: string;
 }
 /**
- * Resource contents returned by the MCP server.
+ * @deprecated
+ * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsReadResourceResult".
@@ -6039,7 +6042,8 @@ export interface McpAppsReadResourceResult {
   contents: McpAppsResourceContent[];
 }
 /**
- * MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+ * @deprecated
+ * Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsResourceContent".
@@ -6047,7 +6051,7 @@ export interface McpAppsReadResourceResult {
 /** @experimental */
 export interface McpAppsResourceContent {
   /**
-   * The resource URI (typically ui://...)
+   * The resource URI
    */
   uri: string;
   /**
@@ -6063,7 +6067,7 @@ export interface McpAppsResourceContent {
    */
   blob?: string;
   /**
-   * Resource-level metadata (CSP, permissions, etc.)
+   * Resource-level metadata
    */
   _meta?: {
     [k: string]: unknown | undefined;
@@ -6782,6 +6786,289 @@ export interface McpRemoveGitHubResult {
    * True when the auto-managed `github` MCP server was removed; false when no removal happened (e.g. user has explicitly configured a `github` server, or the server was not registered).
    */
   removed: boolean;
+}
+/**
+ * An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description, MIME type, size, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResource".
+ */
+/** @experimental */
+export interface McpResource {
+  /**
+   * The resource URI (e.g. ui://... or file:///...)
+   */
+  uri: string;
+  /**
+   * The programmatic name of the resource
+   */
+  name: string;
+  /**
+   * Optional human-readable display title
+   */
+  title?: string;
+  /**
+   * Optional description of what this resource represents
+   */
+  description?: string;
+  /**
+   * MIME type of the resource, if known
+   */
+  mimeType?: string;
+  /**
+   * Resource size in bytes, when known
+   */
+  size?: number;
+  /**
+   * Icons associated with this resource
+   */
+  icons?: McpResourceIcon[];
+  annotations?: McpResourceAnnotations;
+  /**
+   * Resource-level metadata
+   */
+  _meta?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Server-provided non-standard descriptor fields preserved from the MCP response
+   */
+  additionalProperties?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * A resource icon descriptor plus preserved non-standard icon fields.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourceIcon".
+ */
+/** @experimental */
+export interface McpResourceIcon {
+  /**
+   * Icon URI
+   */
+  src: string;
+  /**
+   * Icon MIME type, when known
+   */
+  mimeType?: string;
+  /**
+   * Icon sizes hint
+   */
+  sizes?: string;
+  /**
+   * Theme hint for this icon
+   */
+  theme?: string;
+  /**
+   * Server-provided non-standard icon fields preserved from the MCP response
+   */
+  additionalProperties?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Standard MCP resource annotations plus preserved non-standard annotation fields.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourceAnnotations".
+ */
+/** @experimental */
+export interface McpResourceAnnotations {
+  /**
+   * Intended audience roles for this resource
+   */
+  audience?: string[];
+  /**
+   * Priority hint for model/client use
+   */
+  priority?: number;
+  /**
+   * Last-modified timestamp hint
+   */
+  lastModified?: string;
+  /**
+   * Server-provided non-standard annotation fields preserved from the MCP response
+   */
+  additionalProperties?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourceContent".
+ */
+/** @experimental */
+export interface McpResourceContent {
+  /**
+   * The resource URI
+   */
+  uri: string;
+  /**
+   * MIME type of the content
+   */
+  mimeType?: string;
+  /**
+   * Text content (e.g. HTML)
+   */
+  text?: string;
+  /**
+   * Base64-encoded binary content
+   */
+  blob?: string;
+  /**
+   * Resource-level metadata (CSP, permissions, etc.)
+   */
+  _meta?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * MCP server whose resources to enumerate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesListRequest".
+ */
+/** @experimental */
+export interface McpResourcesListRequest {
+  /**
+   * Name of the MCP server whose resources to enumerate
+   */
+  serverName: string;
+  /**
+   * Opaque MCP pagination cursor from a prior `nextCursor` value
+   */
+  cursor?: string;
+}
+/**
+ * One page of resources advertised by the named MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesListResult".
+ */
+/** @experimental */
+export interface McpResourcesListResult {
+  /**
+   * Resources advertised by the server (proxied MCP `resources/list`)
+   */
+  resources: McpResource[];
+  /**
+   * Opaque cursor for the next page, if the server has more resources
+   */
+  nextCursor?: string;
+}
+/**
+ * MCP server whose resource templates to enumerate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesListTemplatesRequest".
+ */
+/** @experimental */
+export interface McpResourcesListTemplatesRequest {
+  /**
+   * Name of the MCP server whose resource templates to enumerate
+   */
+  serverName: string;
+  /**
+   * Opaque MCP pagination cursor from a prior `nextCursor` value
+   */
+  cursor?: string;
+}
+/**
+ * One page of resource templates advertised by the named MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesListTemplatesResult".
+ */
+/** @experimental */
+export interface McpResourcesListTemplatesResult {
+  /**
+   * Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+   */
+  resourceTemplates: McpResourceTemplate[];
+  /**
+   * Opaque cursor for the next page, if the server has more resource templates
+   */
+  nextCursor?: string;
+}
+/**
+ * An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template, name, and optional title, description, MIME type, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourceTemplate".
+ */
+/** @experimental */
+export interface McpResourceTemplate {
+  /**
+   * An RFC 6570 URI template for constructing resource URIs
+   */
+  uriTemplate: string;
+  /**
+   * The programmatic name of the resource template
+   */
+  name: string;
+  /**
+   * Optional human-readable display title
+   */
+  title?: string;
+  /**
+   * Optional description of what this template is for
+   */
+  description?: string;
+  /**
+   * MIME type for resources matching this template, if uniform
+   */
+  mimeType?: string;
+  /**
+   * Icons associated with resources matching this template
+   */
+  icons?: McpResourceIcon[];
+  annotations?: McpResourceAnnotations;
+  /**
+   * Resource-template-level metadata
+   */
+  _meta?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Server-provided non-standard descriptor fields preserved from the MCP response
+   */
+  additionalProperties?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * MCP server and resource URI to fetch.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesReadRequest".
+ */
+/** @experimental */
+export interface McpResourcesReadRequest {
+  /**
+   * Name of the MCP server hosting the resource
+   */
+  serverName: string;
+  /**
+   * Resource URI
+   */
+  uri: string;
+}
+/**
+ * Resource contents returned by the MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpResourcesReadResult".
+ */
+/** @experimental */
+export interface McpResourcesReadResult {
+  /**
+   * Resource contents returned by the server
+   */
+  contents: McpResourceContent[];
 }
 /**
  * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
@@ -16755,11 +17042,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /** @experimental */
             apps: {
                 /**
-                 * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
+                 * Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.
                  *
-                 * @param params MCP server and resource URI to fetch.
+                 * @param params Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
                  *
-                 * @returns Resource contents returned by the MCP server.
+                 * @returns Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+                 *
+                 * @deprecated
                  */
                 readResource: async (params: McpAppsReadResourceRequest): Promise<McpAppsReadResourceResult> =>
                     connection.sendRequest("session.mcp.apps.readResource", { sessionId, ...params }),
@@ -16804,6 +17093,36 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 diagnose: async (params: McpAppsDiagnoseRequest): Promise<McpAppsDiagnoseResult> =>
                     connection.sendRequest("session.mcp.apps.diagnose", { sessionId, ...params }),
+            },
+            /** @experimental */
+            resources: {
+                /**
+                 * Fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).
+                 *
+                 * @param params MCP server and resource URI to fetch.
+                 *
+                 * @returns Resource contents returned by the MCP server.
+                 */
+                read: async (params: McpResourcesReadRequest): Promise<McpResourcesReadResult> =>
+                    connection.sendRequest("session.mcp.resources.read", { sessionId, ...params }),
+                /**
+                 * Enumerate one page of resources a connected MCP server exposes (proxies MCP `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
+                 *
+                 * @param params MCP server whose resources to enumerate.
+                 *
+                 * @returns One page of resources advertised by the named MCP server.
+                 */
+                list: async (params: McpResourcesListRequest): Promise<McpResourcesListResult> =>
+                    connection.sendRequest("session.mcp.resources.list", { sessionId, ...params }),
+                /**
+                 * Enumerate one page of resource templates a connected MCP server exposes (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
+                 *
+                 * @param params MCP server whose resource templates to enumerate.
+                 *
+                 * @returns One page of resource templates advertised by the named MCP server.
+                 */
+                listTemplates: async (params: McpResourcesListTemplatesRequest): Promise<McpResourcesListTemplatesResult> =>
+                    connection.sendRequest("session.mcp.resources.listTemplates", { sessionId, ...params }),
             },
         },
         /** @experimental */

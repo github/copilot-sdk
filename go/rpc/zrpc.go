@@ -3063,17 +3063,23 @@ type MCPAppsListToolsResult struct {
 	Tools []map[string]any `json:"tools"`
 }
 
-// MCP server and resource URI to fetch.
+// Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
+// `session.mcp.resources.read` instead.
 // Experimental: MCPAppsReadResourceRequest is part of an experimental API and may change or
 // be removed.
+// Deprecated: MCPAppsReadResourceRequest is deprecated and will be removed in a future
+// version.
 type MCPAppsReadResourceRequest struct {
 	// Name of the MCP server hosting the resource
 	ServerName string `json:"serverName"`
-	// Resource URI (typically ui://...)
+	// Resource URI
 	URI string `json:"uri"`
 }
 
-// Resource contents returned by the MCP server.
+// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: MCPAppsReadResourceResult is deprecated and will be removed in a future
+// version.
 // Experimental: MCPAppsReadResourceResult is part of an experimental API and may change or
 // be removed.
 type MCPAppsReadResourceResult struct {
@@ -3081,20 +3087,21 @@ type MCPAppsReadResourceResult struct {
 	Contents []MCPAppsResourceContent `json:"contents"`
 }
 
-// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
-// metadata.
+// Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: MCPAppsResourceContent is deprecated and will be removed in a future version.
 // Experimental: MCPAppsResourceContent is part of an experimental API and may change or be
 // removed.
 type MCPAppsResourceContent struct {
 	// Base64-encoded binary content
 	Blob *string `json:"blob,omitempty"`
-	// Resource-level metadata (CSP, permissions, etc.)
+	// Resource-level metadata
 	Meta map[string]any `json:"_meta,omitzero"`
 	// MIME type of the content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Text content (e.g. HTML)
 	Text *string `json:"text,omitempty"`
-	// The resource URI (typically ui://...)
+	// The resource URI
 	URI string `json:"uri"`
 }
 
@@ -3593,6 +3600,164 @@ type MCPRemoveGitHubResult struct {
 	// happened (e.g. user has explicitly configured a `github` server, or the server was not
 	// registered).
 	Removed bool `json:"removed"`
+}
+
+// An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description,
+// MIME type, size, icons, annotations, and metadata. Server-provided fields outside the
+// standard descriptor shape are exposed under `additionalProperties`.
+// Experimental: MCPResource is part of an experimental API and may change or be removed.
+type MCPResource struct {
+	// Server-provided non-standard descriptor fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Model/client annotations associated with this resource
+	Annotations *MCPResourceAnnotations `json:"annotations,omitempty"`
+	// Optional description of what this resource represents
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []MCPResourceIcon `json:"icons,omitzero"`
+	// Resource-level metadata
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type of the resource, if known
+	MIMEType *string `json:"mimeType,omitempty"`
+	// The programmatic name of the resource
+	Name string `json:"name"`
+	// Resource size in bytes, when known
+	Size *int64 `json:"size,omitempty"`
+	// Optional human-readable display title
+	Title *string `json:"title,omitempty"`
+	// The resource URI (e.g. ui://... or file:///...)
+	URI string `json:"uri"`
+}
+
+// Standard MCP resource annotations plus preserved non-standard annotation fields.
+// Experimental: MCPResourceAnnotations is part of an experimental API and may change or be
+// removed.
+type MCPResourceAnnotations struct {
+	// Server-provided non-standard annotation fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Intended audience roles for this resource
+	Audience []string `json:"audience,omitzero"`
+	// Last-modified timestamp hint
+	LastModified *string `json:"lastModified,omitempty"`
+	// Priority hint for model/client use
+	Priority *float64 `json:"priority,omitempty"`
+}
+
+// MCP resource content with URI, optional MIME type, text or base64 blob, and resource
+// metadata.
+// Experimental: MCPResourceContent is part of an experimental API and may change or be
+// removed.
+type MCPResourceContent struct {
+	// Base64-encoded binary content
+	Blob *string `json:"blob,omitempty"`
+	// Resource-level metadata (CSP, permissions, etc.)
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type of the content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content (e.g. HTML)
+	Text *string `json:"text,omitempty"`
+	// The resource URI
+	URI string `json:"uri"`
+}
+
+// A resource icon descriptor plus preserved non-standard icon fields.
+// Experimental: MCPResourceIcon is part of an experimental API and may change or be removed.
+type MCPResourceIcon struct {
+	// Server-provided non-standard icon fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Icon MIME type, when known
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Icon sizes hint
+	Sizes *string `json:"sizes,omitempty"`
+	// Icon URI
+	Src string `json:"src"`
+	// Theme hint for this icon
+	Theme *string `json:"theme,omitempty"`
+}
+
+// MCP server whose resources to enumerate.
+// Experimental: MCPResourcesListRequest is part of an experimental API and may change or be
+// removed.
+type MCPResourcesListRequest struct {
+	// Opaque MCP pagination cursor from a prior `nextCursor` value
+	Cursor *string `json:"cursor,omitempty"`
+	// Name of the MCP server whose resources to enumerate
+	ServerName string `json:"serverName"`
+}
+
+// One page of resources advertised by the named MCP server.
+// Experimental: MCPResourcesListResult is part of an experimental API and may change or be
+// removed.
+type MCPResourcesListResult struct {
+	// Opaque cursor for the next page, if the server has more resources
+	NextCursor *string `json:"nextCursor,omitempty"`
+	// Resources advertised by the server (proxied MCP `resources/list`)
+	Resources []MCPResource `json:"resources"`
+}
+
+// MCP server whose resource templates to enumerate.
+// Experimental: MCPResourcesListTemplatesRequest is part of an experimental API and may
+// change or be removed.
+type MCPResourcesListTemplatesRequest struct {
+	// Opaque MCP pagination cursor from a prior `nextCursor` value
+	Cursor *string `json:"cursor,omitempty"`
+	// Name of the MCP server whose resource templates to enumerate
+	ServerName string `json:"serverName"`
+}
+
+// One page of resource templates advertised by the named MCP server.
+// Experimental: MCPResourcesListTemplatesResult is part of an experimental API and may
+// change or be removed.
+type MCPResourcesListTemplatesResult struct {
+	// Opaque cursor for the next page, if the server has more resource templates
+	NextCursor *string `json:"nextCursor,omitempty"`
+	// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+	ResourceTemplates []MCPResourceTemplate `json:"resourceTemplates"`
+}
+
+// MCP server and resource URI to fetch.
+// Experimental: MCPResourcesReadRequest is part of an experimental API and may change or be
+// removed.
+type MCPResourcesReadRequest struct {
+	// Name of the MCP server hosting the resource
+	ServerName string `json:"serverName"`
+	// Resource URI
+	URI string `json:"uri"`
+}
+
+// Resource contents returned by the MCP server.
+// Experimental: MCPResourcesReadResult is part of an experimental API and may change or be
+// removed.
+type MCPResourcesReadResult struct {
+	// Resource contents returned by the server
+	Contents []MCPResourceContent `json:"contents"`
+}
+
+// An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template,
+// name, and optional title, description, MIME type, icons, annotations, and metadata.
+// Server-provided fields outside the standard descriptor shape are exposed under
+// `additionalProperties`.
+// Experimental: MCPResourceTemplate is part of an experimental API and may change or be
+// removed.
+type MCPResourceTemplate struct {
+	// Server-provided non-standard descriptor fields preserved from the MCP response
+	AdditionalProperties map[string]any `json:"additionalProperties,omitzero"`
+	// Model/client annotations associated with this template
+	Annotations *MCPResourceAnnotations `json:"annotations,omitempty"`
+	// Optional description of what this template is for
+	Description *string `json:"description,omitempty"`
+	// Icons associated with resources matching this template
+	Icons []MCPResourceIcon `json:"icons,omitzero"`
+	// Resource-template-level metadata
+	Meta map[string]any `json:"_meta,omitzero"`
+	// MIME type for resources matching this template, if uniform
+	MIMEType *string `json:"mimeType,omitempty"`
+	// The programmatic name of the resource template
+	Name string `json:"name"`
+	// Optional human-readable display title
+	Title *string `json:"title,omitempty"`
+	// An RFC 6570 URI template for constructing resource URIs
+	URITemplate string `json:"uriTemplate"`
 }
 
 // Server name and optional replacement configuration for an individual MCP server restart.
@@ -15721,14 +15886,17 @@ func (a *MCPAppsAPI) ListTools(ctx context.Context, params *MCPAppsListToolsRequ
 	return &result, nil
 }
 
-// ReadResource fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865)
-// from a connected server. Requires the `mcp-apps` session capability.
+// ReadResource deprecated/obsolete alias for `session.mcp.resources.read`; retained for
+// backwards compatibility with earlier MCP Apps host integrations.
 //
 // RPC method: session.mcp.apps.readResource.
 //
-// Parameters: MCP server and resource URI to fetch.
+// Parameters: Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
+// `session.mcp.resources.read` instead.
 //
-// Returns: Resource contents returned by the MCP server.
+// Returns: Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
+// `session.mcp.resources.read` instead.
+// Deprecated: ReadResource is deprecated and will be removed in a future version.
 func (a *MCPAppsAPI) ReadResource(ctx context.Context, params *MCPAppsReadResourceRequest) (*MCPAppsReadResourceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -15886,6 +16054,93 @@ func (a *MCPOauthAPI) Login(ctx context.Context, params *MCPOauthLoginRequest) (
 // Experimental: Oauth returns experimental APIs that may change or be removed.
 func (s *MCPAPI) Oauth() *MCPOauthAPI {
 	return (*MCPOauthAPI)(s)
+}
+
+// Experimental: MCPResourcesAPI contains experimental APIs that may change or be removed.
+type MCPResourcesAPI sessionAPI
+
+// List enumerate one page of resources a connected MCP server exposes (proxies MCP
+// `resources/list`). Pass `cursor` to continue from a prior result's `nextCursor`.
+//
+// RPC method: session.mcp.resources.list.
+//
+// Parameters: MCP server whose resources to enumerate.
+//
+// Returns: One page of resources advertised by the named MCP server.
+func (a *MCPResourcesAPI) List(ctx context.Context, params *MCPResourcesListRequest) (*MCPResourcesListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cursor != nil {
+			req["cursor"] = *params.Cursor
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListTemplates enumerate one page of resource templates a connected MCP server exposes
+// (proxies MCP `resources/templates/list`). Pass `cursor` to continue from a prior result's
+// `nextCursor`.
+//
+// RPC method: session.mcp.resources.listTemplates.
+//
+// Parameters: MCP server whose resource templates to enumerate.
+//
+// Returns: One page of resource templates advertised by the named MCP server.
+func (a *MCPResourcesAPI) ListTemplates(ctx context.Context, params *MCPResourcesListTemplatesRequest) (*MCPResourcesListTemplatesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cursor != nil {
+			req["cursor"] = *params.Cursor
+		}
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.listTemplates", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesListTemplatesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Read fetch an MCP resource from a connected server by URI (proxies MCP `resources/read`).
+//
+// RPC method: session.mcp.resources.read.
+//
+// Parameters: MCP server and resource URI to fetch.
+//
+// Returns: Resource contents returned by the MCP server.
+func (a *MCPResourcesAPI) Read(ctx context.Context, params *MCPResourcesReadRequest) (*MCPResourcesReadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+		req["uri"] = params.URI
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.resources.read", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPResourcesReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Resources returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Resources() *MCPResourcesAPI {
+	return (*MCPResourcesAPI)(s)
 }
 
 // Experimental: MetadataAPI contains experimental APIs that may change or be removed.

@@ -32,7 +32,7 @@ public final class SessionMcpAppsApi {
     }
 
     /**
-     * MCP server and resource URI to fetch.
+     * Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -40,6 +40,7 @@ public final class SessionMcpAppsApi {
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
+    @Deprecated
     @CopilotExperimental
     public CompletableFuture<SessionMcpAppsReadResourceResult> readResource(SessionMcpAppsReadResourceParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);

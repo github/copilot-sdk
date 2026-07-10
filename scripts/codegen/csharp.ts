@@ -230,7 +230,8 @@ function stripDurationMillisecondsSuffix(name: string): string {
 }
 
 function toCSharpPropertyName(propName: string, schema: JSONSchema7): string {
-    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(propName) : propName);
+    const normalizedName = propName.replace(/^_+/, "") || propName;
+    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(normalizedName) : normalizedName);
 }
 
 function isSecondsDurationPropertyName(propName: string | undefined): boolean {

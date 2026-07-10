@@ -10,23 +10,27 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
-import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+ * MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@Deprecated
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpAppsReadResourceResult(
-    /** Resource contents returned by the server */
-    @JsonProperty("contents") List<McpAppsResourceContent> contents
+public record McpResourceContent(
+    /** The resource URI */
+    @JsonProperty("uri") String uri,
+    /** MIME type of the content */
+    @JsonProperty("mimeType") String mimeType,
+    /** Text content (e.g. HTML) */
+    @JsonProperty("text") String text,
+    /** Base64-encoded binary content */
+    @JsonProperty("blob") String blob,
+    /** Resource-level metadata (CSP, permissions, etc.) */
+    @JsonProperty("_meta") Map<String, Object> meta
 ) {
 }

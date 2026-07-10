@@ -14,11 +14,12 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP server and resource URI to fetch.
+ * Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@Deprecated
 @CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -28,7 +29,7 @@ public record SessionMcpAppsReadResourceParams(
     @JsonProperty("sessionId") String sessionId,
     /** Name of the MCP server hosting the resource */
     @JsonProperty("serverName") String serverName,
-    /** Resource URI (typically ui://...) */
+    /** Resource URI */
     @JsonProperty("uri") String uri
 ) {
 }

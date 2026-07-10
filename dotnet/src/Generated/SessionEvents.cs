@@ -58,6 +58,9 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
+[JsonDerivedType(typeof(McpPromptsListChangedEvent), "mcp.prompts.list_changed")]
+[JsonDerivedType(typeof(McpResourcesListChangedEvent), "mcp.resources.list_changed")]
+[JsonDerivedType(typeof(McpToolsListChangedEvent), "mcp.tools.list_changed")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
@@ -1405,6 +1408,45 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     /// <summary>The <c>session.mcp_server_status_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionMcpServerStatusChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
+public sealed partial class McpToolsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.tools.list_changed";
+
+    /// <summary>The <c>mcp.tools.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpToolsListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.resources.list_changed</c> event.</remarks>
+public sealed partial class McpResourcesListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.resources.list_changed";
+
+    /// <summary>The <c>mcp.resources.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpResourcesListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.prompts.list_changed</c> event.</remarks>
+public sealed partial class McpPromptsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.prompts.list_changed";
+
+    /// <summary>The <c>mcp.prompts.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpPromptsListChangedData Data { get; set; }
 }
 
 /// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
@@ -3933,6 +3975,30 @@ public sealed partial class SessionMcpServerStatusChangedData
     public required McpServerStatus Status { get; set; }
 }
 
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpToolsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpResourcesListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpPromptsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
 /// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
 public sealed partial class SessionExtensionsLoadedData
 {
@@ -5337,7 +5403,7 @@ public sealed partial class ToolExecutionStartToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionStartToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionStartToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6023,7 +6089,7 @@ public sealed partial class ToolExecutionCompleteUIResource
     /// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteUIResourceMeta? _meta { get; set; }
+    public ToolExecutionCompleteUIResourceMeta? Meta { get; set; }
 
     /// <summary>Base64-encoded HTML content.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6117,7 +6183,7 @@ public sealed partial class ToolExecutionCompleteToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionCompleteToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -11216,7 +11282,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
 [JsonSerializable(typeof(McpOauthWWWAuthenticateParams))]
+[JsonSerializable(typeof(McpPromptsListChangedData))]
+[JsonSerializable(typeof(McpPromptsListChangedEvent))]
+[JsonSerializable(typeof(McpResourcesListChangedData))]
+[JsonSerializable(typeof(McpResourcesListChangedEvent))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
+[JsonSerializable(typeof(McpToolsListChangedData))]
+[JsonSerializable(typeof(McpToolsListChangedEvent))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]

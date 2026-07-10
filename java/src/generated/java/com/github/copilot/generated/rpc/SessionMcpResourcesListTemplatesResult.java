@@ -15,18 +15,19 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+ * One page of resource templates advertised by the named MCP server.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@Deprecated
 @CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpAppsReadResourceResult(
-    /** Resource contents returned by the server */
-    @JsonProperty("contents") List<McpAppsResourceContent> contents
+public record SessionMcpResourcesListTemplatesResult(
+    /** Resource templates advertised by the server (proxied MCP `resources/templates/list`) */
+    @JsonProperty("resourceTemplates") List<McpResourceTemplate> resourceTemplates,
+    /** Opaque cursor for the next page, if the server has more resource templates */
+    @JsonProperty("nextCursor") String nextCursor
 ) {
 }
