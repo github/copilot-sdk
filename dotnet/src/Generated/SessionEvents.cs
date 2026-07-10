@@ -5403,7 +5403,7 @@ public sealed partial class ToolExecutionStartToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionStartToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionStartToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6089,7 +6089,7 @@ public sealed partial class ToolExecutionCompleteUIResource
     /// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteUIResourceMeta? _meta { get; set; }
+    public ToolExecutionCompleteUIResourceMeta? Meta { get; set; }
 
     /// <summary>Base64-encoded HTML content.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6183,7 +6183,7 @@ public sealed partial class ToolExecutionCompleteToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionCompleteToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

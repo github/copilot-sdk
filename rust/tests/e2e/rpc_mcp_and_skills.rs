@@ -3,14 +3,13 @@ use std::path::Path;
 
 use github_copilot_sdk::rpc::{
     ExtensionsDisableRequest, ExtensionsEnableRequest, McpAppsCallToolRequest,
-    McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsReadResourceRequest,
-    McpAppsSetHostContextDetails, McpAppsSetHostContextDetailsAvailableDisplayMode,
-    McpAppsSetHostContextDetailsDisplayMode, McpAppsSetHostContextDetailsPlatform,
-    McpAppsSetHostContextDetailsTheme, McpAppsSetHostContextRequest,
-    McpCancelSamplingExecutionParams, McpDisableRequest, McpEnableRequest,
-    McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
-    McpSamplingExecutionAction, McpSetEnvValueModeDetails, McpSetEnvValueModeParams,
-    SkillsDisableRequest, SkillsEnableRequest,
+    McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsSetHostContextDetails,
+    McpAppsSetHostContextDetailsAvailableDisplayMode, McpAppsSetHostContextDetailsDisplayMode,
+    McpAppsSetHostContextDetailsPlatform, McpAppsSetHostContextDetailsTheme,
+    McpAppsSetHostContextRequest, McpCancelSamplingExecutionParams, McpDisableRequest,
+    McpEnableRequest, McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
+    McpResourcesReadRequest, McpSamplingExecutionAction, McpSetEnvValueModeDetails,
+    McpSetEnvValueModeParams, SkillsDisableRequest, SkillsEnableRequest,
 };
 use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
@@ -510,8 +509,8 @@ async fn should_report_error_when_mcp_app_resource_is_not_available() {
                 let err = session
                     .rpc()
                     .mcp()
-                    .apps()
-                    .read_resource(McpAppsReadResourceRequest {
+                    .resources()
+                    .read(McpResourcesReadRequest {
                         server_name: "missing-app-server".to_string(),
                         uri: "ui://missing/resource.html".to_string(),
                     })

@@ -6280,7 +6280,7 @@ public sealed class McpAppsResourceContent
 {
     /// <summary>Resource-level metadata.</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Base64-encoded binary content.</summary>
     [JsonPropertyName("blob")]
@@ -6569,7 +6569,7 @@ public sealed class McpResourceContent
 {
     /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Base64-encoded binary content.</summary>
     [JsonPropertyName("blob")]
@@ -6669,7 +6669,7 @@ public sealed class McpResource
 {
     /// <summary>Resource-level metadata.</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
     [JsonPropertyName("additionalProperties")]
@@ -6747,7 +6747,7 @@ public sealed class McpResourceTemplate
 {
     /// <summary>Resource-template-level metadata.</summary>
     [JsonPropertyName("_meta")]
-    public IDictionary<string, JsonElement>? _meta { get; set; }
+    public IDictionary<string, JsonElement>? Meta { get; set; }
 
     /// <summary>Server-provided non-standard descriptor fields preserved from the MCP response.</summary>
     [JsonPropertyName("additionalProperties")]
