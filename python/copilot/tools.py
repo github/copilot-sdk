@@ -172,9 +172,9 @@ def define_tool(
                     and surfaced through tool search. When "never", the tool is always
                     pre-loaded. Optional; defaults to "auto".
         metadata: Opaque, host-defined metadata associated with the tool definition.
-                    Keys are namespaced and not part of the stable public API; the SDK
-                    forwards them verbatim to the runtime, which may recognize specific
-                    keys to inform host-specific behavior. Unknown keys are preserved.
+                    Keys are namespaced and not part of the stable public API; values
+                    are not interpreted and may be recognized to inform host-specific
+                    behavior. Unknown keys are preserved.
 
     Returns:
         A Tool instance

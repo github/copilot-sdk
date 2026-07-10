@@ -5,6 +5,7 @@
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -46,9 +47,9 @@ public class CopilotToolTests
     [Fact]
     public void DefineTool_Sets_Metadata_In_Additional_Properties()
     {
-        var metadata = new Dictionary<string, object>
+        var metadata = new Dictionary<string, JsonNode?>
         {
-            ["github.com/copilot:safeForTelemetry"] = new Dictionary<string, object>
+            ["github.com/copilot:safeForTelemetry"] = new JsonObject
             {
                 ["name"] = true,
                 ["inputsNames"] = false

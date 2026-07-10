@@ -76,9 +76,8 @@ import com.github.copilot.tool.Param;
  *            search) rather than always pre-loaded; {@code null} lets the
  *            runtime decide
  * @param metadata
- *            opaque, host-defined metadata forwarded verbatim to the runtime;
- *            keys are namespaced and not part of the stable public API;
- *            {@code null} when unset
+ *            opaque, host-defined metadata; keys are namespaced and not part of
+ *            the stable public API; {@code null} when unset
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
  * @since 1.0.0
@@ -187,9 +186,9 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     /**
      * Creates a tool definition with opaque, host-defined metadata.
      * <p>
-     * Use this factory method to attach namespaced metadata that the SDK forwards
-     * verbatim to the runtime. The keys are not part of the stable public API; the
-     * runtime may recognize specific keys to inform host-specific behavior.
+     * Use this factory method to attach namespaced metadata to the tool. The keys
+     * are not part of the stable public API; specific keys may be recognized to
+     * inform host-specific behavior.
      *
      * @param name
      *            the unique name of the tool
@@ -200,7 +199,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * @param handler
      *            the handler function to execute when invoked
      * @param metadata
-     *            the opaque metadata map forwarded to the runtime
+     *            the opaque metadata map
      * @return a new tool definition with the metadata set
      * @since 1.0.7
      */
@@ -313,8 +312,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * Returns a copy with the opaque {@code metadata} bag set.
      *
      * @param value
-     *            the opaque, host-defined metadata forwarded verbatim to the
-     *            runtime; keys are namespaced and not part of the stable public API
+     *            the opaque, host-defined metadata; keys are namespaced and not
+     *            part of the stable public API
      * @return a new {@code ToolDefinition} with the metadata applied
      * @since 1.0.7
      */

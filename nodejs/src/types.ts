@@ -582,10 +582,9 @@ export interface Tool<TArgs = unknown> {
     /**
      * Opaque, host-defined metadata associated with the tool definition.
      *
-     * Keys are namespaced and are not part of the stable public API. The SDK
-     * does not interpret these values; it forwards them verbatim to the runtime,
-     * which may recognize specific namespaced keys to inform host-specific
-     * behavior. Unknown keys are preserved and round-tripped untouched.
+     * Keys are namespaced and are not part of the stable public API. Values are
+     * not interpreted and may be recognized to inform host-specific behavior.
+     * Unknown keys are preserved and round-tripped untouched.
      */
     metadata?: Record<string, unknown>;
 }

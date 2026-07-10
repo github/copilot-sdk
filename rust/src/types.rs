@@ -352,10 +352,9 @@ pub struct Tool {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub defer: Option<DeferMode>,
     /// Opaque, host-defined metadata associated with the tool definition.
-    /// Keys are namespaced and not part of the stable public API; the SDK
-    /// forwards them verbatim to the runtime, which may recognize specific
-    /// keys to inform host-specific behavior. Unknown keys are preserved and
-    /// round-tripped untouched.
+    /// Keys are namespaced and not part of the stable public API; values are
+    /// not interpreted and may be recognized to inform host-specific behavior.
+    /// Unknown keys are preserved and round-tripped untouched.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub metadata: HashMap<String, Value>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
@@ -477,9 +476,8 @@ impl Tool {
         self
     }
 
-    /// Set opaque, host-defined metadata forwarded verbatim to the runtime.
-    /// Keys are namespaced and not part of the stable public API. Replaces any
-    /// previously-set metadata.
+    /// Set opaque, host-defined metadata for the tool. Keys are namespaced and
+    /// not part of the stable public API. Replaces any previously-set metadata.
     pub fn with_metadata(mut self, metadata: HashMap<String, Value>) -> Self {
         self.metadata = metadata;
         self

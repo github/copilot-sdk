@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
+using System.Text.Json.Nodes;
 
 namespace GitHub.Copilot;
 
@@ -163,12 +164,7 @@ public sealed class CopilotToolOptions
     /// <summary>
     /// Gets or sets opaque, host-defined metadata associated with the tool definition.
     /// </summary>
-    /// <remarks>
-    /// Keys are namespaced and not part of the stable public API. When set, the SDK forwards
-    /// the metadata verbatim to the CLI as the tool's <c>metadata</c> object, which the runtime
-    /// may recognize to inform host-specific behavior. Unknown keys are preserved.
-    /// </remarks>
-    public IDictionary<string, object>? Metadata { get; set; }
+    public IDictionary<string, JsonNode?>? Metadata { get; set; }
 }
 
 /// <summary>
