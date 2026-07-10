@@ -1,4 +1,4 @@
-# ADR-007: DRAFT: Native runtime bundling strategy — per-platform classifier JARs
+# ADR-007: Native runtime bundling strategy — per-platform classifier JARs
 
 ## Context and Problem Statement
 
@@ -133,7 +133,7 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 ## Decision Outcome
 
-**Chosen: Option 2 — per-platform classifier JARs.**
+**Chosen: Option 2 — per-platform classifier JARs and Option 1 - monolithic jar. Use `maven-assembly-plugin` to allow the creation of the monolithic jar.**
 
 ### Rationale
 
@@ -148,6 +148,8 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 5. **Size per platform is acceptable.** At ~20–26 MB compressed per platform, each classifier JAR is well within the range of routinely used native JARs in the Java ecosystem (DJL PyTorch osx-aarch64: 37 MB; ONNX Runtime per platform: ~20–30 MB before bundling).
 
 6. **Option 3 remains composable.** A download-on-demand fallback can be layered on top of Option 2 for users who prefer it without changing the primary distribution model. The coordination artifact can attempt classpath lookup first, then fall back to a cached download if no matching classifier JAR is present.
+
+7. See section [How can we do Option 2 and Option 1](#how-can-we-do-option-2-and-option-1) for more details.
 
 ## Binding technology: JNA over Panama FFM
 
@@ -173,6 +175,160 @@ FFM is regarded as the likely eventual binding technology: the JEP 472 endgame a
 
 - The binding layer is abstracted behind a small internal interface (native load + downcall + upcall registration), so that an FFM implementation can be introduced later — for example, as a multi-release JAR selecting FFM on Java 22+ — without changes to the transport or API layers.
 - The decision should be revisited when (a) the SDK's minimum Java baseline moves past 17, or (b) JDK releases begin enforcing `--illegal-native-access=deny` by default, whichever comes first.
+
+## How can we do Option 2 and Option 1
+
+## How it works: classpath resource convention + platform detection
+
+### 1. Each classifier JAR uses a well-known resource path
+
+Each per-platform JAR (`copilot-sdk-java-runtime:VERSION:darwin-arm64`, etc.) places its binary under a deterministic path inside the JAR:
+
+```
+native/darwin-arm64/runtime.node
+native/darwin-arm64/platform.properties
+```
+
+When `maven-assembly-plugin` creates the uber-jar, it unpacks all dependencies and merges them. The resulting uber-jar contains:
+
+```
+com/github/copilot/sdk/...          (Java classes)
+native/linux-x64/runtime.node
+native/linux-arm64/runtime.node
+native/linuxmusl-x64/runtime.node
+native/linuxmusl-arm64/runtime.node
+native/darwin-x64/runtime.node
+native/darwin-arm64/runtime.node
+native/win32-x64/runtime.node
+native/win32-arm64/runtime.node
+```
+
+### 2. The coordination artifact selects at runtime via `getResourceAsStream`
+
+```java
+public class NativeRuntimeLoader {
+
+    public Path loadRuntime() {
+        String classifier = detectPlatformClassifier();
+        String resourcePath = "native/" + classifier + "/runtime.node";
+
+        try (InputStream in = getClass().getClassLoader()
+                .getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new UnsupportedOperationException(
+                    "No native runtime for platform: " + classifier);
+            }
+            Path cached = getCachePath(classifier);
+            if (!Files.exists(cached)) {
+                Files.createDirectories(cached.getParent());
+                Files.copy(in, cached);
+                // Make executable on Unix
+                cached.toFile().setExecutable(true);
+            }
+            return cached;
+        }
+    }
+
+    private String detectPlatformClassifier() {
+        String os = normalizeOs(System.getProperty("os.name"));
+        String arch = normalizeArch(System.getProperty("os.arch"));
+        String libc = "linux".equals(os) ? detectLinuxLibc() : "";
+
+        // Produces: "linux-x64", "linuxmusl-arm64", "darwin-arm64", "win32-x64", etc.
+        return (libc.isEmpty() ? os : os + libc) + "-" + arch;
+    }
+
+    private String detectLinuxLibc() {
+        // Read ELF PT_INTERP from /proc/self/exe
+        // If interpreter contains "/ld-musl-" → "musl"
+        // Otherwise → "" (glibc is the default/unmarked case for "linux-")
+        // ...
+    }
+
+    private Path getCachePath(String classifier) {
+        String version = getClass().getPackage().getImplementationVersion();
+        return Path.of(System.getProperty("user.home"),
+            ".copilot", "runtime-cache", version, classifier, "runtime.node");
+    }
+}
+```
+
+### 3. JNA loads from the extracted path
+
+Once extracted to a known filesystem path, JNA loads it directly:
+
+```java
+NativeLibrary lib = NativeLibrary.getInstance(extractedPath.toString());
+// Or via a mapped interface:
+CopilotRuntime runtime = Native.load(extractedPath.toString(), CopilotRuntime.class);
+```
+
+### Key insight: the same code works in both modes
+
+The beauty is that `getResourceAsStream("native/darwin-arm64/runtime.node")` works identically whether:
+
+- The native lives in a **separate classifier JAR** on the classpath (normal dev dependency), OR  
+- It's been **merged into an uber-jar** by `maven-assembly-plugin`
+
+The classloader doesn't care which JAR file the resource came from — it searches the entire classpath. This means **zero code changes** between the two consumption models.
+
+---
+
+## Assembly plugin configuration (consumer-side)
+
+A consumer building a portable uber-jar would configure:
+
+```xml
+<plugin>
+    <artifactId>maven-assembly-plugin</artifactId>
+    <configuration>
+        <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+        </descriptorRefs>
+    </configuration>
+</plugin>
+```
+
+With all classifier JARs declared as dependencies:
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java</artifactId>
+        <version>${copilot.version}</version>
+    </dependency>
+    <!-- Include platforms you need -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>linux-x64</classifier>
+    </dependency>
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>darwin-arm64</classifier>
+    </dependency>
+    <!-- ... etc for each target platform -->
+</dependencies>
+```
+
+---
+
+## Why this works cleanly
+
+| Concern | How it's handled |
+|---------|-----------------|
+| No resource path collisions | Each platform has its own subdirectory (`native/<classifier>/`) |
+| Extraction only happens once | Cached to `~/.copilot/runtime-cache/<version>/<classifier>/` |
+| Works without uber-jar too | Same `getResourceAsStream` call — classloader finds it in the separate JAR |
+| Subset selection | Consumer declares only the classifiers they need; missing platforms get a clear error at runtime |
+| JNA loading | `NativeLibrary.getInstance(path)` loads from an absolute filesystem path after extraction — no JNA platform-detection magic needed |
+
+The pattern is identical to how DJL's `LibUtils.loadLibrary()` works — detect platform, construct resource path, extract if needed, load via absolute path.
+
 
 ## Consequences
 
