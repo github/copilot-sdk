@@ -536,8 +536,14 @@ public class CopilotRequestHandler
                 continue;
             }
 
-            if (!message.Headers.TryAddWithoutValidation(name, values) && hasBody)
+            if (!message.Headers.TryAddWithoutValidation(name, values))
             {
+#if NETSTANDARD2_0
+                if (!hasBody)
+                {
+                    continue;
+                }
+#endif
                 message.Content ??= new ByteArrayContent([]);
                 message.Content.Headers.TryAddWithoutValidation(name, values);
             }
