@@ -1,9 +1,7 @@
 use super::support::with_e2e_context;
 
-/// Mirrors the .NET `Should_Start_And_Connect_Over_InProcess_Ffi`: start a
-/// client that hosts the runtime in-process over FFI, perform a simple
-/// round-trip, and stop cleanly. Fails hard (does not skip) if the in-process
-/// runtime library can't be loaded.
+/// Starts an in-process client, performs a round-trip, and stops cleanly.
+/// Fails hard if the in-process runtime library cannot be loaded.
 #[tokio::test]
 async fn should_start_ping_and_stop_inprocess_client() {
     with_e2e_context("client", "should_start_ping_and_stop_stdio_client", |ctx| {

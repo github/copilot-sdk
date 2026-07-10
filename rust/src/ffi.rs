@@ -235,15 +235,17 @@ impl FfiHost {
         environment: Vec<(String, String)>,
         args: Vec<String>,
     ) -> Result<Self, Error> {
-        let entrypoint = std::fs::canonicalize(entrypoint).map_err(|e| {
-            Error::with_message(
-                ErrorKind::InvalidConfig,
-                format!(
-                    "failed to resolve in-process CLI entrypoint '{}': {e}",
-                    entrypoint.display()
-                ),
-            )
-        })?;
+        let entrypoint = std::fs::canonicalize(entrypoint)
+            .map(path_for_child_process)
+            .map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    format!(
+                        "failed to resolve in-process CLI entrypoint '{}': {e}",
+                        entrypoint.display()
+                    ),
+                )
+            })?;
         let library_path =
             std::fs::canonicalize(resolve_library_path(&entrypoint)?).map_err(|e| {
                 Error::with_message(
@@ -491,6 +493,33 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
     ))
 }
 
+#[cfg(windows)]
+fn path_for_child_process(path: PathBuf) -> PathBuf {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+
+    const VERBATIM_PREFIX: &[u16] = &[b'\\' as u16, b'\\' as u16, b'?' as u16, b'\\' as u16];
+    const UNC_PREFIX: &[u16] = &[b'U' as u16, b'N' as u16, b'C' as u16, b'\\' as u16];
+
+    let encoded: Vec<u16> = path.as_os_str().encode_wide().collect();
+    let Some(stripped) = encoded.strip_prefix(VERBATIM_PREFIX) else {
+        return path;
+    };
+    let normalized = if let Some(unc_path) = stripped.strip_prefix(UNC_PREFIX) {
+        let mut result = vec![b'\\' as u16, b'\\' as u16];
+        result.extend_from_slice(unc_path);
+        result
+    } else {
+        stripped.to_vec()
+    };
+    PathBuf::from(OsString::from_wide(&normalized))
+}
+
+#[cfg(not(windows))]
+fn path_for_child_process(path: PathBuf) -> PathBuf {
+    path
+}
+
 fn build_argv_json(entrypoint: &Path, extra_args: &[String]) -> Vec<u8> {
     // A `.js` entrypoint (dev / dist-cli) is launched via node; the packaged
     // single-file CLI binary embeds its own Node and is invoked directly.
@@ -560,6 +589,19 @@ mod tests {
         assert_eq!(
             argv,
             ["node", "index.js", "--embedded-host", "--no-auto-update"]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn child_process_path_removes_windows_verbatim_prefix() {
+        assert_eq!(
+            path_for_child_process(PathBuf::from(r"\\?\D:\a\copilot-sdk\index.js")),
+            PathBuf::from(r"D:\a\copilot-sdk\index.js")
+        );
+        assert_eq!(
+            path_for_child_process(PathBuf::from(r"\\?\UNC\server\share\copilot-sdk\index.js")),
+            PathBuf::from(r"\\server\share\copilot-sdk\index.js")
         );
     }
 

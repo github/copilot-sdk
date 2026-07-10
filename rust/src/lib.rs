@@ -925,7 +925,7 @@ fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
 }
 
 fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
-    match value.as_deref() {
+    match value {
         None => Ok(Transport::Stdio { env: None }),
         Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => {
             Ok(Transport::Stdio { env: None })
