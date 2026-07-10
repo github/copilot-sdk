@@ -49,6 +49,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
 dirs = "5"
+libloading = "0.8"
 parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"

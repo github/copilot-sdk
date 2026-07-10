@@ -285,6 +285,21 @@ struct Platform {
     binary_name: &'static str,
 }
 
+impl Platform {
+    /// Natural platform shared-library file name for the FFI runtime cdylib —
+    /// the tarball's `runtime.node` renamed to what the Rust cdylib would be
+    /// called on this OS. Derived from the asset name's platform token.
+    fn runtime_library_name(&self) -> &'static str {
+        if self.asset_name.contains("win32") {
+            "copilot_runtime.dll"
+        } else if self.asset_name.contains("darwin") {
+            "libcopilot_runtime.dylib"
+        } else {
+            "libcopilot_runtime.so"
+        }
+    }
+}
+
 fn target_platform() -> Option<Platform> {
     let os = std::env::var("CARGO_CFG_TARGET_OS").ok()?;
     let arch = std::env::var("CARGO_CFG_TARGET_ARCH").ok()?;
@@ -432,7 +447,99 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         final_path.display()
     );
 
+    // Best-effort: extract the in-process FFI runtime library next to the CLI,
+    // renamed from the tarball's `prebuilds/<platform>/runtime.node` to the
+    // natural platform shared-library name (mirrors the .NET `.targets` and the
+    // bundled-CLI runtime extraction). Absence is not fatal — stdio/TCP
+    // transports don't need it, and `Transport::InProcess` surfaces a clear
+    // error at load time if it's missing.
+    extract_runtime_library_to_cache(archive, install_dir, platform);
+
     final_path
+}
+
+/// Write the tarball's `runtime.node` (the FFI cdylib) next to the extracted
+/// CLI under the natural platform shared-library name. Best-effort: warns and
+/// returns on any failure or when the archive doesn't ship it.
+fn extract_runtime_library_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) {
+    let target = install_dir.join(platform.runtime_library_name());
+    if std::fs::metadata(&target)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
+    {
+        return;
+    }
+    let Some(bytes) = extract_runtime_library_bytes(archive, platform) else {
+        // The current GitHub-release tarball ships only the CLI binary; the FFI
+        // cdylib lives in the npm package layout. Absence is expected — stay
+        // quiet on the normal path (visible only with `-vv`).
+        println!(
+            "Archive `{}` has no runtime.node; Transport::InProcess needs COPILOT_CLI_PATH with a sibling runtime library",
+            platform.asset_name
+        );
+        return;
+    };
+
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let staging_path = install_dir.join(format!(
+        ".{}.staging-{}-{nanos}",
+        platform.runtime_library_name(),
+        std::process::id(),
+    ));
+    if let Err(e) = std::fs::write(&staging_path, &bytes) {
+        let _ = std::fs::remove_file(&staging_path);
+        println!(
+            "cargo:warning=Failed to stage runtime library {}: {e}",
+            staging_path.display()
+        );
+        return;
+    }
+    if let Err(e) = std::fs::rename(&staging_path, &target) {
+        let _ = std::fs::remove_file(&staging_path);
+        println!(
+            "cargo:warning=Failed to place runtime library {}: {e}",
+            target.display()
+        );
+        return;
+    }
+    println!(
+        "cargo:warning=Extracted in-process runtime library to {}",
+        target.display()
+    );
+}
+
+/// Extract the archive's `prebuilds/<platform>/runtime.node` bytes, matched by
+/// the `runtime.node` filename. Returns `None` when the archive doesn't ship it.
+fn extract_runtime_library_bytes(archive: &[u8], platform: Platform) -> Option<Vec<u8>> {
+    if platform.asset_name.ends_with(".zip") {
+        let cursor = std::io::Cursor::new(archive);
+        let mut zip = zip::ZipArchive::new(cursor).ok()?;
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i).ok()?;
+            let name = entry.name().to_string();
+            if name == "runtime.node" || name.ends_with("/runtime.node") {
+                let mut bytes = Vec::with_capacity(entry.size() as usize);
+                std::io::copy(&mut entry, &mut bytes).ok()?;
+                return Some(bytes);
+            }
+        }
+    } else {
+        let gz = flate2::read::GzDecoder::new(archive);
+        let mut tar = tar::Archive::new(gz);
+        for entry in tar.entries().ok()? {
+            let mut entry = entry.ok()?;
+            let name = entry.path().ok()?.to_string_lossy().into_owned();
+            if name == "runtime.node" || name.ends_with("/runtime.node") {
+                let mut bytes = Vec::with_capacity(entry.size() as usize);
+                entry.read_to_end(&mut bytes).ok()?;
+                return Some(bytes);
+            }
+        }
+    }
+    None
 }
 
 /// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version

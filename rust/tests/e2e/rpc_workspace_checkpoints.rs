@@ -40,6 +40,12 @@ async fn should_list_no_checkpoints_for_fresh_session() {
 
 #[tokio::test]
 async fn should_return_null_or_empty_content_for_unknown_checkpoint() {
+    // In-process, session.workspaces.readCheckpoint is answered by the native runtime,
+    // which decodes the checkpoint number as a u32 and rejects the i64::MAX sentinel this
+    // test uses. Covered by the default (stdio) transport. See issue #1934.
+    if super::support::skip_inprocess("readCheckpoint decodes the id as u32 in-process") {
+        return;
+    }
     with_e2e_context(
         "rpc_workspace_checkpoints",
         "should_return_null_or_empty_content_for_unknown_checkpoint",

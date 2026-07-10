@@ -41,7 +41,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(has_bundled_cli)]
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 // When the `bundled-cli` cargo feature is enabled and the target platform is
 // supported, build.rs generates `bundled_cli.rs` exposing the raw archive
@@ -157,8 +157,64 @@ fn default_install_dir(version: &str) -> PathBuf {
 #[cfg(has_bundled_cli)]
 const MAX_PUBLISH_ATTEMPTS: u32 = 3;
 
+// Natural platform shared-library name for the in-process FFI runtime cdylib —
+// the tarball's `prebuilds/<platform>/runtime.node` renamed to what the Rust
+// cdylib would be called on this OS. Extracted next to the CLI so
+// `Transport::InProcess` can load it without a separate download.
+#[cfg(all(has_bundled_cli, windows))]
+const RUNTIME_LIBRARY_NAME: &str = "copilot_runtime.dll";
+#[cfg(all(has_bundled_cli, target_os = "macos"))]
+const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
+#[cfg(all(has_bundled_cli, not(windows), not(target_os = "macos")))]
+const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
+
+/// Install the CLI binary and, best-effort, the sibling in-process FFI runtime
+/// library. The runtime library is optional and ships only in archive layouts
+/// that include `prebuilds/<platform>/runtime.node` (the npm package layout);
+/// the GitHub-release CLI tarball this build downloads currently ships only the
+/// CLI binary, so its absence is expected and non-fatal — stdio/TCP transports
+/// don't need it and `Transport::InProcess` reports a clear error at load time.
 #[cfg(has_bundled_cli)]
 fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
+    let final_path = install_cli(install_dir, archive)?;
+    if let Err(e) = install_runtime_library(install_dir, archive) {
+        warn!(error = %e, "failed to publish in-process FFI runtime library");
+    }
+    Ok(final_path)
+}
+
+/// Extract the archive's `runtime.node` (the FFI cdylib) and publish it next to
+/// the CLI under the natural platform shared-library name. Idempotent — skips
+/// when a non-empty library is already present. When the archive doesn't ship a
+/// `runtime.node`, this is a no-op (logged at debug), since the current
+/// GitHub-release tarball layout omits it.
+#[cfg(has_bundled_cli)]
+fn install_runtime_library(install_dir: &Path, archive: &[u8]) -> Result<(), EmbeddedCliError> {
+    let target = install_dir.join(RUNTIME_LIBRARY_NAME);
+    if fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
+        return Ok(());
+    }
+    let bytes = match extract_binary(archive, "runtime.node") {
+        Ok(bytes) if !bytes.is_empty() => bytes,
+        _ => {
+            debug!(
+                "bundled archive has no runtime.node; Transport::InProcess requires COPILOT_CLI_PATH \
+                 pointing at a CLI with a sibling runtime library"
+            );
+            return Ok(());
+        }
+    };
+    let tmp = write_temp_file(install_dir, &bytes)?;
+    if let Err(e) = publish(&tmp, &target) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+    debug!(path = %target.display(), "in-process FFI runtime library installed");
+    Ok(())
+}
+
+#[cfg(has_bundled_cli)]
+fn install_cli(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     let verbose = std::env::var("COPILOT_CLI_INSTALL_VERBOSE").ok().as_deref() == Some("1");
 
     fs::create_dir_all(install_dir)

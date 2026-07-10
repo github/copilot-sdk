@@ -36,6 +36,13 @@ where
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
 
+    // In-process hosting: the runtime loads into this test process and its worker
+    // inherits the ambient environment (per-client env is not honored in-process, see
+    // https://github.com/github/copilot-sdk/issues/1934), so mirror this context's env
+    // onto the process for the duration of the test and restore on drop. Safe because
+    // E2E_CONCURRENCY is 1 in-process, serializing the whole critical section.
+    let _env_guard = InProcessEnvGuard::activate(&ctx);
+
     let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
         .await
         .is_err();
@@ -64,6 +71,10 @@ where
     let mut ctx = E2eContext::new_no_snapshot()
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
+
+    // See `with_e2e_context` for why the in-process transport mirrors env onto the
+    // process (restored on drop).
+    let _env_guard = InProcessEnvGuard::activate(&ctx);
 
     let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
         .await
@@ -168,6 +179,24 @@ impl E2eContext {
         Client::start(self.client_options())
             .await
             .expect("start E2E client")
+    }
+
+    /// Start a client that hosts the runtime in-process over FFI
+    /// ([`Transport::InProcess`]). Unlike the stdio harness, the CLI
+    /// entrypoint is passed as the program directly (the FFI host builds the
+    /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
+    /// runtime cdylib), so a `.js` entrypoint is not split into node +
+    /// prefix_args here.
+    pub async fn start_inprocess_client(&self) -> Client {
+        let options = ClientOptions::new()
+            .with_cwd(self.work_dir.path())
+            .with_env(self.environment())
+            .with_use_logged_in_user(false)
+            .with_program(CliProgram::Path(self.cli_path.clone()))
+            .with_transport(Transport::InProcess);
+        Client::start(options)
+            .await
+            .expect("start in-process FFI E2E client")
     }
 
     /// Start a client wired to a Copilot request handler, appending `extra_env`
@@ -528,11 +557,99 @@ fn default_test_timeout() -> Duration {
 }
 
 fn e2e_concurrency() -> usize {
+    // The in-process transport mirrors per-test environment onto the shared process
+    // environment (see `InProcessEnvGuard`), which is only coherent when one test runs
+    // at a time. Force serial execution in-process; otherwise honor RUST_E2E_CONCURRENCY.
+    if is_inprocess_default() {
+        return 1;
+    }
     std::env::var("RUST_E2E_CONCURRENCY")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|&value| value > 0)
         .unwrap_or(4)
+}
+
+/// True when the E2E suite runs over the in-process (FFI) transport, i.e. the SDK
+/// resolves `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to [`Transport::InProcess`].
+pub fn is_inprocess_default() -> bool {
+    std::env::var("COPILOT_SDK_DEFAULT_CONNECTION")
+        .map(|value| value.eq_ignore_ascii_case("inprocess"))
+        .unwrap_or(false)
+}
+
+/// Skip guard for E2E tests exercising features the in-process (FFI) transport does not
+/// support (the runtime loads into the shared host process). Returns `true` — and logs —
+/// when running in-process so the caller can `return` early; such tests remain covered
+/// by the default (stdio) transport. See <https://github.com/github/copilot-sdk/issues/1934>.
+pub fn skip_inprocess(reason: &str) -> bool {
+    if is_inprocess_default() {
+        eprintln!("skipping test over the in-process (FFI) transport: {reason}");
+        true
+    } else {
+        false
+    }
+}
+
+/// Mirrors an [`E2eContext`]'s environment onto the real process environment for the
+/// in-process transport, whose worker inherits this process's ambient environment
+/// rather than a per-client env block. Restores the previous values on drop. Only the
+/// in-process transport needs this; for stdio/tcp the environment is handed to the
+/// spawned child directly. Auth flows via GH_TOKEN/GITHUB_TOKEN and HMAC is disabled so
+/// host-side auth resolution picks the token the replay snapshots expect.
+struct InProcessEnvGuard {
+    saved: Vec<(OsString, Option<OsString>)>,
+}
+
+impl InProcessEnvGuard {
+    /// Returns `Some` guard (having applied the env) when in-process, else `None`.
+    fn activate(ctx: &E2eContext) -> Option<Self> {
+        if !is_inprocess_default() {
+            return None;
+        }
+        let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
+        // In-process, the SDK's `github_token` (lowered to `--auth-token-env
+        // COPILOT_SDK_AUTH_TOKEN` for the spawned child) is not passed to the worker,
+        // so host-side auth resolves from GH_TOKEN/GITHUB_TOKEN instead. Use the same
+        // token the replay mock registers as the authenticated Copilot user
+        // (`set_default_copilot_user` → DEFAULT_TEST_TOKEN); a placeholder token the
+        // mock doesn't know would resolve as unauthenticated (or hit real GitHub).
+        pairs.push(("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()));
+        pairs.push(("GITHUB_TOKEN".into(), DEFAULT_TEST_TOKEN.into()));
+        // Some tests opt into gated runtime APIs via per-client `options.env`, which the
+        // in-process transport does not pass to the shared worker (see issue #1934).
+        // These are process-global runtime gates (not per-client behavior), so applying
+        // them to the host process for the serial in-process suite is equivalent and
+        // inert for tests that don't exercise the gated API.
+        pairs.push(("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT".into(), "true".into()));
+
+        let mut saved: Vec<(OsString, Option<OsString>)> = Vec::new();
+        for (key, value) in &pairs {
+            saved.push((key.clone(), std::env::var_os(key)));
+            // SAFETY: the E2E suite runs serially in-process (concurrency 1), so no
+            // other thread races these process-wide env mutations.
+            unsafe { std::env::set_var(key, value) };
+        }
+        for key in ["COPILOT_HMAC_KEY", "CAPI_HMAC_KEY"] {
+            let key = OsString::from(key);
+            saved.push((key.clone(), std::env::var_os(&key)));
+            // SAFETY: as above.
+            unsafe { std::env::remove_var(&key) };
+        }
+        Some(Self { saved })
+    }
+}
+
+impl Drop for InProcessEnvGuard {
+    fn drop(&mut self) {
+        for (key, previous) in self.saved.iter().rev() {
+            // SAFETY: as in `activate` — serial execution in-process.
+            match previous {
+                Some(value) => unsafe { std::env::set_var(key, value) },
+                None => unsafe { std::env::remove_var(key) },
+            }
+        }
+    }
 }
 
 pub fn get_system_message(exchange: &serde_json::Value) -> String {
@@ -626,6 +743,18 @@ fn client_options_for_cli(
         .with_cwd(cwd)
         .with_env(env)
         .with_use_logged_in_user(false);
+    // When the in-process FFI transport is the default (matrix cell that sets
+    // COPILOT_SDK_DEFAULT_CONNECTION=inprocess), pass the CLI entrypoint
+    // directly: the FFI host builds the `node <entrypoint> --embedded-host`
+    // argv itself and loads the sibling runtime cdylib. Splitting a `.js`
+    // entrypoint into node + prefix_args (the stdio layout) would point the
+    // library resolver at node's directory instead.
+    let inprocess_default = std::env::var("COPILOT_SDK_DEFAULT_CONNECTION")
+        .map(|value| value.eq_ignore_ascii_case("inprocess"))
+        .unwrap_or(false);
+    if inprocess_default {
+        return options.with_program(CliProgram::Path(cli_path.to_path_buf()));
+    }
     if cli_path
         .extension()
         .and_then(|extension| extension.to_str())
