@@ -15,6 +15,9 @@ use super::support::with_e2e_context;
 
 #[tokio::test]
 async fn should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
     with_e2e_context(
         "subagent_hooks",
         "should_invoke_pretooluse_and_posttooluse_hooks_for_sub_agent_tool_calls",
