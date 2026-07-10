@@ -26,6 +26,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         env["COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS"] = "true";
         var client = Ctx.CreateClient(new CopilotClientOptions
         {
+            Connection = RuntimeConnection.ForStdio(),
             RequestHandler = requestHandler
         }, environment: env);
 
