@@ -907,11 +907,11 @@ public final class CopilotSession implements AutoCloseable {
 
     /**
      * Populates the invocation's available-tools snapshot when it targets the
-     * built-in tool-search tool, so an override can filter the live catalog
-     * without issuing its own RPC. The snapshot is fetched only for that tool to
-     * avoid a round-trip on every ordinary tool call; a failed fetch leaves the
-     * snapshot {@code null} rather than failing the tool. Shared by both
-     * server-to-client tool dispatch paths ({@link RpcHandlerDispatcher} and
+     * built-in tool-search tool, so an override can filter the live catalog without
+     * issuing its own RPC. The snapshot is fetched only for that tool to avoid a
+     * round-trip on every ordinary tool call; a failed fetch leaves the snapshot
+     * {@code null} rather than failing the tool. Shared by both server-to-client
+     * tool dispatch paths ({@link RpcHandlerDispatcher} and
      * {@link #executeToolAndRespondAsync}).
      *
      * @param toolName

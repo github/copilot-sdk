@@ -63,9 +63,9 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
     /**
      * Creates a result without tool references.
      * <p>
-     * Provided for source and binary compatibility with callers written or
-     * compiled before the {@code toolReferences} component was added. Delegates to
-     * the canonical constructor with {@code toolReferences} set to {@code null}.
+     * Provided for source and binary compatibility with callers written or compiled
+     * before the {@code toolReferences} component was added. Delegates to the
+     * canonical constructor with {@code toolReferences} set to {@code null}.
      *
      * @param resultType
      *            the result type ("success" or "error"), defaults to "success"

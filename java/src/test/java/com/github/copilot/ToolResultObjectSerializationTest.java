@@ -17,8 +17,8 @@ import com.github.copilot.rpc.ToolResultObject;
 
 /**
  * Verifies JSON (de)serialization of the {@code toolReferences} field on
- * {@link ToolResultObject}, including that it is omitted when {@code null}
- * (via {@code @JsonInclude(NON_NULL)}) and preserved by the backward-compatible
+ * {@link ToolResultObject}, including that it is omitted when {@code null} (via
+ * {@code @JsonInclude(NON_NULL)}) and preserved by the backward-compatible
  * six-argument constructor.
  */
 class ToolResultObjectSerializationTest {
