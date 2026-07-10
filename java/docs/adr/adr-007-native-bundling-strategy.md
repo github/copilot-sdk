@@ -1,4 +1,4 @@
-# ADR-007: DRAFT: Native runtime bundling strategy — per-platform classifier JARs
+# ADR-007: Native runtime bundling strategy — per-platform classifier JARs
 
 ## Context and Problem Statement
 
@@ -133,7 +133,7 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 ## Decision Outcome
 
-**Chosen: Option 2 — per-platform classifier JARs.**
+**Chosen: Option 2 — per-platform classifier JARs and Option 1 - monolithic jar. Use `maven-assembly-plugin` to allow the creation of the monolithic jar.**
 
 ### Rationale
 
@@ -149,6 +149,187 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 
 6. **Option 3 remains composable.** A download-on-demand fallback can be layered on top of Option 2 for users who prefer it without changing the primary distribution model. The coordination artifact can attempt classpath lookup first, then fall back to a cached download if no matching classifier JAR is present.
 
+7. See section [How can we do Option 2 and Option 1](#how-can-we-do-option-2-and-option-1) for more details.
+
+## Binding technology: JNA over Panama FFM
+
+A secondary decision within the scope of this ADR is *how* the coordination artifact calls the C ABI entry points once the correct `runtime.node` binary has been loaded. Two candidates were considered: [JNA](#references) and the [Foreign Function & Memory API](#references) (FFM, the product of [Project Panama](#references), final since Java 22 via [JEP 454](#references)).
+
+**Chosen: JNA.** FFM was considered and deliberately deferred, for the following reasons:
+
+1. **Java baseline.** The SDK supports Java 17, where FFM does not exist (it finalized in Java 22). A JNA-based binding is therefore required regardless; adopting FFM today would mean maintaining two parallel binding implementations, not replacing one with the other.
+
+2. **Consumer-side configuration burden.** FFM downcalls and upcalls are restricted operations under the JDK's integrity-by-default direction ([JEP 472](#references)). An FFM-based SDK would require every consumer to grant native access explicitly — `--enable-native-access=<module>` (or `ALL-UNNAMED` for classpath applications) on the launcher, or an `Enable-Native-Access` manifest attribute. JNA requires no consumer-side configuration today. For an SDK, this flag becomes every downstream application's problem and a predictable source of support issues. (JNA is on the same enforcement trajectory eventually, as it uses JNI internally; this consideration buys time, not immunity.)
+
+3. **No realizable performance benefit.** FFM's principal advantage over JNA is the elimination of per-call reflective marshalling overhead. The C ABI surface here is a fixed set of ~12 entry points carrying JSON-RPC strings; JSON serialization/deserialization cost dominates the call path, and call frequency is bounded by agent-interaction rates rather than tight loops. The latency difference between JNA and FFM is expected to be unmeasurable in end-to-end SDK usage. This calculus would change only if the transport moved to a high-frequency or shared-memory framing model.
+
+4. **Upcall lifetime complexity.** The transport is bidirectional: the runtime delivers JSON-RPC responses and server-initiated requests back into Java from native threads. JNA's `Callback` mechanism handles foreign-thread attachment with well-established semantics. FFM upcall stubs require explicit `Arena` lifetime management, where a stub whose arena is closed while the Rust side still holds the function pointer results in a JVM crash. This shifts lifetime reasoning that JNA encapsulates onto the binding layer.
+
+5. **GraalVM native-image maturity.** JNA's behavior under GraalVM native-image is well established with mature reachability metadata. FFM support in native-image (particularly for upcalls) is newer and varies by GraalVM release. Plausible SDK consumers (e.g., Quarkus/Micronaut-based CLI tools) compile to native images, so this is a compatibility surface the SDK should not destabilize without verification.
+
+6. **FFM's safety advantages do not apply to this ABI shape.** FFM's `MemorySegment` bounds and lifetime checking pays off when Java code performs structural manipulation of native memory. This surface passes strings through a fixed transport; there is little structural memory work to make safe.
+
+### Preserving the FFM migration path
+
+FFM is regarded as the likely eventual binding technology: the JEP 472 endgame applies enforcement pressure to JNA as well, and a ~12-function stable C ABI makes a future migration inexpensive. To keep that path open at low cost:
+
+- The binding layer is abstracted behind a small internal interface (native load + downcall + upcall registration), so that an FFM implementation can be introduced later — for example, as a multi-release JAR selecting FFM on Java 22+ — without changes to the transport or API layers.
+- The decision should be revisited when (a) the SDK's minimum Java baseline moves past 17, or (b) JDK releases begin enforcing `--illegal-native-access=deny` by default, whichever comes first.
+
+## How can we do Option 2 and Option 1
+
+## How it works: classpath resource convention + platform detection
+
+### 1. Each classifier JAR uses a well-known resource path
+
+Each per-platform JAR (`copilot-sdk-java-runtime:VERSION:darwin-arm64`, etc.) places its binary under a deterministic path inside the JAR:
+
+```
+native/darwin-arm64/runtime.node
+native/darwin-arm64/platform.properties
+```
+
+When `maven-assembly-plugin` creates the uber-jar, it unpacks all dependencies and merges them. The resulting uber-jar contains:
+
+```
+com/github/copilot/sdk/...          (Java classes)
+native/linux-x64/runtime.node
+native/linux-arm64/runtime.node
+native/linuxmusl-x64/runtime.node
+native/linuxmusl-arm64/runtime.node
+native/darwin-x64/runtime.node
+native/darwin-arm64/runtime.node
+native/win32-x64/runtime.node
+native/win32-arm64/runtime.node
+```
+
+### 2. The coordination artifact selects at runtime via `getResourceAsStream`
+
+```java
+public class NativeRuntimeLoader {
+
+    public Path loadRuntime() {
+        String classifier = detectPlatformClassifier();
+        String resourcePath = "native/" + classifier + "/runtime.node";
+
+        try (InputStream in = getClass().getClassLoader()
+                .getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new UnsupportedOperationException(
+                    "No native runtime for platform: " + classifier);
+            }
+            Path cached = getCachePath(classifier);
+            if (!Files.exists(cached)) {
+                Files.createDirectories(cached.getParent());
+                Files.copy(in, cached);
+                // Make executable on Unix
+                cached.toFile().setExecutable(true);
+            }
+            return cached;
+        }
+    }
+
+    private String detectPlatformClassifier() {
+        String os = normalizeOs(System.getProperty("os.name"));
+        String arch = normalizeArch(System.getProperty("os.arch"));
+        String libc = "linux".equals(os) ? detectLinuxLibc() : "";
+
+        // Produces: "linux-x64", "linuxmusl-arm64", "darwin-arm64", "win32-x64", etc.
+        return (libc.isEmpty() ? os : os + libc) + "-" + arch;
+    }
+
+    private String detectLinuxLibc() {
+        // Read ELF PT_INTERP from /proc/self/exe
+        // If interpreter contains "/ld-musl-" → "musl"
+        // Otherwise → "" (glibc is the default/unmarked case for "linux-")
+        // ...
+    }
+
+    private Path getCachePath(String classifier) {
+        String version = getClass().getPackage().getImplementationVersion();
+        return Path.of(System.getProperty("user.home"),
+            ".copilot", "runtime-cache", version, classifier, "runtime.node");
+    }
+}
+```
+
+### 3. JNA loads from the extracted path
+
+Once extracted to a known filesystem path, JNA loads it directly:
+
+```java
+NativeLibrary lib = NativeLibrary.getInstance(extractedPath.toString());
+// Or via a mapped interface:
+CopilotRuntime runtime = Native.load(extractedPath.toString(), CopilotRuntime.class);
+```
+
+### Key insight: the same code works in both modes
+
+The beauty is that `getResourceAsStream("native/darwin-arm64/runtime.node")` works identically whether:
+
+- The native lives in a **separate classifier JAR** on the classpath (normal dev dependency), OR  
+- It's been **merged into an uber-jar** by `maven-assembly-plugin`
+
+The classloader doesn't care which JAR file the resource came from — it searches the entire classpath. This means **zero code changes** between the two consumption models.
+
+---
+
+## Assembly plugin configuration (consumer-side)
+
+A consumer building a portable uber-jar would configure:
+
+```xml
+<plugin>
+    <artifactId>maven-assembly-plugin</artifactId>
+    <configuration>
+        <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+        </descriptorRefs>
+    </configuration>
+</plugin>
+```
+
+With all classifier JARs declared as dependencies:
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java</artifactId>
+        <version>${copilot.version}</version>
+    </dependency>
+    <!-- Include platforms you need -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>linux-x64</classifier>
+    </dependency>
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>darwin-arm64</classifier>
+    </dependency>
+    <!-- ... etc for each target platform -->
+</dependencies>
+```
+
+---
+
+## Why this works cleanly
+
+| Concern | How it's handled |
+|---------|-----------------|
+| No resource path collisions | Each platform has its own subdirectory (`native/<classifier>/`) |
+| Extraction only happens once | Cached to `~/.copilot/runtime-cache/<version>/<classifier>/` |
+| Works without uber-jar too | Same `getResourceAsStream` call — classloader finds it in the separate JAR |
+| Subset selection | Consumer declares only the classifiers they need; missing platforms get a clear error at runtime |
+| JNA loading | `NativeLibrary.getInstance(path)` loads from an absolute filesystem path after extraction — no JNA platform-detection magic needed |
+
+The pattern is identical to how DJL's `LibUtils.loadLibrary()` works — detect platform, construct resource path, extract if needed, load via absolute path.
+
+
 ## Consequences
 
 - A new Maven module (`copilot-sdk-java-runtime` or similar) is introduced to hold the per-platform native JARs. The existing `copilot-sdk-java` coordination artifact depends on it.
@@ -156,7 +337,7 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
   1. Detects OS, architecture, and Linux libc variant deterministically as described above.
   2. Locates the matching `runtime.node` binary on the classpath (via `getResourceAsStream` from the classifier JAR).
   3. Extracts the binary to a temporary or cached location (e.g., `~/.copilot/runtime-cache/`) if not already present.
-  4. Loads it via [JNA](#references) using the C ABI entry points.
+  4. Loads it via [JNA](#references) using the C ABI entry points, per the [binding technology decision](#binding-technology-jna-over-panama-ffm) above. The JNA-specific code is confined behind an internal binding interface to preserve a future FFM migration path.
 - The release pipeline for `github/copilot-agent-runtime` must produce the per-platform `runtime.node` binaries as inputs to the Java SDK publish workflow. The per-platform `pkg-tarballs-<platform>` artifacts from the `publish-cli.yml` workflow are the authoritative source.
 - Each release of `copilot-sdk-java` publishes 6 (or 8) classifier JARs to Maven Central alongside the coordination JAR.
 - The version of the bundled `runtime.node` is recorded in the coordination JAR's manifest and queryable at runtime, enabling diagnostics and mismatch detection.
@@ -183,6 +364,10 @@ The SDK ships a minimal placeholder that detects the current platform at runtime
 | **glibc** (GNU C Library) | The standard C runtime library on most mainstream Linux distributions (Debian, Ubuntu, RHEL, Fedora, SLES). Binaries linked against glibc require the same version or newer to be present at runtime. The `runtime.node` glibc build requires glibc ≥ 2.28. | https://www.gnu.org/software/libc/ |
 | **musl libc** | An alternative C standard library optimised for static linking and used as the default libc on Alpine Linux. Not binary-compatible with glibc; a separate `runtime.node` build is required. | https://musl.libc.org/ |
 | **MSVC CRT** (Microsoft Visual C++ Runtime) | The C runtime library shipped with Visual Studio. When compiled with `+crt-static` (as `runtime.node` is on Windows), it is statically linked into the binary and the end-user does not need to install the Visual C++ Redistributable. | https://learn.microsoft.com/en-us/cpp/c-runtime-library/c-run-time-library-reference |
+| **Project Panama** | The OpenJDK project that produced the Foreign Function & Memory API as the modern, supported replacement for JNI-based native interop. | https://openjdk.org/projects/panama/ |
+| **FFM** (Foreign Function & Memory API) | The `java.lang.foreign` API for calling native functions and managing native memory from Java, finalized in Java 22. Considered and deferred as the binding technology for this SDK; see [Binding technology](#binding-technology-jna-over-panama-ffm). | https://docs.oracle.com/en/java/javase/22/core/foreign-function-and-memory-api.html |
+| **JEP 454** | The JDK Enhancement Proposal that finalized the FFM API in Java 22. | https://openjdk.org/jeps/454 |
+| **JEP 472** | "Prepare to Restrict the Use of JNI" — part of the JDK's integrity-by-default direction under which native access (via JNI or FFM) requires explicit consumer opt-in (`--enable-native-access`). Drives both the FFM configuration-burden concern and the expectation that JNA itself will eventually require the same opt-in. | https://openjdk.org/jeps/472 |
 | **DJL** (Deep Java Library) | Amazon's open-source Java framework for ML inference, used here as a reference for the per-platform classifier JAR distribution pattern. Its PyTorch native artifacts (`pytorch-native-cpu-*-<platform>.jar`) are the direct model for the proposed `copilot-sdk-java-runtime:VERSION:<classifier>` artifacts. | https://djl.ai/ |
 | **os-maven-plugin** | A Maven extension that detects the current OS and architecture and exposes them as properties (e.g., `${os.detected.classifier}`) so that `<classifier>` values can be resolved at build time rather than hardcoded. | https://github.com/trustin/os-maven-plugin |
 | **ONNX Runtime** | Microsoft's cross-platform ML inference runtime, used in this ADR as the size comparable for a monolithic all-platform JAR (~130 MB, Option 1). | https://onnxruntime.ai/ |
