@@ -11,6 +11,7 @@ mod canvas_dispatch;
 pub(crate) mod embeddedcli;
 mod errors;
 /// In-process FFI transport hosting the runtime cdylib (`Transport::InProcess`).
+#[cfg(feature = "bundled-in-process")]
 pub(crate) mod ffi;
 pub use errors::*;
 /// Connection-level Copilot request handler — intercept and replace the
@@ -115,24 +116,29 @@ const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub enum Transport {
-    /// Communicate over stdin/stdout pipes (default).
+    /// Resolve the transport from `COPILOT_SDK_DEFAULT_CONNECTION`, falling
+    /// back to [`Transport::Stdio`] when the variable is unset.
     #[default]
-    Stdio,
+    Default,
+    /// Communicate over stdin/stdout pipes (default).
+    Stdio {
+        /// Environment passed to the child process, replacing its inherited
+        /// environment. SDK-managed variables are applied afterward.
+        env: Option<Vec<(OsString, OsString)>>,
+    },
     /// Host the runtime in-process over FFI (no child process).
     ///
-    /// Loads the runtime cdylib (`runtime.node`) next to the resolved CLI
-    /// entrypoint and speaks JSON-RPC over its C ABI. The runtime spawns its
+    /// Loads the native runtime library next to the resolved CLI entrypoint
+    /// and speaks JSON-RPC over its C ABI. The runtime spawns its
     /// own worker; the SDK never launches a CLI child process. This is the
-    /// Rust analogue of the .NET `RuntimeConnection.ForInProcess()`.
+    /// **Experimental.** Per-client [`ClientOptions::working_directory`],
+    /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
+    /// [`ClientOptions::telemetry`], and [`ClientOptions::github_token`] are
+    /// not supported because native runtime code shares the host process.
+    /// [`ClientOptions::base_directory`] remains supported because it is
+    /// passed to the spawned worker as `COPILOT_HOME`.
     ///
-    /// **Experimental.** Per-client options that lower to environment variables
-    /// — [`ClientOptions::env`]/[`ClientOptions::env_remove`],
-    /// [`ClientOptions::telemetry`], [`ClientOptions::github_token`], and
-    /// [`ClientOptions::base_directory`] — are **not** honored with this
-    /// transport: the runtime loads into the shared host process and its worker
-    /// inherits that process's ambient environment. Configure the runtime via
-    /// the host process environment instead. See
-    /// <https://github.com/github/copilot-sdk/issues/1934>.
+    /// Requires the `bundled-in-process` Cargo feature.
     InProcess,
     /// Spawn the CLI with `--port` and connect via TCP.
     Tcp {
@@ -142,6 +148,9 @@ pub enum Transport {
         /// the CLI, the SDK auto-generates a 128-bit hex token so the
         /// loopback listener is safe by default.
         connection_token: Option<String>,
+        /// Environment passed to the child process, replacing its inherited
+        /// environment. SDK-managed variables are applied afterward.
+        env: Option<Vec<(OsString, OsString)>>,
     },
     /// Connect to an already-running CLI server (no process spawning).
     External {
@@ -230,10 +239,21 @@ pub struct ClientOptions {
     /// Arguments prepended before `--server` (e.g. the script path for node).
     pub prefix_args: Vec<OsString>,
     /// Working directory for the CLI process.
-    pub working_directory: PathBuf,
+    ///
+    /// `None` uses the host process's current directory. Setting this option is
+    /// not supported with [`Transport::InProcess`].
+    pub working_directory: Option<PathBuf>,
     /// Environment variables set on the child process.
+    #[deprecated(
+        since = "0.1.0",
+        note = "set `env` on `Transport::Stdio` or `Transport::Tcp` instead"
+    )]
     pub env: Vec<(OsString, OsString)>,
     /// Environment variable names to remove from the child process.
+    #[deprecated(
+        since = "0.1.0",
+        note = "use a transport-level replacement environment that omits these variables"
+    )]
     pub env_remove: Vec<OsString>,
     /// Extra CLI flags appended after the transport-specific arguments.
     pub extra_args: Vec<String>,
@@ -342,6 +362,7 @@ pub struct ClientOptions {
     pub mode: ClientMode,
 }
 
+#[allow(deprecated)]
 impl std::fmt::Debug for ClientOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClientOptions")
@@ -606,12 +627,13 @@ impl TelemetryConfig {
     }
 }
 
+#[allow(deprecated)]
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
             program: CliProgram::Resolve,
             prefix_args: Vec::new(),
-            working_directory: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            working_directory: None,
             env: Vec::new(),
             env_remove: Vec::new(),
             extra_args: Vec::new(),
@@ -634,6 +656,7 @@ impl Default for ClientOptions {
     }
 }
 
+#[allow(deprecated)]
 impl ClientOptions {
     /// Construct a new [`ClientOptions`] with default values.
     ///
@@ -672,11 +695,15 @@ impl ClientOptions {
 
     /// Working directory for the CLI process.
     pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.working_directory = cwd.into();
+        self.working_directory = Some(cwd.into());
         self
     }
 
     /// Environment variables to set on the child process.
+    #[deprecated(
+        since = "0.1.0",
+        note = "set `env` on `Transport::Stdio` or `Transport::Tcp` instead"
+    )]
     pub fn with_env<I, K, V>(mut self, env: I) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -688,6 +715,10 @@ impl ClientOptions {
     }
 
     /// Environment variable names to remove from the child process.
+    #[deprecated(
+        since = "0.1.0",
+        note = "use a transport-level replacement environment that omits these variables"
+    )]
     pub fn with_env_remove<I, S>(mut self, names: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -873,27 +904,33 @@ fn generate_connection_token() -> String {
 }
 
 /// Environment variable that overrides the transport used when the caller
-/// leaves [`ClientOptions::transport`] at its default ([`Transport::Stdio`]).
+/// leaves [`ClientOptions::transport`] at [`Transport::Default`].
 /// Accepts `"inprocess"` or `"stdio"` (case-insensitive); unset preserves
-/// stdio. Any other value is an error. Mirrors the .NET
-/// `COPILOT_SDK_DEFAULT_CONNECTION` handling.
+/// stdio. Any other value is an error.
 const DEFAULT_CONNECTION_ENV_VAR: &str = "COPILOT_SDK_DEFAULT_CONNECTION";
 
-/// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`], checking
-/// [`ClientOptions::env`] first, then the process environment. Returns
-/// `Ok(None)` when the override is absent or selects stdio.
-fn resolve_default_transport(options: &ClientOptions) -> Result<Option<Transport>> {
-    let value = options
+/// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`].
+#[allow(deprecated)]
+fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
+    let configured = options
         .env
         .iter()
-        .find(|(key, _)| key.as_os_str() == std::ffi::OsStr::new(DEFAULT_CONNECTION_ENV_VAR))
-        .map(|(_, value)| value.to_string_lossy().into_owned())
-        .or_else(|| std::env::var(DEFAULT_CONNECTION_ENV_VAR).ok());
+        .find(|(key, _)| {
+            key.to_string_lossy()
+                .eq_ignore_ascii_case(DEFAULT_CONNECTION_ENV_VAR)
+        })
+        .map(|(_, value)| value.to_string_lossy().into_owned());
+    let process = std::env::var(DEFAULT_CONNECTION_ENV_VAR).ok();
+    resolve_default_transport_value(configured.as_deref().or(process.as_deref()))
+}
 
+fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     match value.as_deref() {
-        None => Ok(None),
-        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => Ok(None),
-        Some(v) if v.eq_ignore_ascii_case("inprocess") => Ok(Some(Transport::InProcess)),
+        None => Ok(Transport::Stdio { env: None }),
+        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => {
+            Ok(Transport::Stdio { env: None })
+        }
+        Some(v) if v.eq_ignore_ascii_case("inprocess") => Ok(Transport::InProcess),
         Some(v) => Err(Error::with_message(
             ErrorKind::InvalidConfig,
             format!(
@@ -902,6 +939,55 @@ fn resolve_default_transport(options: &ClientOptions) -> Result<Option<Transport
             ),
         )),
     }
+}
+
+#[cfg(any(feature = "bundled-in-process", test))]
+#[allow(deprecated)]
+fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
+    let unsupported = if options.working_directory.is_some() {
+        Some("working_directory")
+    } else if !options.env.is_empty() {
+        Some("env")
+    } else if !options.env_remove.is_empty() {
+        Some("env_remove")
+    } else if options.telemetry.is_some() {
+        Some("telemetry")
+    } else if options.github_token.is_some() {
+        Some("github_token")
+    } else if !options.prefix_args.is_empty() {
+        Some("prefix_args")
+    } else {
+        None
+    };
+
+    if let Some(option) = unsupported {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            format!(
+                "ClientOptions::{option} is not supported with Transport::InProcess; \
+                 configure process-global settings on the host process instead"
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+#[allow(deprecated)]
+fn validate_transport_environment(options: &ClientOptions) -> Result<()> {
+    let transport_env_is_set = matches!(
+        &options.transport,
+        Transport::Stdio { env: Some(_) } | Transport::Tcp { env: Some(_), .. }
+    );
+    if transport_env_is_set && (!options.env.is_empty() || !options.env_remove.is_empty()) {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "set child-process environment variables via either the transport-level `env` \
+             option or the deprecated ClientOptions::env/ClientOptions::env_remove options, \
+             not both",
+        ));
+    }
+    Ok(())
 }
 
 /// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
@@ -924,8 +1010,9 @@ impl std::fmt::Debug for Client {
 
 struct ClientInner {
     child: parking_lot::Mutex<Option<Child>>,
+    #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
-    /// Closing it tears down the FFI connection and unloads the cdylib.
+    /// Closing it tears down the FFI connection and worker.
     ffi_host: parking_lot::Mutex<Option<Arc<crate::ffi::FfiShared>>>,
     rpc: JsonRpcClient,
     cwd: PathBuf,
@@ -973,6 +1060,22 @@ impl Client {
     /// backend.
     pub async fn start(options: ClientOptions) -> Result<Self> {
         let start_time = Instant::now();
+        let mut options = options;
+        if matches!(options.transport, Transport::Default) {
+            options.transport = resolve_default_transport(&options)?;
+        }
+        validate_transport_environment(&options)?;
+        if matches!(options.transport, Transport::InProcess) {
+            #[cfg(not(feature = "bundled-in-process"))]
+            {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    "Transport::InProcess requires the `bundled-in-process` Cargo feature",
+                ));
+            }
+            #[cfg(feature = "bundled-in-process")]
+            validate_inprocess_options(&options)?;
+        }
         if options.mode == ClientMode::Empty
             && options.base_directory.is_none()
             && options.session_fs.is_none()
@@ -985,16 +1088,6 @@ impl Client {
         }
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
-        }
-        let mut options = options;
-        // Honor COPILOT_SDK_DEFAULT_CONNECTION when the caller leaves the
-        // transport at its default (stdio). Mirrors the .NET
-        // `ResolveDefaultConnection`: `inprocess` selects in-process FFI
-        // hosting, `stdio`/unset keeps stdio, anything else is an error.
-        if matches!(options.transport, Transport::Stdio)
-            && let Some(resolved) = resolve_default_transport(&options)?
-        {
-            options.transport = resolved;
         }
         // Auth options only make sense when the SDK spawns the CLI; with an
         // external server, the server manages its own auth.
@@ -1038,7 +1131,8 @@ impl Client {
         // caller leaves it unset so the loopback listener is safe by
         // default.
         let effective_connection_token: Option<String> = match &mut options.transport {
-            Transport::Stdio | Transport::InProcess => None,
+            Transport::Default => unreachable!("default transport resolved above"),
+            Transport::Stdio { .. } | Transport::InProcess => None,
             Transport::Tcp {
                 connection_token, ..
             } => Some(
@@ -1082,8 +1176,13 @@ impl Client {
                 resolved
             }
         };
+        let working_directory = options
+            .working_directory
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
         let client = match options.transport {
+            Transport::Default => unreachable!("default transport resolved above"),
             Transport::External {
                 ref host,
                 port,
@@ -1103,7 +1202,7 @@ impl Client {
                     reader,
                     writer,
                     None,
-                    options.working_directory,
+                    working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1116,8 +1215,10 @@ impl Client {
             Transport::Tcp {
                 port,
                 connection_token: _,
+                env: _,
             } => {
-                let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
+                let (mut child, actual_port) =
+                    Self::spawn_tcp(&program, &options, &working_directory, port).await?;
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
                 debug!(
@@ -1131,7 +1232,7 @@ impl Client {
                     reader,
                     writer,
                     Some(child),
-                    options.working_directory,
+                    working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1141,8 +1242,8 @@ impl Client {
                     options.mode,
                 )?
             }
-            Transport::Stdio => {
-                let mut child = Self::spawn_stdio(&program, &options)?;
+            Transport::Stdio { env: _ } => {
+                let mut child = Self::spawn_stdio(&program, &options, &working_directory)?;
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
                 Self::drain_stderr(&mut child);
@@ -1150,7 +1251,7 @@ impl Client {
                     stdout,
                     stdin,
                     Some(child),
-                    options.working_directory,
+                    working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1161,35 +1262,54 @@ impl Client {
                 )?
             }
             Transport::InProcess => {
-                // Per-client options that lower to environment variables (env,
-                // telemetry, github_token, base_directory) are not honored over the
-                // in-process transport: the runtime loads into this shared host
-                // process and its worker inherits this process's ambient environment,
-                // which a single env block cannot vary per client. Pass no per-client
-                // env; configure the runtime via the host process environment instead.
-                // See https://github.com/github/copilot-sdk/issues/1934.
-                info!(entrypoint = %program.display(), "hosting copilot runtime in-process (FFI)");
-                let host = crate::ffi::FfiHost::create(
-                    &program,
-                    Vec::new(),
-                    Some(options.working_directory.clone()),
-                )?;
-                let (reader, writer, shared) = host.start().await?;
-                let client = Self::from_transport(
-                    reader,
-                    writer,
-                    None,
-                    options.working_directory,
-                    options.on_list_models,
-                    session_fs_config.is_some(),
-                    session_fs_sqlite_declared,
-                    options.on_get_trace_context,
-                    options.on_github_telemetry,
-                    effective_connection_token.clone(),
-                    options.mode,
-                )?;
-                *client.inner.ffi_host.lock() = Some(shared);
-                client
+                #[cfg(feature = "bundled-in-process")]
+                {
+                    info!(entrypoint = %program.display(), "hosting copilot runtime in-process (FFI)");
+                    let mut environment = Vec::new();
+                    if let Some(base_directory) = &options.base_directory {
+                        let value = base_directory.to_str().ok_or_else(|| {
+                            Error::with_message(
+                                ErrorKind::InvalidConfig,
+                                "base_directory must be valid UTF-8 for Transport::InProcess",
+                            )
+                        })?;
+                        environment.push(("COPILOT_HOME".to_string(), value.to_string()));
+                    }
+                    if options.mode == ClientMode::Empty {
+                        environment.push(("COPILOT_DISABLE_KEYTAR".to_string(), "1".to_string()));
+                    }
+                    let mut args = Vec::new();
+                    args.extend(
+                        Self::log_level_args(&options)
+                            .into_iter()
+                            .map(str::to_string),
+                    );
+                    args.extend(Self::session_idle_timeout_args(&options));
+                    args.extend(Self::remote_args(&options));
+                    if options.use_logged_in_user == Some(false) {
+                        args.push("--no-auto-login".to_string());
+                    }
+                    args.extend(options.extra_args.clone());
+                    let host = crate::ffi::FfiHost::create(&program, environment, args)?;
+                    let (reader, writer, shared) = host.start().await?;
+                    let client = Self::from_transport(
+                        reader,
+                        writer,
+                        None,
+                        working_directory,
+                        options.on_list_models,
+                        session_fs_config.is_some(),
+                        session_fs_sqlite_declared,
+                        options.on_get_trace_context,
+                        options.on_github_telemetry,
+                        effective_connection_token.clone(),
+                        options.mode,
+                    )?;
+                    *client.inner.ffi_host.lock() = Some(shared);
+                    client
+                }
+                #[cfg(not(feature = "bundled-in-process"))]
+                unreachable!("in-process feature validation returned above")
             }
         };
         debug!(
@@ -1390,6 +1510,7 @@ impl Client {
         let client = Self {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(child),
+                #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc,
                 cwd,
@@ -1459,18 +1580,23 @@ impl Client {
         });
     }
 
-    fn build_command(program: &Path, options: &ClientOptions) -> Command {
+    #[allow(deprecated)]
+    fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
         for arg in &options.prefix_args {
             command.arg(arg);
         }
-        // Inject the SDK auth token first so explicit `env` / `env_remove`
-        // entries can override or strip it.
+        let transport_env = match &options.transport {
+            Transport::Stdio { env } | Transport::Tcp { env, .. } => env.as_ref(),
+            _ => None,
+        };
+        if let Some(env) = transport_env {
+            command.env_clear();
+            command.envs(env.iter().map(|(key, value)| (key, value)));
+        }
         if let Some(token) = &options.github_token {
             command.env("COPILOT_SDK_AUTH_TOKEN", token);
         }
-        // Inject telemetry env vars before user env so callers can still
-        // override individual variables via `options.env`.
         if let Some(telemetry) = &options.telemetry {
             command.env("COPILOT_OTEL_ENABLED", "true");
             if let Some(endpoint) = &telemetry.otlp_endpoint {
@@ -1510,14 +1636,16 @@ impl Client {
         {
             command.env("COPILOT_CONNECTION_TOKEN", token);
         }
-        for (key, value) in &options.env {
-            command.env(key, value);
-        }
-        for key in &options.env_remove {
-            command.env_remove(key);
+        if transport_env.is_none() {
+            for (key, value) in &options.env {
+                command.env(key, value);
+            }
+            for key in &options.env_remove {
+                command.env_remove(key);
+            }
         }
         command
-            .current_dir(&options.working_directory)
+            .current_dir(working_directory)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
@@ -1580,9 +1708,13 @@ impl Client {
         }
     }
 
-    fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child> {
-        info!(cwd = ?options.working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
-        let mut command = Self::build_command(program, options);
+    fn spawn_stdio(
+        program: &Path,
+        options: &ClientOptions,
+        working_directory: &Path,
+    ) -> Result<Child> {
+        info!(cwd = ?working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
+        let mut command = Self::build_command(program, options, working_directory);
         command
             .args(["--server", "--stdio", "--no-auto-update"])
             .args(Self::log_level_args(options))
@@ -1600,9 +1732,14 @@ impl Client {
         Ok(child)
     }
 
-    async fn spawn_tcp(program: &Path, options: &ClientOptions, port: u16) -> Result<(Child, u16)> {
-        info!(cwd = ?options.working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
-        let mut command = Self::build_command(program, options);
+    async fn spawn_tcp(
+        program: &Path,
+        options: &ClientOptions,
+        working_directory: &Path,
+        port: u16,
+    ) -> Result<(Child, u16)> {
+        info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
+        let mut command = Self::build_command(program, options, working_directory);
         command
             .args(["--server", "--port", &port.to_string(), "--no-auto-update"])
             .args(Self::log_level_args(options))
@@ -2160,8 +2297,10 @@ impl Client {
             self.inner.router.unregister(&session_id);
         }
 
+        let should_shutdown_runtime = self.inner.child.lock().is_some();
+        #[cfg(feature = "bundled-in-process")]
         let should_shutdown_runtime =
-            self.inner.child.lock().is_some() || self.inner.ffi_host.lock().is_some();
+            should_shutdown_runtime || self.inner.ffi_host.lock().is_some();
         if should_shutdown_runtime {
             let runtime_shutdown_start = Instant::now();
             match tokio::time::timeout(RUNTIME_SHUTDOWN_TIMEOUT, self.rpc().runtime().shutdown())
@@ -2218,11 +2357,14 @@ impl Client {
             }
         }
 
-        // In-process FFI host: close the connection, shut the host down, and
-        // unload the cdylib. The runtime.shutdown RPC above already asked the
-        // worker to clean up; closing here tears down the transport.
-        if let Some(host) = self.inner.ffi_host.lock().take() {
-            host.close();
+        // The runtime.shutdown RPC above already asked the worker to clean up;
+        // closing here tears down the transport.
+        #[cfg(feature = "bundled-in-process")]
+        {
+            if let Some(host) = self.inner.ffi_host.lock().take() {
+                self.inner.rpc.force_close();
+                host.close();
+            }
         }
 
         info!(pid = ?pid, errors = errors.len(), "CLI process stopped");
@@ -2270,10 +2412,13 @@ impl Client {
         {
             error!(pid = ?pid, error = %e, "failed to send kill signal");
         }
-        if let Some(host) = self.inner.ffi_host.lock().take() {
-            host.close();
-        }
         self.inner.rpc.force_close();
+        #[cfg(feature = "bundled-in-process")]
+        {
+            if let Some(host) = self.inner.ffi_host.lock().take() {
+                host.close();
+            }
+        }
         // Drop all session channels so any awaiters see a closed channel
         // instead of waiting for responses that will never arrive.
         self.inner.router.clear();
@@ -2330,13 +2475,18 @@ impl Drop for ClientInner {
                 info!(pid = ?pid, "kill signal sent for CLI process on drop");
             }
         }
-        if let Some(host) = self.ffi_host.lock().take() {
-            host.close();
+        #[cfg(feature = "bundled-in-process")]
+        {
+            if let Some(host) = self.ffi_host.lock().take() {
+                self.rpc.force_close();
+                host.close();
+            }
         }
     }
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -2380,7 +2530,7 @@ mod tests {
             .with_enable_remote_sessions(true);
         assert!(matches!(opts.program, CliProgram::Path(_)));
         assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
-        assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
+        assert_eq!(opts.working_directory, Some(PathBuf::from("/tmp")));
         assert_eq!(
             opts.env,
             vec![(
@@ -2398,6 +2548,109 @@ mod tests {
     }
 
     #[test]
+    fn default_transport_values_resolve_without_process_state() {
+        assert!(matches!(
+            resolve_default_transport_value(None).unwrap(),
+            Transport::Stdio { env: None }
+        ));
+        assert!(matches!(
+            resolve_default_transport_value(Some("stdio")).unwrap(),
+            Transport::Stdio { env: None }
+        ));
+        assert!(matches!(
+            resolve_default_transport_value(Some("INPROCESS")).unwrap(),
+            Transport::InProcess
+        ));
+        assert!(resolve_default_transport_value(Some("tcp")).is_err());
+    }
+
+    #[test]
+    fn inprocess_rejects_process_scoped_options() {
+        let invalid = [
+            ClientOptions::new().with_cwd("."),
+            ClientOptions::new().with_env([("KEY", "value")]),
+            ClientOptions::new().with_env_remove(["KEY"]),
+            ClientOptions::new().with_telemetry(TelemetryConfig::default()),
+            ClientOptions::new().with_github_token("token"),
+            ClientOptions::new().with_prefix_args(["index.js"]),
+        ];
+
+        for options in invalid {
+            assert!(validate_inprocess_options(&options).is_err());
+        }
+    }
+
+    #[test]
+    fn inprocess_allows_worker_and_rpc_options() {
+        let options = ClientOptions::new()
+            .with_base_directory("state")
+            .with_log_level(LogLevel::Debug)
+            .with_session_idle_timeout_seconds(10)
+            .with_use_logged_in_user(false)
+            .with_enable_remote_sessions(true)
+            .with_extra_args(["--verbose"]);
+
+        assert!(validate_inprocess_options(&options).is_ok());
+    }
+
+    #[test]
+    fn transport_environment_conflicts_with_legacy_environment() {
+        let options = ClientOptions::new()
+            .with_transport(Transport::Stdio {
+                env: Some(vec![("NEW".into(), "value".into())]),
+            })
+            .with_env([("OLD", "value")]);
+
+        assert!(validate_transport_environment(&options).is_err());
+    }
+
+    #[test]
+    fn legacy_environment_remains_supported_without_transport_environment() {
+        let options = ClientOptions::new()
+            .with_transport(Transport::Stdio { env: None })
+            .with_env([("OLD", "value")])
+            .with_env_remove(["REMOVED"]);
+
+        assert!(validate_transport_environment(&options).is_ok());
+    }
+
+    #[test]
+    fn transport_environment_is_applied_before_sdk_variables() {
+        let options = ClientOptions::new()
+            .with_transport(Transport::Stdio {
+                env: Some(vec![
+                    ("CUSTOM".into(), "value".into()),
+                    ("COPILOT_SDK_AUTH_TOKEN".into(), "old".into()),
+                ]),
+            })
+            .with_github_token("new");
+        let command = Client::build_command(Path::new("/bin/echo"), &options, Path::new("/tmp"));
+
+        assert_eq!(
+            env_value(&command, "CUSTOM"),
+            Some(std::ffi::OsStr::new("value"))
+        );
+        assert_eq!(
+            env_value(&command, "COPILOT_SDK_AUTH_TOKEN"),
+            Some(std::ffi::OsStr::new("new"))
+        );
+    }
+
+    #[cfg(not(feature = "bundled-in-process"))]
+    #[tokio::test]
+    async fn inprocess_requires_cargo_feature() {
+        let error = Client::start(
+            ClientOptions::new()
+                .with_program(CliProgram::Path("copilot".into()))
+                .with_transport(Transport::InProcess),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("bundled-in-process"));
+    }
+
+    #[test]
     fn is_transport_failure_rejects_other_protocol_errors() {
         let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout));
         assert!(!err.is_transport_failure());
@@ -2410,7 +2663,7 @@ mod tests {
             env_remove: vec![std::ffi::OsString::from("COPILOT_SDK_AUTH_TOKEN")],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         // get_envs() iter yields the latest action per key — None means removed.
         let action = cmd
             .as_std()
@@ -2434,7 +2687,7 @@ mod tests {
             )],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         let value = cmd
             .as_std()
             .get_envs()
@@ -2449,7 +2702,7 @@ mod tests {
             github_token: Some("just-the-token".to_string()),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         let value = cmd
             .as_std()
             .get_envs()
@@ -2517,7 +2770,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_ENABLED"),
             Some(std::ffi::OsStr::new("true")),
@@ -2551,7 +2804,7 @@ mod tests {
     #[test]
     fn build_command_omits_otel_env_when_telemetry_none() {
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         for key in [
             "COPILOT_OTEL_ENABLED",
             "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -2577,7 +2830,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         // The one set field plus the implicit enabled flag should propagate.
         assert_eq!(
             env_value(&cmd, "COPILOT_OTEL_ENABLED"),
@@ -2612,7 +2865,7 @@ mod tests {
             )],
             ..Default::default()
         };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert_eq!(
             env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
             Some(std::ffi::OsStr::new("http://from-user-env:4318")),
@@ -2623,14 +2876,14 @@ mod tests {
     #[test]
     fn build_command_sets_copilot_home_env_when_configured() {
         let opts = ClientOptions::new().with_base_directory(PathBuf::from("/custom/copilot"));
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert_eq!(
             env_value(&cmd, "COPILOT_HOME"),
             Some(std::ffi::OsStr::new("/custom/copilot")),
         );
 
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert!(env_value(&cmd, "COPILOT_HOME").is_none());
     }
 
@@ -2639,15 +2892,16 @@ mod tests {
         let opts = ClientOptions::new().with_transport(Transport::Tcp {
             port: 0,
             connection_token: Some("secret-token".to_string()),
+            env: None,
         });
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert_eq!(
             env_value(&cmd, "COPILOT_CONNECTION_TOKEN"),
             Some(std::ffi::OsStr::new("secret-token")),
         );
 
         let opts = ClientOptions::default();
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
+        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert!(env_value(&cmd, "COPILOT_CONNECTION_TOKEN").is_none());
     }
 
@@ -2657,6 +2911,7 @@ mod tests {
             .with_transport(Transport::Tcp {
                 port: 0,
                 connection_token: Some(String::new()),
+                env: None,
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
@@ -2698,8 +2953,9 @@ mod tests {
             }),
             ..Default::default()
         };
-        let cmd_true = Client::build_command(Path::new("/bin/echo"), &opts_true);
-        let cmd_false = Client::build_command(Path::new("/bin/echo"), &opts_false);
+        let cmd_true = Client::build_command(Path::new("/bin/echo"), &opts_true, Path::new("/tmp"));
+        let cmd_false =
+            Client::build_command(Path::new("/bin/echo"), &opts_false, Path::new("/tmp"));
         assert_eq!(
             env_value(
                 &cmd_true,
@@ -2909,6 +3165,7 @@ mod tests {
         Client {
             inner: Arc::new(ClientInner {
                 child: parking_lot::Mutex::new(None),
+                #[cfg(feature = "bundled-in-process")]
                 ffi_host: parking_lot::Mutex::new(None),
                 rpc: {
                     let (req_tx, _req_rx) = mpsc::unbounded_channel();

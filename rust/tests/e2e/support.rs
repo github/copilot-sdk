@@ -175,6 +175,21 @@ impl E2eContext {
         self.client_options().with_transport(transport)
     }
 
+    pub fn client_options_with_github_token(&self, token: &str) -> ClientOptions {
+        let options = self.client_options();
+        if is_inprocess_default() {
+            // SAFETY: the in-process E2E suite is serialized for the full
+            // lifetime of InProcessEnvGuard.
+            unsafe {
+                std::env::set_var("GH_TOKEN", token);
+                std::env::set_var("GITHUB_TOKEN", token);
+            }
+            options
+        } else {
+            options.with_github_token(token)
+        }
+    }
+
     pub async fn start_client(&self) -> Client {
         Client::start(self.client_options())
             .await
@@ -189,8 +204,6 @@ impl E2eContext {
     /// prefix_args here.
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new()
-            .with_cwd(self.work_dir.path())
-            .with_env(self.environment())
             .with_use_logged_in_user(false)
             .with_program(CliProgram::Path(self.cli_path.clone()))
             .with_transport(Transport::InProcess);
@@ -222,6 +235,7 @@ impl E2eContext {
         Client::start(self.client_options_with_transport(Transport::Tcp {
             port,
             connection_token: Some(token.to_string()),
+            env: None,
         }))
         .await
         .expect("start TCP E2E client")
@@ -599,6 +613,7 @@ pub fn skip_inprocess(reason: &str) -> bool {
 /// host-side auth resolution picks the token the replay snapshots expect.
 struct InProcessEnvGuard {
     saved: Vec<(OsString, Option<OsString>)>,
+    previous_cwd: PathBuf,
 }
 
 impl InProcessEnvGuard {
@@ -622,6 +637,14 @@ impl InProcessEnvGuard {
         // them to the host process for the serial in-process suite is equivalent and
         // inert for tests that don't exercise the gated API.
         pairs.push(("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT".into(), "true".into()));
+        pairs.push((
+            "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES".into(),
+            "true".into(),
+        ));
+        pairs.push((
+            "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS".into(),
+            "true".into(),
+        ));
 
         let mut saved: Vec<(OsString, Option<OsString>)> = Vec::new();
         for (key, value) in &pairs {
@@ -636,12 +659,18 @@ impl InProcessEnvGuard {
             // SAFETY: as above.
             unsafe { std::env::remove_var(&key) };
         }
-        Some(Self { saved })
+        let previous_cwd = std::env::current_dir().expect("read in-process test cwd");
+        std::env::set_current_dir(ctx.work_dir()).expect("set in-process test cwd");
+        Some(Self {
+            saved,
+            previous_cwd,
+        })
     }
 }
 
 impl Drop for InProcessEnvGuard {
     fn drop(&mut self) {
+        std::env::set_current_dir(&self.previous_cwd).expect("restore in-process test cwd");
         for (key, previous) in self.saved.iter().rev() {
             // SAFETY: as in `activate` — serial execution in-process.
             match previous {
@@ -734,15 +763,12 @@ fn cli_path(repo_root: &Path) -> std::io::Result<PathBuf> {
     ))
 }
 
+#[allow(deprecated)]
 fn client_options_for_cli(
     cli_path: &Path,
     cwd: &Path,
     env: Vec<(OsString, OsString)>,
 ) -> ClientOptions {
-    let options = ClientOptions::new()
-        .with_cwd(cwd)
-        .with_env(env)
-        .with_use_logged_in_user(false);
     // When the in-process FFI transport is the default (matrix cell that sets
     // COPILOT_SDK_DEFAULT_CONNECTION=inprocess), pass the CLI entrypoint
     // directly: the FFI host builds the `node <entrypoint> --embedded-host`
@@ -753,8 +779,14 @@ fn client_options_for_cli(
         .map(|value| value.eq_ignore_ascii_case("inprocess"))
         .unwrap_or(false);
     if inprocess_default {
-        return options.with_program(CliProgram::Path(cli_path.to_path_buf()));
+        return ClientOptions::new()
+            .with_program(CliProgram::Path(cli_path.to_path_buf()))
+            .with_use_logged_in_user(false);
     }
+    let options = ClientOptions::new()
+        .with_cwd(cwd)
+        .with_env(env)
+        .with_use_logged_in_user(false);
     if cli_path
         .extension()
         .and_then(|extension| extension.to_str())

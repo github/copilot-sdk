@@ -30,6 +30,7 @@ async fn should_start_ping_and_stop_tcp_client() {
             let client = Client::start(ctx.client_options_with_transport(Transport::Tcp {
                 port: 0,
                 connection_token: Some("tcp-e2e-token".to_string()),
+                env: None,
             }))
             .await
             .expect("start TCP client");
@@ -64,8 +65,7 @@ async fn should_get_authenticated_status() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = Client::start(
-                ctx.client_options()
-                    .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN),
             )
             .await
             .expect("start client");
@@ -85,8 +85,7 @@ async fn should_list_models_when_authenticated() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = Client::start(
-                ctx.client_options()
-                    .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN),
             )
             .await
             .expect("start client");

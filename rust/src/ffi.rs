@@ -1,5 +1,5 @@
-//! In-process FFI transport: hosts the Copilot runtime in-process by loading
-//! the runtime cdylib (`runtime.node`) and speaking JSON-RPC over its C ABI,
+//! In-process FFI transport: hosts the Copilot runtime by loading its native
+//! library and speaking JSON-RPC over its C ABI,
 //! instead of spawning a CLI child process and communicating over stdio/TCP.
 //!
 //! The runtime's `host_start` export spawns the residual TypeScript worker
@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
 use libloading::Library;
@@ -46,6 +46,8 @@ type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
 /// route inbound frames back to the reader.
 struct CallbackState {
     tx: mpsc::UnboundedSender<Vec<u8>>,
+    active_callbacks: AtomicUsize,
+    closing: AtomicBool,
 }
 
 extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) {
@@ -53,8 +55,14 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
         return;
     }
     let state = unsafe { &*(user_data as *const CallbackState) };
+    state.active_callbacks.fetch_add(1, Ordering::SeqCst);
+    if state.closing.load(Ordering::SeqCst) {
+        state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
+        return;
+    }
     let slice = unsafe { std::slice::from_raw_parts(bytes, len) };
     let _ = state.tx.send(slice.to_vec());
+    state.active_callbacks.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Bound exports and connection lifecycle state, shared between the
@@ -69,6 +77,7 @@ pub(crate) struct FfiShared {
     connection_id: AtomicU32,
     callback_state: AtomicPtr<CallbackState>,
     closed: AtomicBool,
+    operation_lock: parking_lot::Mutex<()>,
     library_path: PathBuf,
 }
 
@@ -82,8 +91,13 @@ impl FfiShared {
     /// Close the connection, shut the host down, and free the callback state.
     /// Idempotent; called from [`Client::stop`], drop, and on startup failure.
     pub(crate) fn close(&self) {
+        let _operation = self.operation_lock.lock();
         if self.closed.swap(true, Ordering::SeqCst) {
             return;
+        }
+        let state = self.callback_state.load(Ordering::SeqCst);
+        if !state.is_null() {
+            unsafe { &*state }.closing.store(true, Ordering::SeqCst);
         }
         let conn = self.connection_id.swap(0, Ordering::SeqCst);
         if conn != 0 {
@@ -99,12 +113,16 @@ impl FfiShared {
             .callback_state
             .swap(std::ptr::null_mut(), Ordering::SeqCst);
         if !state.is_null() {
+            while unsafe { &*state }.active_callbacks.load(Ordering::SeqCst) != 0 {
+                std::thread::yield_now();
+            }
             drop(unsafe { Box::from_raw(state) });
         }
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
 
     fn write_frame(&self, frame: &[u8]) -> bool {
+        let _operation = self.operation_lock.lock();
         if self.closed.load(Ordering::SeqCst) {
             return false;
         }
@@ -193,7 +211,7 @@ pub(crate) struct FfiHost {
     library_path: PathBuf,
     entrypoint: PathBuf,
     environment: Vec<(String, String)>,
-    working_directory: Option<PathBuf>,
+    args: Vec<String>,
     host_start: HostStartFn,
     host_shutdown: HostShutdownFn,
     connection_open: ConnectionOpenFn,
@@ -209,15 +227,30 @@ impl FfiHost {
     /// Load the cdylib next to `entrypoint` and bind its exports.
     ///
     /// `entrypoint` is the packaged single-file CLI binary or, for dev, a
-    /// `.js` file launched via `node`. The cdylib is resolved relative to the
-    /// entrypoint directory: first the flat natural shared-library name, then
-    /// the dev/tarball `prebuilds/<node-platform>-<arch>/runtime.node` layout.
+    /// `.js` file launched via `node`. The native library is resolved relative
+    /// to the entrypoint directory, supporting both packaged and development
+    /// layouts.
     pub(crate) fn create(
         entrypoint: &Path,
         environment: Vec<(String, String)>,
-        working_directory: Option<PathBuf>,
+        args: Vec<String>,
     ) -> Result<Self, Error> {
-        let library_path = resolve_library_path(entrypoint)?;
+        let entrypoint = std::fs::canonicalize(entrypoint).map_err(|e| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!(
+                    "failed to resolve in-process CLI entrypoint '{}': {e}",
+                    entrypoint.display()
+                ),
+            )
+        })?;
+        let library_path =
+            std::fs::canonicalize(resolve_library_path(&entrypoint)?).map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    format!("failed to resolve in-process runtime library: {e}"),
+                )
+            })?;
         let lib = load_library(&library_path)?;
 
         let host_start = *bind::<HostStartFn>(lib, b"copilot_runtime_host_start\0", &library_path)?;
@@ -232,9 +265,9 @@ impl FfiHost {
 
         Ok(Self {
             library_path,
-            entrypoint: entrypoint.to_path_buf(),
+            entrypoint,
             environment,
-            working_directory,
+            args,
             host_start,
             host_shutdown,
             connection_open,
@@ -260,7 +293,7 @@ impl FfiHost {
     }
 
     fn start_blocking(self) -> Result<(FfiReader, FfiWriter, Arc<FfiShared>), Error> {
-        let argv = build_argv_json(&self.entrypoint);
+        let argv = build_argv_json(&self.entrypoint, &self.args);
         let env = build_env_json(&self.environment);
 
         let (env_ptr, env_len) = match &env {
@@ -268,26 +301,7 @@ impl FfiHost {
             None => (std::ptr::null(), 0),
         };
 
-        // The native host spawns the CLI worker itself and exposes no cwd
-        // parameter, so the worker inherits this process's current directory.
-        // Mirror the stdio child's `current_dir(working_directory)` by switching
-        // cwd for the duration of the blocking `host_start` (which spawns the
-        // worker), then restoring it. This matches the Node in-process host and
-        // ensures workspace-relative file operations resolve against the
-        // client's working directory rather than the SDK process's cwd.
-        let previous_cwd = std::env::current_dir().ok();
-        let switched_cwd = match &self.working_directory {
-            Some(dir) if previous_cwd.as_deref() != Some(dir.as_path()) => {
-                std::env::set_current_dir(dir).is_ok()
-            }
-            _ => false,
-        };
-
         let server_id = unsafe { (self.host_start)(argv.as_ptr(), argv.len(), env_ptr, env_len) };
-
-        if switched_cwd && let Some(previous) = &previous_cwd {
-            let _ = std::env::set_current_dir(previous);
-        }
 
         if server_id == 0 {
             return Err(Error::with_message(
@@ -301,7 +315,11 @@ impl FfiHost {
         }
 
         let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
-        let state_ptr = Box::into_raw(Box::new(CallbackState { tx }));
+        let state_ptr = Box::into_raw(Box::new(CallbackState {
+            tx,
+            active_callbacks: AtomicUsize::new(0),
+            closing: AtomicBool::new(false),
+        }));
         let connection_id = unsafe {
             (self.connection_open)(
                 server_id,
@@ -332,6 +350,7 @@ impl FfiHost {
             connection_id: AtomicU32::new(connection_id),
             callback_state: AtomicPtr::new(state_ptr),
             closed: AtomicBool::new(false),
+            operation_lock: parking_lot::Mutex::new(()),
             library_path: self.library_path.clone(),
         });
 
@@ -373,21 +392,14 @@ fn bind<'lib, T>(
 /// `'static` reference. Subsequent loads of the same path reuse the first
 /// handle.
 ///
-/// The library is intentionally leaked (never `FreeLibrary`/`dlclose`d), so its
-/// code stays mapped for the process lifetime. This mirrors the Node host
-/// (which loads the cdylib once into a module-global and never unloads it) and
-/// the runtime's own process-global tokio runtime that is never shut down.
-/// Unloading the cdylib while shutting a connection down races the runtime's
-/// worker threads: on Windows, `FreeLibrary` unmaps the code and any late
-/// worker-thread callback into it faults (`STATUS_ACCESS_VIOLATION`). Keeping
-/// the module mapped avoids that while `close()` still tears the host down.
+/// The library stays mapped because native worker threads can outlive an
+/// individual connection teardown.
 fn load_library(library_path: &Path) -> Result<&'static Library, Error> {
-    static LIBRARIES: OnceLock<Mutex<HashMap<PathBuf, &'static Library>>> = OnceLock::new();
-    let cache = LIBRARIES.get_or_init(|| Mutex::new(HashMap::new()));
+    static LIBRARIES: OnceLock<parking_lot::Mutex<HashMap<PathBuf, &'static Library>>> =
+        OnceLock::new();
+    let cache = LIBRARIES.get_or_init(|| parking_lot::Mutex::new(HashMap::new()));
 
-    let mut guard = cache
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = cache.lock();
     if let Some(lib) = guard.get(library_path) {
         return Ok(*lib);
     }
@@ -419,9 +431,7 @@ fn natural_library_name() -> &'static str {
     }
 }
 
-/// The napi-rs prebuilds folder name for the current host — the
-/// `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
-/// `linux-x64`) under which the runtime ships `prebuilds/<folder>/runtime.node`.
+/// The package prebuild folder name for the current host.
 pub(crate) fn prebuilds_folder() -> Option<String> {
     let platform = if cfg!(target_os = "windows") {
         "win32"
@@ -459,7 +469,7 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
         return Ok(flat);
     }
 
-    // Dev/tarball layout: prebuilds/<node-platform>-<arch>/runtime.node.
+    // Development package layout.
     let prebuilds =
         prebuilds_folder().map(|folder| dir.join("prebuilds").join(folder).join("runtime.node"));
     if let Some(prebuilds_path) = &prebuilds
@@ -468,24 +478,20 @@ fn resolve_library_path(entrypoint: &Path) -> Result<PathBuf, Error> {
         return Ok(prebuilds_path.clone());
     }
 
-    let searched = match &prebuilds {
-        Some(p) => format!("'{}' and '{}'", flat.display(), p.display()),
-        None => format!("'{}'", flat.display()),
-    };
     Err(Error::with_message(
         ErrorKind::BinaryNotFound {
-            name: "runtime.node".into(),
+            name: natural_library_name().into(),
             hint: Some(format!(
-                "in-process runtime library not found; looked for {searched}. Ensure the \
-                 bundled CLI's sibling runtime library is present or set COPILOT_CLI_PATH to a \
-                 CLI whose directory contains it."
+                "native runtime library not found next to '{}'. Enable the \
+                 `bundled-in-process` feature or set COPILOT_CLI_PATH to a compatible CLI package.",
+                entrypoint.display()
             )),
         },
-        "in-process runtime library not found",
+        "native runtime library not found",
     ))
 }
 
-fn build_argv_json(entrypoint: &Path) -> Vec<u8> {
+fn build_argv_json(entrypoint: &Path, extra_args: &[String]) -> Vec<u8> {
     // A `.js` entrypoint (dev / dist-cli) is launched via node; the packaged
     // single-file CLI binary embeds its own Node and is invoked directly.
     let entrypoint_str = entrypoint.to_string_lossy().into_owned();
@@ -493,15 +499,21 @@ fn build_argv_json(entrypoint: &Path) -> Vec<u8> {
         .extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("js"));
-    let argv: Vec<String> = if is_js {
+    let mut argv: Vec<String> = if is_js {
         vec![
             "node".to_string(),
             entrypoint_str,
             "--embedded-host".to_string(),
+            "--no-auto-update".to_string(),
         ]
     } else {
-        vec![entrypoint_str, "--embedded-host".to_string()]
+        vec![
+            entrypoint_str,
+            "--embedded-host".to_string(),
+            "--no-auto-update".to_string(),
+        ]
     };
+    argv.extend_from_slice(extra_args);
     serde_json::to_vec(&argv).expect("argv serializes")
 }
 
@@ -514,4 +526,65 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
         .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
         .collect();
     Some(serde_json::to_vec(&map).expect("env serializes"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn argv_pins_worker_and_appends_client_options() {
+        let argv: Vec<String> = serde_json::from_slice(&build_argv_json(
+            Path::new("copilot"),
+            &["--log-level".into(), "debug".into()],
+        ))
+        .unwrap();
+
+        assert_eq!(
+            argv,
+            [
+                "copilot",
+                "--embedded-host",
+                "--no-auto-update",
+                "--log-level",
+                "debug"
+            ]
+        );
+    }
+
+    #[test]
+    fn javascript_entrypoint_uses_node() {
+        let argv: Vec<String> =
+            serde_json::from_slice(&build_argv_json(Path::new("index.js"), &[])).unwrap();
+
+        assert_eq!(
+            argv,
+            ["node", "index.js", "--embedded-host", "--no-auto-update"]
+        );
+    }
+
+    #[test]
+    fn environment_is_omitted_when_empty() {
+        assert_eq!(build_env_json(&[]), None);
+    }
+
+    #[test]
+    fn environment_serializes_worker_overrides() {
+        let env: serde_json::Value = serde_json::from_slice(
+            &build_env_json(&[
+                ("COPILOT_HOME".into(), "state".into()),
+                ("COPILOT_DISABLE_KEYTAR".into(), "1".into()),
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            env,
+            serde_json::json!({
+                "COPILOT_HOME": "state",
+                "COPILOT_DISABLE_KEYTAR": "1",
+            })
+        );
+    }
 }

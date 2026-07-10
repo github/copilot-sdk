@@ -269,6 +269,7 @@ async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
     Client::start(ctx.client_options_with_transport(Transport::Tcp {
         port,
         connection_token: Some(SHARED_TOKEN.to_string()),
+        env: None,
     }))
     .await
     .expect("start TCP server client")

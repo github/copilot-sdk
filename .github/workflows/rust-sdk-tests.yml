@@ -98,7 +98,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+        run: cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
       - name: cargo doc
         if: runner.os == 'Linux'
@@ -205,7 +205,7 @@ jobs:
         # The harness forces serial execution in-process (both the async semaphore and
         # libtest via --test-threads=1) because it mirrors each test's environment onto
         # the shared process environment, so RUST_E2E_CONCURRENCY is not set here.
-        run: cargo test --no-default-features --features test-support --test e2e -- --test-threads=1 --nocapture
+        run: cargo test --no-default-features --features test-support,bundled-in-process --test e2e -- --test-threads=1 --nocapture
 
   # Validates the bundled-CLI build path on all three supported
   # platforms. While the regular `cargo test` job above also exercises
@@ -264,7 +264,9 @@ jobs:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: cargo build (bundled-cli is the default feature)
+      - name: Test minimal bundled CLI archive
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo build
+        run: |
+          cargo test --lib embedded_archive_contains_only_expected_files
+          cargo test --features bundled-in-process --lib embedded_archive_contains_only_expected_files

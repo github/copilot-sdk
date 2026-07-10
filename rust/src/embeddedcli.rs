@@ -2,12 +2,13 @@
 //! crate (gated on the `bundled-cli` cargo feature, which is in the default
 //! feature set).
 //!
-//! build.rs downloads the platform's `copilot-{platform}.{tar.gz,zip}`
-//! archive from GitHub Releases, SHA-256 verifies it against the version
-//! pinned in `cli-version.txt` (or `../nodejs/package-lock.json` when
-//! building inside the github/copilot-sdk repo itself), and embeds the
-//! **raw archive bytes**
-//! into the consumer's compiled artifact via `include_bytes!()`. Extraction
+//! build.rs downloads the platform's `@github/copilot-{platform}` npm
+//! package, verifies its npm integrity against `cli-version.txt` (or
+//! `../nodejs/package-lock.json` when building inside this repository), then
+//! creates a minimal archive containing the CLI executable. With the
+//! `bundled-in-process` feature, that archive also contains the native runtime
+//! library under its platform-standard filename.
+//! No other npm package files are embedded. Extraction
 //! to a real on-disk path is deferred until the first call to
 //! [`path`] / [`install_at`].
 //!
@@ -31,7 +32,7 @@
 // off but still needs to exercise them.
 #[cfg(any(has_bundled_cli, test))]
 use std::fs;
-#[cfg(all(has_bundled_cli, not(windows)))]
+#[cfg(has_bundled_cli)]
 use std::io::Read;
 #[cfg(any(has_bundled_cli, test))]
 use std::io::Write;
@@ -41,11 +42,11 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(has_bundled_cli)]
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 // When the `bundled-cli` cargo feature is enabled and the target platform is
-// supported, build.rs generates `bundled_cli.rs` exposing the raw archive
-// bytes. The CLI version is exposed crate-wide via the
+// supported, build.rs generates `bundled_cli.rs` exposing the minimal archive.
+// The CLI version is exposed crate-wide via the
 // `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
 // binary name is OS-derived — so no other generated constants are needed.
 #[cfg(has_bundled_cli)]
@@ -157,59 +158,48 @@ fn default_install_dir(version: &str) -> PathBuf {
 #[cfg(has_bundled_cli)]
 const MAX_PUBLISH_ATTEMPTS: u32 = 3;
 
-// Natural platform shared-library name for the in-process FFI runtime cdylib —
-// the tarball's `prebuilds/<platform>/runtime.node` renamed to what the Rust
-// cdylib would be called on this OS. Extracted next to the CLI so
-// `Transport::InProcess` can load it without a separate download.
-#[cfg(all(has_bundled_cli, windows))]
+// Natural platform shared-library name for the in-process FFI runtime.
+#[cfg(all(has_bundled_cli, feature = "bundled-in-process", windows))]
 const RUNTIME_LIBRARY_NAME: &str = "copilot_runtime.dll";
-#[cfg(all(has_bundled_cli, target_os = "macos"))]
+#[cfg(all(has_bundled_cli, feature = "bundled-in-process", target_os = "macos"))]
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.dylib";
-#[cfg(all(has_bundled_cli, not(windows), not(target_os = "macos")))]
+#[cfg(all(
+    has_bundled_cli,
+    feature = "bundled-in-process",
+    not(windows),
+    not(target_os = "macos")
+))]
 const RUNTIME_LIBRARY_NAME: &str = "libcopilot_runtime.so";
 
-/// Install the CLI binary and, best-effort, the sibling in-process FFI runtime
-/// library. The runtime library is optional and ships only in archive layouts
-/// that include `prebuilds/<platform>/runtime.node` (the npm package layout);
-/// the GitHub-release CLI tarball this build downloads currently ships only the
-/// CLI binary, so its absence is expected and non-fatal — stdio/TCP transports
-/// don't need it and `Transport::InProcess` reports a clear error at load time.
 #[cfg(has_bundled_cli)]
 fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     let final_path = install_cli(install_dir, archive)?;
-    if let Err(e) = install_runtime_library(install_dir, archive) {
-        warn!(error = %e, "failed to publish in-process FFI runtime library");
+    #[cfg(feature = "bundled-in-process")]
+    {
+        install_runtime_library(install_dir, archive)?;
     }
     Ok(final_path)
 }
 
-/// Extract the archive's `runtime.node` (the FFI cdylib) and publish it next to
-/// the CLI under the natural platform shared-library name. Idempotent — skips
-/// when a non-empty library is already present. When the archive doesn't ship a
-/// `runtime.node`, this is a no-op (logged at debug), since the current
-/// GitHub-release tarball layout omits it.
-#[cfg(has_bundled_cli)]
+#[cfg(all(has_bundled_cli, feature = "bundled-in-process"))]
 fn install_runtime_library(install_dir: &Path, archive: &[u8]) -> Result<(), EmbeddedCliError> {
     let target = install_dir.join(RUNTIME_LIBRARY_NAME);
     if fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
         return Ok(());
     }
-    let bytes = match extract_binary(archive, "runtime.node") {
-        Ok(bytes) if !bytes.is_empty() => bytes,
-        _ => {
-            debug!(
-                "bundled archive has no runtime.node; Transport::InProcess requires COPILOT_CLI_PATH \
-                 pointing at a CLI with a sibling runtime library"
-            );
-            return Ok(());
-        }
-    };
+    let bytes = extract_binary(archive, RUNTIME_LIBRARY_NAME)?;
+    if bytes.is_empty() {
+        return Err(EmbeddedCliError::with_message(
+            EmbeddedCliErrorKind::Verification,
+            "embedded runtime library is empty",
+        ));
+    }
     let tmp = write_temp_file(install_dir, &bytes)?;
     if let Err(e) = publish(&tmp, &target) {
         let _ = fs::remove_file(&tmp);
         return Err(e);
     }
-    debug!(path = %target.display(), "in-process FFI runtime library installed");
+    tracing::debug!(path = %target.display(), "in-process FFI runtime library installed");
     Ok(())
 }
 
@@ -494,7 +484,7 @@ fn read_marker_len(marker_path: &Path) -> Option<u64> {
         .ok()
 }
 
-#[cfg(all(has_bundled_cli, not(windows)))]
+#[cfg(has_bundled_cli)]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
@@ -519,26 +509,6 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
-#[cfg(all(has_bundled_cli, windows))]
-fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
-    let cursor = std::io::Cursor::new(archive);
-    let mut zip = zip::ZipArchive::new(cursor)
-        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
-    for i in 0..zip.len() {
-        let mut entry = zip
-            .by_index(i)
-            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
-        let name = entry.name().to_string();
-        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            std::io::copy(&mut entry, &mut bytes)
-                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
-            return Ok(bytes);
-        }
-    }
-    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
-}
-
 #[cfg(has_bundled_cli)]
 fn sanitize_version(version: &str) -> String {
     version
@@ -555,10 +525,7 @@ fn sanitize_version(version: &str) -> String {
 #[allow(dead_code)]
 enum EmbeddedCliErrorKind {
     CreateDir,
-    #[cfg(not(windows))]
     Archive,
-    #[cfg(windows)]
-    Zip,
     BinaryNotFoundInArchive,
     Io,
     /// Atomically renaming the staged temp file onto the final path failed.
@@ -575,10 +542,7 @@ impl std::fmt::Display for EmbeddedCliErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EmbeddedCliErrorKind::CreateDir => f.write_str("failed to create install directory"),
-            #[cfg(not(windows))]
             EmbeddedCliErrorKind::Archive => f.write_str("failed to read archive entry"),
-            #[cfg(windows)]
-            EmbeddedCliErrorKind::Zip => f.write_str("failed to read zip archive"),
             EmbeddedCliErrorKind::BinaryNotFoundInArchive => {
                 f.write_str("CLI binary not found in embedded archive")
             }
@@ -681,6 +645,32 @@ impl std::error::Error for EmbeddedCliError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(has_bundled_cli)]
+    #[test]
+    fn embedded_archive_contains_only_expected_files() {
+        let gz = flate2::read::GzDecoder::new(build_time::CLI_ARCHIVE);
+        let mut archive = tar::Archive::new(gz);
+        let mut names: Vec<String> = archive
+            .entries()
+            .expect("archive entries")
+            .map(|entry| {
+                entry
+                    .expect("archive entry")
+                    .path()
+                    .expect("archive path")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+
+        let mut expected = vec![CLI_BINARY_NAME.to_string()];
+        #[cfg(feature = "bundled-in-process")]
+        expected.push(RUNTIME_LIBRARY_NAME.to_string());
+        expected.sort();
+        assert_eq!(names, expected);
+    }
 
     /// Bytes whose header looks like a valid executable image on the host
     /// platform, so `looks_like_valid_image` accepts them. `extra` padding

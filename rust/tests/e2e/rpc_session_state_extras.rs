@@ -22,7 +22,7 @@ async fn should_list_models_for_session() {
             Box::pin(async move {
                 let token = "rpc-session-model-list-token";
                 ctx.set_copilot_user_by_token_with_login(token, "rpc-session-extras-user");
-                let client = Client::start(ctx.client_options().with_github_token(token))
+                let client = Client::start(ctx.client_options_with_github_token(token))
                     .await
                     .expect("start authenticated client");
                 let session = client
