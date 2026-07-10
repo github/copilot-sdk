@@ -84,7 +84,7 @@ jobs:
       # Share the bundled-CLI archive cache with the `bundle` job: build.rs
       # now downloads in both modes (embed for `bundle`, extract-to-cache
       # for this `test` job's `--no-default-features` build).
-      - name: Cache bundled CLI tarball
+      - name: Cache bundled CLI archives
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
@@ -179,7 +179,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Pinned CLI version: $version"
 
-      - name: Cache bundled CLI tarball
+      - name: Cache bundled CLI archives
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
@@ -258,15 +258,15 @@ jobs:
       # ~130 MB on every CI invocation. Keyed by OS + CLI version so old
       # archives drop out when the pinned version bumps, keeping the
       # cache bounded.
-      - name: Cache bundled CLI tarball
+      - name: Cache bundled CLI archives
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: Test minimal bundled CLI archive
+      - name: Test bundled CLI build paths
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: |
-          cargo test --lib embedded_archive_contains_only_expected_files
+          cargo build
           cargo test --features bundled-in-process --lib embedded_archive_contains_only_expected_files

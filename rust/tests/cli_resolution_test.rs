@@ -196,21 +196,25 @@ async fn extract_dir_runtime_override_is_honored() {
     let _ = fake;
 }
 
-/// Build-time version pin: `cli-version.txt` (when present) must be a
-/// combined snapshot — a `version=X.Y.Z` line plus per-package npm integrity
-/// lines.
+/// Build-time version pins, when present, must match the selected bundling
+/// implementation's checksum format.
 /// When absent, build.rs falls through to `../nodejs/package-lock.json` —
 /// both are accepted, this test only checks the pin file's format if it's
 /// there.
 #[test]
 fn pin_file_when_present_is_well_formed() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let pin = PathBuf::from(manifest_dir).join("cli-version.txt");
+    let (filename, value_prefix) = if cfg!(feature = "bundled-in-process") {
+        ("cli-version-in-process.txt", Some("sha512-"))
+    } else {
+        ("cli-version.txt", None)
+    };
+    let pin = PathBuf::from(manifest_dir).join(filename);
     if !pin.is_file() {
         // Contributor build path — no assertion needed.
         return;
     }
-    let contents = std::fs::read_to_string(&pin).expect("read cli-version.txt");
+    let contents = std::fs::read_to_string(&pin).expect("read CLI version snapshot");
     let mut saw_version = false;
     let mut package_count = 0;
     for raw in contents.lines() {
@@ -225,14 +229,26 @@ fn pin_file_when_present_is_well_formed() {
         if key.trim() == "version" {
             saw_version = true;
         } else {
-            assert!(
-                value.trim().starts_with("sha512-"),
-                "invalid npm integrity for key {key:?}"
-            );
+            if let Some(prefix) = value_prefix {
+                assert!(
+                    value.trim().starts_with(prefix),
+                    "invalid npm integrity for key {key:?}"
+                );
+            } else {
+                assert_eq!(
+                    value.trim().len(),
+                    64,
+                    "invalid SHA-256 hash for key {key:?}"
+                );
+                assert!(
+                    value.trim().bytes().all(|byte| byte.is_ascii_hexdigit()),
+                    "invalid SHA-256 hash for key {key:?}"
+                );
+            }
             package_count += 1;
         }
     }
-    assert!(saw_version, "cli-version.txt missing `version=` line");
+    assert!(saw_version, "{filename} missing `version=` line");
     assert_eq!(package_count, 6);
 }
 
