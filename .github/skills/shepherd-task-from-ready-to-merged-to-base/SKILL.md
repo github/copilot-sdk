@@ -14,6 +14,7 @@ Automate the lifecycle of a task PR from marking as **Ready for review** through
 - `TASK_ISSUE`: The issue number (e.g., `1850`) or URL of the child task.
 - `BASE_BRANCH`: The base branch the task PR should target (e.g., `edburns/1810-java-tool-ergonomics-tool-as-lambda`).
 - `REPO`: Repository in `OWNER/REPO` format (default: `github/copilot-sdk`).
+- `REMOTE`: Git remote to push to (default: `upstream`).
 
 ## Prerequisites
 
@@ -170,14 +171,14 @@ For each review comment (`jtbdtask-pr-comments-comment`), working in the `jtbdta
 - ❌❌❌ Do NOT push yet. ❌❌❌
 - Keep track of the commit hash — you will need it when replying to the review comment.
 
-### Step 8: Push all fixes to upstream
+### Step 8: Push all fixes to `$REMOTE`
 
 Once **all** N review comments have been addressed locally:
 
 ```bash
-# Push from the worktree to upstream (sibling directory)
+# Push from the worktree to the configured remote (sibling directory)
 cd "../review-copilot-pr-$PR_NUMBER"
-git push upstream HEAD:$JTBDTASK_BRANCH
+git push "$REMOTE" HEAD:$JTBDTASK_BRANCH
 ```
 
 ### Step 9: Reply to each review comment and resolve the thread
@@ -314,7 +315,7 @@ if [ "$MERGEABLE" = "CONFLICTING" ]; then
   git rebase "upstream/$BASE_BRANCH"
   # Resolve conflicts, then:
   git rebase --continue
-  git push upstream HEAD:$JTBDTASK_BRANCH --force-with-lease
+  git push "$REMOTE" HEAD:$JTBDTASK_BRANCH --force-with-lease
 fi
 ```
 
