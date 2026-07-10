@@ -348,6 +348,12 @@ pub mod rpc_methods {
     pub const SESSION_MCP_APPS_GETHOSTCONTEXT: &str = "session.mcp.apps.getHostContext";
     /// `session.mcp.apps.diagnose`
     pub const SESSION_MCP_APPS_DIAGNOSE: &str = "session.mcp.apps.diagnose";
+    /// `session.mcp.resources.read`
+    pub const SESSION_MCP_RESOURCES_READ: &str = "session.mcp.resources.read";
+    /// `session.mcp.resources.list`
+    pub const SESSION_MCP_RESOURCES_LIST: &str = "session.mcp.resources.list";
+    /// `session.mcp.resources.listTemplates`
+    pub const SESSION_MCP_RESOURCES_LISTTEMPLATES: &str = "session.mcp.resources.listTemplates";
     /// `session.plugins.list`
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
     /// `session.plugins.reload`
@@ -4916,7 +4922,7 @@ pub struct McpAppsListToolsResult {
     pub tools: Vec<HashMap<String, serde_json::Value>>,
 }
 
-/// MCP server and resource URI to fetch.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4924,16 +4930,18 @@ pub struct McpAppsListToolsResult {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsReadResourceRequest {
     /// Name of the MCP server hosting the resource
     pub server_name: String,
-    /// Resource URI (typically ui://...)
+    /// Resource URI
     pub uri: String,
 }
 
-/// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+/// Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4941,10 +4949,12 @@ pub struct McpAppsReadResourceRequest {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsResourceContent {
-    /// Resource-level metadata (CSP, permissions, etc.)
+    /// Resource-level metadata
     #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
     pub meta: Option<HashMap<String, serde_json::Value>>,
     /// Base64-encoded binary content
@@ -4956,11 +4966,11 @@ pub struct McpAppsResourceContent {
     /// Text content (e.g. HTML)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-    /// The resource URI (typically ui://...)
+    /// The resource URI
     pub uri: String,
 }
 
-/// Resource contents returned by the MCP server.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -4968,6 +4978,8 @@ pub struct McpAppsResourceContent {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsReadResourceResult {
@@ -5636,6 +5648,268 @@ pub(crate) struct McpReloadWithConfigRequest {
 pub struct McpRemoveGitHubResult {
     /// True when the auto-managed `github` MCP server was removed; false when no removal happened (e.g. user has explicitly configured a `github` server, or the server was not registered).
     pub removed: bool,
+}
+
+/// Standard MCP resource annotations plus preserved non-standard annotation fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceAnnotations {
+    /// Server-provided non-standard annotation fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Intended audience roles for this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<Vec<String>>,
+    /// Last-modified timestamp hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<String>,
+    /// Priority hint for model/client use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<f64>,
+}
+
+/// A resource icon descriptor plus preserved non-standard icon fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceIcon {
+    /// Server-provided non-standard icon fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Icon MIME type, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Icon sizes hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sizes: Option<String>,
+    /// Icon URI
+    pub src: String,
+    /// Theme hint for this icon
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+}
+
+/// An MCP resource descriptor (spec `Resource`): URI, name, and optional title, description, MIME type, size, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResource {
+    /// Resource-level metadata
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Server-provided non-standard descriptor fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Model/client annotations associated with this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<McpResourceAnnotations>,
+    /// Optional description of what this resource represents
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with this resource
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<McpResourceIcon>>,
+    /// MIME type of the resource, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// The programmatic name of the resource
+    pub name: String,
+    /// Resource size in bytes, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    /// Optional human-readable display title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// The resource URI (e.g. ui://... or file:///...)
+    pub uri: String,
+}
+
+/// MCP resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceContent {
+    /// Resource-level metadata (CSP, permissions, etc.)
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Base64-encoded binary content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>,
+    /// MIME type of the content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content (e.g. HTML)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// The resource URI
+    pub uri: String,
+}
+
+/// MCP server whose resources to enumerate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListRequest {
+    /// Opaque MCP pagination cursor from a prior `nextCursor` value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Name of the MCP server whose resources to enumerate
+    pub server_name: String,
+}
+
+/// One page of resources advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListResult {
+    /// Opaque cursor for the next page, if the server has more resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resources advertised by the server (proxied MCP `resources/list`)
+    pub resources: Vec<McpResource>,
+}
+
+/// MCP server whose resource templates to enumerate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListTemplatesRequest {
+    /// Opaque MCP pagination cursor from a prior `nextCursor` value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Name of the MCP server whose resource templates to enumerate
+    pub server_name: String,
+}
+
+/// An MCP resource template descriptor (spec `ResourceTemplate`): an RFC 6570 URI template, name, and optional title, description, MIME type, icons, annotations, and metadata. Server-provided fields outside the standard descriptor shape are exposed under `additionalProperties`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceTemplate {
+    /// Resource-template-level metadata
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
+    /// Server-provided non-standard descriptor fields preserved from the MCP response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<HashMap<String, serde_json::Value>>,
+    /// Model/client annotations associated with this template
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<McpResourceAnnotations>,
+    /// Optional description of what this template is for
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icons associated with resources matching this template
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<McpResourceIcon>>,
+    /// MIME type for resources matching this template, if uniform
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// The programmatic name of the resource template
+    pub name: String,
+    /// Optional human-readable display title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// An RFC 6570 URI template for constructing resource URIs
+    pub uri_template: String,
+}
+
+/// One page of resource templates advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListTemplatesResult {
+    /// Opaque cursor for the next page, if the server has more resource templates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+    pub resource_templates: Vec<McpResourceTemplate>,
+}
+
+/// MCP server and resource URI to fetch.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesReadRequest {
+    /// Name of the MCP server hosting the resource
+    pub server_name: String,
+    /// Resource URI
+    pub uri: String,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesReadResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpResourceContent>,
 }
 
 /// Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
@@ -17383,7 +17657,7 @@ pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
     pub success: bool,
 }
 
-/// Resource contents returned by the MCP server.
+/// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
 ///
 /// <div class="warning">
 ///
@@ -17391,6 +17665,8 @@ pub struct SessionMcpHeadersHandlePendingHeadersRefreshRequestResult {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+#[doc(hidden)]
+#[deprecated]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMcpAppsReadResourceResult {
@@ -17458,6 +17734,57 @@ pub struct SessionMcpAppsDiagnoseResult {
     pub capability: McpAppsDiagnoseCapability,
     /// What the server returned for this session
     pub server: McpAppsDiagnoseServer,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesReadResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpResourceContent>,
+}
+
+/// One page of resources advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesListResult {
+    /// Opaque cursor for the next page, if the server has more resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resources advertised by the server (proxied MCP `resources/list`)
+    pub resources: Vec<McpResource>,
+}
+
+/// One page of resource templates advertised by the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpResourcesListTemplatesResult {
+    /// Opaque cursor for the next page, if the server has more resource templates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Resource templates advertised by the server (proxied MCP `resources/templates/list`)
+    pub resource_templates: Vec<McpResourceTemplate>,
 }
 
 /// Identifies the target session.

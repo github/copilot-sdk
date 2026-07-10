@@ -239,6 +239,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeMCPPromptsListChanged:
+		var d MCPPromptsListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPResourcesListChanged:
+		var d MCPResourcesListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPToolsListChanged:
+		var d MCPToolsListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeModelCallFailure:
 		var d ModelCallFailureData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

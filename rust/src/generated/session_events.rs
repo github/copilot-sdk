@@ -215,6 +215,12 @@ pub enum SessionEventType {
     SessionMcpServersLoaded,
     #[serde(rename = "session.mcp_server_status_changed")]
     SessionMcpServerStatusChanged,
+    #[serde(rename = "mcp.tools.list_changed")]
+    McpToolsListChanged,
+    #[serde(rename = "mcp.resources.list_changed")]
+    McpResourcesListChanged,
+    #[serde(rename = "mcp.prompts.list_changed")]
+    McpPromptsListChanged,
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded,
     ///
@@ -484,6 +490,12 @@ pub enum SessionEventData {
     SessionMcpServersLoaded(SessionMcpServersLoadedData),
     #[serde(rename = "session.mcp_server_status_changed")]
     SessionMcpServerStatusChanged(SessionMcpServerStatusChangedData),
+    #[serde(rename = "mcp.tools.list_changed")]
+    McpToolsListChanged(McpToolsListChangedData),
+    #[serde(rename = "mcp.resources.list_changed")]
+    McpResourcesListChanged(McpResourcesListChangedData),
+    #[serde(rename = "mcp.prompts.list_changed")]
+    McpPromptsListChanged(McpPromptsListChangedData),
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded(SessionExtensionsLoadedData),
     ///
@@ -4085,6 +4097,30 @@ pub struct SessionMcpServerStatusChangedData {
     pub server_name: String,
     /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     pub status: McpServerStatus,
+}
+
+/// Session event "mcp.tools.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolsListChangedData {
+    /// Name of the MCP server whose list changed
+    pub server_name: String,
+}
+
+/// Session event "mcp.resources.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourcesListChangedData {
+    /// Name of the MCP server whose list changed
+    pub server_name: String,
+}
+
+/// Session event "mcp.prompts.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPromptsListChangedData {
+    /// Name of the MCP server whose list changed
+    pub server_name: String,
 }
 
 /// A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.

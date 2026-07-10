@@ -87,6 +87,9 @@ const (
 	SessionEventTypeMCPHeadersRefreshRequired  SessionEventType = "mcp.headers_refresh_required"
 	SessionEventTypeMCPOauthCompleted          SessionEventType = "mcp.oauth_completed"
 	SessionEventTypeMCPOauthRequired           SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMCPPromptsListChanged      SessionEventType = "mcp.prompts.list_changed"
+	SessionEventTypeMCPResourcesListChanged    SessionEventType = "mcp.resources.list_changed"
+	SessionEventTypeMCPToolsListChanged        SessionEventType = "mcp.tools.list_changed"
 	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
 	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
@@ -931,6 +934,37 @@ type SessionIdleData struct {
 
 func (*SessionIdleData) sessionEventData()      {}
 func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSessionIdle }
+
+// Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+type MCPPromptsListChangedData struct {
+	// Name of the MCP server whose list changed
+	ServerName string `json:"serverName"`
+}
+
+func (*MCPPromptsListChangedData) sessionEventData() {}
+func (*MCPPromptsListChangedData) Type() SessionEventType {
+	return SessionEventTypeMCPPromptsListChanged
+}
+
+// Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+type MCPResourcesListChangedData struct {
+	// Name of the MCP server whose list changed
+	ServerName string `json:"serverName"`
+}
+
+func (*MCPResourcesListChangedData) sessionEventData() {}
+func (*MCPResourcesListChangedData) Type() SessionEventType {
+	return SessionEventTypeMCPResourcesListChanged
+}
+
+// Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+type MCPToolsListChangedData struct {
+	// Name of the MCP server whose list changed
+	ServerName string `json:"serverName"`
+}
+
+func (*MCPToolsListChangedData) sessionEventData()      {}
+func (*MCPToolsListChangedData) Type() SessionEventType { return SessionEventTypeMCPToolsListChanged }
 
 // Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
 // Experimental: SessionCanvasClosedData is part of an experimental API and may change or be removed.

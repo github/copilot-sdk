@@ -11,22 +11,24 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+ * MCP server whose resource templates to enumerate.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@Deprecated
 @CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionMcpAppsReadResourceResult(
-    /** Resource contents returned by the server */
-    @JsonProperty("contents") List<McpAppsResourceContent> contents
+public record SessionMcpResourcesListTemplatesParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Name of the MCP server whose resource templates to enumerate */
+    @JsonProperty("serverName") String serverName,
+    /** Opaque MCP pagination cursor from a prior `nextCursor` value */
+    @JsonProperty("cursor") String cursor
 ) {
 }

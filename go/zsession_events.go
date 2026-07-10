@@ -123,10 +123,13 @@ type (
 	MCPOauthRequiredStaticClientConfig                             = rpc.MCPOauthRequiredStaticClientConfig
 	MCPOauthRequiredStaticClientConfigGrantType                    = rpc.MCPOauthRequiredStaticClientConfigGrantType
 	MCPOauthWwwAuthenticateParams                                  = rpc.MCPOauthWwwAuthenticateParams
+	MCPPromptsListChangedData                                      = rpc.MCPPromptsListChangedData
+	MCPResourcesListChangedData                                    = rpc.MCPResourcesListChangedData
 	MCPServersLoadedServer                                         = rpc.MCPServersLoadedServer
 	MCPServerSource                                                = rpc.MCPServerSource
 	MCPServerStatus                                                = rpc.MCPServerStatus
 	MCPServerTransport                                             = rpc.MCPServerTransport
+	MCPToolsListChangedData                                        = rpc.MCPToolsListChangedData
 	ModelCallFailureBadRequestKind                                 = rpc.ModelCallFailureBadRequestKind
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
 	ModelCallFailureRequestFingerprint                             = rpc.ModelCallFailureRequestFingerprint
@@ -539,6 +542,9 @@ const (
 	SessionEventTypeMCPHeadersRefreshRequired                          = rpc.SessionEventTypeMCPHeadersRefreshRequired
 	SessionEventTypeMCPOauthCompleted                                  = rpc.SessionEventTypeMCPOauthCompleted
 	SessionEventTypeMCPOauthRequired                                   = rpc.SessionEventTypeMCPOauthRequired
+	SessionEventTypeMCPPromptsListChanged                              = rpc.SessionEventTypeMCPPromptsListChanged
+	SessionEventTypeMCPResourcesListChanged                            = rpc.SessionEventTypeMCPResourcesListChanged
+	SessionEventTypeMCPToolsListChanged                                = rpc.SessionEventTypeMCPToolsListChanged
 	SessionEventTypeModelCallFailure                                   = rpc.SessionEventTypeModelCallFailure
 	SessionEventTypePendingMessagesModified                            = rpc.SessionEventTypePendingMessagesModified
 	SessionEventTypePermissionCompleted                                = rpc.SessionEventTypePermissionCompleted
