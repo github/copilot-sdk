@@ -72,15 +72,15 @@ client.stop().await?;
 
 **`ClientOptions`:**
 
-| Field         | Type                        | Description                                                     |
-| ------------- | --------------------------- | --------------------------------------------------------------- |
-| `program`     | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)  |
-| `prefix_args` | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)              |
-| `cwd`         | `PathBuf`                   | Working directory for CLI process                               |
-| `env`         | `Vec<(OsString, OsString)>` | Deprecated; use the child-process transport's `env` option      |
-| `env_remove`  | `Vec<OsString>`             | Deprecated; omit variables from the transport replacement env   |
-| `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
-| `transport`   | `Transport`                 | `Stdio`, `InProcess`, `Tcp`, or `External`                      |
+| Field               | Type                        | Description                                                       |
+| ------------------- | --------------------------- | ----------------------------------------------------------------- |
+| `program`           | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)    |
+| `prefix_args`       | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)                |
+| `working_directory` | `Option<PathBuf>`           | Working directory for CLI process                                 |
+| `env`               | `Vec<(OsString, OsString)>` | Deprecated; use the child-process transport's `env` option        |
+| `env_remove`        | `Vec<OsString>`             | Deprecated; omit variables from the transport replacement env     |
+| `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
+| `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
 With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 

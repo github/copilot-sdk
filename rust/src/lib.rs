@@ -130,8 +130,8 @@ pub enum Transport {
     ///
     /// Loads the native runtime library next to the resolved CLI entrypoint
     /// and speaks JSON-RPC over its C ABI. The runtime spawns its
-    /// own worker; the SDK never launches a CLI child process. This is the
-    /// **Experimental.** Per-client [`ClientOptions::working_directory`],
+    /// own worker; the SDK never launches a CLI child process. This is
+    /// **experimental**. Per-client [`ClientOptions::working_directory`],
     /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
     /// [`ClientOptions::telemetry`], and [`ClientOptions::github_token`] are
     /// not supported because native runtime code shares the host process.
