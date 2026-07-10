@@ -10,6 +10,7 @@ import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
 import static com.github.copilot.CopilotRequestTestSupport.setupCapiAuth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -68,6 +69,7 @@ public class CopilotRequestSessionIdE2ETest {
             assertFalse(capiInference.isEmpty(), "Expected at least one intercepted inference request");
             for (InterceptedRequest r : capiInference) {
                 assertEquals(capiSessionId, r.sessionId(), "CAPI inference request must carry the session id");
+                assertAgentMetadata(r);
             }
             assertTrue(assistantText(capiResult).contains("OK from the synthetic"),
                     "Expected synthetic content in CAPI assistant reply, got " + assistantText(capiResult));
@@ -91,10 +93,18 @@ public class CopilotRequestSessionIdE2ETest {
             assertTrue(byokInference.size() > before, "Expected at least one intercepted BYOK inference request");
             for (InterceptedRequest r : byokInference.subList(before, byokInference.size())) {
                 assertEquals(byokSessionId, r.sessionId(), "BYOK inference request must carry the session id");
+                assertAgentMetadata(r);
             }
             assertNotEquals(capiSessionId, byokSessionId, "Expected per-session ids to differ between turns");
             assertTrue(assistantText(byokResult).contains("OK from the synthetic"),
                     "Expected synthetic content in BYOK assistant reply, got " + assistantText(byokResult));
         }
+    }
+
+    private static void assertAgentMetadata(InterceptedRequest request) {
+        assertNotNull(request.agentId(), "Inference request must carry an agent id");
+        assertFalse(request.agentId().isEmpty(), "Inference request must carry an agent id");
+        assertNotNull(request.interactionType(), "Inference request must carry an interaction type");
+        assertFalse(request.interactionType().isEmpty(), "Inference request must carry an interaction type");
     }
 }

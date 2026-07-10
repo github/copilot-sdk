@@ -56,7 +56,13 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
 #else
             : await request.Content.ReadAsStringAsync().ConfigureAwait(false);
 #endif
-        _records.Enqueue(new InterceptedRequest(url, ctx.SessionId, bodyText));
+        _records.Enqueue(new InterceptedRequest(
+            url,
+            ctx.SessionId,
+            ctx.AgentId,
+            ctx.ParentAgentId,
+            ctx.InteractionType,
+            bodyText));
 
         return IsInferenceUrl(url)
             ? BuildInferenceResponse(url, bodyText)
@@ -188,4 +194,10 @@ internal sealed class RecordingRequestHandler : CopilotRequestHandler
 }
 
 /// <summary>A single request the callback intercepted.</summary>
-internal sealed record InterceptedRequest(string Url, string? SessionId, string Body);
+internal sealed record InterceptedRequest(
+    string Url,
+    string? SessionId,
+    string? AgentId,
+    string? ParentAgentId,
+    string? InteractionType,
+    string Body);

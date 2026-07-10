@@ -53,7 +53,11 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
 
         var inference = provider.InferenceRequests;
         Assert.NotEmpty(inference);
-        Assert.All(inference, r => Assert.Equal(capiSessionId, r.SessionId));
+        Assert.All(inference, r =>
+        {
+            Assert.Equal(capiSessionId, r.SessionId);
+            AssertAgentMetadata(r);
+        });
 
         // Validate the final assistant response arrived (guards against truncated captures)
         Assert.Contains("OK from the synthetic", content);
@@ -96,9 +100,19 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
 
         var inference = provider.InferenceRequests;
         Assert.NotEmpty(inference);
-        Assert.All(inference, r => Assert.Equal(byokSessionId, r.SessionId));
+        Assert.All(inference, r =>
+        {
+            Assert.Equal(byokSessionId, r.SessionId);
+            AssertAgentMetadata(r);
+        });
 
         // Validate the final assistant response arrived (guards against truncated captures)
         Assert.Contains("OK from the synthetic", content);
+    }
+
+    private static void AssertAgentMetadata(InterceptedRequest request)
+    {
+        Assert.False(string.IsNullOrEmpty(request.AgentId));
+        Assert.False(string.IsNullOrEmpty(request.InteractionType));
     }
 }

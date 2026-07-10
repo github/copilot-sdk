@@ -49,6 +49,9 @@ public sealed class CopilotRequestContext
         : this(original.RequestId, original.Url, original.Headers)
     {
         SessionId = original.SessionId;
+        AgentId = original.AgentId;
+        ParentAgentId = original.ParentAgentId;
+        InteractionType = original.InteractionType;
         Transport = original.Transport;
         CancellationToken = original.CancellationToken;
         WebSocketResponse = original.WebSocketResponse;
@@ -66,6 +69,15 @@ public sealed class CopilotRequestContext
 
     /// <summary>Runtime session id that triggered the request, if any.</summary>
     public string? SessionId { get; init; }
+
+    /// <summary>Stable per-agent-instance id for the agent trajectory that issued this request.</summary>
+    public string? AgentId { get; init; }
+
+    /// <summary>Id of the parent agent when this request was issued by a subagent.</summary>
+    public string? ParentAgentId { get; init; }
+
+    /// <summary>Runtime classification for the interaction that produced this request.</summary>
+    public string? InteractionType { get; init; }
 
     /// <summary>Transport the runtime would otherwise use.</summary>
     public CopilotRequestTransport Transport { get; init; }
@@ -526,6 +538,12 @@ public class CopilotRequestHandler
 
             if (!message.Headers.TryAddWithoutValidation(name, values))
             {
+#if NETSTANDARD2_0
+                if (!hasBody)
+                {
+                    continue;
+                }
+#endif
                 message.Content ??= new ByteArrayContent([]);
                 message.Content.Headers.TryAddWithoutValidation(name, values);
             }
@@ -870,6 +888,9 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         exchange.Context = new CopilotRequestContext(request.RequestId, request.Url, ToReadOnlyHeaders(request.Headers))
         {
             SessionId = request.SessionId,
+            AgentId = request.AgentId,
+            ParentAgentId = request.ParentAgentId,
+            InteractionType = request.InteractionType,
             Transport = transport,
             CancellationToken = exchange.Abort.Token,
         };
