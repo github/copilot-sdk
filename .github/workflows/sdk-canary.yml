@@ -4,14 +4,14 @@ name: "SDK Canary Test/Publish"
 # @github/copilot runtime, builds the Node SDK, and runs the Node e2e suite
 # against it to prove runtime <-> SDK compatibility. When that gate passes (and
 # mode allows), publishes an SDK canary pinned to the tested runtime to the
-# internal Azure Artifacts feed only (never public npm).
+# internal Azure Artifacts feed, and optionally (opt-in) to public npm.
 
 env:
   HUSKY: 0
   # Internal org-scoped Azure Artifacts feed — single source of truth so the
-  # feed name isn't repeated across steps. The SDK canary publishes here and
-  # (when runtime_source=internal) installs the runtime from here; it must NEVER
-  # reach public npm (@github/copilot-sdk is a live public package).
+  # feed name isn't repeated across steps. The SDK canary always publishes here
+  # and (when runtime_source=internal) installs the runtime from here. Public
+  # npm is a separate, opt-in target handled by its own job.
   FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
   # Azure DevOps resource ID used to mint an ADO access token for the feed.
   ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
@@ -40,6 +40,11 @@ on:
           - publish
           - publish-force
           - tests-only
+      publish_npm:
+        description: "ALSO publish the canary to public npm (opt-in). Only honored on workflow_dispatch; does not affect internal-feed publish eligibility."
+        required: false
+        type: boolean
+        default: false
   repository_dispatch:
     types: [runtime-canary]
 
@@ -252,6 +257,9 @@ jobs:
        needs.resolve.outputs.PUBLISH_MODE == 'publish-force')
     environment: cicd
     runs-on: ubuntu-latest
+    outputs:
+      SDK_VERSION: ${{ steps.sdkver.outputs.SDK_VERSION }}
+      TARBALL: ${{ steps.pack.outputs.TARBALL }}
     permissions:
       contents: read
       id-token: write
@@ -332,6 +340,32 @@ jobs:
       - name: Build SDK
         run: npm run build
 
+      # Pack ONCE into a neutral tarball (no registry-specific publishConfig) so
+      # the exact same bytes — and therefore the same sha512 integrity — can be
+      # published to BOTH the internal feed and (opt-in) public npm. A VS Code
+      # lockfile can then resolve the identical pinned canary from either
+      # registry. Publishing a pre-built tarball also skips lifecycle scripts, so
+      # neither publish step rebuilds or mutates the artifact.
+      - name: Pack SDK canary tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          TARBALL="$(npm pack --json | jq -r '.[0].filename')"
+          if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
+            echo "::error::npm pack did not produce a tarball."
+            exit 1
+          fi
+          echo "Packed $TARBALL"
+          echo "TARBALL=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: Upload canary tarball artifact
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: sdk-canary-tarball
+          path: nodejs/${{ steps.pack.outputs.TARBALL }}
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Azure Login (OIDC -> id-cpd-ci)
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
@@ -339,41 +373,46 @@ jobs:
           tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
           allow-no-subscriptions: true
 
-      # Auth-only .npmrc: just the two token lines, NO scoped registry line.
-      # The publish target is supplied explicitly via publishConfig + --registry.
-      - name: Configure feed auth (.npmrc)
+      # Registry + auth .npmrc for the feed. We pin the DEFAULT registry to the
+      # feed here (single source of truth: FEED_URL) so the effective-registry
+      # assertion below is meaningful for a pre-packed tarball publish, then also
+      # pass --registry explicitly on publish (belt and suspenders). No scoped
+      # @github:registry line is needed since this job only publishes.
+      - name: Configure feed registry + auth (.npmrc)
         run: |
           set -euo pipefail
           TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
           echo "::add-mask::$TOKEN"
           # Derive the protocol-relative auth scopes from FEED_URL (single source
-          # of truth). NO scoped @github:registry line here — publish target is
-          # supplied explicitly via publishConfig + --registry.
+          # of truth).
           FEED_AUTH_REGISTRY="${FEED_URL#https:}"
           FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
           printf '%s\n' \
+            "registry=${FEED_URL}" \
             "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
             "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > .npmrc
-          echo "Wrote auth-only .npmrc to ./nodejs"
+          echo "Wrote feed registry + auth .npmrc to ./nodejs"
 
-      # Belt and suspenders (2 of 3): pin the publish target in the package too.
-      - name: Set publishConfig registry
-        run: npm pkg set "publishConfig.registry=$FEED_URL"
-
-      # Belt and suspenders (3 of 3): fail loudly unless the effective publish
-      # target is the internal feed. Guards against ever reaching public npm.
+      # Fail loudly unless the effective npm registry is the internal feed.
+      # Guards against ever reaching public npm from this job. The npm publish
+      # path lives in a separate job with its own opposite assertion so the two
+      # registry/auth contexts never contaminate each other.
       - name: Assert publish target is the internal feed
         run: |
           set -euo pipefail
-          EFFECTIVE="$(npm pkg get publishConfig.registry | tr -d '"')"
-          echo "Effective publishConfig.registry: $EFFECTIVE"
+          EFFECTIVE="$(npm config get registry)"
+          echo "Effective registry: $EFFECTIVE"
           if [ "$EFFECTIVE" != "$FEED_URL" ]; then
-            echo "::error::publishConfig.registry ('$EFFECTIVE') is not the internal feed ('$FEED_URL'). Refusing to publish."
+            echo "::error::Effective npm registry ('$EFFECTIVE') is not the internal feed ('$FEED_URL'). Refusing to publish."
             exit 1
           fi
 
+      # Publish the pre-packed neutral tarball (see the Pack step) so the exact
+      # same bytes go to the feed and, opt-in, to public npm.
       - name: Publish SDK canary to internal feed
-        run: npm publish --registry "$FEED_URL"
+        env:
+          TARBALL: ${{ steps.pack.outputs.TARBALL }}
+        run: npm publish "$TARBALL" --tag canary --registry "$FEED_URL"
 
       - name: Summarize published canary
         env:
@@ -388,4 +427,82 @@ jobs:
             echo "| Runtime consumed | \`@github/copilot@${RUNTIME_VERSION}\` |"
             echo "| Canary SDK produced | \`@github/copilot-sdk@${SDK_VERSION}\` |"
             echo "| Feed | ${FEED_URL} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-npm:
+    name: "Publish SDK canary (public npm)"
+    needs: [resolve, publish]
+    # OPT-IN, workflow_dispatch-only public npm publish. It NEVER runs for
+    # repository_dispatch (or any non-dispatch event such as schedule), and only
+    # when a human explicitly set publish_npm=true. It publishes the EXACT same
+    # tarball the feed publish produced (same canary version, byte-identical
+    # sha512), under the `canary` dist-tag, via npm OIDC trusted publishing.
+    # Deliberately NOT bound to a protected `environment:` so the automated flow
+    # isn't gated on a manual approval once a trusted publisher is registered.
+    if: >
+      !cancelled() &&
+      github.event.repository.fork == false &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publish_npm == true &&
+      needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for npm OIDC trusted publishing
+    env:
+      RUNTIME_VERSION: ${{ needs.resolve.outputs.RUNTIME_VERSION }}
+      SDK_VERSION: ${{ needs.publish.outputs.SDK_VERSION }}
+      TARBALL: ${{ needs.publish.outputs.TARBALL }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # npm >= 11.5 is required for OIDC trusted publishing (mirrors publish.yml).
+      # No token is used — trust is granted per owner/repo/workflow-file.
+      - name: Update npm for OIDC support
+        run: npm i -g "npm@11.6.3"
+
+      - name: Download canary tarball
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: sdk-canary-tarball
+          path: ./dist
+
+      # This job never touches the internal feed context (no Azure login, no feed
+      # .npmrc), so the default registry stays public npm. Assert it before we
+      # publish so a misconfiguration can never retarget the tarball, and confirm
+      # the shared tarball arrived.
+      - name: Assert publish target is public npm
+        run: |
+          set -euo pipefail
+          if [ -z "${TARBALL:-}" ] || [ ! -f "./dist/${TARBALL}" ]; then
+            echo "::error::Canary tarball '${TARBALL}' not found in ./dist."
+            exit 1
+          fi
+          EFFECTIVE="$(npm config get registry)"
+          echo "Effective registry: $EFFECTIVE"
+          if [ "$EFFECTIVE" != "https://registry.npmjs.org/" ]; then
+            echo "::error::Effective npm registry ('$EFFECTIVE') is not public npm. Refusing to publish."
+            exit 1
+          fi
+
+      - name: Publish SDK canary to public npm
+        run: npm publish "./dist/${TARBALL}" --tag canary --access public --registry https://registry.npmjs.org
+
+      - name: Summarize published canary
+        run: |
+          set -euo pipefail
+          {
+            echo "## SDK canary published to public npm"
+            echo ""
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Runtime consumed | \`@github/copilot@${RUNTIME_VERSION}\` |"
+            echo "| Canary SDK produced | \`@github/copilot-sdk@${SDK_VERSION}\` |"
+            echo "| dist-tag | \`canary\` |"
+            echo "| Registry | https://registry.npmjs.org/ |"
           } >> "$GITHUB_STEP_SUMMARY"
