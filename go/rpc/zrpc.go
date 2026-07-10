@@ -4196,8 +4196,28 @@ type ModelBilling struct {
 	DiscountPercent *int32 `json:"discountPercent,omitempty"`
 	// Billing cost multiplier relative to the base rate
 	Multiplier *float64 `json:"multiplier,omitempty"`
+	// Active server-driven promotion for this model, if any. Present when the model is being
+	// promoted with a time-boxed discount.
+	Promo *ModelBillingPromo `json:"promo,omitempty"`
 	// Token-level pricing information for this model
 	TokenPrices *ModelBillingTokenPrices `json:"tokenPrices,omitempty"`
+}
+
+// Active server-driven promotion for a model, including its discount and expiry.
+// Experimental: ModelBillingPromo is part of an experimental API and may change or be
+// removed.
+type ModelBillingPromo struct {
+	// Percentage discount (0-100) applied while the promotion is active. May be fractional.
+	DiscountPercent *float64 `json:"discountPercent,omitempty"`
+	// UTC ISO 8601 timestamp marking when the promotion ends. Always present: the API only
+	// surfaces a promo whose expiry parses and is in the future. Consumers should treat a past
+	// value as expired.
+	EndsAt string `json:"endsAt"`
+	// Stable identifier for the promotion campaign.
+	ID *string `json:"id,omitempty"`
+	// Human-readable promotion message. Does not include the expiry timestamp; consumers may
+	// format endsAt and append it.
+	Message *string `json:"message,omitempty"`
 }
 
 // Token-level pricing information for this model
