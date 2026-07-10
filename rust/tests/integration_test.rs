@@ -6,7 +6,7 @@ use github_copilot_sdk::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
 
 fn default_options() -> ClientOptions {
     let mut opts = ClientOptions::default();
-    opts.working_directory = Some(std::env::current_dir().expect("cwd"));
+    opts.working_directory = std::env::current_dir().expect("cwd");
     opts
 }
 

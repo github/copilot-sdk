@@ -76,9 +76,9 @@ client.stop().await?;
 | ------------------- | --------------------------- | ----------------------------------------------------------------- |
 | `program`           | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)    |
 | `prefix_args`       | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)                |
-| `working_directory` | `Option<PathBuf>`           | Working directory for CLI process                                 |
-| `env`               | `Vec<(OsString, OsString)>` | Deprecated; use the child-process transport's `env` option        |
-| `env_remove`        | `Vec<OsString>`             | Deprecated; omit variables from the transport replacement env     |
+| `working_directory` | `PathBuf`                   | Working directory for CLI process (empty = host process's cwd)    |
+| `env`               | `Vec<(OsString, OsString)>` | Environment variables for CLI process                             |
+| `env_remove`        | `Vec<OsString>`             | Environment variables to remove                                   |
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 
@@ -622,7 +622,7 @@ opts.telemetry = Some(telem);
 let client = Client::start(opts).await?;
 ```
 
-The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. A transport-level replacement environment is applied first, followed by SDK-managed authentication and telemetry variables. Deprecated `ClientOptions::env` entries retain their previous override behavior.
+The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TYPE`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, ...) into the spawned CLI process. The SDK takes no OpenTelemetry dependency; the CLI itself owns the exporter pipeline. Caller-supplied `ClientOptions::env` entries override telemetry-injected values.
 
 ### Progress Reporting (`send_and_wait`)
 

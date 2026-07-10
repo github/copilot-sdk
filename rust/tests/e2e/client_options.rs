@@ -347,7 +347,7 @@ impl FakeCli {
             ])
             .with_github_token(token)
             .with_use_logged_in_user(false)
-            .with_transport(Transport::Stdio { env: None })
+            .with_transport(Transport::Stdio)
     }
 
     fn path(&self, name: &str) -> PathBuf {

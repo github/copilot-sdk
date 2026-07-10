@@ -237,7 +237,6 @@ impl E2eContext {
         Client::start(self.client_options_with_transport(Transport::Tcp {
             port,
             connection_token: Some(token.to_string()),
-            env: None,
         }))
         .await
         .expect("start TCP E2E client")

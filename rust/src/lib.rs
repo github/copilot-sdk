@@ -121,11 +121,7 @@ pub enum Transport {
     #[default]
     Default,
     /// Communicate over stdin/stdout pipes (default).
-    Stdio {
-        /// Environment passed to the child process, replacing its inherited
-        /// environment. SDK-managed variables are applied afterward.
-        env: Option<Vec<(OsString, OsString)>>,
-    },
+    Stdio,
     /// Host the runtime in-process over FFI (no child process).
     ///
     /// Loads the native runtime library next to the resolved CLI entrypoint
@@ -148,9 +144,6 @@ pub enum Transport {
         /// the CLI, the SDK auto-generates a 128-bit hex token so the
         /// loopback listener is safe by default.
         connection_token: Option<String>,
-        /// Environment passed to the child process, replacing its inherited
-        /// environment. SDK-managed variables are applied afterward.
-        env: Option<Vec<(OsString, OsString)>>,
     },
     /// Connect to an already-running CLI server (no process spawning).
     External {
@@ -240,20 +233,11 @@ pub struct ClientOptions {
     pub prefix_args: Vec<OsString>,
     /// Working directory for the CLI process.
     ///
-    /// `None` uses the host process's current directory. Setting this option is
-    /// not supported with [`Transport::InProcess`].
-    pub working_directory: Option<PathBuf>,
+    /// Setting this option is not supported with [`Transport::InProcess`].
+    pub working_directory: PathBuf,
     /// Environment variables set on the child process.
-    #[deprecated(
-        since = "0.1.0",
-        note = "set `env` on `Transport::Stdio` or `Transport::Tcp` instead"
-    )]
     pub env: Vec<(OsString, OsString)>,
     /// Environment variable names to remove from the child process.
-    #[deprecated(
-        since = "0.1.0",
-        note = "use a transport-level replacement environment that omits these variables"
-    )]
     pub env_remove: Vec<OsString>,
     /// Extra CLI flags appended after the transport-specific arguments.
     pub extra_args: Vec<String>,
@@ -362,7 +346,6 @@ pub struct ClientOptions {
     pub mode: ClientMode,
 }
 
-#[allow(deprecated)]
 impl std::fmt::Debug for ClientOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClientOptions")
@@ -627,13 +610,12 @@ impl TelemetryConfig {
     }
 }
 
-#[allow(deprecated)]
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
             program: CliProgram::Resolve,
             prefix_args: Vec::new(),
-            working_directory: None,
+            working_directory: PathBuf::new(),
             env: Vec::new(),
             env_remove: Vec::new(),
             extra_args: Vec::new(),
@@ -656,7 +638,6 @@ impl Default for ClientOptions {
     }
 }
 
-#[allow(deprecated)]
 impl ClientOptions {
     /// Construct a new [`ClientOptions`] with default values.
     ///
@@ -695,15 +676,11 @@ impl ClientOptions {
 
     /// Working directory for the CLI process.
     pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.working_directory = Some(cwd.into());
+        self.working_directory = cwd.into();
         self
     }
 
     /// Environment variables to set on the child process.
-    #[deprecated(
-        since = "0.1.0",
-        note = "set `env` on `Transport::Stdio` or `Transport::Tcp` instead"
-    )]
     pub fn with_env<I, K, V>(mut self, env: I) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -715,10 +692,6 @@ impl ClientOptions {
     }
 
     /// Environment variable names to remove from the child process.
-    #[deprecated(
-        since = "0.1.0",
-        note = "use a transport-level replacement environment that omits these variables"
-    )]
     pub fn with_env_remove<I, S>(mut self, names: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -910,7 +883,6 @@ fn generate_connection_token() -> String {
 const DEFAULT_CONNECTION_ENV_VAR: &str = "COPILOT_SDK_DEFAULT_CONNECTION";
 
 /// Resolve a transport override from [`DEFAULT_CONNECTION_ENV_VAR`].
-#[allow(deprecated)]
 fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
     let configured = options
         .env
@@ -926,10 +898,8 @@ fn resolve_default_transport(options: &ClientOptions) -> Result<Transport> {
 
 fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
     match value {
-        None => Ok(Transport::Stdio { env: None }),
-        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => {
-            Ok(Transport::Stdio { env: None })
-        }
+        None => Ok(Transport::Stdio),
+        Some(v) if v.is_empty() || v.eq_ignore_ascii_case("stdio") => Ok(Transport::Stdio),
         Some(v) if v.eq_ignore_ascii_case("inprocess") => Ok(Transport::InProcess),
         Some(v) => Err(Error::with_message(
             ErrorKind::InvalidConfig,
@@ -942,9 +912,8 @@ fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
 }
 
 #[cfg(any(feature = "bundled-in-process", test))]
-#[allow(deprecated)]
 fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
-    let unsupported = if options.working_directory.is_some() {
+    let unsupported = if !options.working_directory.as_os_str().is_empty() {
         Some("working_directory")
     } else if !options.env.is_empty() {
         Some("env")
@@ -970,23 +939,6 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         ));
     }
 
-    Ok(())
-}
-
-#[allow(deprecated)]
-fn validate_transport_environment(options: &ClientOptions) -> Result<()> {
-    let transport_env_is_set = matches!(
-        &options.transport,
-        Transport::Stdio { env: Some(_) } | Transport::Tcp { env: Some(_), .. }
-    );
-    if transport_env_is_set && (!options.env.is_empty() || !options.env_remove.is_empty()) {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            "set child-process environment variables via either the transport-level `env` \
-             option or the deprecated ClientOptions::env/ClientOptions::env_remove options, \
-             not both",
-        ));
-    }
     Ok(())
 }
 
@@ -1064,7 +1016,6 @@ impl Client {
         if matches!(options.transport, Transport::Default) {
             options.transport = resolve_default_transport(&options)?;
         }
-        validate_transport_environment(&options)?;
         if matches!(options.transport, Transport::InProcess) {
             #[cfg(not(feature = "bundled-in-process"))]
             {
@@ -1132,7 +1083,7 @@ impl Client {
         // default.
         let effective_connection_token: Option<String> = match &mut options.transport {
             Transport::Default => unreachable!("default transport resolved above"),
-            Transport::Stdio { .. } | Transport::InProcess => None,
+            Transport::Stdio | Transport::InProcess => None,
             Transport::Tcp {
                 connection_token, ..
             } => Some(
@@ -1176,10 +1127,14 @@ impl Client {
                 resolved
             }
         };
-        let working_directory = options
-            .working_directory
-            .clone()
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let working_directory = {
+            let cwd = options.working_directory.clone();
+            if cwd.as_os_str().is_empty() {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            } else {
+                cwd
+            }
+        };
 
         let client = match options.transport {
             Transport::Default => unreachable!("default transport resolved above"),
@@ -1215,7 +1170,6 @@ impl Client {
             Transport::Tcp {
                 port,
                 connection_token: _,
-                env: _,
             } => {
                 let (mut child, actual_port) =
                     Self::spawn_tcp(&program, &options, &working_directory, port).await?;
@@ -1242,7 +1196,7 @@ impl Client {
                     options.mode,
                 )?
             }
-            Transport::Stdio { env: _ } => {
+            Transport::Stdio => {
                 let mut child = Self::spawn_stdio(&program, &options, &working_directory)?;
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
@@ -1580,23 +1534,18 @@ impl Client {
         });
     }
 
-    #[allow(deprecated)]
     fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
         for arg in &options.prefix_args {
             command.arg(arg);
         }
-        let transport_env = match &options.transport {
-            Transport::Stdio { env } | Transport::Tcp { env, .. } => env.as_ref(),
-            _ => None,
-        };
-        if let Some(env) = transport_env {
-            command.env_clear();
-            command.envs(env.iter().map(|(key, value)| (key, value)));
-        }
+        // Inject the SDK auth token first so explicit `env` / `env_remove`
+        // entries can override or strip it.
         if let Some(token) = &options.github_token {
             command.env("COPILOT_SDK_AUTH_TOKEN", token);
         }
+        // Inject telemetry env vars before user env so callers can still
+        // override individual variables via `options.env`.
         if let Some(telemetry) = &options.telemetry {
             command.env("COPILOT_OTEL_ENABLED", "true");
             if let Some(endpoint) = &telemetry.otlp_endpoint {
@@ -1636,13 +1585,11 @@ impl Client {
         {
             command.env("COPILOT_CONNECTION_TOKEN", token);
         }
-        if transport_env.is_none() {
-            for (key, value) in &options.env {
-                command.env(key, value);
-            }
-            for key in &options.env_remove {
-                command.env_remove(key);
-            }
+        for (key, value) in &options.env {
+            command.env(key, value);
+        }
+        for key in &options.env_remove {
+            command.env_remove(key);
         }
         command
             .current_dir(working_directory)
@@ -2486,7 +2433,6 @@ impl Drop for ClientInner {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -2530,7 +2476,7 @@ mod tests {
             .with_enable_remote_sessions(true);
         assert!(matches!(opts.program, CliProgram::Path(_)));
         assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
-        assert_eq!(opts.working_directory, Some(PathBuf::from("/tmp")));
+        assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
         assert_eq!(
             opts.env,
             vec![(
@@ -2551,11 +2497,11 @@ mod tests {
     fn default_transport_values_resolve_without_process_state() {
         assert!(matches!(
             resolve_default_transport_value(None).unwrap(),
-            Transport::Stdio { env: None }
+            Transport::Stdio
         ));
         assert!(matches!(
             resolve_default_transport_value(Some("stdio")).unwrap(),
-            Transport::Stdio { env: None }
+            Transport::Stdio
         ));
         assert!(matches!(
             resolve_default_transport_value(Some("INPROCESS")).unwrap(),
@@ -2591,49 +2537,6 @@ mod tests {
             .with_extra_args(["--verbose"]);
 
         assert!(validate_inprocess_options(&options).is_ok());
-    }
-
-    #[test]
-    fn transport_environment_conflicts_with_legacy_environment() {
-        let options = ClientOptions::new()
-            .with_transport(Transport::Stdio {
-                env: Some(vec![("NEW".into(), "value".into())]),
-            })
-            .with_env([("OLD", "value")]);
-
-        assert!(validate_transport_environment(&options).is_err());
-    }
-
-    #[test]
-    fn legacy_environment_remains_supported_without_transport_environment() {
-        let options = ClientOptions::new()
-            .with_transport(Transport::Stdio { env: None })
-            .with_env([("OLD", "value")])
-            .with_env_remove(["REMOVED"]);
-
-        assert!(validate_transport_environment(&options).is_ok());
-    }
-
-    #[test]
-    fn transport_environment_is_applied_before_sdk_variables() {
-        let options = ClientOptions::new()
-            .with_transport(Transport::Stdio {
-                env: Some(vec![
-                    ("CUSTOM".into(), "value".into()),
-                    ("COPILOT_SDK_AUTH_TOKEN".into(), "old".into()),
-                ]),
-            })
-            .with_github_token("new");
-        let command = Client::build_command(Path::new("/bin/echo"), &options, Path::new("/tmp"));
-
-        assert_eq!(
-            env_value(&command, "CUSTOM"),
-            Some(std::ffi::OsStr::new("value"))
-        );
-        assert_eq!(
-            env_value(&command, "COPILOT_SDK_AUTH_TOKEN"),
-            Some(std::ffi::OsStr::new("new"))
-        );
     }
 
     #[cfg(not(feature = "bundled-in-process"))]
@@ -2892,7 +2795,6 @@ mod tests {
         let opts = ClientOptions::new().with_transport(Transport::Tcp {
             port: 0,
             connection_token: Some("secret-token".to_string()),
-            env: None,
         });
         let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
         assert_eq!(
@@ -2911,7 +2813,6 @@ mod tests {
             .with_transport(Transport::Tcp {
                 port: 0,
                 connection_token: Some(String::new()),
-                env: None,
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();

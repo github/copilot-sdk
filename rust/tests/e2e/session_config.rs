@@ -566,7 +566,6 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_resume() {
                 ctx.client_options_with_transport(Transport::Tcp {
                     port,
                     connection_token: Some(token.clone()),
-                    env: None,
                 })
                 .with_request_handler(handler.clone()),
             )

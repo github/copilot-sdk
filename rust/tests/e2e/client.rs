@@ -30,7 +30,6 @@ async fn should_start_ping_and_stop_tcp_client() {
             let client = Client::start(ctx.client_options_with_transport(Transport::Tcp {
                 port: 0,
                 connection_token: Some("tcp-e2e-token".to_string()),
-                env: None,
             }))
             .await
             .expect("start TCP client");
