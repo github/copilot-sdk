@@ -28,7 +28,7 @@
 // off but still needs to exercise them.
 #[cfg(any(has_bundled_cli, test))]
 use std::fs;
-#[cfg(has_bundled_cli)]
+#[cfg(all(has_bundled_cli, any(feature = "bundled-in-process", not(windows))))]
 use std::io::Read;
 #[cfg(any(has_bundled_cli, test))]
 use std::io::Write;
