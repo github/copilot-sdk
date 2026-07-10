@@ -770,9 +770,7 @@ fn client_options_for_cli(
         .map(|value| value.eq_ignore_ascii_case("inprocess"))
         .unwrap_or(false);
     if inprocess_default {
-        return ClientOptions::new()
-            .with_program(CliProgram::Path(cli_path.to_path_buf()))
-            .with_use_logged_in_user(false);
+        return ClientOptions::new().with_program(CliProgram::Path(cli_path.to_path_buf()));
     }
     let options = ClientOptions::new()
         .with_cwd(cwd)
