@@ -115,6 +115,7 @@ impl E2eContext {
             proxy: Some(proxy),
         };
         ctx.configure(category, snapshot_name)?;
+        ctx.set_default_copilot_user();
         Ok(ctx)
     }
 
@@ -144,6 +145,7 @@ impl E2eContext {
             .map_err(|err| {
                 std::io::Error::other(format!("configure proxy without snapshot failed: {err}"))
             })?;
+        ctx.set_default_copilot_user();
         Ok(ctx)
     }
 
@@ -345,11 +347,14 @@ impl E2eContext {
             ),
             ("COPILOT_MCP_APPS".into(), "true".into()),
             ("MCP_APPS".into(), "true".into()),
+            ("COPILOT_SDK_AUTH_TOKEN".into(), "".into()),
+            ("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
+            ("GITHUB_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
+            ("GH_ENTERPRISE_TOKEN".into(), "".into()),
+            ("GITHUB_ENTERPRISE_TOKEN".into(), "".into()),
+            ("COPILOT_HMAC_KEY".into(), "".into()),
+            ("CAPI_HMAC_KEY".into(), "".into()),
         ]);
-        if std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true") {
-            env.push(("GH_TOKEN".into(), "fake-token-for-e2e-tests".into()));
-            env.push(("GITHUB_TOKEN".into(), "fake-token-for-e2e-tests".into()));
-        }
         env
     }
 
@@ -623,14 +628,6 @@ impl InProcessEnvGuard {
             return None;
         }
         let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
-        // In-process, the SDK's `github_token` (lowered to `--auth-token-env
-        // COPILOT_SDK_AUTH_TOKEN` for the spawned child) is not passed to the worker,
-        // so host-side auth resolves from GH_TOKEN/GITHUB_TOKEN instead. Use the same
-        // token the replay mock registers as the authenticated Copilot user
-        // (`set_default_copilot_user` → DEFAULT_TEST_TOKEN); a placeholder token the
-        // mock doesn't know would resolve as unauthenticated (or hit real GitHub).
-        pairs.push(("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()));
-        pairs.push(("GITHUB_TOKEN".into(), DEFAULT_TEST_TOKEN.into()));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared worker (see issue #1934).
         // These are process-global runtime gates (not per-client behavior), so applying
@@ -652,12 +649,6 @@ impl InProcessEnvGuard {
             // SAFETY: the E2E suite runs serially in-process (concurrency 1), so no
             // other thread races these process-wide env mutations.
             unsafe { std::env::set_var(key, value) };
-        }
-        for key in ["COPILOT_HMAC_KEY", "CAPI_HMAC_KEY"] {
-            let key = OsString::from(key);
-            saved.push((key.clone(), std::env::var_os(&key)));
-            // SAFETY: as above.
-            unsafe { std::env::remove_var(&key) };
         }
         let previous_cwd = std::env::current_dir().expect("read in-process test cwd");
         std::env::set_current_dir(ctx.work_dir()).expect("set in-process test cwd");
