@@ -347,7 +347,6 @@ impl E2eContext {
             ),
             ("COPILOT_MCP_APPS".into(), "true".into()),
             ("MCP_APPS".into(), "true".into()),
-            ("COPILOT_SDK_AUTH_TOKEN".into(), "".into()),
             ("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
             ("GITHUB_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
             ("GH_ENTERPRISE_TOKEN".into(), "".into()),
@@ -628,6 +627,7 @@ impl InProcessEnvGuard {
             return None;
         }
         let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
+        pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
         // in-process transport does not pass to the shared worker (see issue #1934).
         // These are process-global runtime gates (not per-client behavior), so applying
