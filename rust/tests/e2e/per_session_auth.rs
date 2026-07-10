@@ -99,7 +99,11 @@ async fn session_auth_status_is_unauthenticated_without_token() {
         "session_auth_status_is_unauthenticated_without_token",
         |ctx| {
             Box::pin(async move {
-                let client = ctx.start_client().await;
+                let client = github_copilot_sdk::Client::start(
+                    ctx.client_options().with_use_logged_in_user(false),
+                )
+                .await
+                .expect("start client");
                 let session = client
                     .create_session(
                         SessionConfig::default()
