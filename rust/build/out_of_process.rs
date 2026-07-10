@@ -230,9 +230,12 @@ fn parse_snapshot(contents: &str, asset_name: &str) -> Result<(String, String), 
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (key, value) = line
-            .split_once('=')
-            .ok_or_else(|| format!("line {}: expected `key=value`, got `{raw}`", line_no + 1))?;
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(format!(
+                "line {}: expected `key=value`, got `{raw}`",
+                line_no + 1
+            ));
+        };
         match key.trim() {
             "version" => version = Some(value.trim().to_string()),
             k if k == asset_name => hash = Some(value.trim().to_string()),

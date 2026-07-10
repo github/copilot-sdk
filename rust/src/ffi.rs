@@ -378,16 +378,17 @@ fn bind<'lib, T>(
     symbol: &[u8],
     library_path: &Path,
 ) -> Result<libloading::Symbol<'lib, T>, Error> {
-    unsafe { lib.get::<T>(symbol) }.map_err(|e| {
-        Error::with_message(
+    match unsafe { lib.get::<T>(symbol) } {
+        Ok(export) => Ok(export),
+        Err(e) => Err(Error::with_message(
             ErrorKind::InvalidConfig,
             format!(
                 "in-process runtime library '{}' is missing an expected export ({}): {e}",
                 library_path.display(),
                 String::from_utf8_lossy(symbol.strip_suffix(b"\0").unwrap_or(symbol))
             ),
-        )
-    })
+        )),
+    }
 }
 
 /// Loads the runtime cdylib once per process and never unloads it, returning a
