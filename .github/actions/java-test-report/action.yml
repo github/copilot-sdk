@@ -1,0 +1,186 @@
+name: "Java Test Report"
+description: "Generate and publish test reports with summary for Java SDK tests."
+inputs:
+  report-path:
+    description: "Path to the test report XML files (glob pattern)"
+    required: false
+    default: "java/target/{surefire-reports*,failsafe-reports}/TEST-*.xml"
+  jacoco-path:
+    description: "Path to the JaCoCo XML report"
+    required: false
+    default: "java/target/site/jacoco-coverage/jacoco.xml"
+  jacoco-csv-path:
+    description: "Path to the JaCoCo CSV report"
+    required: false
+    default: "java/target/site/jacoco-coverage/jacoco.csv"
+  check-name:
+    description: "Name for the check run"
+    required: false
+    default: "Java SDK Test Results"
+  title:
+    description: "Title for the test report summary"
+    required: false
+    default: "Copilot Java SDK :: Test Results"
+runs:
+  using: "composite"
+  steps:
+    - name: Generate Test Summary
+      shell: bash
+      run: |
+        echo "## 🧪 ${{ inputs.title }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if ls ${{ inputs.report-path }} 1>/dev/null 2>&1; then
+          TESTS_RUN=$(grep -h "tests=" ${{ inputs.report-path }} 2>/dev/null | sed 's/.*tests="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+          FAILURES=$(grep -h "failures=" ${{ inputs.report-path }} 2>/dev/null | sed 's/.*failures="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+          ERRORS=$(grep -h "errors=" ${{ inputs.report-path }} 2>/dev/null | sed 's/.*errors="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+          SKIPPED=$(grep -h "skipped=" ${{ inputs.report-path }} 2>/dev/null | sed 's/.*skipped="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+
+          TESTS_RUN=${TESTS_RUN:-0}
+          FAILURES=${FAILURES:-0}
+          ERRORS=${ERRORS:-0}
+          SKIPPED=${SKIPPED:-0}
+          PASSED=$((TESTS_RUN - FAILURES - ERRORS - SKIPPED))
+
+          if [ "$FAILURES" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+            echo "### ✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Failed | $FAILURES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 💥 Errors | $ERRORS |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏭️ Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Total | $TESTS_RUN |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Classes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Class | Tests | Passed | Failed | Errors | Time |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|--------|--------|--------|------|" >> $GITHUB_STEP_SUMMARY
+
+          for file in ${{ inputs.report-path }}; do
+            if [ -f "$file" ]; then
+              CLASS=$(basename "$file" .xml | sed 's/TEST-//')
+              T=$(grep -m 1 -o 'tests="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              F=$(grep -m 1 -o 'failures="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              E=$(grep -m 1 -o 'errors="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              TIME=$(grep -m 1 -o 'time="[0-9.]*"' "$file" | sed 's/[^0-9.]//g')
+              P=$((T - F - E))
+
+              STATUS="✅"
+              if [ "${F:-0}" -gt 0 ] || [ "${E:-0}" -gt 0 ]; then
+                STATUS="❌"
+              fi
+
+              echo "| $STATUS $CLASS | ${T:-0} | ${P:-0} | ${F:-0} | ${E:-0} | ${TIME:-0}s |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "⚠️ No test reports found at ${{ inputs.report-path }}" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Generate Coverage Summary
+      shell: bash
+      run: |
+        JACOCO_XML="${{ inputs.jacoco-path }}"
+        JACOCO_CSV="${{ inputs.jacoco-csv-path }}"
+
+        if [ -f "$JACOCO_XML" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # JaCoCo XML may be on a single line - split it for parsing
+          # Extract report-level counters (last occurrence of each type before </report>)
+          extract_counter() {
+            local type=$1
+            local field=$2
+            # Split XML on > to get one tag per line, find counter, extract value
+            sed 's/>/>\n/g' "$JACOCO_XML" | grep "<counter type=\"$type\"" | tail -1 | sed "s/.*$field=\"\([0-9]*\)\".*/\1/"
+          }
+
+          INSTR_MISSED=$(extract_counter "INSTRUCTION" "missed")
+          INSTR_COVERED=$(extract_counter "INSTRUCTION" "covered")
+
+          BRANCH_MISSED=$(extract_counter "BRANCH" "missed")
+          BRANCH_COVERED=$(extract_counter "BRANCH" "covered")
+
+          LINE_MISSED=$(extract_counter "LINE" "missed")
+          LINE_COVERED=$(extract_counter "LINE" "covered")
+
+          METHOD_MISSED=$(extract_counter "METHOD" "missed")
+          METHOD_COVERED=$(extract_counter "METHOD" "covered")
+
+          CLASS_MISSED=$(extract_counter "CLASS" "missed")
+          CLASS_COVERED=$(extract_counter "CLASS" "covered")
+
+          # Calculate percentages
+          calc_pct() {
+            local covered=$1
+            local missed=$2
+            if [ -n "$covered" ] && [ -n "$missed" ]; then
+              local total=$((covered + missed))
+              if [ "$total" -gt 0 ]; then
+                echo "scale=1; $covered * 100 / $total" | bc
+              else
+                echo "0"
+              fi
+            else
+              echo "N/A"
+            fi
+          }
+
+          INSTR_PCT=$(calc_pct "${INSTR_COVERED:-0}" "${INSTR_MISSED:-0}")
+          BRANCH_PCT=$(calc_pct "${BRANCH_COVERED:-0}" "${BRANCH_MISSED:-0}")
+          LINE_PCT=$(calc_pct "${LINE_COVERED:-0}" "${LINE_MISSED:-0}")
+          METHOD_PCT=$(calc_pct "${METHOD_COVERED:-0}" "${METHOD_MISSED:-0}")
+          CLASS_PCT=$(calc_pct "${CLASS_COVERED:-0}" "${CLASS_MISSED:-0}")
+
+          echo "| Metric | Covered | Missed | Coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|---------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Instructions | ${INSTR_COVERED:-0} | ${INSTR_MISSED:-0} | ${INSTR_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌿 Branches | ${BRANCH_COVERED:-0} | ${BRANCH_MISSED:-0} | ${BRANCH_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📏 Lines | ${LINE_COVERED:-0} | ${LINE_MISSED:-0} | ${LINE_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔧 Methods | ${METHOD_COVERED:-0} | ${METHOD_MISSED:-0} | ${METHOD_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Classes | ${CLASS_COVERED:-0} | ${CLASS_MISSED:-0} | ${CLASS_PCT}% |" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "$JACOCO_CSV" ]; then
+            extract_instruction_scope() {
+              local scope=$1
+              awk -F',' -v scope="$scope" -v generated_prefix="com.github.copilot.generated" '
+                NR > 1 {
+                  is_generated = index($2, generated_prefix) == 1
+                  if ((scope == "generated" && is_generated) ||
+                      (scope == "handwritten" && !is_generated)) {
+                    missed += $4
+                    covered += $5
+                  }
+                }
+                END { print covered + 0 "," missed + 0 }
+              ' "$JACOCO_CSV"
+            }
+
+            IFS=, read -r HANDWRITTEN_COVERED HANDWRITTEN_MISSED <<< "$(extract_instruction_scope handwritten)"
+            IFS=, read -r GENERATED_COVERED GENERATED_MISSED <<< "$(extract_instruction_scope generated)"
+            HANDWRITTEN_PCT=$(calc_pct "${HANDWRITTEN_COVERED:-0}" "${HANDWRITTEN_MISSED:-0}")
+            GENERATED_PCT=$(calc_pct "${GENERATED_COVERED:-0}" "${GENERATED_MISSED:-0}")
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Coverage by Code Origin (Instructions)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Origin | Covered | Missed | Coverage |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|---------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✍️ Handwritten | ${HANDWRITTEN_COVERED:-0} | ${HANDWRITTEN_MISSED:-0} | ${HANDWRITTEN_PCT}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🤖 Generated | ${GENERATED_COVERED:-0} | ${GENERATED_MISSED:-0} | ${GENERATED_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ No JaCoCo report found at $JACOCO_XML" >> $GITHUB_STEP_SUMMARY
+        fi

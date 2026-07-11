@@ -1,0 +1,42 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with TASK_AGENT_READY exactly.
+      - role: assistant
+        content: TASK_AGENT_READY
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with TASK_AGENT_DONE exactly.
+      - role: assistant
+        content: TASK_AGENT_DONE
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with TASK_AGENT_READY exactly.
+      - role: assistant
+        content: TASK_AGENT_READY
+      - role: user
+        content: |-
+          <system_notification>
+          Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve the full results.
+          </system_notification>
+      - role: assistant
+        content: TASK_AGENT_DONE
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with TASK_AGENT_READY exactly.
+      - role: assistant
+        content: TASK_AGENT_READY
+      - role: user
+        content: Reply with TASK_AGENT_DONE exactly.
+      - role: assistant
+        content: TASK_AGENT_DONE

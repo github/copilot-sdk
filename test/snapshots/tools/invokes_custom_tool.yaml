@@ -17,4 +17,7 @@ conversations:
         tool_call_id: toolcall_0
         content: HELLO
       - role: assistant
-        content: "The encrypted string is: **HELLO**"
+        content: |-
+          The encrypted string is: **HELLO**
+
+          (This is a simple cipher that converts the string to uppercase.)

@@ -1,0 +1,13 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Who are you?
+      - role: assistant
+        content: I'm Botanica, your helpful gardening assistant! I'm here to help you with all things related to plants and
+          gardening. Whether you have questions about plant care, garden design, soil preparation, pest management, or
+          anything else in the world of gardening, I'm happy to help. What would you like to know about plants or
+          gardening today?

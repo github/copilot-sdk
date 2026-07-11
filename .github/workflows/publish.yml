@@ -10,10 +10,11 @@ on:
         description: "Tag to publish under"
         type: choice
         required: true
-        default: "latest"
+        default: "prerelease"
         options:
           - latest
           - prerelease
+          - unstable
       version:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
@@ -22,6 +23,7 @@ on:
 permissions:
   contents: write
   id-token: write # Required for OIDC
+  actions: write # Required to trigger changelog workflow
 
 concurrency:
   group: publish
@@ -65,8 +67,8 @@ jobs:
               fi
             else
               if [[ "$VERSION" != *-* ]]; then
-                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is 'prerelease'" >> $GITHUB_STEP_SUMMARY
-                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
+                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is '${{ github.event.inputs.dist-tag }}'" >> $GITHUB_STEP_SUMMARY
+                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease/unstable"
                 exit 1
               fi
             fi
@@ -101,16 +103,17 @@ jobs:
       - name: Pack
         run: npm pack
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: nodejs-package
           path: nodejs/*.tgz
       - name: Publish to npm
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
         run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
 
   publish-dotnet:
     name: Publish .NET SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -120,16 +123,18 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
       - name: Restore dependencies
         run: dotnet restore
       - name: Build and pack
         run: dotnet pack src/GitHub.Copilot.SDK.csproj -c Release -p:Version=${{ needs.version.outputs.version }} -o ./artifacts
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: dotnet-package
-          path: dotnet/artifacts/*.nupkg
+          path: |
+            dotnet/artifacts/*.nupkg
+            dotnet/artifacts/*.snupkg
       - name: NuGet login (OIDC)
         if: github.ref == 'refs/heads/main'
         uses: NuGet/login@v1
@@ -142,10 +147,57 @@ jobs:
           user: stevesanderson
       - name: Publish to NuGet
         if: github.ref == 'refs/heads/main'
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
+          dotnet nuget push ./artifacts/*.snupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  publish-rust:
+    name: Publish Rust SDK
+    if: github.event.inputs.dist-tag != 'unstable'
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust"
+      - name: Set version
+        run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+      - name: Snapshot CLI version + hashes for build.rs
+        run: |
+          bash scripts/snapshot-bundled-cli-version.sh
+          bash scripts/snapshot-bundled-in-process-version.sh
+      - name: Verify CLI version snapshots exist
+        run: |
+          for snapshot in cli-version.txt cli-version-in-process.txt; do
+            if [[ ! -f "${snapshot}" ]]; then
+              echo "::error::${snapshot} was not generated. The Snapshot step must run before packaging."
+              exit 1
+            fi
+          done
+      - name: Package (dry run)
+        run: cargo publish --dry-run --allow-dirty
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: rust-package
+          path: rust/target/package/*.crate
+      - name: Publish to crates.io
+        if: github.ref == 'refs/heads/main'
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   publish-python:
     name: Publish Python SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -166,10 +218,12 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
-      - name: Build platform wheels
-        run: node scripts/build-wheels.mjs --output-dir dist
+      - name: Inject CLI version
+        run: node scripts/inject-cli-version.mjs
+      - name: Build wheel
+        run: uv build --wheel --out-dir dist
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: python-package
           path: python/dist/*
@@ -179,10 +233,28 @@ jobs:
         with:
           packages-dir: python/dist/
 
+  publish-java:
+    name: Publish Java SDK
+    if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
+    needs: version
+    uses: ./.github/workflows/java-publish-maven.yml
+    with:
+      releaseVersion: ${{ needs.version.outputs.version }}
+      prerelease: ${{ github.event.inputs.dist-tag == 'prerelease' }}
+    secrets: inherit
+
   github-release:
     name: Create GitHub Release
-    needs: [version, publish-nodejs, publish-dotnet, publish-python]
-    if: github.ref == 'refs/heads/main'
+    needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust, publish-java]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.dist-tag != 'unstable' &&
+      needs.version.result == 'success' &&
+      needs.publish-nodejs.result == 'success' &&
+      needs.publish-dotnet.result == 'success' &&
+      needs.publish-python.result == 'success' &&
+      needs.publish-rust.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -213,6 +285,10 @@ jobs:
             --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger changelog generation
+        run: gh workflow run release-changelog.lock.yml -f tag="v${{ needs.version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Go SDK submodule
         if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
@@ -228,5 +304,47 @@ jobs:
           else
             echo "Tag $TAG_NAME already exists, skipping"
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag Rust SDK and create Rust GitHub Release
+        # Rust gets its own version-scoped GitHub Release with notes
+        # derived from PR titles since the previous Rust tag. The
+        # cross-language `vX.Y.Z` release above still exists; this one
+        # is the canonical reference for Rust users.
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG_NAME="rust/v${VERSION}"
+          if git tag "$TAG_NAME" ${{ github.sha }} 2>/dev/null; then
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
+          else
+            echo "Tag $TAG_NAME already exists, skipping tag push"
+          fi
+          # Find the previous Rust tag for note generation. Prefer rust/v*,
+          # fall back to the historical rust-v* tags from the release-plz era.
+          PREV_TAG=$(git tag --list 'rust/v*' --sort=-v:refname | grep -vFx "$TAG_NAME" | head -n1)
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag --list 'rust-v*' --sort=-v:refname | head -n1)
+          fi
+          NOTES_FLAG=""
+          if [ -n "$PREV_TAG" ]; then
+            NOTES_FLAG="--notes-start-tag $PREV_TAG"
+            echo "Generating notes from $PREV_TAG..$TAG_NAME"
+          else
+            echo "No previous Rust tag found; generating notes from full history"
+          fi
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --generate-notes $NOTES_FLAG $PRERELEASE_FLAG \
+            --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

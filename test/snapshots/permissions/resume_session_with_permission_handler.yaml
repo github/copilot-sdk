@@ -7,7 +7,7 @@ conversations:
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1+1 equals 2.
+        content: 1+1 = 2
       - role: user
         content: Run 'echo resumed' for me
       - role: assistant
@@ -23,14 +23,14 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo resumed","description":"Run echo resumed"}'
+              arguments: '{"description":"Run echo resumed","command":"echo resumed"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1+1 equals 2.
+        content: 1+1 = 2
       - role: user
         content: Run 'echo resumed' for me
       - role: assistant
@@ -44,14 +44,16 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo resumed","description":"Run echo resumed"}'
+              arguments: '{"description":"Run echo resumed","command":"echo resumed"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
       - role: tool
         tool_call_id: toolcall_1
         content: |-
           resumed
           <exited with exit code 0>
       - role: assistant
-        content: 'Command executed successfully - output: "resumed"'
+        content: Done! The command output "resumed".

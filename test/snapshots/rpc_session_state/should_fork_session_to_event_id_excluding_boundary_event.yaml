@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say FORK_BOUNDARY_FIRST exactly.
+      - role: assistant
+        content: FORK_BOUNDARY_FIRST
+      - role: user
+        content: Say FORK_BOUNDARY_SECOND exactly.
+      - role: assistant
+        content: FORK_BOUNDARY_SECOND

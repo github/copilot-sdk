@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Remember the magic word: SUSPENSE. Reply with: SUSPEND_TURN_ONE"
+      - role: assistant
+        content: SUSPEND_TURN_ONE
+      - role: user
+        content: What was the magic word I asked you to remember? Reply with just the word.
+      - role: assistant
+        content: SUSPENSE

@@ -1,0 +1,93 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called 'greeting.txt' with the content 'Hello from multi-turn test'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating greeting file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"path":"${workdir}/greeting.txt","file_text":"Hello from multi-turn test"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called 'greeting.txt' with the content 'Hello from multi-turn test'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating greeting file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"path":"${workdir}/greeting.txt","file_text":"Hello from multi-turn test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Created file ${workdir}/greeting.txt with 26 characters
+      - role: assistant
+        content: Created `greeting.txt` with the content "Hello from multi-turn test".
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called 'greeting.txt' with the content 'Hello from multi-turn test'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating greeting file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"path":"${workdir}/greeting.txt","file_text":"Hello from multi-turn test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Created file ${workdir}/greeting.txt with 26 characters
+      - role: assistant
+        content: Created `greeting.txt` with the content "Hello from multi-turn test".
+      - role: user
+        content: Read the file 'greeting.txt' and tell me its exact contents.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/greeting.txt"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: 1. Hello from multi-turn test
+      - role: assistant
+        content: |-
+          The exact contents of `greeting.txt` are:
+
+          ```
+          Hello from multi-turn test
+          ```

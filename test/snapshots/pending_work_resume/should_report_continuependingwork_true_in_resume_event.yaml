@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_ONE"
+      - role: assistant
+        content: CONTINUE_PENDING_WORK_TRUE_TURN_ONE
+      - role: user
+        content: "Reply with exactly: CONTINUE_PENDING_WORK_TRUE_TURN_TWO"
+      - role: assistant
+        content: CONTINUE_PENDING_WORK_TRUE_TURN_TWO

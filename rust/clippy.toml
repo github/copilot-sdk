@@ -1,0 +1,8 @@
+await-holding-invalid-types = [
+  { path = "tracing::span::Entered", reason = "generates incorrect spans when held across 'await' points" },
+  { path = "tracing::span::EnteredSpan", reason = "generates incorrect spans when held across 'await' points" },
+]
+
+disallowed-macros = [
+  { path = "tracing::instrument", reason = "tracing::instrument is error-prone. Use tracing::error_span! in the method body instead." },
+]

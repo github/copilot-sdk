@@ -1,0 +1,56 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading specific file lines"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/lines.txt","view_range":[2,4]}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading specific file lines"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/lines.txt","view_range":[2,4]}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          2. line2
+          3. line3
+          4. line4
+      - role: assistant
+        content: |-
+          Lines 2 through 4 of 'lines.txt' contain:
+          - Line 2: "line2"
+          - Line 3: "line3"
+          - Line 4: "line4"

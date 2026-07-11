@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet
+format: format-go format-python format-nodejs format-dotnet format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet
+test: test-go test-python test-nodejs test-dotnet test-rust test-corrections
 
 # Format Go code
 format-go:
@@ -71,14 +71,65 @@ test-dotnet:
     @echo "=== Testing .NET code ==="
     @cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
 
-# Install all dependencies
-install:
-    @echo "=== Installing dependencies ==="
-    @cd nodejs && npm ci
-    @cd python && uv pip install -e ".[dev]"
-    @cd go && go mod download
-    @cd dotnet && dotnet restore
+# Format Rust code (uses nightly for unstable formatting options)
+format-rust:
+    @echo "=== Formatting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
+
+# Lint Rust code
+lint-rust:
+    @echo "=== Linting Rust code ==="
+    @cd rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+    @cd rust && cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+
+# Test Rust code
+test-rust:
+    @echo "=== Testing Rust code ==="
+    @cd rust && cargo test --features test-support
+
+# Generate Rust types from JSON schemas
+generate-rust:
+    @echo "=== Generating Rust types ==="
+    @cd scripts/codegen && npm run generate:rust
+
+# Test correction collection scripts
+test-corrections:
+    @echo "=== Testing correction scripts ==="
+    @cd scripts/corrections && npm test
+
+# Install all dependencies across all languages
+install: install-go install-python install-nodejs install-dotnet install-corrections
     @echo "✅ All dependencies installed"
+
+# Install Go dependencies and prerequisites for tests
+install-go: install-nodejs install-test-harness
+    @echo "=== Installing Go dependencies ==="
+    @cd go && go mod download
+
+# Install Python dependencies and prerequisites for tests
+install-python: install-nodejs install-test-harness
+    @echo "=== Installing Python dependencies ==="
+    @cd python && uv pip install -e ".[dev]"
+
+# Install .NET dependencies and prerequisites for tests
+install-dotnet: install-nodejs install-test-harness
+    @echo "=== Installing .NET dependencies ==="
+    @cd dotnet && dotnet restore
+
+# Install Node.js dependencies
+install-nodejs:
+    @echo "=== Installing Node.js dependencies ==="
+    @cd nodejs && npm ci
+
+# Install test harness dependencies (used by E2E tests in all languages)
+install-test-harness:
+    @echo "=== Installing test harness dependencies ==="
+    @cd test/harness && npm ci --ignore-scripts
+
+# Install correction collection script dependencies
+install-corrections:
+    @echo "=== Installing correction script dependencies ==="
+    @cd scripts/corrections && npm ci
 
 # Run interactive SDK playground
 playground:
@@ -117,3 +168,4 @@ validate-docs-go:
 validate-docs-cs:
     @echo "=== Validating C# documentation ==="
     @cd scripts/docs-validation && npm run validate:cs
+

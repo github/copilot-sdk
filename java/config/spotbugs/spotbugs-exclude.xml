@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    SpotBugs exclusion filter for the Copilot SDK.
+
+    The 'generated' and 'json' packages contain Jackson-deserialized DTOs where
+    returning mutable internal representations (EI_EXPOSE_REP) and storing
+    references to mutable objects (EI_EXPOSE_REP2) is intentional and expected.
+    Making defensive copies would add overhead without meaningful security
+    benefit for these read-only data transfer objects.
+-->
+<FindBugsFilter>
+    <Match>
+        <Package name="com.github.copilot.generated"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Package name="com.github.copilot.rpc"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

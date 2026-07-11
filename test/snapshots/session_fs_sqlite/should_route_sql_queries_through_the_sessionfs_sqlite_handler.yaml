@@ -1,0 +1,100 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). Then
+          insert a row with id "a1" and name "Widget".
+      - role: assistant
+        content: I'll create the table and insert the row using the SQL tool.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating database table"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create items table","query":"CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). Then
+          insert a row with id "a1" and name "Widget".
+      - role: assistant
+        content: I'll create the table and insert the row using the SQL tool.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating database table"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create items table","query":"CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Schema operation completed successfully.
+      - role: assistant
+        content: "Now I'll insert the row:"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). Then
+          insert a row with id "a1" and name "Widget".
+      - role: assistant
+        content: I'll create the table and insert the row using the SQL tool.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating database table"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: sql
+              arguments: '{"description":"Create items table","query":"CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Schema operation completed successfully.
+      - role: assistant
+        content: "Now I'll insert the row:"
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
+      - role: tool
+        tool_call_id: toolcall_2
+        content: "1 row(s) inserted. Last inserted row ID: 1."
+      - role: assistant
+        content: Done! Created the `items` table with columns `id` and `name`, and inserted the row with id "a1" and name
+          "Widget".

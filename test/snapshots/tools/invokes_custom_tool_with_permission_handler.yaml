@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use encrypt_string to encrypt this string: Hello"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: encrypt_string
+              arguments: '{"input":"Hello"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: HELLO
+      - role: assistant
+        content: "The encrypted string is: **HELLO**"

@@ -1,0 +1,61 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 2+2?
+      - role: assistant
+        content: 2 + 2 = 4
+      - role: user
+        content: ${compaction_prompt}
+      - role: assistant
+        content: >-
+          <overview>
+
+          The user asked a simple arithmetic question: "What is 2+2?". I provided the answer (4). No technical work,
+          code changes, or file modifications were involved. This was a brief, standalone interaction with no ongoing
+          tasks or development work.
+
+          </overview>
+
+
+          <history>
+
+          1. The user asked "What is 2+2?"
+             - I responded with the answer: 4
+             - No further questions or requests followed
+          </history>
+
+
+          <work_done>
+
+          No files were created, modified, or deleted. No code changes were made. This was a conversational response to
+          a basic arithmetic question with no technical implementation.
+
+          </work_done>
+
+
+          <technical_details>
+
+          No technical work was performed. The conversation consisted solely of a simple math question and answer.
+
+          </technical_details>
+
+
+          <important_files>
+
+          No files were involved in this conversation.
+
+          </important_files>
+
+
+          <next_steps>
+
+          No pending work or next steps. The user's question was answered completely.
+
+          </next_steps>
+
+
+          <checkpoint_title>Answered arithmetic question</checkpoint_title>

@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Reply with: SUSPEND_IDLE_OK"
+      - role: assistant
+        content: SUSPEND_IDLE_OK

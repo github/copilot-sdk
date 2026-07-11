@@ -1,0 +1,59 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating new file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"path":"${workdir}/new_file.txt","file_text":"Created by test"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called 'new_file.txt' with the content 'Created by test'. Then read it back to confirm.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating new file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"path":"${workdir}/new_file.txt","file_text":"Created by test"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Created file ${workdir}/new_file.txt with 15 characters
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/new_file.txt"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: 1. Created by test
+      - role: assistant
+        content: ✓ Done! Created `new_file.txt` with content "Created by test" and confirmed the content matches.

@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import javax.annotation.processing.Generated;
+
+/**
+ * Pending external tool call request ID, with the tool result or an error describing why it failed.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record SessionToolsHandlePendingToolCallParams(
+    /** Target session identifier */
+    @JsonProperty("sessionId") String sessionId,
+    /** Request ID of the pending tool call */
+    @JsonProperty("requestId") String requestId,
+    /** Tool call result (string or expanded result object) */
+    @JsonProperty("result") Object result,
+    /** Error message if the tool call failed */
+    @JsonProperty("error") String error
+) {
+}

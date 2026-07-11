@@ -1,0 +1,58 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 equals 2.
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 equals 2.
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, ${read_shell},
+          ${stop_shell}, ${list_shell}, view, create, edit, web_fetch, skill, sql, read_agent, list_agents, grep, glob,
+          task.
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Permission denied and could not request permission from user
+      - role: assistant
+        content: I don't have permission to run commands in this environment. Please try running `node --version` directly in
+          your terminal.

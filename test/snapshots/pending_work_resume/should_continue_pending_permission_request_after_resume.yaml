@@ -1,0 +1,15 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use resume_permission_tool with value 'alpha', then reply with the result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: resume_permission_tool
+              arguments: '{"value":"alpha"}'

@@ -1,0 +1,10 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Count from 1 to 5, separated by commas.
+      - role: assistant
+        content: 1, 2, 3, 4, 5

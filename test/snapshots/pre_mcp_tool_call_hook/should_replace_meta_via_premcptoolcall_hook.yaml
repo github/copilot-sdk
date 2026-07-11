@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the meta-echo/echo_meta tool with value 'test-replace'. Reply with just the raw tool result.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: meta-echo-echo_meta
+              arguments: '{"value":"test-replace"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: '{"meta":{"completely":"replaced"},"value":"test-replace"}'
+      - role: assistant
+        content: '{"meta":{"completely":"replaced"},"value":"test-replace"}'

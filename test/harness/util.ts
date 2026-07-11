@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionOptions } from "@github/copilot/sdk";
-
 export function iife<T>(fn: () => Promise<T>): Promise<T> {
   return fn();
 }
@@ -12,7 +10,11 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type ShellConfigType = NonNullable<SessionOptions["shellConfig"]>;
+type ShellConfigType = {
+  shellToolName: string;
+  readShellToolName: string;
+  writeShellToolName: string;
+};
 
 /**
  * Shell configuration for platform-specific tool names.

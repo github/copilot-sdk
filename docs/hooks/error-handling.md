@@ -1,18 +1,26 @@
-# Error Handling Hook
+# Error handling hook
 
 The `onErrorOccurred` hook is called when errors occur during session execution. Use it to:
 
-- Implement custom error logging
-- Track error patterns
-- Provide user-friendly error messages
-- Trigger alerts for critical errors
+* Implement custom error logging
+* Track error patterns
+* Provide user-friendly error messages
+* Trigger alerts for critical errors
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { ErrorOccurredHookInput, HookInvocation, ErrorOccurredHookOutput } from "@github/copilot-sdk";
+type ErrorOccurredHandler = (
+  input: ErrorOccurredHookInput,
+  invocation: HookInvocation
+) => Promise<ErrorOccurredHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type ErrorOccurredHandler = (
   input: ErrorOccurredHookInput,
@@ -25,10 +33,20 @@ type ErrorOccurredHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.session import ErrorOccurredHookInput, ErrorOccurredHookOutput
+from typing import Callable, Awaitable
+
+ErrorOccurredHandler = Callable[
+    [ErrorOccurredHookInput, dict[str, str]],
+    Awaitable[ErrorOccurredHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 ErrorOccurredHandler = Callable[
-    [ErrorOccurredHookInput, HookInvocation],
+    [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
 ```
@@ -38,7 +56,20 @@ ErrorOccurredHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type ErrorOccurredHandler func(
+    input copilot.ErrorOccurredHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.ErrorOccurredHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type ErrorOccurredHandler func(
     input ErrorOccurredHookInput,
@@ -51,11 +82,37 @@ type ErrorOccurredHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
+    ErrorOccurredHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
     ErrorOccurredHookInput input,
     HookInvocation invocation);
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+// Note: Java SDK does not have an onErrorOccurred hook.
+// Use EventErrorPolicy and EventErrorHandler instead:
+//
+// session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+// session.setEventErrorHandler((event, ex) -> {
+//     System.err.println("Error in " + event.getType() + ": " + ex.getMessage());
+// });
+//
+// See the "Basic Error Logging" example below for a complete snippet.
 ```
 
 </details>
@@ -83,7 +140,7 @@ Return `null` or `undefined` to use default error handling. Otherwise, return an
 
 ## Examples
 
-### Basic Error Logging
+### Basic error logging
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -107,15 +164,15 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot.session import PermissionHandler
+
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
     print(f"  Context: {input_data['errorContext']}")
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
-session = await client.create_session({
-    "hooks": {"on_error_occurred": on_error_occurred}
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_error_occurred": on_error_occurred})
 ```
 
 </details>
@@ -123,7 +180,33 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Hooks: &copilot.SessionHooks{
+			OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, inv copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
+				fmt.Printf("[%s] Error: %s\n", inv.SessionID, input.Error)
+				fmt.Printf("  Context: %s\n", input.ErrorContext)
+				fmt.Printf("  Recoverable: %v\n", input.Recoverable)
+				return nil, nil
+			},
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -142,7 +225,32 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class ErrorHandlingExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnErrorOccurred = (input, invocation) =>
+                {
+                    Console.Error.WriteLine($"[{invocation.SessionId}] Error: {input.Error}");
+                    Console.Error.WriteLine($"  Context: {input.ErrorContext}");
+                    Console.Error.WriteLine($"  Recoverable: {input.Recoverable}");
+                    return Task.FromResult<ErrorOccurredHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -161,7 +269,32 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 </details>
 
-### Send Errors to Monitoring Service
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
+
+// Note: Java SDK does not have an onErrorOccurred hook.
+// Use EventErrorPolicy and EventErrorHandler instead:
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+session.setEventErrorHandler((event, ex) -> {
+    System.err.println("[" + session.getSessionId() + "] Error: " + ex.getMessage());
+    System.err.println("  Event: " + event.getType());
+});
+```
+
+</details>
+
+### Send errors to monitoring service
 
 ```typescript
 import { captureException } from "@sentry/node"; // or your monitoring service
@@ -187,7 +320,7 @@ const session = await client.createSession({
 });
 ```
 
-### User-Friendly Error Messages
+### User-friendly error messages
 
 ```typescript
 const ERROR_MESSAGES: Record<string, string> = {
@@ -214,7 +347,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Non-Critical Errors
+### Suppress non-critical errors
 
 ```typescript
 const session = await client.createSession({
@@ -231,7 +364,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Recovery Context
+### Add recovery context
 
 ```typescript
 const session = await client.createSession({
@@ -262,7 +395,7 @@ The tool failed. Here are some recovery suggestions:
 });
 ```
 
-### Track Error Patterns
+### Track error patterns
 
 ```typescript
 interface ErrorStats {
@@ -301,7 +434,7 @@ const session = await client.createSession({
 });
 ```
 
-### Alert on Critical Errors
+### Alert on critical errors
 
 ```typescript
 const CRITICAL_CONTEXTS = ["system", "model_call"];
@@ -325,7 +458,7 @@ const session = await client.createSession({
 });
 ```
 
-### Combine with Other Hooks for Context
+### Combine with other hooks for context
 
 ```typescript
 const sessionContext = new Map<string, { lastTool?: string; lastPrompt?: string }>();
@@ -365,22 +498,22 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Always log errors** - Even if you suppress them from users, keep logs for debugging.
 
-2. **Categorize errors** - Use `errorType` to handle different errors appropriately.
+1. **Categorize errors** - Use `errorType` to handle different errors appropriately.
 
-3. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
+1. **Don't swallow critical errors** - Only suppress errors you're certain are non-critical.
 
-4. **Keep hooks fast** - Error handling shouldn't slow down recovery.
+1. **Keep hooks fast** - Error handling shouldn't slow down recovery.
 
-5. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
+1. **Provide helpful context** - When errors occur, `additionalContext` can help the model recover.
 
-6. **Monitor error patterns** - Track recurring errors to identify systemic issues.
+1. **Monitor error patterns** - Track recurring errors to identify systemic issues.
 
-## See Also
+## See also
 
-- [Hooks Overview](./overview.md)
-- [Session Lifecycle Hooks](./session-lifecycle.md)
-- [Debugging Guide](../debugging.md)
+* [Hooks Overview](./README.md)
+* [Session Lifecycle Hooks](./session-lifecycle.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

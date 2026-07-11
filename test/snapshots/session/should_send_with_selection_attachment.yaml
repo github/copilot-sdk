@@ -1,0 +1,27 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          <ide_selection>
+          The user has the following text selected in their IDE. This may or may not be related to their request.
+          File: selected-file.cs (line 2)
+          ```
+          string Value = "SELECTION_SENTINEL";
+          ```
+          </ide_selection>
+
+
+
+          Summarize the selected code.
+      - role: assistant
+        content: >-
+          This is a C# variable declaration that creates a string variable named `Value` and initializes it with the
+          string literal `"SELECTION_SENTINEL"`.
+
+
+          The code declares a local or field variable of type `string` with the identifier `Value` and assigns it the
+          text "SELECTION_SENTINEL" as its initial value.

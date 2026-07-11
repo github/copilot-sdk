@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'go/**'
       - 'test/**'
@@ -29,6 +30,7 @@ permissions:
 jobs:
   test:
     name: "Go SDK Tests"
+    if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
     strategy:

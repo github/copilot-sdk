@@ -7,10 +7,13 @@ of large payloads and short reads from pipes.
 
 import io
 import json
+import os
+import threading
+import time
 
 import pytest
 
-from copilot.jsonrpc import JsonRpcClient
+from copilot._jsonrpc import JsonRpcClient
 
 
 class MockProcess:
@@ -163,7 +166,7 @@ class TestReadMessageWithLargePayloads:
     """Tests for _read_message() with large JSON-RPC messages"""
 
     def create_jsonrpc_message(self, content_dict: dict) -> bytes:
-        """Create a complete JSON-RPC message with Content-Length header"""
+        """Create a complete JSON-RPC message with a Content-Length header."""
         content = json.dumps(content_dict, separators=(",", ":"))
         content_bytes = content.encode("utf-8")
         header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
@@ -265,3 +268,62 @@ class TestReadMessageWithLargePayloads:
 
         result2 = client._read_message()
         assert result2 == message2
+
+
+class ClosingStream:
+    """Stream that immediately returns empty bytes (simulates process death / EOF)."""
+
+    def readline(self):
+        return b""
+
+    def read(self, n: int) -> bytes:
+        return b""
+
+
+class TestOnClose:
+    """Tests for the on_close callback when the read loop exits unexpectedly."""
+
+    def test_on_close_called_on_unexpected_exit(self):
+        """on_close fires when the stream closes while client is still running."""
+        import asyncio
+
+        process = MockProcess()
+        process.stdout = ClosingStream()
+
+        client = JsonRpcClient(process)
+
+        called = threading.Event()
+        client.on_close = lambda: called.set()
+
+        loop = asyncio.new_event_loop()
+        try:
+            client.start(loop=loop)
+            assert called.wait(timeout=2), "on_close was not called within 2 seconds"
+        finally:
+            loop.close()
+
+    def test_on_close_not_called_on_intentional_stop(self):
+        """on_close should not fire when stop() is called intentionally."""
+        import asyncio
+
+        r_fd, w_fd = os.pipe()
+        process = MockProcess()
+        process.stdout = os.fdopen(r_fd, "rb")
+
+        client = JsonRpcClient(process)
+
+        called = threading.Event()
+        client.on_close = lambda: called.set()
+
+        loop = asyncio.new_event_loop()
+        try:
+            client.start(loop=loop)
+
+            # Intentional stop sets _running = False before the thread sees EOF
+            loop.run_until_complete(client.stop())
+            os.close(w_fd)
+
+            time.sleep(0.5)
+            assert not called.is_set(), "on_close should not be called on intentional stop"
+        finally:
+            loop.close()

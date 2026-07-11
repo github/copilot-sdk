@@ -1,0 +1,68 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 2+2?
+      - role: assistant
+        content: 2 + 2 = 4
+      - role: user
+        content: ${compaction_prompt}
+      - role: assistant
+        content: >-
+          <overview>
+
+          The user asked a simple arithmetic question (2+2), which was answered directly. No technical work, file
+          modifications, or coding tasks were requested or performed. This was a brief, non-technical exchange.
+
+          </overview>
+
+
+          <history>
+
+          1. The user asked "What is 2+2?"
+             - Provided the answer: 4
+             - No follow-up work was requested
+          </history>
+
+
+          <work_done>
+
+          No files were created, modified, or deleted.
+
+
+          Work completed:
+
+          - [x] Answered arithmetic question
+
+
+          Current state: No active work or pending tasks.
+
+          </work_done>
+
+
+          <technical_details>
+
+          No technical work was performed. No issues encountered, no architectural decisions made, and no code-related
+          discoveries.
+
+          </technical_details>
+
+
+          <important_files>
+
+          No files were involved in this conversation.
+
+          </important_files>
+
+
+          <next_steps>
+
+          No pending work. The user's question was fully addressed.
+
+          </next_steps>
+
+
+          <checkpoint_title>Answered basic math question</checkpoint_title>

@@ -1,0 +1,773 @@
+﻿/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
+using Microsoft.Extensions.AI;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace GitHub.Copilot.Test.E2E;
+
+public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
+    : E2ETestBase(fixture, "session_fs", output)
+{
+    private static readonly SessionFsConfig SessionFsConfig = new()
+    {
+        InitialWorkingDirectory = "/",
+        SessionStatePath = CreateSessionStatePath(),
+        Conventions = SessionFsSetProviderConventions.Posix,
+    };
+
+    [Fact]
+    public async Task Should_Route_File_Operations_Through_The_Session_Fs_Provider()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot);
+
+            var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+            });
+
+            var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 100 + 200?" });
+            Assert.Contains("300", msg?.Data.Content ?? string.Empty);
+            await session.DisposeAsync();
+
+            var eventsPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
+            await WaitForConditionAsync(() => File.Exists(eventsPath));
+            var content = await ReadAllTextSharedAsync(eventsPath);
+            Assert.Contains("300", content);
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Load_Session_Data_From_Fs_Provider_On_Resume()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot);
+            Func<CopilotSession, SessionFsProvider> createSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot);
+
+            var session1 = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = createSessionFsHandler,
+            });
+            var sessionId = session1.SessionId;
+
+            var msg = await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 50 + 50?" });
+            Assert.Contains("100", msg?.Data.Content ?? string.Empty);
+            await session1.DisposeAsync();
+
+            var eventsPath = GetStoredPath(providerRoot, sessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
+            await WaitForConditionAsync(() => File.Exists(eventsPath));
+
+            var session2 = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = createSessionFsHandler,
+            });
+
+            var msg2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is that times 3?" });
+            Assert.Contains("300", msg2?.Data.Content ?? string.Empty);
+            await session2.DisposeAsync();
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Reject_SetProvider_When_Sessions_Already_Exist()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client1 = CreateSessionFsClient(providerRoot, useStdio: false, tcpConnectionToken: "session-fs-shared-token");
+            var createSessionFsHandler = (Func<CopilotSession, SessionFsProvider>)(s => new TestSessionFsHandler(s.SessionId, providerRoot));
+
+            _ = await client1.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = createSessionFsHandler,
+            });
+
+            var port = client1.RuntimePort
+                ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
+
+            var client2 = Ctx.CreateClient(
+                options: new CopilotClientOptions
+                {
+                    LogLevel = CopilotLogLevel.Error,
+                    SessionFs = SessionFsConfig,
+                    Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: "session-fs-shared-token"),
+                });
+
+            try
+            {
+                await Assert.ThrowsAnyAsync<Exception>(() => client2.StartAsync());
+            }
+            finally
+            {
+                try
+                {
+                    await client2.ForceStopAsync();
+                }
+                catch (IOException ex)
+                {
+                    Console.Error.WriteLine($"Ignoring expected teardown IOException from ForceStopAsync: {ex.Message}");
+                }
+                finally
+                {
+                    Ctx.UntrackClient(client2);
+                }
+            }
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Map_All_SessionFs_Handler_Operations()
+    {
+        var providerRoot = CreateProviderRoot();
+        var sessionId = "handler-session";
+        try
+        {
+            Directory.CreateDirectory(providerRoot);
+            ISessionFsHandler handler = new TestSessionFsHandler(sessionId, providerRoot);
+
+            var mkdirError = await handler.MkdirAsync(new SessionFsMkdirRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+                Recursive = true,
+            });
+            Assert.Null(mkdirError);
+
+            var writeError = await handler.WriteFileAsync(new SessionFsWriteFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+                Content = "hello",
+            });
+            Assert.Null(writeError);
+
+            var appendError = await handler.AppendFileAsync(new SessionFsAppendFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+                Content = " world",
+            });
+            Assert.Null(appendError);
+
+            var exists = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.True(exists.Exists);
+
+            var stat = await handler.StatAsync(new SessionFsStatRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.True(stat.IsFile);
+            Assert.False(stat.IsDirectory);
+            Assert.Equal("hello world".Length, stat.Size);
+            Assert.Null(stat.Error);
+
+            var content = await handler.ReadFileAsync(new SessionFsReadFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.Equal("hello world", content.Content);
+            Assert.Null(content.Error);
+
+            var entries = await handler.ReaddirAsync(new SessionFsReaddirRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+            });
+            Assert.Contains("file.txt", entries.Entries);
+            Assert.Null(entries.Error);
+
+            var typedEntries = await handler.ReaddirWithTypesAsync(new SessionFsReaddirWithTypesRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested",
+            });
+            Assert.Contains(
+                typedEntries.Entries,
+                entry => entry.Name == "file.txt" && entry.Type == SessionFsReaddirWithTypesEntryType.File);
+            Assert.Null(typedEntries.Error);
+
+            var renameError = await handler.RenameAsync(new SessionFsRenameRequest
+            {
+                SessionId = sessionId,
+                Src = "/workspace/nested/file.txt",
+                Dest = "/workspace/nested/renamed.txt",
+            });
+            Assert.Null(renameError);
+
+            var oldPath = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/file.txt",
+            });
+            Assert.False(oldPath.Exists);
+
+            var renamedPath = await handler.ReadFileAsync(new SessionFsReadFileRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.Equal("hello world", renamedPath.Content);
+
+            var rmError = await handler.RmAsync(new SessionFsRmRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.Null(rmError);
+
+            var removed = await handler.ExistsAsync(new SessionFsExistsRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/renamed.txt",
+            });
+            Assert.False(removed.Exists);
+
+            var forcedRmError = await handler.RmAsync(new SessionFsRmRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/missing.txt",
+                Force = true,
+            });
+            Assert.Null(forcedRmError);
+
+            var missing = await handler.StatAsync(new SessionFsStatRequest
+            {
+                SessionId = sessionId,
+                Path = "/workspace/nested/missing.txt",
+            });
+            Assert.Equal(SessionFsErrorCode.ENOENT, missing.Error?.Code);
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task SessionFsProvider_Converts_Exceptions_To_Rpc_Errors()
+    {
+        var handler = (ISessionFsHandler)new ThrowingSessionFsProvider(new FileNotFoundException("missing"));
+
+        AssertFsError((await handler.ReadFileAsync(new SessionFsReadFileRequest { Path = "missing.txt" })).Error);
+        AssertFsError(await handler.WriteFileAsync(new SessionFsWriteFileRequest { Path = "missing.txt", Content = "content" }));
+        AssertFsError(await handler.AppendFileAsync(new SessionFsAppendFileRequest { Path = "missing.txt", Content = "content" }));
+
+        var exists = await handler.ExistsAsync(new SessionFsExistsRequest { Path = "missing.txt" });
+        Assert.False(exists.Exists);
+
+        AssertFsError((await handler.StatAsync(new SessionFsStatRequest { Path = "missing.txt" })).Error);
+        AssertFsError(await handler.MkdirAsync(new SessionFsMkdirRequest { Path = "missing-dir" }));
+        AssertFsError((await handler.ReaddirAsync(new SessionFsReaddirRequest { Path = "missing-dir" })).Error);
+        AssertFsError((await handler.ReaddirWithTypesAsync(new SessionFsReaddirWithTypesRequest { Path = "missing-dir" })).Error);
+        AssertFsError(await handler.RmAsync(new SessionFsRmRequest { Path = "missing.txt" }));
+        AssertFsError(await handler.RenameAsync(new SessionFsRenameRequest { Src = "missing.txt", Dest = "dest.txt" }));
+        AssertFsError((await handler.SqliteQueryAsync(new SessionFsSqliteQueryRequest { Query = "select 1" })).Error);
+
+        var sqliteExists = await handler.SqliteExistsAsync(new SessionFsSqliteExistsRequest());
+        Assert.False(sqliteExists.Exists);
+
+        var unknown = (ISessionFsHandler)new ThrowingSessionFsProvider(new InvalidOperationException("bad path"));
+        var unknownError = await unknown.WriteFileAsync(new SessionFsWriteFileRequest { Path = "bad.txt", Content = "content" });
+        Assert.Equal(SessionFsErrorCode.UNKNOWN, unknownError!.Code);
+
+        static void AssertFsError(SessionFsError? error)
+        {
+            Assert.NotNull(error);
+            Assert.Equal(SessionFsErrorCode.ENOENT, error.Code);
+            Assert.Contains("missing", error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Map_Large_Output_Handling_Into_SessionFs()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            const int largeContentSize = 100_000;
+            var suppliedFileContent = new string('x', largeContentSize);
+
+            await using var client = CreateSessionFsClient(providerRoot);
+            var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                Tools =
+                [
+                    AIFunctionFactory.Create(() => suppliedFileContent, "get_big_string", "Returns a large string")
+                ],
+            });
+
+            await session.SendAndWaitAsync(new MessageOptions
+            {
+                Prompt = "Call the get_big_string tool and reply with the word DONE only.",
+            });
+
+            var messages = await session.GetEventsAsync();
+            var toolResult = FindToolCallResult(messages, "get_big_string");
+            Assert.NotNull(toolResult);
+            Assert.Contains($"{SessionFsConfig.SessionStatePath}/temp/", toolResult);
+
+            var match = System.Text.RegularExpressions.Regex.Match(
+                toolResult!,
+                $"({System.Text.RegularExpressions.Regex.Escape(SessionFsConfig.SessionStatePath)}/temp/[^\\s]+)");
+            Assert.True(match.Success);
+
+            var fileContent = await ReadAllTextSharedAsync(GetStoredPath(providerRoot, session.SessionId, match.Groups[1].Value));
+            Assert.Equal(suppliedFileContent, fileContent);
+            await session.DisposeAsync();
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Succeed_With_Compaction_While_Using_SessionFs()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot);
+            var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+            });
+
+            SessionCompactionCompleteEvent? compactionEvent = null;
+            using var _ = session.On<SessionEvent>(evt =>
+            {
+                if (evt is SessionCompactionCompleteEvent complete)
+                {
+                    compactionEvent = complete;
+                }
+            });
+
+            await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+
+            var eventsPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
+            await WaitForConditionAsync(() => File.Exists(eventsPath), TimeSpan.FromSeconds(30));
+            var contentBefore = await ReadAllTextSharedAsync(eventsPath);
+            Assert.DoesNotContain("checkpointNumber", contentBefore);
+
+            await session.Rpc.History.CompactAsync();
+            await WaitForConditionAsync(() => compactionEvent != null, TimeSpan.FromSeconds(30));
+            Assert.NotNull(compactionEvent);
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Write_Workspace_Metadata_Via_SessionFs()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot);
+            var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+            });
+
+            var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 7 * 8?" });
+            Assert.Contains("56", msg?.Data.Content ?? string.Empty);
+
+            var workspaceYamlPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/workspace.yaml");
+            await WaitForConditionAsync(
+                async () => File.Exists(workspaceYamlPath)
+                    && (await ReadAllTextSharedAsync(workspaceYamlPath)).Contains(session.SessionId),
+                TimeSpan.FromSeconds(30));
+
+            var indexPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/checkpoints/index.md");
+            await WaitForConditionAsync(() => File.Exists(indexPath), TimeSpan.FromSeconds(30));
+
+            await session.DisposeAsync();
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Should_Persist_Plan_Md_Via_SessionFs()
+    {
+        var providerRoot = CreateProviderRoot();
+        try
+        {
+            await using var client = CreateSessionFsClient(providerRoot);
+            var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+            });
+
+            // Write a plan via the session RPC
+            await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2 + 3?" });
+            await session.Rpc.Plan.UpdateAsync("# Test Plan\n\nThis is a test.");
+
+            var planPath = GetStoredPath(providerRoot, session.SessionId, $"{SessionFsConfig.SessionStatePath}/plan.md");
+            await WaitForConditionAsync(
+                async () => File.Exists(planPath)
+                    && (await ReadAllTextSharedAsync(planPath)).Contains("This is a test."),
+                TimeSpan.FromSeconds(30));
+
+            await session.DisposeAsync();
+        }
+        finally
+        {
+            await TryDeleteDirectoryAsync(providerRoot);
+        }
+    }
+
+    private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null)
+    {
+        RuntimeConnection connection = useStdio
+            ? RuntimeConnection.ForStdio()
+            : RuntimeConnection.ForTcp(connectionToken: tcpConnectionToken);
+
+        Directory.CreateDirectory(providerRoot);
+        return Ctx.CreateClient(
+            options: new CopilotClientOptions
+            {
+                SessionFs = SessionFsConfig,
+                Connection = connection,
+            });
+    }
+
+    private static string? FindToolCallResult(IReadOnlyList<SessionEvent> messages, string toolName)
+    {
+        var callId = messages
+            .OfType<ToolExecutionStartEvent>()
+            .FirstOrDefault(m => string.Equals(m.Data.ToolName, toolName, StringComparison.Ordinal))
+            ?.Data.ToolCallId;
+
+        if (callId is null)
+        {
+            return null;
+        }
+
+        return messages
+            .OfType<ToolExecutionCompleteEvent>()
+            .FirstOrDefault(m => string.Equals(m.Data.ToolCallId, callId, StringComparison.Ordinal))
+            ?.Data.Result?.Content;
+    }
+
+    private static string CreateProviderRoot()
+        => Path.Join(Path.GetTempPath(), $"copilot-sessionfs-{Guid.NewGuid():N}");
+
+    private static string CreateSessionStatePath()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "/session-state";
+        }
+
+        return Path.Join(Path.GetTempPath(), $"copilot-sessionfs-state-{Guid.NewGuid():N}", "session-state")
+            .Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string GetStoredPath(string providerRoot, string sessionId, string sessionPath)
+    {
+        var safeSessionId = NormalizeRelativePathSegment(sessionId, nameof(sessionId));
+        var relativeSegments = sessionPath
+            .TrimStart('/', '\\')
+            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(segment => NormalizeRelativePathSegment(segment, nameof(sessionPath)))
+            .ToArray();
+
+        return Path.Join([providerRoot, safeSessionId, .. relativeSegments]);
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan? timeout = null)
+    {
+        await TestHelper.WaitForConditionAsync(
+            condition,
+            timeout: timeout ?? TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for the session_fs test condition.");
+    }
+
+    private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan? timeout = null)
+    {
+        await TestHelper.WaitForConditionAsync(
+            condition,
+            timeout: timeout ?? TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for the session_fs test condition.",
+            transientExceptionFilter: TestHelper.IsTransientFileSystemException);
+    }
+
+    private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken = default)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(cancellationToken);
+    }
+
+    private static async Task TryDeleteDirectoryAsync(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        await TestHelper.WaitForConditionAsync(
+            () => Task.FromResult(DeleteDirectoryIfPresent(path)),
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: $"Timed out deleting directory '{path}'.",
+            transientExceptionFilter: TestHelper.IsTransientFileSystemException);
+
+        static bool DeleteDirectoryIfPresent(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                return true;
+            }
+
+            Directory.Delete(path, recursive: true);
+            return !Directory.Exists(path);
+        }
+    }
+
+    private static string NormalizeRelativePathSegment(string segment, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            throw new InvalidOperationException($"{paramName} must not be empty.");
+        }
+
+        var normalized = segment.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (Path.IsPathRooted(normalized) || normalized.Contains(Path.VolumeSeparatorChar))
+        {
+            throw new InvalidOperationException($"{paramName} must be a relative path segment: {segment}");
+        }
+
+        return normalized;
+    }
+
+    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider, ISessionFsSqliteProvider
+    {
+        protected override Task<string> ReadFileAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<string>(exception);
+
+        protected override Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken) =>
+            Task.FromException(exception);
+
+        protected override Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken) =>
+            Task.FromException(exception);
+
+        protected override Task<bool> ExistsAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<bool>(exception);
+
+        protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsStatResult>(exception);
+
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
+            Task.FromException(exception);
+
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<IList<string>>(exception);
+
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromException<IList<SessionFsReaddirWithTypesEntry>>(exception);
+
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
+            Task.FromException(exception);
+
+        protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
+            Task.FromException(exception);
+
+        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object?>? bindParams, CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteResult?>(exception);
+
+        Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>
+            Task.FromException<bool>(exception);
+    }
+
+    private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
+    {
+        protected override async Task<string> ReadFileAsync(string path, CancellationToken cancellationToken)
+        {
+            return await File.ReadAllTextAsync(ResolvePath(path), cancellationToken);
+        }
+
+        protected override async Task WriteFileAsync(string path, string content, int? mode, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            await File.WriteAllTextAsync(fullPath, content, cancellationToken);
+        }
+
+        protected override async Task AppendFileAsync(string path, string content, int? mode, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            await File.AppendAllTextAsync(fullPath, content, cancellationToken);
+        }
+
+        protected override Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+            return Task.FromResult(File.Exists(fullPath) || Directory.Exists(fullPath));
+        }
+
+        protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+            if (File.Exists(fullPath))
+            {
+                var info = new FileInfo(fullPath);
+                return Task.FromResult(new SessionFsStatResult
+                {
+                    IsFile = true,
+                    IsDirectory = false,
+                    Size = info.Length,
+                    Mtime = info.LastWriteTimeUtc,
+                    Birthtime = info.CreationTimeUtc,
+                });
+            }
+
+            var dirInfo = new DirectoryInfo(fullPath);
+            if (!dirInfo.Exists)
+            {
+                throw new DirectoryNotFoundException($"Path does not exist: {path}");
+            }
+
+            return Task.FromResult(new SessionFsStatResult
+            {
+                IsFile = false,
+                IsDirectory = true,
+                Size = 0,
+                Mtime = dirInfo.LastWriteTimeUtc,
+                Birthtime = dirInfo.CreationTimeUtc,
+            });
+        }
+
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(ResolvePath(path));
+            return Task.CompletedTask;
+        }
+
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken)
+        {
+            IList<string> entries = Directory
+                .EnumerateFileSystemEntries(ResolvePath(path))
+                .Select(Path.GetFileName)
+                .Where(name => name is not null)
+                .Cast<string>()
+                .ToList();
+            return Task.FromResult(entries);
+        }
+
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken)
+        {
+            IList<SessionFsReaddirWithTypesEntry> entries = Directory
+                .EnumerateFileSystemEntries(ResolvePath(path))
+                .Select(p => new SessionFsReaddirWithTypesEntry
+                {
+                    Name = Path.GetFileName(p),
+                    Type = Directory.Exists(p) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
+                })
+                .ToList();
+            return Task.FromResult(entries);
+        }
+
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
+        {
+            var fullPath = ResolvePath(path);
+
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+                return Task.CompletedTask;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, recursive);
+                return Task.CompletedTask;
+            }
+
+            if (force)
+            {
+                return Task.CompletedTask;
+            }
+
+            throw new FileNotFoundException($"Path does not exist: {path}");
+        }
+
+        protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken)
+        {
+            var srcPath = ResolvePath(src);
+            var destPath = ResolvePath(dest);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+            if (Directory.Exists(srcPath))
+            {
+                Directory.Move(srcPath, destPath);
+            }
+            else
+            {
+                File.Move(srcPath, destPath, overwrite: true);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private string ResolvePath(string sessionPath)
+        {
+            var normalizedSessionId = NormalizeRelativePathSegment(sessionId, nameof(sessionId));
+            var sessionRoot = Path.GetFullPath(Path.Join(rootDir, normalizedSessionId));
+            var relativeSegments = sessionPath
+                .TrimStart('/', '\\')
+                .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(segment => NormalizeRelativePathSegment(segment, nameof(sessionPath)))
+                .ToArray();
+
+            var fullPath = Path.GetFullPath(Path.Join([sessionRoot, .. relativeSegments]));
+            if (!fullPath.StartsWith(sessionRoot, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Path escapes session root: {sessionPath}");
+            }
+
+            return fullPath;
+        }
+    }
+}

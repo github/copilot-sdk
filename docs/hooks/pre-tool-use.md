@@ -1,18 +1,26 @@
-# Pre-Tool Use Hook
+# Pre-tool use hook
 
 The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 
-- Approve or deny tool execution
-- Modify tool arguments
-- Add context for the tool
-- Suppress tool output from the conversation
+* Approve or deny tool execution
+* Modify tool arguments
+* Add context for the tool
+* Suppress tool output from the conversation
 
-## Hook Signature
+## Hook signature
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { PreToolUseHookInput, HookInvocation, PreToolUseHookOutput } from "@github/copilot-sdk";
+type PreToolUseHandler = (
+  input: PreToolUseHookInput,
+  invocation: HookInvocation
+) => Promise<PreToolUseHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type PreToolUseHandler = (
   input: PreToolUseHookInput,
@@ -25,10 +33,20 @@ type PreToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.session import PreToolUseHookInput, PreToolUseHookOutput
+from typing import Callable, Awaitable
+
+PreToolUseHandler = Callable[
+    [PreToolUseHookInput, dict[str, str]],
+    Awaitable[PreToolUseHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 PreToolUseHandler = Callable[
-    [PreToolUseHookInput, HookInvocation],
+    [PreToolUseHookInput, dict[str, str]],
     Awaitable[PreToolUseHookOutput | None]
 ]
 ```
@@ -38,7 +56,20 @@ PreToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type PreToolUseHandler func(
+    input copilot.PreToolUseHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.PreToolUseHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type PreToolUseHandler func(
     input PreToolUseHookInput,
@@ -51,11 +82,45 @@ type PreToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
+    PreToolUseHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
     HookInvocation invocation);
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: hidden -->
+```java
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
+
+public class PreToolUseSignature {
+    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface PreToolUseHandler {
+    CompletableFuture<PreToolUseHookOutput> handle(
+        PreToolUseHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
@@ -81,7 +146,7 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `additionalContext` | string | Extra context injected into the conversation |
 | `suppressOutput` | boolean | If true, tool output won't appear in conversation |
 
-### Permission Decisions
+### Permission decisions
 
 | Decision | Behavior |
 |----------|----------|
@@ -89,9 +154,26 @@ Return `null` or `undefined` to allow the tool to execute with no changes. Other
 | `"deny"` | Tool is blocked, reason shown to user |
 | `"ask"` | User is prompted to approve (interactive mode) |
 
+### Skipping permission prompts for trusted custom tools
+
+If you define a custom tool that is safe to run without prompting, set `skipPermission: true` on the tool definition. Use this for trusted, app-owned tools whose inputs are already constrained by your application; use `onPreToolUse` when you need per-call policy checks or argument validation.
+
+```typescript
+const getWeather = defineTool("get_weather", {
+  description: "Get weather for a location.",
+  parameters: {
+    type: "object",
+    properties: { location: { type: "string" } },
+    required: ["location"],
+  },
+  skipPermission: true,
+  handler: async ({ location }) => ({ forecast: `Sunny in ${location}` }),
+});
+```
+
 ## Examples
 
-### Allow All Tools (Logging Only)
+### Allow all tools (logging only)
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -114,14 +196,14 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot.session import PermissionHandler
+
 async def on_pre_tool_use(input_data, invocation):
     print(f"[{invocation['session_id']}] Calling {input_data['toolName']}")
     print(f"  Args: {input_data['toolArgs']}")
     return {"permissionDecision": "allow"}
 
-session = await client.create_session({
-    "hooks": {"on_pre_tool_use": on_pre_tool_use}
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_pre_tool_use": on_pre_tool_use})
 ```
 
 </details>
@@ -129,7 +211,34 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Hooks: &copilot.SessionHooks{
+			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
+				fmt.Printf("[%s] Calling %s\n", inv.SessionID, input.ToolName)
+				fmt.Printf("  Args: %v\n", input.ToolArgs)
+				return &copilot.PreToolUseHookOutput{
+					PermissionDecision: "allow",
+				}, nil
+			},
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -149,7 +258,33 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class PreToolUseExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPreToolUse = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] Calling {input.ToolName}");
+                    Console.WriteLine($"  Args: {input.ToolArgs}");
+                    return Task.FromResult<PreToolUseHookOutput?>(
+                        new PreToolUseHookOutput { PermissionDecision = "allow" }
+                    );
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -169,7 +304,32 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 </details>
 
-### Block Specific Tools
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnPreToolUse((input, invocation) -> {
+        System.out.println("[" + invocation.getSessionId() + "] Calling " + input.getToolName());
+        System.out.println("  Args: " + input.getToolArgs());
+        return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    });
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        .setHooks(hooks)
+).get();
+```
+
+</details>
+
+### Block specific tools
 
 ```typescript
 const BLOCKED_TOOLS = ["shell", "bash", "write_file", "delete_file"];
@@ -189,7 +349,7 @@ const session = await client.createSession({
 });
 ```
 
-### Modify Tool Arguments
+### Modify tool arguments
 
 ```typescript
 const session = await client.createSession({
@@ -212,7 +372,7 @@ const session = await client.createSession({
 });
 ```
 
-### Restrict File Access to Specific Directories
+### Restrict file access to specific directories
 
 ```typescript
 const ALLOWED_DIRECTORIES = ["/home/user/projects", "/tmp"];
@@ -239,7 +399,7 @@ const session = await client.createSession({
 });
 ```
 
-### Suppress Verbose Tool Output
+### Suppress verbose tool output
 
 ```typescript
 const VERBOSE_TOOLS = ["list_directory", "search_files"];
@@ -256,7 +416,7 @@ const session = await client.createSession({
 });
 ```
 
-### Add Context Based on Tool
+### Add context based on tool
 
 ```typescript
 const session = await client.createSession({
@@ -274,11 +434,11 @@ const session = await client.createSession({
 });
 ```
 
-## Best Practices
+## Best practices
 
 1. **Always return a decision** - Returning `null` allows the tool, but being explicit with `{ permissionDecision: "allow" }` is clearer.
 
-2. **Provide helpful denial reasons** - When denying, explain why so users understand:
+1. **Provide helpful denial reasons** - When denying, explain why so users understand:
    ```typescript
    return {
      permissionDecision: "deny",
@@ -286,14 +446,14 @@ const session = await client.createSession({
    };
    ```
 
-3. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
+1. **Be careful with argument modification** - Ensure modified args maintain the expected schema for the tool.
 
-4. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
+1. **Consider performance** - Pre-tool hooks run synchronously before each tool call. Keep them fast.
 
-5. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
+1. **Use `suppressOutput` judiciously** - Suppressing output means the model won't see the result, which may affect conversation quality.
 
-## See Also
+## See also
 
-- [Hooks Overview](./overview.md)
-- [Post-Tool Use Hook](./post-tool-use.md)
-- [Debugging Guide](../debugging.md)
+* [Hooks Overview](./README.md)
+* [Post-Tool Use Hook](./post-tool-use.md)
+* [Debugging Guide](../troubleshooting/debugging.md)

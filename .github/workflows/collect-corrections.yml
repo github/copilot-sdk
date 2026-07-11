@@ -1,0 +1,34 @@
+name: Submit triage agent feedback
+
+on:
+  repository_dispatch:
+    types: [triage_feedback]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to submit feedback for"
+        required: true
+        type: string
+      feedback:
+        description: "Feedback text describing what the triage agent got wrong"
+        required: true
+        type: string
+
+concurrency:
+  group: collect-corrections
+  cancel-in-progress: false
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const script = require('./scripts/corrections/collect-corrections.js')
+            await script({ github, context })

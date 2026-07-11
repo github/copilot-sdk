@@ -3,7 +3,7 @@
 {
   "name": "Python 3",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-  "image": "mcr.microsoft.com/devcontainers/python:2-3.14-trixie",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie",
   "features": {
     "ghcr.io/devcontainers/features/copilot-cli:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},

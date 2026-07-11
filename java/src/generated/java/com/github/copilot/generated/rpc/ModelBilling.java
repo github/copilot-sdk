@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Billing information
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ModelBilling(
+    /** Billing cost multiplier relative to the base rate */
+    @JsonProperty("multiplier") Double multiplier,
+    /** Token-level pricing information for this model */
+    @JsonProperty("tokenPrices") ModelBillingTokenPrices tokenPrices,
+    /** Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models. */
+    @JsonProperty("discountPercent") Long discountPercent
+) {
+}
