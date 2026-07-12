@@ -603,8 +603,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({"msg": "hello"}),
-            traceparent: None,
-            tracestate: None,
+            ..Default::default()
         };
 
         let result = tool.call(inv).await.unwrap();
@@ -643,8 +642,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "weather".to_string(),
             arguments: serde_json::json!({"city": "Seattle"}),
-            traceparent: None,
-            tracestate: None,
+            ..Default::default()
         };
         match handler.call(inv).await.unwrap() {
             ToolResult::Text(s) => assert_eq!(s, "sunny in Seattle"),
@@ -725,8 +723,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"city": "Seattle", "unit": "celsius"}),
-                traceparent: None,
-                tracestate: None,
+                ..Default::default()
             };
 
             let result = tool.call(inv).await.unwrap();
@@ -744,8 +741,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"wrong_field": 42}),
-                traceparent: None,
-                tracestate: None,
+                ..Default::default()
             };
 
             let err = tool.call(inv).await.unwrap_err();
@@ -765,8 +761,7 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
                     arguments: serde_json::json!({"city": "Portland"}),
-                    traceparent: None,
-                    tracestate: None,
+                    ..Default::default()
                 })
                 .await
                 .expect("ToolHandler::call should succeed for matching args");
@@ -775,5 +770,56 @@ mod tests {
                 _ => panic!("expected ToolResult::Text"),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn tool_invocation_cancellation_token_fires_on_cancel() {
+        let token = tokio_util::sync::CancellationToken::new();
+        let inv = ToolInvocation {
+            session_id: SessionId::from("s1"),
+            tool_call_id: "tc1".to_string(),
+            tool_name: "echo".to_string(),
+            arguments: serde_json::json!({}),
+            cancellation_token: Some(token.clone()),
+            ..Default::default()
+        };
+
+        let inv_token = inv.cancellation_token.expect("token was set");
+        assert!(!inv_token.is_cancelled());
+        token.cancel();
+        assert!(inv_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn tool_invocation_child_token_cancelled_when_parent_fires() {
+        let parent = tokio_util::sync::CancellationToken::new();
+        let child = parent.child_token();
+
+        let inv = ToolInvocation {
+            session_id: SessionId::from("s1"),
+            tool_call_id: "tc1".to_string(),
+            tool_name: "echo".to_string(),
+            arguments: serde_json::json!({}),
+            cancellation_token: Some(child),
+            ..Default::default()
+        };
+
+        let inv_token = inv.cancellation_token.expect("token was set");
+        assert!(!inv_token.is_cancelled());
+        parent.cancel();
+        assert!(inv_token.is_cancelled());
+    }
+
+    #[test]
+    fn tool_invocation_cancellation_token_defaults_to_none() {
+        let inv = ToolInvocation {
+            session_id: SessionId::from("s1"),
+            tool_call_id: "tc1".to_string(),
+            tool_name: "echo".to_string(),
+            arguments: serde_json::json!({}),
+            ..Default::default()
+        };
+
+        assert!(inv.cancellation_token.is_none());
     }
 }
