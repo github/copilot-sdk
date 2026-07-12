@@ -87,6 +87,11 @@ type Session struct {
 	capabilities          SessionCapabilities
 	capabilitiesMu        sync.RWMutex
 
+	// toolCallCancels tracks cancel functions for in-flight tool calls so that
+	// Abort can propagate cancellation into handler contexts.
+	toolCallCancels   map[string]context.CancelFunc
+	toolCallCancelsMu sync.Mutex
+
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	eventCh   chan SessionEvent
@@ -1494,11 +1499,35 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
 func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, traceparent, tracestate string) {
-	ctx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	// traceCtx carries OTel trace propagation but is not subject to abort cancellation.
+	// It is used for administrative RPC calls that must complete regardless of abort.
+	traceCtx := contextWithTraceParent(context.Background(), traceparent, tracestate)
+	// ctx is passed to the tool handler and is cancelled when session.Abort is called,
+	// giving handlers a cooperative cancellation signal.
+	ctx, cancel := context.WithCancel(traceCtx)
+
+	s.toolCallCancelsMu.Lock()
+	if s.toolCallCancels == nil {
+		s.toolCallCancels = make(map[string]context.CancelFunc)
+	}
+	s.toolCallCancels[toolCallID] = cancel
+	s.toolCallCancelsMu.Unlock()
+
+	// Cleanup runs last (registered first). Removes the cancel from the in-flight map
+	// and releases context resources.
+	defer func() {
+		s.toolCallCancelsMu.Lock()
+		delete(s.toolCallCancels, toolCallID)
+		s.toolCallCancelsMu.Unlock()
+		cancel()
+	}()
+
+	// Panic recovery runs first (registered second, LIFO). Uses traceCtx to ensure
+	// the error response is sent even if ctx was already cancelled by Abort.
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("tool panic: %v", r)
-			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+			s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 				RequestID: requestID,
 				Error:     &errMsg,
 			})
@@ -1510,13 +1539,14 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		ToolCallID:   toolCallID,
 		ToolName:     toolName,
 		Arguments:    arguments,
-		TraceContext: ctx,
+		Context:      ctx,
+		TraceContext: traceCtx,
 	}
 
 	result, err := handler(invocation)
 	if err != nil {
 		errMsg := err.Error()
-		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+		s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
@@ -1546,7 +1576,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	if result.Error != "" {
 		rpcResult.Error = &result.Error
 	}
-	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+	s.RPC.Tools.HandlePendingToolCall(traceCtx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    rpcResult,
 	})
@@ -1712,7 +1742,42 @@ func (s *Session) Abort(ctx context.Context) error {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}
 
+	s.toolCallCancelsMu.Lock()
+	for id, cancel := range s.toolCallCancels {
+		cancel()
+		delete(s.toolCallCancels, id)
+	}
+	s.toolCallCancelsMu.Unlock()
+
 	return nil
+}
+
+// CancelToolCall cancels a single in-flight tool handler identified by toolCallID
+// without aborting the agentic loop or any other concurrent tool handlers.
+//
+// It looks up the cancel func registered when the handler was dispatched, calls it
+// (cancelling the context passed to that handler via ToolInvocation.Context), removes
+// the entry from the in-flight map, and returns true. If no handler with the given
+// toolCallID is currently executing, CancelToolCall is a no-op and returns false.
+//
+// Example:
+//
+//	// Start a session with a long-running tool registered.
+//	// Later, cancel only a specific tool call without aborting the session:
+//	if cancelled := session.CancelToolCall("tool-call-id-123"); !cancelled {
+//	    log.Println("tool call was not in flight")
+//	}
+func (s *Session) CancelToolCall(toolCallID string) bool {
+	s.toolCallCancelsMu.Lock()
+	defer s.toolCallCancelsMu.Unlock()
+
+	cancel, ok := s.toolCallCancels[toolCallID]
+	if !ok {
+		return false
+	}
+	cancel()
+	delete(s.toolCallCancels, toolCallID)
+	return true
 }
 
 // SetModelOptions configures optional parameters for SetModel.
