@@ -74,6 +74,27 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
+/// <summary>Active server-driven promotion for a model, including its discount and expiry.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelBillingPromo
+{
+    /// <summary>Percentage discount (0-100) applied while the promotion is active. May be fractional.</summary>
+    [JsonPropertyName("discountPercent")]
+    public double? DiscountPercent { get; set; }
+
+    /// <summary>UTC ISO 8601 timestamp marking when the promotion ends. Always present: the API only surfaces a promo whose expiry parses and is in the future. Consumers should treat a past value as expired.</summary>
+    [JsonPropertyName("endsAt")]
+    public string EndsAt { get; set; } = string.Empty;
+
+    /// <summary>Stable identifier for the promotion campaign.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class ModelBillingTokenPricesLongContext
@@ -175,6 +196,10 @@ public sealed class ModelBilling
     /// <summary>Billing cost multiplier relative to the base rate.</summary>
     [JsonPropertyName("multiplier")]
     public double? Multiplier { get; set; }
+
+    /// <summary>Active server-driven promotion for this model, if any. Present when the model is being promoted with a time-boxed discount.</summary>
+    [JsonPropertyName("promo")]
+    public ModelBillingPromo? Promo { get; set; }
 
     /// <summary>Token-level pricing information for this model.</summary>
     [JsonPropertyName("tokenPrices")]
@@ -24192,6 +24217,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModeSetRequest))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(ModelBillingPromo))]
 [JsonSerializable(typeof(ModelBillingTokenPrices))]
 [JsonSerializable(typeof(ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]

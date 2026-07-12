@@ -6553,6 +6553,30 @@ pub struct MetadataSnapshotRemoteMetadata {
     pub task_type: Option<MetadataSnapshotRemoteMetadataTaskType>,
 }
 
+/// Active server-driven promotion for a model, including its discount and expiry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelBillingPromo {
+    /// Percentage discount (0-100) applied while the promotion is active. May be fractional.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_percent: Option<f64>,
+    /// UTC ISO 8601 timestamp marking when the promotion ends. Always present: the API only surfaces a promo whose expiry parses and is in the future. Consumers should treat a past value as expired.
+    pub ends_at: String,
+    /// Stable identifier for the promotion campaign.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
 /// Long context tier pricing (available for models with extended context windows)
 ///
 /// <div class="warning">
@@ -6652,6 +6676,9 @@ pub struct ModelBilling {
     /// Billing cost multiplier relative to the base rate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multiplier: Option<f64>,
+    /// Active server-driven promotion for this model, if any. Present when the model is being promoted with a time-boxed discount.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub promo: Option<ModelBillingPromo>,
     /// Token-level pricing information for this model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_prices: Option<ModelBillingTokenPrices>,
