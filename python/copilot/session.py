@@ -36,7 +36,6 @@ from .generated.rpc import (
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    ExternalToolTextResultForLlm,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
@@ -83,7 +82,13 @@ from .generated.session_events import (
 from .generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import (
+    Tool,
+    ToolHandler,
+    ToolInvocation,
+    ToolResult,
+    tool_result_to_external_tool_text_result_for_llm,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1993,12 +1998,7 @@ class CopilotSession:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ExternalToolTextResultForLlm(
-                            text_result_for_llm=tool_result.text_result_for_llm,
-                            error=tool_result.error,
-                            result_type=tool_result.result_type,
-                            tool_telemetry=tool_result.tool_telemetry,
-                        ),
+                        result=tool_result_to_external_tool_text_result_for_llm(tool_result),
                     )
                 )
                 log_timing(
