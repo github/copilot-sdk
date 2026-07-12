@@ -512,3 +512,120 @@ class TestConvertMcpCallToolResult:
         result = _normalize_result({"content": [{"type": "text", "text": "hello"}]})
         parsed = json.loads(result.text_result_for_llm)
         assert parsed == {"content": [{"type": "text", "text": "hello"}]}
+
+
+class TestAbortSignal:
+    def test_not_aborted_initially(self):
+        from copilot.tools import AbortController
+
+        controller = AbortController()
+        assert controller.signal.is_aborted is False
+
+    def test_aborted_after_abort_called(self):
+        from copilot.tools import AbortController
+
+        controller = AbortController()
+        controller.abort()
+        assert controller.signal.is_aborted is True
+
+    async def test_wait_returns_after_abort(self):
+        from copilot.tools import AbortController
+
+        controller = AbortController()
+        signal = controller.signal
+
+        async def aborter():
+            import asyncio
+
+            await asyncio.sleep(0)
+            controller.abort()
+
+        import asyncio
+
+        await asyncio.gather(signal.wait(), aborter())
+        assert signal.is_aborted is True
+
+    def test_tool_invocation_signal_defaults_to_none(self):
+        inv = ToolInvocation(session_id="s1", tool_call_id="c1", tool_name="t1")
+        assert inv.signal is None
+
+    def test_tool_invocation_accepts_injected_signal(self):
+        from copilot.tools import AbortController, AbortSignal
+
+        controller = AbortController()
+        inv = ToolInvocation(
+            session_id="s1", tool_call_id="c1", tool_name="t1", signal=controller.signal
+        )
+        assert isinstance(inv.signal, AbortSignal)
+        assert inv.signal.is_aborted is False
+        controller.abort()
+        assert inv.signal.is_aborted is True
+
+    async def test_handler_receives_signal_via_invocation(self):
+        from copilot.tools import AbortController
+
+        received_signal = None
+        controller = AbortController()
+
+        class Params(BaseModel):
+            pass
+
+        @define_tool("test_signal", description="Test signal propagation")
+        def test_tool(params: Params, inv: ToolInvocation) -> str:
+            nonlocal received_signal
+            received_signal = inv.signal
+            return "ok"
+
+        invocation = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="test_signal",
+            arguments={},
+            signal=controller.signal,
+        )
+
+        await test_tool.handler(invocation)
+
+        assert received_signal is controller.signal
+        assert received_signal.is_aborted is False
+
+        controller.abort()
+        assert received_signal.is_aborted is True
+
+
+class TestCancelToolCall:
+    def test_returns_false_for_unknown_id(self):
+        from copilot.session import CopilotSession
+
+        session = CopilotSession("sess-1", client=None)
+        assert session.cancel_tool_call("nonexistent") is False
+
+    def test_returns_true_and_aborts_signal_for_known_id(self):
+        from copilot.session import CopilotSession
+        from copilot.tools import AbortController
+
+        session = CopilotSession("sess-1", client=None)
+        controller = AbortController()
+        session._in_flight_tool_calls["call-1"] = controller
+
+        result = session.cancel_tool_call("call-1")
+
+        assert result is True
+        assert controller.signal.is_aborted is True
+
+    def test_cancels_only_targeted_handler(self):
+        """cancel_tool_call aborts only the targeted handler; others are unaffected."""
+        from copilot.session import CopilotSession
+        from copilot.tools import AbortController
+
+        session = CopilotSession("sess-1", client=None)
+        controller_a = AbortController()
+        controller_b = AbortController()
+        session._in_flight_tool_calls["call-a"] = controller_a
+        session._in_flight_tool_calls["call-b"] = controller_b
+
+        result = session.cancel_tool_call("call-a")
+
+        assert result is True
+        assert controller_a.signal.is_aborted is True
+        assert controller_b.signal.is_aborted is False
