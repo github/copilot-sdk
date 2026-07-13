@@ -181,6 +181,14 @@ func (h *Host) Start() error {
 		return fmt.Errorf("copilot_runtime_host_start failed (library %q, entrypoint %q)", h.libraryPath, h.cliEntrypoint)
 	}
 
+	// host_start spawned the worker child via libuv's uv_spawn, which installs a
+	// SIGCHLD handler without SA_ONSTACK on its first call. On macOS the Go runtime
+	// aborts ("non-Go code set up signal handler without SA_ONSTACK flag") when it
+	// later reaps one of its own os/exec children, so re-add SA_ONSTACK to that
+	// foreign handler now that it exists (no-op off Darwin, and before the first
+	// spawn there is nothing to fix — hence here rather than at library load).
+	rearmForeignSignalHandlers()
+
 	h.callbackHandle = purego.NewCallback(h.onOutbound)
 	h.connectionID = h.lib.connectionOpen(h.serverID, h.callbackHandle, 0, nil, 0, nil, 0, nil, 0)
 	if h.connectionID == 0 {

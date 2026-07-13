@@ -78,11 +78,42 @@ func isInProcessTransport() bool {
 	return strings.EqualFold(os.Getenv("COPILOT_SDK_DEFAULT_CONNECTION"), "inprocess")
 }
 
+// init neutralizes any ambient HMAC signing key as early as package load when the
+// in-process transport is selected. Host-side auth resolution ranks the HMAC key
+// above the GitHub token, so an ambient COPILOT_HMAC_KEY (CI injects one as a
+// job-level credential) would be picked over the token the replay snapshots
+// expect, producing request signatures that miss the recorded exchanges. Because
+// the runtime is hosted in this process, the key must be removed before the native
+// library is loaded and captures it — a later, per-client override is too late and
+// setting it to an empty value is still treated as a signing key. Out-of-process
+// children resolve auth in their own process where the token already outranks the
+// HMAC key, so this is scoped to the in-process cell. Mirrors the analogous
+// module-load neutralization in the Node/Python/.NET harnesses.
+// See https://github.com/github/copilot-sdk/issues/1934.
+func init() {
+	if isInProcessTransport() {
+		os.Unsetenv("COPILOT_HMAC_KEY")
+		os.Unsetenv("CAPI_HMAC_KEY")
+	}
+}
+
 // IsInProcessTransport reports whether E2E tests run under the in-process (FFI)
 // transport. Tests that configure options unsupported in-process (e.g. per-client
 // telemetry) should skip when this returns true.
 func IsInProcessTransport() bool {
 	return isInProcessTransport()
+}
+
+// SkipIfInProcess skips the test when E2E tests run under the in-process (FFI)
+// transport, for behavior the shared in-process runtime cannot support (e.g. a
+// process-global LLM inference provider, or per-client telemetry). The reason is
+// surfaced in the test log so the skip is explicit rather than a silent transport
+// downgrade. Such tests still run over stdio in the default matrix cell.
+func SkipIfInProcess(t *testing.T, reason string) {
+	t.Helper()
+	if isInProcessTransport() {
+		t.Skipf("unsupported over the in-process (FFI) transport: %s", reason)
+	}
 }
 
 // NewTestContext creates a new test context with isolated directories and a replaying proxy.
@@ -177,7 +208,14 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 		t.Fatalf("Expected test name with subtest, got: %s", testName)
 	}
 	sanitizedName := strings.ToLower(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(parts[1], "_"))
-	snapshotPath := filepath.Join("..", "..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
+	// Anchor the snapshot path to the caller's source directory rather than the
+	// process working directory: the in-process transport chdir's into the test's
+	// isolated work dir (the worker inherits the process cwd), so a cwd-relative
+	// path would resolve against the wrong root for every subtest after the first.
+	// All e2e test files live in go/internal/e2e, so the repo root is three levels
+	// up from the caller's directory.
+	repoRoot := filepath.Join(filepath.Dir(callerFile), "..", "..", "..")
+	snapshotPath := filepath.Join(repoRoot, "test", "snapshots", testFile, sanitizedName+".yaml")
 
 	absSnapshotPath, err := filepath.Abs(snapshotPath)
 	if err != nil {
@@ -219,10 +257,11 @@ func (c *TestContext) Close(testFailed bool) {
 // process for in-process hosting: the worker inherits this process's env and cwd
 // at spawn, so per-test redirects must live on os.Environ and the process cwd.
 // Auth flows via GH_TOKEN/GITHUB_TOKEN (the FFI argv omits the stdio auth-token
-// wiring) and HMAC is disabled so host-side auth matches the replay snapshots.
-// mergedEnv is the effective per-client env (harness defaults plus any per-test
-// additions); workDir is the effective working directory. Values are restored in
-// Close. Safe to call more than once (restores unwind in reverse).
+// wiring); the ambient HMAC signing key is removed process-wide at package load
+// (see init) so host-side auth matches the replay snapshots. mergedEnv is the
+// effective per-client env (harness defaults plus any per-test additions); workDir
+// is the effective working directory. Values are restored in Close. Safe to call
+// more than once (restores unwind in reverse).
 func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir string) {
 	inprocessEnv := map[string]string{}
 	for _, kv := range mergedEnv {
@@ -230,12 +269,12 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 			inprocessEnv[key] = value
 		}
 	}
-	// Auth flows via GH_TOKEN/GITHUB_TOKEN and HMAC is disabled for the in-process
-	// host, overriding any inherited values.
+	// Auth flows via GH_TOKEN/GITHUB_TOKEN for the in-process host, overriding any
+	// inherited values. The HMAC key is neutralized process-wide at package load.
 	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
 	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
-	inprocessEnv["COPILOT_HMAC_KEY"] = ""
-	inprocessEnv["CAPI_HMAC_KEY"] = ""
+	delete(inprocessEnv, "COPILOT_HMAC_KEY")
+	delete(inprocessEnv, "CAPI_HMAC_KEY")
 
 	for key, value := range inprocessEnv {
 		prev, had := os.LookupEnv(key)
@@ -365,13 +404,14 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 
 // shouldUseInProcess reports whether a client built from options should be hosted
 // in-process for the inprocess matrix cell. Only the harness default stdio
-// connection is swapped; a test that pins a custom stdio path/args/env, a TCP/URI
-// connection, or configures per-client telemetry (which cannot be carried
-// in-process) is exercising behavior that must stay on its own transport.
+// connection is swapped; a test that pins a custom stdio path/args/env or a
+// TCP/URI connection is exercising behavior that must stay on its own transport.
+//
+// Options the in-process runtime cannot support (per-client telemetry, an LLM
+// inference provider) are NOT silently downgraded here — the affected tests skip
+// explicitly via testharness.SkipIfInProcess so the limitation is visible rather
+// than masked by a quiet transport swap.
 func (c *TestContext) shouldUseInProcess(options *copilot.ClientOptions) bool {
-	if options.Telemetry != nil {
-		return false
-	}
 	s, ok := options.Connection.(copilot.StdioConnection)
 	if !ok {
 		return false

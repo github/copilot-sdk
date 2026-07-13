@@ -16,6 +16,16 @@ import (
 // Mirrors python/e2e/test_inprocess_ffi_e2e.py and
 // nodejs/test/e2e/inprocess_ffi.e2e.test.ts.
 func TestInProcessFfiE2E(t *testing.T) {
+	// Loading the native runtime cdylib (libnode) into this test process installs
+	// foreign signal handlers. On macOS the Go runtime then aborts when it reaps
+	// its own os/exec children (see ffihost signal re-arming). The in-process
+	// matrix cell already loads libnode for the whole suite and re-arms those
+	// handlers; the default (child-process) cell must never load it, so restrict
+	// this dedicated FFI smoke test to the in-process cell.
+	if !testharness.IsInProcessTransport() {
+		t.Skip("in-process FFI smoke test runs only under the inprocess transport cell")
+	}
+
 	cliPath := testharness.CLIPath()
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
