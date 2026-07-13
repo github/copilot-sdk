@@ -502,44 +502,23 @@ impl OAuthMcpServer {
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
-        // Use hyper for HTTP calls to avoid pulling in ring/rustls
-        let uri = format!("{}/__requests", self.url)
-            .parse::<http::Uri>()
-            .expect("valid URI");
-        
-        let host = uri.host().expect("URI has host");
-        let port = uri.port_u16().unwrap_or(80);
-        
-        let req = http::Request::builder()
-            .method(http::Method::GET)
-            .uri(&uri)
-            .body(http_body_util::Empty::new())
-            .expect("valid request");
-        
-        let conn = tokio::net::TcpStream::connect((host, port))
+        let uri: hyper::Uri = format!("{}/__requests", self.url)
+            .parse()
+            .expect("valid OAuth MCP requests URL");
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http::<http_body_util::Full<bytes::Bytes>>();
+        let response = client.get(uri).await.expect("fetch OAuth MCP requests");
+        assert!(
+            response.status().is_success(),
+            "OAuth MCP request status: {}",
+            response.status()
+        );
+        let body = http_body_util::BodyExt::collect(response.into_body())
             .await
-            .expect("connect to test server");
-        
-        let (mut sender, conn) = hyper::client::conn::http1::handshake(conn)
-            .await
-            .expect("HTTP handshake");
-        
-        tokio::spawn(async move {
-            if let Err(e) = conn.await {
-                eprintln!("Connection error: {}", e);
-            }
-        });
-        
-        let response = sender.send_request(req)
-            .await
-            .expect("send request");
-        
-        let body = hyper::body::to_bytes(response.into_body())
-            .await
-            .expect("read response body");
-        
-        let text = String::from_utf8(body.to_vec()).expect("UTF-8 response");
-        serde_json::from_str(&text).expect("decode OAuth MCP requests")
+            .expect("read OAuth MCP requests")
+            .to_bytes();
+        serde_json::from_slice(&body).expect("decode OAuth MCP requests")
     }
 
     async fn stop(&mut self) {
