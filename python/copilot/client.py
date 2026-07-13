@@ -1419,7 +1419,16 @@ class CopilotClient:
                 self._effective_connection_token = None
 
             # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
-            effective_env = connection.env or options.env or os.environ
+            # Select the environment by identity, not truthiness, so an intentionally
+            # empty per-connection or client env stays authoritative (the spawned child
+            # receives that empty mapping) instead of falling back to os.environ and
+            # unexpectedly honoring a host COPILOT_CLI_PATH.
+            if connection.env is not None:
+                effective_env: Mapping[str, str] = connection.env
+            elif options.env is not None:
+                effective_env = options.env
+            else:
+                effective_env = os.environ
             connection.path = self._resolve_runtime_entrypoint(connection.path, env=effective_env)
 
             # Resolve use_logged_in_user default
@@ -3948,14 +3957,14 @@ class CopilotClient:
         cli_path = conn.path
         assert cli_path is not None  # resolved in __init__
 
-        # A packaged single-file CLI is invoked directly; a `.js` dev entrypoint is
-        # launched via node. Both are handled inside FfiRuntimeHost.
-        if not os.path.exists(cli_path) and cli_path.endswith(".js") is False:
-            resolved = shutil.which(cli_path)
-            if resolved is None:
-                raise RuntimeError(f"Copilot CLI not found at {cli_path}")
-            cli_path = resolved
-
+        # No PATH lookup here (unlike the child-process transport): the in-process
+        # entrypoint is always an absolute on-disk path — an explicit path,
+        # COPILOT_CLI_PATH, or the downloaded CLI — so the native library provisioned
+        # next to it in __init__ is exactly the one FfiRuntimeHost loads. Resolving a
+        # bare command name via PATH would look for the library beside a different
+        # directory than the one it was provisioned into and fail. A packaged
+        # single-file CLI is invoked directly; a `.js` dev entrypoint is launched via
+        # node — both handled inside FfiRuntimeHost.
         logger.info(
             "CopilotClient._start_inprocess_ffi hosting Copilot runtime in-process",
             extra={"cli_path": cli_path, "cli_path_source": self._cli_path_source},
@@ -3965,6 +3974,15 @@ class CopilotClient:
         # (see _validate_environment_options); the worker inherits this process's
         # ambient environment. Pass extra worker args via connection.args.
         host = FfiRuntimeHost.create(cli_path, environment=None, args=conn.args)
+
+        # Track the host and expose its process-like adapter *before* the blocking
+        # handshake. asyncio.to_thread keeps running host_start after a cancellation
+        # (a thread can't be interrupted), and CancelledError bypasses start()'s
+        # `except Exception`, so assigning here — as .NET does before StartAsync —
+        # keeps a completed native host owned so stop()/force_stop() can dispose it
+        # instead of leaking it.
+        self._ffi_host = host
+        self._process = host.process
 
         ffi_start = time.perf_counter()
         # host_start blocks until the worker connects back and signals readiness,
@@ -3976,11 +3994,6 @@ class CopilotClient:
             "CopilotClient._start_inprocess_ffi FFI host started",
             ffi_start,
         )
-
-        self._ffi_host = host
-        # Expose the process-like adapter so the JSON-RPC client and stop/force_stop
-        # paths treat it like a spawned runtime process.
-        self._process = host.process
 
     async def _connect_to_server(self) -> None:
         """Connect to the runtime via the configured transport.

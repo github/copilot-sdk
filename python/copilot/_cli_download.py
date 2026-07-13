@@ -345,7 +345,12 @@ def _verify_integrity(data: bytes, integrity: str) -> None:
     algo, _, b64 = integrity.partition("-")
     algo = algo.lower()
     if algo not in ("sha512", "sha384", "sha256"):
-        return  # Unknown/unsupported algorithm — skip rather than fail.
+        # Fail closed: an unrecognized algorithm means we cannot verify this native
+        # library, so refuse rather than loading unverified native code.
+        raise RuntimeError(
+            f"Unsupported integrity algorithm '{algo}' for the in-process runtime "
+            "library; refusing to load unverified native code."
+        )
     expected = base64.b64decode(b64)
     actual = hashlib.new(algo, data).digest()
     if actual != expected:
@@ -414,8 +419,17 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
     data = _fetch_url_bytes(url, timeout=600)
 
     integrity = _fetch_runtime_integrity(npm_platform, ver)
-    if integrity:
-        _verify_integrity(data, integrity)
+    if not integrity:
+        # Fail closed: this native library is loaded into the host process, so it must
+        # be verified before use. The npm packument (which carries dist.integrity) was
+        # unavailable, so refuse rather than loading unverified native code — mirroring
+        # the CLI download, which requires a checksum. Retry when the registry is
+        # reachable, or install a runtime package that ships the library.
+        raise RuntimeError(
+            "No Subresource Integrity value available for the in-process runtime "
+            f"library ({npm_platform}@{ver}); refusing to load unverified native code."
+        )
+    _verify_integrity(data, integrity)
 
     lib_bytes = _extract_runtime_node(data, npm_platform)
 
@@ -431,6 +445,8 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
         try:
             os.unlink(tmp_name)
         except OSError:
+            # Best-effort cleanup of the temp file; ignore if it's already gone or
+            # can't be removed (the OS reclaims it, and it doesn't affect correctness).
             pass
         if lib_path.exists():
             return str(lib_path)
