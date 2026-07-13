@@ -73,90 +73,86 @@ describe("Telemetry export", async () => {
         },
     });
 
-    it(
-        "should export file telemetry for sdk interactions",
-        { timeout: 90_000 },
-        async () => {
-            const session = await client.createSession({
-                onPermissionRequest: approveAll,
-                tools: [
-                    defineTool(toolName, {
-                        description: "Echoes a marker string for telemetry validation.",
-                        parameters: z.object({ value: z.string() }),
-                        handler: ({ value }) => value,
-                    }),
-                ],
-            });
+    it("should export file telemetry for sdk interactions", { timeout: 90_000 }, async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool(toolName, {
+                    description: "Echoes a marker string for telemetry validation.",
+                    parameters: z.object({ value: z.string() }),
+                    handler: ({ value }) => value,
+                }),
+            ],
+        });
 
-            await session.send({ prompt });
-            const assistantMessage = await getFinalAssistantMessage(session);
-            expect(assistantMessage).toBeDefined();
-            expect(assistantMessage.data.content ?? "").toContain("TELEMETRY_E2E_DONE");
+        await session.send({ prompt });
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage).toBeDefined();
+        expect(assistantMessage.data.content ?? "").toContain("TELEMETRY_E2E_DONE");
 
-            await session.disconnect();
-            await client.stop();
+        await session.disconnect();
+        await client.stop();
 
-            // Telemetry exporter writes to telemetryFileName resolved relative to the CLI cwd (workDir).
-            const telemetryPath = join(workDir, telemetryFileName);
-            const entries = await readTelemetryEntries(telemetryPath);
-            const spans = entries.filter((entry) => entry.type === "span");
+        // Telemetry exporter writes to telemetryFileName resolved relative to the CLI cwd (workDir).
+        const telemetryPath = join(workDir, telemetryFileName);
+        const entries = await readTelemetryEntries(telemetryPath);
+        const spans = entries.filter((entry) => entry.type === "span");
 
-            expect(spans.length).toBeGreaterThan(0);
-            for (const span of spans) {
-                expect(span.instrumentationScope?.name).toBe(sourceName);
-            }
-
-            // All spans for one SDK turn must share the same trace id and must not be in error state.
-            const traceIds = Array.from(
-                new Set(spans.map((span) => span.traceId).filter((id): id is string => Boolean(id)))
-            );
-            expect(traceIds).toHaveLength(1);
-            for (const span of spans) {
-                expect(span.status?.code).not.toBe(2);
-            }
-
-            const invokeAgentSpan = spans.find(
-                (span) => getStringAttribute(span, "gen_ai.operation.name") === "invoke_agent"
-            );
-            expect(invokeAgentSpan).toBeDefined();
-            expect(getStringAttribute(invokeAgentSpan!, "gen_ai.conversation.id")).toBe(
-                session.sessionId
-            );
-            expect(isRootSpan(invokeAgentSpan!)).toBe(true);
-            const invokeAgentSpanId = invokeAgentSpan!.spanId;
-            expect(invokeAgentSpanId).toBeTruthy();
-
-            const chatSpans = spans.filter(
-                (span) => getStringAttribute(span, "gen_ai.operation.name") === "chat"
-            );
-            expect(chatSpans.length).toBeGreaterThan(0);
-            for (const chat of chatSpans) {
-                expect(chat.parentSpanId).toBe(invokeAgentSpanId);
-            }
-            expect(
-                chatSpans.some((span) =>
-                    (getStringAttribute(span, "gen_ai.input.messages") ?? "").includes(prompt)
-                )
-            ).toBe(true);
-            expect(
-                chatSpans.some((span) =>
-                    (getStringAttribute(span, "gen_ai.output.messages") ?? "").includes(
-                        "TELEMETRY_E2E_DONE"
-                    )
-                )
-            ).toBe(true);
-
-            const toolSpan = spans.find(
-                (span) => getStringAttribute(span, "gen_ai.operation.name") === "execute_tool"
-            );
-            expect(toolSpan).toBeDefined();
-            expect(toolSpan!.parentSpanId).toBe(invokeAgentSpanId);
-            expect(getStringAttribute(toolSpan!, "gen_ai.tool.name")).toBe(toolName);
-            expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.id")).toBeTruthy();
-            expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.arguments")).toBe(
-                `{"value":"${marker}"}`
-            );
-            expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.result")).toBe(marker);
+        expect(spans.length).toBeGreaterThan(0);
+        for (const span of spans) {
+            expect(span.instrumentationScope?.name).toBe(sourceName);
         }
-    );
+
+        // All spans for one SDK turn must share the same trace id and must not be in error state.
+        const traceIds = Array.from(
+            new Set(spans.map((span) => span.traceId).filter((id): id is string => Boolean(id)))
+        );
+        expect(traceIds).toHaveLength(1);
+        for (const span of spans) {
+            expect(span.status?.code).not.toBe(2);
+        }
+
+        const invokeAgentSpan = spans.find(
+            (span) => getStringAttribute(span, "gen_ai.operation.name") === "invoke_agent"
+        );
+        expect(invokeAgentSpan).toBeDefined();
+        expect(getStringAttribute(invokeAgentSpan!, "gen_ai.conversation.id")).toBe(
+            session.sessionId
+        );
+        expect(isRootSpan(invokeAgentSpan!)).toBe(true);
+        const invokeAgentSpanId = invokeAgentSpan!.spanId;
+        expect(invokeAgentSpanId).toBeTruthy();
+
+        const chatSpans = spans.filter(
+            (span) => getStringAttribute(span, "gen_ai.operation.name") === "chat"
+        );
+        expect(chatSpans.length).toBeGreaterThan(0);
+        for (const chat of chatSpans) {
+            expect(chat.parentSpanId).toBe(invokeAgentSpanId);
+        }
+        expect(
+            chatSpans.some((span) =>
+                (getStringAttribute(span, "gen_ai.input.messages") ?? "").includes(prompt)
+            )
+        ).toBe(true);
+        expect(
+            chatSpans.some((span) =>
+                (getStringAttribute(span, "gen_ai.output.messages") ?? "").includes(
+                    "TELEMETRY_E2E_DONE"
+                )
+            )
+        ).toBe(true);
+
+        const toolSpan = spans.find(
+            (span) => getStringAttribute(span, "gen_ai.operation.name") === "execute_tool"
+        );
+        expect(toolSpan).toBeDefined();
+        expect(toolSpan!.parentSpanId).toBe(invokeAgentSpanId);
+        expect(getStringAttribute(toolSpan!, "gen_ai.tool.name")).toBe(toolName);
+        expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.id")).toBeTruthy();
+        expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.arguments")).toBe(
+            `{"value":"${marker}"}`
+        );
+        expect(getStringAttribute(toolSpan!, "gen_ai.tool.call.result")).toBe(marker);
+    });
 });

@@ -191,9 +191,15 @@ export async function createSdkTestContext({
         // Fill in the bundled CLI path for child-process connections that omit it
         // (e.g. a bare RuntimeConnection.forStdio() used to pin telemetry to stdio).
         if (effectiveConnection.kind === "stdio" && effectiveConnection.path === undefined) {
-            effectiveConnection = RuntimeConnection.forStdio({ ...effectiveConnection, path: cliPath });
+            effectiveConnection = RuntimeConnection.forStdio({
+                ...effectiveConnection,
+                path: cliPath,
+            });
         } else if (effectiveConnection.kind === "tcp" && effectiveConnection.path === undefined) {
-            effectiveConnection = RuntimeConnection.forTcp({ ...effectiveConnection, path: cliPath });
+            effectiveConnection = RuntimeConnection.forTcp({
+                ...effectiveConnection,
+                path: cliPath,
+            });
         }
         const effectiveInProcess = effectiveConnection.kind === "inprocess";
 
