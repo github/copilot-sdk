@@ -90,6 +90,7 @@ public class ResumeSessionConfig {
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
+    private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
@@ -1448,6 +1449,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the tool-search configuration.
+     *
+     * @return the tool-search config, or {@code null} for the runtime default
+     */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /**
+     * Sets the tool-search configuration.
+     *
+     * @param toolSearch
+     *            the tool-search config
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
+        return this;
+    }
+
+    /**
      * Gets the configuration for session memory.
      *
      * @return the memory config, or {@code null} for default
@@ -1837,6 +1859,7 @@ public class ResumeSessionConfig {
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
+        copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;

@@ -91,6 +91,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
         new() { SingleReader = true });
 
     /// <summary>
+    /// Fixed name of the runtime's built-in tool-search tool. A client can
+    /// replace its behavior by registering a tool with this exact name and
+    /// <c>OverridesBuiltInTool</c> set to <c>true</c>.
+    /// </summary>
+    private const string ToolSearchToolName = "tool_search_tool";
+
+    /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
@@ -840,6 +847,26 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 ToolName = toolName,
                 Arguments = arguments
             };
+
+            // The built-in tool-search tool receives a snapshot of the session's
+            // currently initialized tools so an override can filter the live
+            // catalog without issuing its own RPC. Fetch it only for that tool
+            // to avoid a round-trip on every tool call; a failed fetch leaves
+            // the snapshot null rather than failing the tool.
+            if (toolName == ToolSearchToolName)
+            {
+                try
+                {
+                    var metadata = await Rpc.Tools.GetCurrentMetadataAsync();
+                    invocation.AvailableTools = metadata.Tools;
+                }
+                catch (Exception ex) when (ex is RemoteRpcException or IOException or ObjectDisposedException or JsonException)
+                {
+                    // A failed metadata fetch is non-fatal: leave AvailableTools
+                    // null so the tool still runs without the snapshot.
+                    LogToolMetadataFetchFailed(ex, toolName);
+                }
+            }
 
             var aiFunctionArgs = new AIFunctionArguments
             {
@@ -1906,6 +1933,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in session event handler")]
     private partial void LogEventHandlerError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
+    private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
 
     internal record SendMessageRequest
     {

@@ -1137,6 +1137,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                ToolSearch: config.ToolSearch,
                 Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
@@ -1348,6 +1349,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InstructionDirectories: config.InstructionDirectories,
                 PluginDirectories: config.PluginDirectories,
                 LargeOutput: config.LargeOutput,
+                ToolSearch: config.ToolSearch,
                 Memory: config.Memory,
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
@@ -2689,6 +2691,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        ToolSearchConfig? ToolSearch = null,
         MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,
@@ -2790,6 +2793,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? InstructionDirectories = null,
         IList<string>? PluginDirectories = null,
         LargeToolOutputConfig? LargeOutput = null,
+        ToolSearchConfig? ToolSearch = null,
         MemoryConfiguration? Memory = null,
 #pragma warning disable GHCP001
         IList<CanvasDeclaration>? Canvases = null,

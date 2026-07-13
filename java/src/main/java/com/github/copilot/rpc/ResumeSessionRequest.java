@@ -178,6 +178,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("largeOutput")
     private LargeToolOutputConfig largeOutput;
 
+    @JsonProperty("toolSearch")
+    private ToolSearchConfig toolSearch;
+
     @JsonProperty("memory")
     private MemoryConfiguration memory;
 
@@ -838,6 +841,16 @@ public final class ResumeSessionRequest {
     /** Sets large output config. @param largeOutput the large output config */
     public void setLargeOutput(LargeToolOutputConfig largeOutput) {
         this.largeOutput = largeOutput;
+    }
+
+    /** Gets tool-search config. @return the tool-search config */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /** Sets tool-search config. @param toolSearch the tool-search config */
+    public void setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
     }
 
     /** Gets memory config. @return the memory config */

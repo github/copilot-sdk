@@ -20,7 +20,7 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
-use crate::generated::api_types::OpenCanvasInstance;
+use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -755,6 +755,45 @@ impl LargeToolOutputConfig {
     /// Set the directory where large tool output files are written.
     pub fn with_output_directory<P: Into<PathBuf>>(mut self, output_directory: P) -> Self {
         self.output_directory = Some(output_directory.into());
+        self
+    }
+}
+
+/// Overrides the runtime's built-in tool-search behavior.
+///
+/// Tool search defers tools to keep the model's active tool set small.
+/// To override the tool-search tool's implementation, register a [`Tool`]
+/// named `"tool_search_tool"` with [`Tool::overrides_built_in_tool`] set to `true`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ToolSearchConfig {
+    /// Toggle to enable/disable tool search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// The tool count above which MCP and external tools are deferred behind
+    /// tool search. When unset, the runtime default (30) applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer_threshold: Option<u32>,
+}
+
+impl ToolSearchConfig {
+    /// Construct an empty [`ToolSearchConfig`]; all fields default to unset
+    /// (the runtime applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle that enables or disables tool search.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the tool count above which MCP and external tools are deferred
+    /// behind tool search.
+    pub fn with_defer_threshold(mut self, defer_threshold: u32) -> Self {
+        self.defer_threshold = Some(defer_threshold);
         self
     }
 }
@@ -1714,6 +1753,10 @@ pub struct SessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior, which defers
+    /// rarely used tools behind a searchable index. When unset, the runtime
+    /// default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
@@ -1926,6 +1969,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -2037,6 +2081,7 @@ impl Default for SessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -2195,6 +2240,7 @@ impl SessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -2606,6 +2652,13 @@ impl SessionConfig {
         self
     }
 
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on session create.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
+        self
+    }
+
     /// Set the names of skills to disable (overrides skill discovery).
     pub fn with_disabled_skills<I, S>(mut self, names: I) -> Self
     where
@@ -2903,6 +2956,9 @@ pub struct ResumeSessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI on resume.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior on resume. When
+    /// unset, the runtime default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
@@ -3082,6 +3138,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -3237,6 +3294,7 @@ impl ResumeSessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -3326,6 +3384,7 @@ impl ResumeSessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -3714,6 +3773,13 @@ impl ResumeSessionConfig {
     /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on resume.
     pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
         self.large_output = Some(config);
+        self
+    }
+
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on resume.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
         self
     }
 
@@ -4843,6 +4909,15 @@ pub struct ToolInvocation {
     pub tool_name: String,
     /// Tool arguments as JSON.
     pub arguments: Value,
+    /// Snapshot of the session's currently initialized tools.
+    ///
+    /// The SDK populates this only when the invocation targets the built-in
+    /// tool-search tool (`tool_search_tool`), so a tool-search override can
+    /// rank/filter the live catalog — including MCP tools configured in
+    /// settings — without issuing its own RPC. `None` for every other tool
+    /// invocation. This field is not part of the wire protocol.
+    #[serde(skip)]
+    pub available_tools: Option<Vec<CurrentToolMetadata>>,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI
@@ -4906,8 +4981,14 @@ pub struct ToolBinaryResult {
 }
 
 /// Expanded tool result with metadata for the LLM and session log.
+///
+/// This type is `#[non_exhaustive]`: it mirrors a growing wire shape, so
+/// construct it via [`ToolResultExpanded::new`] plus the `with_*` chain
+/// rather than a struct literal, allowing new fields to land without
+/// breaking callers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ToolResultExpanded {
     /// Result text sent back to the LLM.
     pub text_result_for_llm: String,
@@ -4925,6 +5006,60 @@ pub struct ToolResultExpanded {
     /// Tool-specific telemetry emitted with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, Value>>,
+    /// Names of tools returned by a tool-search tool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_references: Option<Vec<String>>,
+}
+
+impl ToolResultExpanded {
+    /// Construct an expanded result with the required `text_result_for_llm`
+    /// and `result_type` (`"success"` or `"failure"`). All optional metadata
+    /// fields start unset; populate them with the `with_*` builders.
+    pub fn new(text_result_for_llm: impl Into<String>, result_type: impl Into<String>) -> Self {
+        Self {
+            text_result_for_llm: text_result_for_llm.into(),
+            result_type: result_type.into(),
+            binary_results_for_llm: None,
+            session_log: None,
+            error: None,
+            tool_telemetry: None,
+            tool_references: None,
+        }
+    }
+
+    /// Set the binary payloads returned to the LLM.
+    pub fn with_binary_results(mut self, results: Vec<ToolBinaryResult>) -> Self {
+        self.binary_results_for_llm = Some(results);
+        self
+    }
+
+    /// Set the log message for the session timeline.
+    pub fn with_session_log(mut self, session_log: impl Into<String>) -> Self {
+        self.session_log = Some(session_log.into());
+        self
+    }
+
+    /// Set the error message, marking the tool as failed.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
+        self
+    }
+
+    /// Set the tool-specific telemetry emitted with the result.
+    pub fn with_tool_telemetry(mut self, telemetry: HashMap<String, Value>) -> Self {
+        self.tool_telemetry = Some(telemetry);
+        self
+    }
+
+    /// Set the names of tools returned by a tool-search tool.
+    pub fn with_tool_references<I, S>(mut self, references: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.tool_references = Some(references.into_iter().map(Into::into).collect());
+        self
+    }
 }
 
 /// Result of a tool invocation — either a plain text string or an expanded result.
@@ -5355,6 +5490,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
@@ -5389,6 +5525,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
@@ -5396,6 +5533,70 @@ mod tests {
 
         assert_eq!(wire["result"]["textResultForLlm"], "ok");
         assert!(wire["result"].get("binaryResultsForLlm").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_serializes_tool_references() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(
+                ToolResultExpanded::new("found 2 tools", "success")
+                    .with_tool_references(["get_weather", "check_status"]),
+            ),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(
+            wire,
+            json!({
+                "result": {
+                    "textResultForLlm": "found 2 tools",
+                    "resultType": "success",
+                    "toolReferences": ["get_weather", "check_status"]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_omits_tool_references_when_none() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(ToolResultExpanded::new("ok", "success")),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(wire["result"]["textResultForLlm"], "ok");
+        assert!(wire["result"].get("toolReferences").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_with_tool_references_accepts_owned_strings() {
+        // The builder is generic over `Into<String>`, so an owned `Vec<String>`
+        // must compile and populate the field just like a `&str` array.
+        let names: Vec<String> = vec!["alpha".to_string(), "beta".to_string()];
+        let expanded = ToolResultExpanded::new("ok", "success").with_tool_references(names);
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_deserializes_tool_references() {
+        let wire = json!({
+            "textResultForLlm": "found tools",
+            "resultType": "success",
+            "toolReferences": ["alpha", "beta"]
+        });
+
+        let expanded: ToolResultExpanded = serde_json::from_value(wire).unwrap();
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
     }
 
     #[test]

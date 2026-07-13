@@ -21,9 +21,11 @@ import type {
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
+    CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type {
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
@@ -436,6 +438,10 @@ export type ToolResultObject = {
     error?: string;
     sessionLog?: string;
     toolTelemetry?: ToolTelemetry;
+    /**
+     * Names of tools returned by a tool-search tool.
+     */
+    toolReferences?: string[];
 };
 
 export type ToolResult = string | ToolResultObject;
@@ -560,6 +566,14 @@ export interface ToolInvocation {
     toolCallId: string;
     toolName: string;
     arguments: unknown;
+    /**
+     * Snapshot of the session's currently initialized tools. Populated by the
+     * SDK only when this invocation targets the built-in tool-search tool
+     * (`tool_search_tool`), so a tool-search override can rank/filter the live
+     * catalog — including MCP tools configured in settings — without issuing its
+     * own RPC. `undefined` for every other tool invocation.
+     */
+    availableTools?: CurrentToolMetadata[];
     /** W3C Trace Context traceparent from the CLI's execute_tool span. */
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
@@ -630,6 +644,35 @@ export function defineTool<T = unknown>(
     }
 ): Tool<T> {
     return { name, ...config };
+}
+
+/**
+ * SDK-supplied override for the runtime's built-in tool-search behavior.
+ *
+ * Tool search lets the model discover tools on demand instead of loading every
+ * tool definition up front. When the total tool count exceeds the deferral
+ * threshold, MCP and external tools are marked as deferred and surfaced through
+ * the built-in `tool_search_tool`.
+ *
+ * To override the tool-search tool's model-facing definition and/or its
+ * execution, register a {@link Tool} named `tool_search_tool` with
+ * `overridesBuiltInTool: true`. To customize the in-prompt tool-search
+ * guidance, use the `tool_instructions` section of {@link SystemMessageConfig}
+ * in `"customize"` mode.
+ */
+export interface ToolSearchConfig {
+    /**
+     * Toggle to enable/disable tool search. When disabled, all tools are pre-loaded
+     * and the model's active tool set is not deferred.
+     */
+    enabled?: boolean;
+
+    /**
+     * Overrides the total tool count at which MCP and external tools are
+     * automatically deferred behind tool search. Defaults to the built-in
+     * threshold (30) when omitted.
+     */
+    deferThreshold?: number;
 }
 
 // ============================================================================
@@ -1928,6 +1971,15 @@ export interface SessionConfigBase {
      * Controls how the system prompt is constructed
      */
     systemMessage?: SystemMessageConfig;
+
+    /**
+     * Override for the runtime's built-in tool-search behavior.
+     *
+     * To also override the tool-search tool's implementation, register a
+     * {@link Tool} named `tool_search_tool` with `overridesBuiltInTool: true` in
+     * {@link SessionConfigBase.tools}.
+     */
+    toolSearch?: ToolSearchConfig;
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.

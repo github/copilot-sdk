@@ -159,6 +159,13 @@ public final class CopilotSession implements AutoCloseable {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     /**
+     * Fixed name of the runtime's built-in tool-search tool. A client can replace
+     * its behavior by registering a tool with this exact name and
+     * {@code overridesBuiltInTool} set to {@code true}.
+     */
+    private static final String TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
+
+    /**
      * The current active session ID. Initialized to the pre-generated value and may
      * be updated after session.create / session.resume if the server returns a
      * different ID (e.g. when working against a v2 CLI that ignores the
@@ -899,6 +906,32 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Populates the invocation's available-tools snapshot when it targets the
+     * built-in tool-search tool, so an override can filter the live catalog without
+     * issuing its own RPC. The snapshot is fetched only for that tool to avoid a
+     * round-trip on every ordinary tool call; a failed fetch leaves the snapshot
+     * {@code null} rather than failing the tool. Shared by both server-to-client
+     * tool dispatch paths ({@link RpcHandlerDispatcher} and
+     * {@link #executeToolAndRespondAsync}).
+     *
+     * @param toolName
+     *            the name of the tool being invoked
+     * @param invocation
+     *            the invocation to populate in place
+     */
+    void populateToolSearchMetadata(String toolName, com.github.copilot.rpc.ToolInvocation invocation) {
+        if (!TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+            return;
+        }
+        try {
+            var metadata = getRpc().tools.getCurrentMetadata().join();
+            invocation.setAvailableTools(metadata.tools());
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+        }
+    }
+
+    /**
      * Executes a tool handler and sends the result back via
      * {@code session.tools.handlePendingToolCall}.
      */
@@ -911,6 +944,8 @@ public final class CopilotSession implements AutoCloseable {
                         : (arguments != null ? MAPPER.valueToTree(arguments) : null);
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
+
+                populateToolSearchMetadata(toolName, invocation);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {

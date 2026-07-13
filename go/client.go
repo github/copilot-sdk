@@ -722,6 +722,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.ToolSearch = config.ToolSearch
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
@@ -1088,6 +1089,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.ToolSearch = config.ToolSearch
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession

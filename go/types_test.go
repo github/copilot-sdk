@@ -203,6 +203,57 @@ func TestCustomAgentConfig_JSONOmitsNilTools(t *testing.T) {
 	}
 }
 
+func TestToolResult_JSONIncludesToolReferences(t *testing.T) {
+	result := ToolResult{
+		TextResultForLLM: "found 2 tools",
+		ResultType:       "success",
+		ToolReferences:   []string{"get_weather", "check_status"},
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ToolResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ToolResult: %v", err)
+	}
+
+	rawRefs, present := decoded["toolReferences"]
+	if !present {
+		t.Fatal("expected toolReferences to be present")
+	}
+	refs, ok := rawRefs.([]any)
+	if !ok {
+		t.Fatalf("expected toolReferences array, got %T", rawRefs)
+	}
+	if len(refs) != 2 || refs[0] != "get_weather" || refs[1] != "check_status" {
+		t.Errorf("unexpected toolReferences: %v", refs)
+	}
+}
+
+func TestToolResult_JSONOmitsNilToolReferences(t *testing.T) {
+	result := ToolResult{
+		TextResultForLLM: "ok",
+		ResultType:       "success",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ToolResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ToolResult: %v", err)
+	}
+
+	if _, present := decoded["toolReferences"]; present {
+		t.Errorf("expected toolReferences to be omitted for nil slice, got %v", decoded["toolReferences"])
+	}
+}
+
 func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
 	cfg := CustomAgentConfig{
 		Name:   "no-model-agent",

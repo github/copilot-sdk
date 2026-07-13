@@ -75,6 +75,7 @@ from .copilot_request_handler import (
     LlmInferenceHeaders,
 )
 from .generated.rpc import (
+    CurrentToolMetadata,
     GitHubTelemetryClientInfo,
     GitHubTelemetryEvent,
     GitHubTelemetryNotification,
@@ -157,6 +158,7 @@ from .session import (
     SessionUiApi,
     SessionUiCapabilities,
     SystemMessageConfig,
+    ToolSearchConfig,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
@@ -216,6 +218,7 @@ __all__ = [
     "CopilotWebSocketCloseStatus",
     "CopilotWebSocketHandler",
     "CreateSessionFsHandler",
+    "CurrentToolMetadata",
     "ElicitationContext",
     "ElicitationHandler",
     "ElicitationParams",
@@ -332,6 +335,7 @@ __all__ = [
     "ToolInvocation",
     "ToolResult",
     "ToolResultType",
+    "ToolSearchConfig",
     "ToolSet",
     "UriRuntimeConnection",
     "UserInputHandler",

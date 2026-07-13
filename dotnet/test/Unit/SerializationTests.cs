@@ -856,6 +856,48 @@ public class SerializationTests
         // else: property omitted, which is fine (runtime treats undefined output as no-op)
     }
 
+    [Fact]
+    public void ToolResultObject_SerializesToolReferences_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new ToolResultObject
+        {
+            TextResultForLlm = "found 2 tools",
+            ResultType = "success",
+            ToolReferences = ["get_weather", "check_status"],
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("found 2 tools", root.GetProperty("textResultForLlm").GetString());
+        var refs = root.GetProperty("toolReferences");
+        Assert.Equal(JsonValueKind.Array, refs.ValueKind);
+        Assert.Equal(2, refs.GetArrayLength());
+        Assert.Equal("get_weather", refs[0].GetString());
+        Assert.Equal("check_status", refs[1].GetString());
+
+        var deserialized = JsonSerializer.Deserialize<ToolResultObject>(json, options);
+        Assert.NotNull(deserialized);
+        string[] expectedReferences = ["get_weather", "check_status"];
+        Assert.Equal(expectedReferences, deserialized!.ToolReferences);
+    }
+
+    [Fact]
+    public void ToolResultObject_OmitsToolReferences_WhenNull_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new ToolResultObject
+        {
+            TextResultForLlm = "ok",
+            ResultType = "success",
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
+    }
+
     private static JsonSerializerOptions GetSerializerOptions()
     {
         var prop = typeof(CopilotClient)

@@ -948,6 +948,18 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
+// ToolSearchConfig allows to configure tool search behavior.
+// Tool search defers tools to keep the model's active tool set small.
+// To override the tool-search tool's implementation, register a
+// [Tool] named "tool_search_tool" with OverridesBuiltInTool set to true.
+type ToolSearchConfig struct {
+	// Controls whether tool search is enabled.
+	Enabled *bool `json:"enabled,omitempty"`
+	// DeferThreshold is the tool count above which MCP and external tools are
+	// deferred behind tool search. When nil, the runtime default (30) applies.
+	DeferThreshold *int `json:"deferThreshold,omitempty"`
+}
+
 // SessionFSCapabilities declares optional provider capabilities.
 type SessionFSCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
@@ -1153,6 +1165,10 @@ type SessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// ToolSearch overrides the runtime's built-in tool-search behavior, which
+	// defers rarely used tools behind a searchable index. When nil, the runtime
+	// default applies.
+	ToolSearch *ToolSearchConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -1290,6 +1306,14 @@ type ToolInvocation struct {
 	ToolName   string
 	Arguments  any
 
+	// AvailableTools is a snapshot of the session's currently initialized
+	// tools. The SDK populates it only when this invocation targets the
+	// built-in tool-search tool ("tool_search_tool"), so a tool-search
+	// override can rank/filter the live catalog -- including MCP tools
+	// configured in settings -- without issuing its own RPC. It is nil for
+	// every other tool invocation.
+	AvailableTools []rpc.CurrentToolMetadata
+
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
 	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
@@ -1309,6 +1333,8 @@ type ToolResult struct {
 	Error               string             `json:"error,omitempty"`
 	SessionLog          string             `json:"sessionLog,omitempty"`
 	ToolTelemetry       map[string]any     `json:"toolTelemetry,omitempty"`
+	// ToolReferences lists names of tools returned by a tool-search tool.
+	ToolReferences []string `json:"toolReferences,omitempty"`
 }
 
 // CommandContext provides context about a slash-command invocation.
@@ -1605,6 +1631,10 @@ type ResumeSessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// ToolSearch overrides the runtime's built-in tool-search behavior, which
+	// defers rarely used tools behind a searchable index. When nil, the runtime
+	// default applies.
+	ToolSearch *ToolSearchConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -2125,6 +2155,7 @@ type createSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
@@ -2216,6 +2247,7 @@ type resumeSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`

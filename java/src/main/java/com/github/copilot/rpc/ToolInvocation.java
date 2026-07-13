@@ -4,6 +4,7 @@
 
 package com.github.copilot.rpc;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.CurrentToolMetadata;
 
 /**
  * Represents a tool invocation request from the AI assistant.
@@ -40,6 +42,7 @@ public final class ToolInvocation {
     private String toolCallId;
     private String toolName;
     private JsonNode argumentsNode;
+    private List<CurrentToolMetadata> availableTools;
 
     /**
      * Gets the session ID where the tool was invoked.
@@ -172,6 +175,37 @@ public final class ToolInvocation {
     @JsonSetter("arguments")
     public ToolInvocation setArguments(JsonNode arguments) {
         this.argumentsNode = arguments;
+        return this;
+    }
+
+    /**
+     * Gets a snapshot of the session's currently initialized tools.
+     * <p>
+     * The SDK populates this only when the invocation targets the built-in
+     * tool-search tool ({@code "tool_search_tool"}), so a tool-search override can
+     * rank or filter the live catalog — including MCP tools configured in settings
+     * — without issuing its own RPC. It is {@code null} for every other tool
+     * invocation.
+     *
+     * @return the available tools snapshot, or {@code null} if not applicable
+     * @since 1.0.7
+     */
+    public List<CurrentToolMetadata> getAvailableTools() {
+        return availableTools;
+    }
+
+    /**
+     * Sets the available tools snapshot.
+     * <p>
+     * <strong>Note:</strong> This method is intended for internal SDK use. Users
+     * typically do not need to call this method directly.
+     *
+     * @param availableTools
+     *            the available tools snapshot
+     * @return this invocation for method chaining
+     */
+    public ToolInvocation setAvailableTools(List<CurrentToolMetadata> availableTools) {
+        this.availableTools = availableTools;
         return this;
     }
 }

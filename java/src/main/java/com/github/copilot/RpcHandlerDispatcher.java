@@ -162,6 +162,8 @@ final class RpcHandlerDispatcher {
                 var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
                         .setToolName(toolName).setArguments(arguments);
 
+                session.populateToolSearchMetadata(toolName, invocation);
+
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {
                         ToolResultObject toolResult;
