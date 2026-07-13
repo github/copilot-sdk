@@ -400,9 +400,8 @@ class ChildProcessRuntimeConnection(RuntimeConnection):
     env: dict[str, str] | None = None
     """Per-connection environment variables for the spawned child process.
 
-    Coherent only for child-process transports (each client owns its own OS
-    process). When set, do not also set :attr:`CopilotClientOptions.env` — the
-    client rejects setting environment in both places. ``None`` inherits the
+    When set, do not also set :attr:`CopilotClientOptions.env` — the client
+    rejects setting environment in both places. ``None`` inherits the
     client-level env (or the current process env)."""
 
 

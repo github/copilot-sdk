@@ -2007,6 +2007,77 @@ describe("CopilotClient", () => {
                 /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
             );
         });
+
+        it("should throw error when env is used with forInProcess", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                    env: { FOO: "bar" },
+                    logLevel: "error",
+                });
+            }).toThrow(/env is not supported with RuntimeConnection.forInProcess/);
+        });
+
+        it("should throw error when telemetry is used with forInProcess", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                    telemetry: { otlpEndpoint: "http://localhost:4318" },
+                    logLevel: "error",
+                });
+            }).toThrow(/telemetry is not supported with RuntimeConnection.forInProcess/);
+        });
+
+        it("should throw error when workingDirectory is used with forInProcess", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                    workingDirectory: "/tmp",
+                    logLevel: "error",
+                });
+            }).toThrow(/workingDirectory is not supported with RuntimeConnection.forInProcess/);
+        });
+
+        it("should throw error when env is set on both the client and a stdio connection", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forStdio({ env: { FOO: "conn" } }),
+                    env: { FOO: "client" },
+                    logLevel: "error",
+                });
+            }).toThrow(
+                /Set environment variables via either the client-level env option or the connection/
+            );
+        });
+
+        it("should throw error when env is set on both the client and a tcp connection", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forTcp({ env: { FOO: "conn" } }),
+                    env: { FOO: "client" },
+                    logLevel: "error",
+                });
+            }).toThrow(
+                /Set environment variables via either the client-level env option or the connection/
+            );
+        });
+
+        it("should use the connection-level env for child-process transports", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forStdio({ env: { FOO: "from-conn" } }),
+                logLevel: "error",
+            });
+            expect((client as any).resolvedEnv).toEqual({ FOO: "from-conn" });
+        });
+
+        it("should allow env on the client alone with a child-process transport", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forStdio(),
+                env: { FOO: "from-client" },
+                logLevel: "error",
+            });
+            expect((client as any).resolvedEnv).toEqual({ FOO: "from-client" });
+        });
     });
 
     describe("overridesBuiltInTool in tool definitions", () => {

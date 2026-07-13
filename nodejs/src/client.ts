@@ -644,6 +644,32 @@ export class CopilotClient {
                     "constructing the client instead."
             );
         }
+        if (conn.kind === "inprocess" && options.env !== undefined) {
+            throw new Error(
+                "env is not supported with RuntimeConnection.forInProcess(): the in-process transport loads " +
+                    "the native runtime into the shared host process, whose single environment block cannot " +
+                    "carry per-client values. Set the variables on the host process environment instead."
+            );
+        }
+        if (conn.kind === "inprocess" && options.telemetry !== undefined) {
+            throw new Error(
+                "telemetry is not supported with RuntimeConnection.forInProcess(): telemetry configuration " +
+                    "is lowered to environment variables read by native runtime code running in the shared " +
+                    "host process, so per-client telemetry cannot be honored in-process. Configure telemetry " +
+                    "via the host process environment, or use a child-process transport."
+            );
+        }
+        if (
+            (conn.kind === "stdio" || conn.kind === "tcp") &&
+            conn.env !== undefined &&
+            options.env !== undefined
+        ) {
+            throw new Error(
+                "Set environment variables via either the client-level env option or the connection's env " +
+                    "(RuntimeConnection.forStdio/forTcp), not both. Prefer the connection-level env for " +
+                    "child-process transports."
+            );
+        }
         if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
             if (typeof conn.connectionToken !== "string" || conn.connectionToken.length === 0) {
                 throw new Error("connectionToken must be a non-empty string");
@@ -681,7 +707,13 @@ export class CopilotClient {
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
-        const effectiveEnv = options.env ?? process.env;
+        // Connection-level env (child-process transports only) takes precedence
+        // over the client-level env, which falls back to the ambient process env.
+        // The constructor guard above rejects setting both, so at most one of the
+        // first two is defined. Mirrors .NET/Python precedence.
+        const connEnv: Record<string, string> | undefined =
+            conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : undefined;
+        const effectiveEnv = connEnv ?? options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
         this.resolvedCliPath =
             conn.kind === "stdio" || conn.kind === "tcp"
