@@ -69,10 +69,12 @@ internal static class InProcessEnvIsolation
 
     public static void RestoreAmbient()
     {
-        if (!string.Equals(Directory.GetCurrentDirectory(), s_ambientCwd, StringComparison.Ordinal))
-        {
-            Directory.SetCurrentDirectory(s_ambientCwd);
-        }
+        // Unconditionally repoint the process cwd at its load-time value. We must
+        // not read Directory.GetCurrentDirectory() first: an in-process test can
+        // chdir into a temp work dir that the harness then deletes, so getcwd()
+        // would throw FileNotFoundException. SetCurrentDirectory to an absolute
+        // path succeeds regardless of whether the old cwd still exists.
+        Directory.SetCurrentDirectory(s_ambientCwd);
 
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
         {

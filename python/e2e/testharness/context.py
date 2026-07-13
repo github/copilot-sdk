@@ -148,6 +148,23 @@ class E2ETestContext:
         self._restore_cwd = os.getcwd()
         os.chdir(self.work_dir)
 
+    def add_runtime_env(self, key: str, value: str) -> None:
+        """Set an env var seen by the runtime, honoring the active transport.
+
+        Child-process transports read env from the client's env block, but the
+        in-process worker inherits *this* process's environment, so the var must
+        live on ``os.environ`` (and be restored in teardown). Must be called
+        before the runtime starts (i.e., before the first ``create_session``).
+        """
+        if self._inprocess:
+            self._restore_env.append((key, os.environ.get(key)))
+            os.environ[key] = value
+        else:
+            options = self.client._options
+            if options.env is None:
+                options.env = {}
+            options.env[key] = value
+
     def _restore_inprocess_environment(self) -> None:
         """Undo the in-process environment mirror and cwd change from setup."""
         for key, previous in reversed(self._restore_env):

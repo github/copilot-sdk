@@ -85,7 +85,7 @@ def _paths_equal(left: str, right: str | None) -> bool:
 @pytest.fixture(scope="module")
 async def authed_ctx(ctx: E2ETestContext):
     """Configure proxy to redirect GitHub user lookups so per-token auth works."""
-    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
+    ctx.add_runtime_env("COPILOT_DEBUG_GITHUB_API_URL", ctx.proxy_url)
     return ctx
 
 
