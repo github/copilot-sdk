@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `ShutdownModelMetricTokenDetail` type.
+ * A token-type entry in a shutdown model metric, storing the accumulated token count.
  *
  * @since 1.0.0
  */

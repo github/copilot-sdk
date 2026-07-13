@@ -35,6 +35,13 @@
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
     <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
+    <!-- FFI in-process hosting cdylib, renamed from the tarball's napi-style
+         prebuilds/<platform>/runtime.node to the natural platform shared-library
+         name (what the Rust cdylib would be called if napi didn't rename it to
+         .node). The .NET host loads it by absolute path, so the name is ours. -->
+    <_CopilotRuntimeLib Condition="$(_CopilotRid.StartsWith('win-'))">copilot_runtime.dll</_CopilotRuntimeLib>
+    <_CopilotRuntimeLib Condition="$(_CopilotRid.StartsWith('osx-'))">libcopilot_runtime.dylib</_CopilotRuntimeLib>
+    <_CopilotRuntimeLib Condition="'$(_CopilotRuntimeLib)' == ''">libcopilot_runtime.so</_CopilotRuntimeLib>
   </PropertyGroup>
 
   <!-- Allow customization of the npm registry URL used to download the Copilot CLI.
@@ -119,10 +126,16 @@
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotOutputDir>$(OutDir)runtimes\$(_CopilotRid)\native</_CopilotOutputDir>
+      <!-- FFI in-process hosting cdylib. Loaded by the SDK in-proc (not needed
+           for stdio), so only emitted when the tarball ships it. Copied from the
+           tarball's prebuilds/<npm-platform>/runtime.node to a flat, natural
+           shared-library name next to the CLI binary. -->
+      <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <MakeDir Directories="$(_CopilotOutputDir)" />
     <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotBinary)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(_CopilotRuntimeNodePath)" DestinationFiles="$(_CopilotOutputDir)\$(_CopilotRuntimeLib)" SkipUnchangedFiles="true" Condition="Exists('$(_CopilotRuntimeNodePath)')" />
   </Target>
 
   <!-- Register CLI binary as content so it flows through project references.
@@ -131,12 +144,18 @@
     <PropertyGroup>
       <_CopilotCacheDir Condition="'$(_CopilotCacheDir)' == ''">$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath Condition="'$(_CopilotCliBinaryPath)' == ''">$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotRuntimeNodePath>$(_CopilotCacheDir)\prebuilds\$(_CopilotPlatform)\runtime.node</_CopilotRuntimeNodePath>
     </PropertyGroup>
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Copilot CLI binary not found at '$(_CopilotCliBinaryPath)'. Set CopilotCliBinaryPath to an existing CLI binary for the current RID, or remove CopilotSkipCliDownload=true to let the SDK download it." />
     <ItemGroup>
       <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
                              TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"
                              CopyToOutputDirectory="PreserveNewest" />
+      <!-- FFI cdylib (only when the tarball ships it); see _CopyCopilotCliToOutput. -->
+      <ContentWithTargetPath Include="$(_CopilotRuntimeNodePath)"
+                             TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotRuntimeLib)"
+                             CopyToOutputDirectory="PreserveNewest"
+                             Condition="Exists('$(_CopilotRuntimeNodePath)')" />
     </ItemGroup>
   </Target>
 </Project>

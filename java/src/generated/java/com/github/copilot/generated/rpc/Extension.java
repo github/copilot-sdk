@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `Extension` type.
+ * Discovered extension metadata, including source-qualified ID, name, discovery source, status, and optional process ID.
  *
  * @since 1.0.0
  */

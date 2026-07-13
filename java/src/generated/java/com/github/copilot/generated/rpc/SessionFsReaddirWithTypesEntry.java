@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `SessionFsReaddirWithTypesEntry` type.
+ * Directory entry returned by session filesystem `readdirWithTypes`, with name and entry type.
  *
  * @since 1.0.0
  */

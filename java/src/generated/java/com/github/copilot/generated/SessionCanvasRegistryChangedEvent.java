@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.canvas.registry_changed".
+ * Session event "session.canvas.registry_changed". Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

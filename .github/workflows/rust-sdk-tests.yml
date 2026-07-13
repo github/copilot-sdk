@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   test:
-    name: "Rust SDK Tests"
+    name: "Rust SDK Tests (${{ matrix.os }}, default)"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
@@ -84,7 +84,7 @@ jobs:
       # Share the bundled-CLI archive cache with the `bundle` job: build.rs
       # now downloads in both modes (embed for `bundle`, extract-to-cache
       # for this `test` job's `--no-default-features` build).
-      - name: Cache bundled CLI tarball
+      - name: Cache bundled CLI archives
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
@@ -98,7 +98,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
+        run: cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
       - name: cargo doc
         if: runner.os == 'Linux'
@@ -129,6 +129,84 @@ jobs:
         # The dedicated `bundle` job below exercises the embed pipeline.
         run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
+  # Exercises the in-process FFI transport (`Transport::InProcess`, the Rust
+  # analogue of the .NET `RuntimeConnection.ForInProcess()`), mirroring the
+  # `inprocess` transport cell in dotnet-sdk-tests.yml. Sets
+  # COPILOT_SDK_DEFAULT_CONNECTION=inprocess so the client hosts the runtime
+  # cdylib in-process instead of spawning a stdio child, then runs the whole
+  # E2E suite over the in-process transport. The suite runs serially in-process
+  # (the harness forces concurrency to 1) because it mirrors each test's
+  # environment onto the shared process environment the in-process worker inherits.
+  # Runs the whole E2E suite over the in-process transport on supported hosts.
+  test-inprocess:
+    name: "Rust SDK Tests (${{ matrix.os }}, inprocess)"
+    if: github.event.repository.fork == false
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./rust
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: "1.94.0"
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: "rust"
+          prefix-key: v1-rust-no-bin
+          cache-bin: false
+
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      - name: Cache bundled CLI archives
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
+
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: Select in-process transport
+        run: echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
+
+      - name: cargo test (in-process transport, full E2E suite)
+        timeout-minutes: 60
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        # The harness forces serial execution in-process (both the async semaphore and
+        # libtest via --test-threads=1) because it mirrors each test's environment onto
+        # the shared process environment, so RUST_E2E_CONCURRENCY is not set here.
+        run: cargo test --no-default-features --features test-support,bundled-in-process --test e2e -- --test-threads=1 --nocapture
+
   # Validates the bundled-CLI build path on all three supported
   # platforms. While the regular `cargo test` job above also exercises
   # build.rs (bundling is on by default now), this matrix job is the
@@ -136,7 +214,7 @@ jobs:
   # extract / embed pipeline. Catches regressions before they ship to
   # crates.io and before bundling consumers hit them downstream.
   bundle:
-    name: "Rust SDK Bundled CLI Build"
+    name: "Rust SDK Bundled CLI Build (${{ matrix.os }})"
     if: github.event.repository.fork == false
     env:
       CARGO_TERM_COLOR: always
@@ -180,13 +258,15 @@ jobs:
       # ~130 MB on every CI invocation. Keyed by OS + CLI version so old
       # archives drop out when the pinned version bumps, keeping the
       # cache bounded.
-      - name: Cache bundled CLI tarball
+      - name: Cache bundled CLI archives
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: cargo build (bundled-cli is the default feature)
+      - name: Test bundled CLI build paths
         env:
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo build
+        run: |
+          cargo build
+          cargo test --features bundled-in-process --lib embedded_archive_contains_only_expected_files

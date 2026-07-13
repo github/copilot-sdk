@@ -13,9 +13,9 @@
 //! configs hold trait-object handlers, the wire structs hold only the
 //! plain data the runtime needs.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
+use indexmap::IndexMap;
 use serde::Serialize;
 
 use crate::canvas::CanvasDeclaration;
@@ -24,10 +24,10 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CapiSessionOptions, CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
-    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, MemoryConfiguration,
-    NamedProviderConfig, ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig,
-    SystemMessageConfig, Tool,
+    CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
+    DefaultAgentConfig, ExtensionInfo, InfiniteSessionConfig, LargeToolOutputConfig,
+    McpServerConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
+    SessionId, SessionLimitsConfig, SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -74,6 +74,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_info: Option<ExtensionInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_provider: Option<CanvasProviderIdentity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -83,7 +85,7 @@ pub(crate) struct SessionCreateWire {
     /// naturally (everything matching X except Y).
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,6 +122,8 @@ pub(crate) struct SessionCreateWire {
     pub plugin_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub large_output: Option<LargeToolOutputConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_search: Option<ToolSearchConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,10 +164,17 @@ pub(crate) struct SessionCreateWire {
     pub cloud: Option<CloudSessionOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryForwarding",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -200,6 +211,8 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_info: Option<ExtensionInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_provider: Option<CanvasProviderIdentity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
@@ -208,7 +221,7 @@ pub(crate) struct SessionResumeWire {
     /// SDK always sends `"excluded"`. See create-wire docs.
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_oauth_token_storage: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -245,6 +258,8 @@ pub(crate) struct SessionResumeWire {
     pub plugin_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub large_output: Option<LargeToolOutputConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_search: Option<ToolSearchConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -283,6 +298,11 @@ pub(crate) struct SessionResumeWire {
     pub remote_session: Option<RemoteSessionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
+    #[serde(
+        rename = "enableGitHubTelemetryForwarding",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_github_telemetry_forwarding: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<CommandWireDefinition>>,
     /// Maps to wire field `disableResume`.
@@ -292,4 +312,6 @@ pub(crate) struct SessionResumeWire {
     pub continue_pending_work: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_managed_settings: Option<bool>,
 }

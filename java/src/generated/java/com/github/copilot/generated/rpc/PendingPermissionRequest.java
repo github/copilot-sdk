@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `PendingPermissionRequest` type.
+ * Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
  *
  * @since 1.0.0
  */

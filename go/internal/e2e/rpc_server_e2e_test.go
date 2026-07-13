@@ -3,6 +3,7 @@ package e2e
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -193,6 +194,44 @@ func TestRPCServerE2E(t *testing.T) {
 		}
 		if !result.Ok {
 			t.Fatalf("Expected AddFilterValues Ok=true, got %+v", result)
+		}
+	})
+
+	t.Run("should return false for missing LLM response frames", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		client := ctx.NewClient()
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		start, err := client.RPC.LlmInference.HttpResponseStart(t.Context(), &rpc.LlmInferenceHTTPResponseStartRequest{
+			RequestID:  "missing-response-start-request",
+			Status:     200,
+			StatusText: rpcPtr("OK"),
+			Headers: map[string][]string{
+				"content-type": {"application/json"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("LlmInference.HttpResponseStart failed: %v", err)
+		}
+		if start.Accepted {
+			t.Fatal("Expected Accepted=false for missing LLM response start request id")
+		}
+
+		end := true
+		chunk, err := client.RPC.LlmInference.HttpResponseChunk(t.Context(), &rpc.LlmInferenceHTTPResponseChunkRequest{
+			RequestID: "missing-response-chunk-request",
+			Data:      "{}",
+			End:       &end,
+		})
+		if err != nil {
+			t.Fatalf("LlmInference.HttpResponseChunk failed: %v", err)
+		}
+		if chunk.Accepted {
+			t.Fatal("Expected Accepted=false for missing LLM response chunk request id")
 		}
 	})
 
@@ -554,6 +593,82 @@ func TestRPCServerE2E(t *testing.T) {
 			t.Errorf("Expected skill path to end with %q, got %v", expectedSuffix, discovered.Path)
 		}
 
+		excludeHost := true
+		skillPaths, err := client.RPC.Skills.GetDiscoveryPaths(t.Context(), &rpc.SkillsGetDiscoveryPathsRequest{
+			ProjectPaths:      []string{ctx.WorkDir},
+			ExcludeHostSkills: &excludeHost,
+		})
+		if err != nil {
+			t.Fatalf("Skills.GetDiscoveryPaths failed: %v", err)
+		}
+		projectSkillPath := findSkillDiscoveryPath(skillPaths.Paths, ctx.WorkDir)
+		if projectSkillPath == nil {
+			t.Fatalf("Expected skill discovery paths to include %q", ctx.WorkDir)
+		}
+		if strings.TrimSpace(projectSkillPath.Path) == "" {
+			t.Fatal("Expected non-empty skill discovery path")
+		}
+
+		agents, err := client.RPC.Agents.Discover(t.Context(), &rpc.AgentsDiscoverRequest{
+			ProjectPaths:      []string{ctx.WorkDir},
+			ExcludeHostAgents: &excludeHost,
+		})
+		if err != nil {
+			t.Fatalf("Agents.Discover failed: %v", err)
+		}
+		for _, agent := range agents.Agents {
+			if strings.TrimSpace(agent.Name) == "" {
+				t.Fatalf("Expected discovered agent to have a name: %+v", agent)
+			}
+		}
+
+		agentPaths, err := client.RPC.Agents.GetDiscoveryPaths(t.Context(), &rpc.AgentsGetDiscoveryPathsRequest{
+			ProjectPaths:      []string{ctx.WorkDir},
+			ExcludeHostAgents: &excludeHost,
+		})
+		if err != nil {
+			t.Fatalf("Agents.GetDiscoveryPaths failed: %v", err)
+		}
+		projectAgentPath := findAgentDiscoveryPath(agentPaths.Paths, ctx.WorkDir)
+		if projectAgentPath == nil {
+			t.Fatalf("Expected agent discovery paths to include %q", ctx.WorkDir)
+		}
+		if strings.TrimSpace(projectAgentPath.Path) == "" {
+			t.Fatal("Expected non-empty agent discovery path")
+		}
+
+		instructions, err := client.RPC.Instructions.Discover(t.Context(), &rpc.InstructionsDiscoverRequest{
+			ProjectPaths:            []string{ctx.WorkDir},
+			ExcludeHostInstructions: &excludeHost,
+		})
+		if err != nil {
+			t.Fatalf("Instructions.Discover failed: %v", err)
+		}
+		for _, source := range instructions.Sources {
+			if strings.TrimSpace(source.ID) == "" || strings.TrimSpace(source.Label) == "" || strings.TrimSpace(source.SourcePath) == "" {
+				t.Fatalf("Expected discovered instruction source fields to be populated: %+v", source)
+			}
+		}
+
+		instructionPaths, err := client.RPC.Instructions.GetDiscoveryPaths(t.Context(), &rpc.InstructionsGetDiscoveryPathsRequest{
+			ProjectPaths:            []string{ctx.WorkDir},
+			ExcludeHostInstructions: &excludeHost,
+		})
+		if err != nil {
+			t.Fatalf("Instructions.GetDiscoveryPaths failed: %v", err)
+		}
+		if len(instructionPaths.Paths) == 0 {
+			t.Fatal("Expected instruction discovery paths")
+		}
+		if !hasInstructionDiscoveryPath(instructionPaths.Paths, ctx.WorkDir) {
+			t.Fatalf("Expected instruction discovery paths to include %q", ctx.WorkDir)
+		}
+		for _, path := range instructionPaths.Paths {
+			if strings.TrimSpace(path.Path) == "" {
+				t.Fatalf("Expected non-empty instruction discovery path: %+v", path)
+			}
+		}
+
 		// Disable the skill globally and re-discover.
 		if _, err := client.RPC.Skills.Config().SetDisabledSkills(t.Context(), &rpc.SkillsConfigSetDisabledSkillsRequest{
 			DisabledSkills: []string{skillName},
@@ -613,6 +728,42 @@ func findServerSkill(skills []rpc.ServerSkill, name string) *rpc.ServerSkill {
 		}
 	}
 	return nil
+}
+
+func findSkillDiscoveryPath(paths []rpc.SkillDiscoveryPath, projectPath string) *rpc.SkillDiscoveryPath {
+	for i, path := range paths {
+		if path.ProjectPath != nil && path.PreferredForCreation && pathsEqual(*path.ProjectPath, projectPath) {
+			return &paths[i]
+		}
+	}
+	return nil
+}
+
+func findAgentDiscoveryPath(paths []rpc.AgentDiscoveryPath, projectPath string) *rpc.AgentDiscoveryPath {
+	for i, path := range paths {
+		if path.ProjectPath != nil && path.PreferredForCreation && pathsEqual(*path.ProjectPath, projectPath) {
+			return &paths[i]
+		}
+	}
+	return nil
+}
+
+func hasInstructionDiscoveryPath(paths []rpc.InstructionDiscoveryPath, projectPath string) bool {
+	for _, path := range paths {
+		if path.ProjectPath != nil && pathsEqual(*path.ProjectPath, projectPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func pathsEqual(left, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func saveSession(t *testing.T, client *copilot.Client, sessionID string) {

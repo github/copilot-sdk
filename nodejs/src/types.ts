@@ -17,12 +17,20 @@ import type {
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type {
+    GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
+    CurrentToolMetadata,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { CurrentToolMetadata } from "./generated/rpc.js";
+export type {
+    GitHubTelemetryNotification,
+    GitHubTelemetryEvent,
+    GitHubTelemetryClientInfo,
+} from "./generated/rpc.js";
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
@@ -90,25 +98,60 @@ export interface TelemetryConfig {
  */
 export type RuntimeConnection =
     | StdioRuntimeConnection
+    | InProcessRuntimeConnection
     | TcpRuntimeConnection
     | UriRuntimeConnection;
+
+/**
+ * Shared shape for the transports that spawn a runtime **child process**
+ * ({@link StdioRuntimeConnection} and {@link TcpRuntimeConnection}).
+ */
+export interface ChildProcessRuntimeConnection {
+    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
+    readonly path?: string;
+    /** Extra command-line arguments to pass to the runtime process. */
+    readonly args?: readonly string[];
+    /**
+     * Environment variables for the spawned runtime child process, replacing the
+     * inherited environment. Cannot be combined with
+     * {@link CopilotClientOptions.env}; setting both throws when the client is
+     * constructed. When omitted, the client-level env (or `process.env`) is used.
+     */
+    readonly env?: Record<string, string>;
+}
 
 /**
  * Spawns a runtime child process and communicates over its stdin/stdout.
  * This is the default if no {@link CopilotClientOptions.connection} is set.
  */
-export interface StdioRuntimeConnection {
+export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
     readonly kind: "stdio";
-    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
-    readonly path?: string;
-    /** Extra command-line arguments to pass to the runtime process. */
-    readonly args?: readonly string[];
+}
+
+/**
+ * Hosts the runtime in-process by loading the native runtime library and speaking
+ * JSON-RPC over its C ABI (FFI), instead of spawning a runtime child process. The
+ * native host spawns the CLI worker itself. Construct via
+ * {@link RuntimeConnection.forInProcess}.
+ *
+ * @experimental The in-process (FFI) transport is experimental and its behavior may
+ * change. Per-client options that are lowered to environment variables — including
+ * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
+ * {@link CopilotClientOptions.gitHubToken}, and
+ * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
+ * transport, because the native runtime loads into the shared host process and its
+ * worker inherits that process's ambient environment. To configure the in-process
+ * runtime, set the corresponding environment variables on the host process before
+ * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
+ */
+export interface InProcessRuntimeConnection {
+    readonly kind: "inprocess";
 }
 
 /**
  * Spawns a runtime child process that listens on a TCP socket and connects to it.
  */
-export interface TcpRuntimeConnection {
+export interface TcpRuntimeConnection extends ChildProcessRuntimeConnection {
     readonly kind: "tcp";
     /**
      * TCP port to listen on. `0` (the default) auto-allocates a free port.
@@ -121,10 +164,6 @@ export interface TcpRuntimeConnection {
      * loopback listener is safe by default.
      */
     readonly connectionToken?: string;
-    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
-    readonly path?: string;
-    /** Extra command-line arguments to pass to the runtime process. */
-    readonly args?: readonly string[];
 }
 
 /**
@@ -148,8 +187,10 @@ export const RuntimeConnection = {
      * Spawn a runtime child process and communicate over its stdin/stdout.
      * This is the default if no {@link CopilotClientOptions.connection} is set.
      */
-    forStdio(opts: { path?: string; args?: readonly string[] } = {}): StdioRuntimeConnection {
-        return { kind: "stdio", path: opts.path, args: opts.args };
+    forStdio(
+        opts: { path?: string; args?: readonly string[]; env?: Record<string, string> } = {}
+    ): StdioRuntimeConnection {
+        return { kind: "stdio", path: opts.path, args: opts.args, env: opts.env };
     },
     /**
      * Spawn a runtime child process that listens on a TCP socket and connect to it.
@@ -160,6 +201,7 @@ export const RuntimeConnection = {
             connectionToken?: string;
             path?: string;
             args?: readonly string[];
+            env?: Record<string, string>;
         } = {}
     ): TcpRuntimeConnection {
         return {
@@ -168,6 +210,7 @@ export const RuntimeConnection = {
             connectionToken: opts.connectionToken,
             path: opts.path,
             args: opts.args,
+            env: opts.env,
         };
     },
     /**
@@ -176,6 +219,18 @@ export const RuntimeConnection = {
      */
     forUri(url: string, opts: { connectionToken?: string } = {}): UriRuntimeConnection {
         return { kind: "uri", url, connectionToken: opts.connectionToken };
+    },
+    /**
+     * Host the runtime in-process over the native runtime library's C ABI (FFI).
+     *
+     * @experimental Per-client options lowered to environment variables (`env`,
+     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
+     * the worker inherits the host process's ambient environment. Set the
+     * corresponding environment variables on the host process instead. See
+     * https://github.com/github/copilot-sdk/issues/1934.
+     */
+    forInProcess(): InProcessRuntimeConnection {
+        return { kind: "inprocess" };
     },
 } as const;
 
@@ -340,6 +395,18 @@ export interface CopilotClientOptions {
     requestHandler?: CopilotRequestHandler;
 
     /**
+     * Experimental. Receives GitHub telemetry events the runtime forwards to
+     * this connection. When set, the client opts each session it creates or
+     * resumes into telemetry forwarding and dispatches each
+     * `gitHubTelemetry.event` notification to this connection-global handler;
+     * each {@link GitHubTelemetryNotification} carries its originating
+     * `sessionId`.
+     *
+     * @experimental
+     */
+    onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
+
+    /**
      * Server-wide idle timeout for sessions in seconds.
      * Sessions without activity for this duration are automatically cleaned up.
      * Set to 0 or omit to disable (sessions live indefinitely).
@@ -385,6 +452,10 @@ export type ToolResultObject = {
     error?: string;
     sessionLog?: string;
     toolTelemetry?: ToolTelemetry;
+    /**
+     * Names of tools returned by a tool-search tool.
+     */
+    toolReferences?: string[];
 };
 
 export type ToolResult = string | ToolResultObject;
@@ -509,6 +580,14 @@ export interface ToolInvocation {
     toolCallId: string;
     toolName: string;
     arguments: unknown;
+    /**
+     * Snapshot of the session's currently initialized tools. Populated by the
+     * SDK only when this invocation targets the built-in tool-search tool
+     * (`tool_search_tool`), so a tool-search override can rank/filter the live
+     * catalog — including MCP tools configured in settings — without issuing its
+     * own RPC. `undefined` for every other tool invocation.
+     */
+    availableTools?: CurrentToolMetadata[];
     /** W3C Trace Context traceparent from the CLI's execute_tool span. */
     traceparent?: string;
     /** W3C Trace Context tracestate from the CLI's execute_tool span. */
@@ -579,6 +658,35 @@ export function defineTool<T = unknown>(
     }
 ): Tool<T> {
     return { name, ...config };
+}
+
+/**
+ * SDK-supplied override for the runtime's built-in tool-search behavior.
+ *
+ * Tool search lets the model discover tools on demand instead of loading every
+ * tool definition up front. When the total tool count exceeds the deferral
+ * threshold, MCP and external tools are marked as deferred and surfaced through
+ * the built-in `tool_search_tool`.
+ *
+ * To override the tool-search tool's model-facing definition and/or its
+ * execution, register a {@link Tool} named `tool_search_tool` with
+ * `overridesBuiltInTool: true`. To customize the in-prompt tool-search
+ * guidance, use the `tool_instructions` section of {@link SystemMessageConfig}
+ * in `"customize"` mode.
+ */
+export interface ToolSearchConfig {
+    /**
+     * Toggle to enable/disable tool search. When disabled, all tools are pre-loaded
+     * and the model's active tool set is not deferred.
+     */
+    enabled?: boolean;
+
+    /**
+     * Overrides the total tool count at which MCP and external tools are
+     * automatically deferred behind tool search. Defaults to the built-in
+     * threshold (30) when omitted.
+     */
+    deferThreshold?: number;
 }
 
 // ============================================================================
@@ -1697,6 +1805,23 @@ export interface ExtensionInfo {
 }
 
 /**
+ * Stable identity for a host/SDK connection that supplies built-in canvases.
+ *
+ * When set on session create or resume, the runtime uses {@link id} verbatim
+ * as the agent-facing canvas extension id, so canvases declared on a control
+ * connection survive stdio reconnect and CLI process restart instead of being
+ * re-keyed to a per-connection id. The id is opaque to the runtime; a
+ * per-window-stable value such as `app:builtin:<windowId>` is recommended. An
+ * id beginning with `connection:` is reserved and ignored by the runtime.
+ */
+export interface CanvasProviderIdentity {
+    /** Opaque, stable provider id used verbatim as the canvas extension id. */
+    id: string;
+    /** Optional display name surfaced as the canvas extension name. */
+    name?: string;
+}
+
+/**
  * Provider-scoped options for the Copilot API (CAPI).
  *
  * These settings apply to the built-in Copilot API provider only. They live
@@ -1841,6 +1966,14 @@ export interface SessionConfigBase {
     extensionInfo?: ExtensionInfo;
 
     /**
+     * Stable identity for a host/SDK connection that supplies built-in
+     * canvases. When set, the runtime uses `id` verbatim as the agent-facing
+     * canvas extension id, so canvases declared on a control connection survive
+     * reconnect and CLI restart. Honored on session create and resume.
+     */
+    canvasProvider?: CanvasProviderIdentity;
+
+    /**
      * Slash commands registered for this session.
      * When the CLI has a TUI, each command appears as `/name` for the user to invoke.
      * The handler is called when the user executes the command.
@@ -1852,6 +1985,15 @@ export interface SessionConfigBase {
      * Controls how the system prompt is constructed
      */
     systemMessage?: SystemMessageConfig;
+
+    /**
+     * Override for the runtime's built-in tool-search behavior.
+     *
+     * To also override the tool-search tool's implementation, register a
+     * {@link Tool} named `tool_search_tool` with `overridesBuiltInTool: true` in
+     * {@link SessionConfigBase.tools}.
+     */
+    toolSearch?: ToolSearchConfig;
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.
@@ -2170,6 +2312,14 @@ export interface SessionConfigBase {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * Opt-in: when true, the runtime self-fetches enterprise managed settings
+     * (bypass-permissions policy) at session bootstrap using the session's
+     * `gitHubToken`. Requires {@link SessionConfigBase.gitHubToken} to be set;
+     * if omitted, the runtime is expected to reject session creation (fail-closed).
+     */
+    enableManagedSettings?: boolean;
 
     /**
      * When true, skips embedding-based retrieval for this session.

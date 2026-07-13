@@ -16,9 +16,12 @@ import (
 )
 
 type interceptedRequest struct {
-	url       string
-	sessionID string
-	body      string
+	url             string
+	sessionID       string
+	agentID         string
+	parentAgentID   string
+	interactionType string
+	body            string
 }
 
 // recordingTransport intercepts every model-layer request, records its URL and
@@ -32,8 +35,14 @@ type recordingTransport struct {
 func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	rctx := copilot.RequestContextFrom(req)
 	sessionID := ""
+	agentID := ""
+	parentAgentID := ""
+	interactionType := ""
 	if rctx != nil {
 		sessionID = rctx.SessionID
+		agentID = rctx.AgentID
+		parentAgentID = rctx.ParentAgentID
+		interactionType = rctx.InteractionType
 	}
 	bodyBytes := []byte(nil)
 	if req.Body != nil {
@@ -42,7 +51,14 @@ func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	bodyText := string(bodyBytes)
 
 	rt.mu.Lock()
-	rt.records = append(rt.records, interceptedRequest{url: req.URL.String(), sessionID: sessionID, body: bodyText})
+	rt.records = append(rt.records, interceptedRequest{
+		url:             req.URL.String(),
+		sessionID:       sessionID,
+		agentID:         agentID,
+		parentAgentID:   parentAgentID,
+		interactionType: interactionType,
+		body:            bodyText,
+	})
 	rt.mu.Unlock()
 
 	if isInferenceURL(req.URL.String()) {
@@ -61,6 +77,16 @@ func (rt *recordingTransport) inferenceRecords() []interceptedRequest {
 		}
 	}
 	return out
+}
+
+func assertAgentMetadata(t *testing.T, r interceptedRequest) {
+	t.Helper()
+	if r.agentID == "" {
+		t.Fatal("inference request must carry an agent id")
+	}
+	if r.interactionType == "" {
+		t.Fatal("inference request must carry an interaction type")
+	}
 }
 
 func TestCopilotRequestSessionID(t *testing.T) {
@@ -99,6 +125,7 @@ func TestCopilotRequestSessionID(t *testing.T) {
 			if r.sessionID != capiSessionID {
 				t.Fatalf("CAPI inference request must carry session id %q, got %q", capiSessionID, r.sessionID)
 			}
+			assertAgentMetadata(t, r)
 		}
 
 		// Validate the final assistant response arrived (guards against truncated captures)
@@ -140,6 +167,7 @@ func TestCopilotRequestSessionID(t *testing.T) {
 			if r.sessionID != byokSessionID {
 				t.Fatalf("BYOK inference request must carry session id %q, got %q", byokSessionID, r.sessionID)
 			}
+			assertAgentMetadata(t, r)
 		}
 
 		if byokSessionID == capiSessionID {

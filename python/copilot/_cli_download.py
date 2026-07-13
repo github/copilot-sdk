@@ -16,6 +16,7 @@ Environment variables:
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import os
@@ -35,6 +36,9 @@ from ._cli_version import (
     get_asset_info,
     get_checksums_url,
     get_download_url,
+    get_npm_platform,
+    get_runtime_lib_packument_url,
+    get_runtime_lib_url,
 )
 
 _CACHE_DIR_NAME = "github-copilot-sdk"
@@ -304,6 +308,153 @@ def download_cli(version: str | None = None, *, force: bool = False) -> str:
     return str(binary_path)
 
 
+def _fetch_url_bytes(url: str, *, timeout: int) -> bytes:
+    """Download bytes from ``url`` with retries."""
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return response.read()
+        except (HTTPError, URLError) as exc:
+            last_exc = exc
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(2**attempt)
+    raise RuntimeError(f"Failed to download from {url}: {last_exc}") from last_exc
+
+
+def _fetch_runtime_integrity(npm_platform: str, version: str) -> str | None:
+    """Return the npm ``dist.integrity`` (Subresource Integrity) for the tarball.
+
+    Best-effort: returns None if the packument can't be fetched or parsed.
+    """
+    import json
+
+    url = get_runtime_lib_packument_url(npm_platform)
+    try:
+        raw = _fetch_url_bytes(url, timeout=30)
+        packument = json.loads(raw)
+        dist = packument.get("versions", {}).get(version, {}).get("dist", {})
+        integrity = dist.get("integrity")
+        return integrity if isinstance(integrity, str) else None
+    except (RuntimeError, ValueError, KeyError):
+        return None
+
+
+def _verify_integrity(data: bytes, integrity: str) -> None:
+    """Verify data against an npm Subresource Integrity string (e.g. ``sha512-<b64>``)."""
+    algo, _, b64 = integrity.partition("-")
+    algo = algo.lower()
+    if algo not in ("sha512", "sha384", "sha256"):
+        # Fail closed: an unrecognized algorithm means we cannot verify this native
+        # library, so refuse rather than loading unverified native code.
+        raise RuntimeError(
+            f"Unsupported integrity algorithm '{algo}' for the in-process runtime "
+            "library; refusing to load unverified native code."
+        )
+    expected = base64.b64decode(b64)
+    actual = hashlib.new(algo, data).digest()
+    if actual != expected:
+        raise RuntimeError(
+            f"Integrity mismatch for runtime library ({algo}): "
+            "downloaded tarball does not match the npm registry checksum."
+        )
+
+
+def _extract_runtime_node(data: bytes, npm_platform: str) -> bytes:
+    """Extract ``package/prebuilds/<npm_platform>/runtime.node`` from an npm tarball."""
+    target = f"package/prebuilds/{npm_platform}/runtime.node"
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        for name in tf.getnames():
+            if name == target or name.endswith(f"/prebuilds/{npm_platform}/runtime.node"):
+                member = tf.getmember(name)
+                extracted = tf.extractfile(member)
+                if extracted is not None:
+                    return extracted.read()
+        raise RuntimeError(f"'{target}' not found in runtime package for {npm_platform}.")
+
+
+def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | None:
+    """Ensure the native in-process (FFI) runtime library sits next to ``cli_path``.
+
+    The library is NOT part of the GitHub Releases CLI archive; it ships in the npm
+    platform package ``@github/copilot-<platform>`` under
+    ``package/prebuilds/<platform>/runtime.node``. This helper downloads that tarball
+    and writes the library next to the CLI binary under its natural platform name
+    (``libcopilot_runtime.so`` / ``.dylib`` / ``copilot_runtime.dll``).
+
+    This is opt-in — only invoked when the in-process transport is actually selected
+    (lazy) or via ``python -m copilot download-runtime --in-process`` (explicit). The
+    default stdio download path never fetches these extra bytes.
+
+    Returns the absolute path to the library, or None if it could not be provisioned
+    (e.g. download disabled or unsupported platform). Raises RuntimeError on
+    download/verification failure.
+    """
+    # Import lazily to avoid a hard dependency for stdio-only users.
+    from ._ffi_runtime_host import _natural_library_name, resolve_library_path
+
+    # Already present (bundled prebuilds layout in dev, or a prior download)?
+    existing = resolve_library_path(cli_path)
+    if existing is not None:
+        return existing
+
+    if _should_skip_download():
+        return None
+
+    ver = version or CLI_VERSION
+    if not ver:
+        return None
+
+    try:
+        npm_platform = get_npm_platform()
+    except RuntimeError:
+        return None
+
+    cli_dir = Path(cli_path).resolve().parent
+    lib_path = cli_dir / _natural_library_name()
+    if lib_path.exists():
+        return str(lib_path)
+
+    url = get_runtime_lib_url(ver, npm_platform)
+    data = _fetch_url_bytes(url, timeout=600)
+
+    integrity = _fetch_runtime_integrity(npm_platform, ver)
+    if not integrity:
+        # Fail closed: this native library is loaded into the host process, so it must
+        # be verified before use. The npm packument (which carries dist.integrity) was
+        # unavailable, so refuse rather than loading unverified native code — mirroring
+        # the CLI download, which requires a checksum. Retry when the registry is
+        # reachable, or install a runtime package that ships the library.
+        raise RuntimeError(
+            "No Subresource Integrity value available for the in-process runtime "
+            f"library ({npm_platform}@{ver}); refusing to load unverified native code."
+        )
+    _verify_integrity(data, integrity)
+
+    lib_bytes = _extract_runtime_node(data, npm_platform)
+
+    # Write atomically next to the CLI so concurrent starts don't observe a partial
+    # library. A rename within the same directory is atomic on POSIX and Windows.
+    cli_dir.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=cli_dir, prefix=".runtime-lib-")
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(lib_bytes)
+        os.replace(tmp_name, lib_path)
+    except OSError:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            # Best-effort cleanup of the temp file; ignore if it's already gone or
+            # can't be removed (the OS reclaims it, and it doesn't affect correctness).
+            pass
+        if lib_path.exists():
+            return str(lib_path)
+        raise
+
+    return str(lib_path)
+
+
 def get_or_download_cli(version: str | None = None) -> str | None:
     """Get the cached CLI binary, downloading it if necessary.
 
@@ -361,6 +512,15 @@ def main() -> None:
         "--version",
         help="Runtime version to download (default: pinned version)",
     )
+    dl_parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help=(
+            "Also download the native in-process (FFI) runtime library "
+            "(prebuilds/<platform>/runtime.node) and place it next to the CLI. "
+            "Only needed for the experimental in-process transport."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -378,6 +538,17 @@ def main() -> None:
         try:
             path = download_cli(ver, force=args.force)
             print(f"Runtime cached at: {path}")
+            if args.in_process:
+                print("Downloading in-process (FFI) runtime library...")
+                lib_path = ensure_runtime_library(path, ver)
+                if lib_path:
+                    print(f"Runtime library cached at: {lib_path}")
+                else:
+                    print(
+                        "Warning: could not provision the in-process runtime library "
+                        "(download disabled or unsupported platform).",
+                        file=sys.stderr,
+                    )
         except RuntimeError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)

@@ -57,6 +57,20 @@ async function waitWithTimeout<T>(
     }
 }
 
+async function waitForPendingPermissionRequestId(session: CopilotSession): Promise<string> {
+    const deadline = Date.now() + PENDING_WORK_TIMEOUT_MS;
+    do {
+        const pending = await session.rpc.permissions.pendingRequests();
+        const request = pending.items[0];
+        if (request) {
+            return request.requestId;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    } while (Date.now() < deadline);
+
+    throw new Error("Timeout waiting for pending permission request");
+}
+
 function waitForExternalToolRequests(
     session: CopilotSession,
     toolNames: string[]
@@ -205,7 +219,7 @@ describe("Pending work resume", async () => {
                     PENDING_WORK_TIMEOUT_MS,
                     "originalPermissionRequest"
                 );
-                const permissionEvent = await permissionRequestedP;
+                await permissionRequestedP;
                 expect(initialRequest.kind).toBe("custom-tool");
 
                 await suspendedClient.forceStop();
@@ -222,10 +236,11 @@ describe("Pending work resume", async () => {
                         }),
                     ],
                 });
+                const requestId = await waitForPendingPermissionRequestId(session2);
 
                 const permissionResult =
                     await session2.rpc.permissions.handlePendingPermissionRequest({
-                        requestId: permissionEvent.data.requestId,
+                        requestId,
                         result: { kind: "approve-once" },
                     });
                 expect(permissionResult.success).toBe(true);

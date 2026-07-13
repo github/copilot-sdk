@@ -122,6 +122,11 @@ type ClientOptions struct {
 	// this handler instead of issuing the calls itself. Works for both CAPI
 	// and BYOK sessions.
 	RequestHandler *CopilotRequestHandler
+	// OnGitHubTelemetry registers a connection-level callback (experimental)
+	// that receives GitHub telemetry events the runtime forwards for sessions
+	// opened by this client. When non-nil, every session created or resumed by
+	// this client opts into telemetry forwarding (enableGitHubTelemetryForwarding).
+	OnGitHubTelemetry func(notification *rpc.GitHubTelemetryNotification)
 	// Telemetry configures OpenTelemetry integration for the runtime.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
 	// fields are mapped to the corresponding environment variables.
@@ -943,6 +948,18 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
+// ToolSearchConfig allows to configure tool search behavior.
+// Tool search defers tools to keep the model's active tool set small.
+// To override the tool-search tool's implementation, register a
+// [Tool] named "tool_search_tool" with OverridesBuiltInTool set to true.
+type ToolSearchConfig struct {
+	// Controls whether tool search is enabled.
+	Enabled *bool `json:"enabled,omitempty"`
+	// DeferThreshold is the tool count above which MCP and external tools are
+	// deferred behind tool search. When nil, the runtime default (30) applies.
+	DeferThreshold *int `json:"deferThreshold,omitempty"`
+}
+
 // SessionFSCapabilities declares optional provider capabilities.
 type SessionFSCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
@@ -1148,6 +1165,10 @@ type SessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// ToolSearch overrides the runtime's built-in tool-search behavior, which
+	// defers rarely used tools behind a searchable index. When nil, the runtime
+	// default applies.
+	ToolSearch *ToolSearchConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -1230,6 +1251,9 @@ type SessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases, so they survive reconnect and CLI restart.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data for this session,
 	// in the same JSON shape the Copilot CLI fetches from the experimentation
 	// service (CopilotExpAssignmentResponse). When supplied, the runtime feeds
@@ -1242,6 +1266,12 @@ type SessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings, when set to true, opts the runtime into
+	// self-fetching enterprise managed settings (bypass-permissions policy) at
+	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
+	// be set; if omitted, the runtime is expected to reject session creation
+	// (fail-closed). Unset behaves exactly as before.
+	EnableManagedSettings *bool
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1276,6 +1306,14 @@ type ToolInvocation struct {
 	ToolName   string
 	Arguments  any
 
+	// AvailableTools is a snapshot of the session's currently initialized
+	// tools. The SDK populates it only when this invocation targets the
+	// built-in tool-search tool ("tool_search_tool"), so a tool-search
+	// override can rank/filter the live catalog -- including MCP tools
+	// configured in settings -- without issuing its own RPC. It is nil for
+	// every other tool invocation.
+	AvailableTools []rpc.CurrentToolMetadata
+
 	// TraceContext carries the W3C Trace Context propagated from the CLI's
 	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
 	// child spans created inside the handler are parented to the CLI span.
@@ -1295,6 +1333,8 @@ type ToolResult struct {
 	Error               string             `json:"error,omitempty"`
 	SessionLog          string             `json:"sessionLog,omitempty"`
 	ToolTelemetry       map[string]any     `json:"toolTelemetry,omitempty"`
+	// ToolReferences lists names of tools returned by a tool-search tool.
+	ToolReferences []string `json:"toolReferences,omitempty"`
 }
 
 // CommandContext provides context about a slash-command invocation.
@@ -1591,6 +1631,10 @@ type ResumeSessionConfig struct {
 	// output exceeding the configured size, the output is written to a temp file
 	// and a reference is returned to the model instead of the full payload.
 	LargeOutput *LargeToolOutputConfig
+	// ToolSearch overrides the runtime's built-in tool-search behavior, which
+	// defers rarely used tools behind a searchable index. When nil, the runtime
+	// default applies.
+	ToolSearch *ToolSearchConfig
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
@@ -1655,6 +1699,9 @@ type ResumeSessionConfig struct {
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
 	ExtensionInfo *ExtensionInfo
+	// CanvasProvider is the stable identity for a host/SDK connection that
+	// supplies built-in canvases. See SessionConfig.CanvasProvider.
+	CanvasProvider *CanvasProviderIdentity
 	// ExpAssignments injects ExP assignment ("flight") data on resume. See
 	// SessionConfig.ExpAssignments. Re-supply on resume so the runtime
 	// re-applies the assignments after a CLI process restart.
@@ -1663,6 +1710,10 @@ type ResumeSessionConfig struct {
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
 	ExpAssignments any
+	// EnableManagedSettings injects the same opt-in flag on resume. See
+	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
+	// re-applies the managed-settings self-fetch after a CLI process restart.
+	EnableManagedSettings *bool
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -2081,6 +2132,7 @@ type createSessionRequest struct {
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2103,6 +2155,7 @@ type createSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
@@ -2115,7 +2168,9 @@ type createSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2179,6 +2234,7 @@ type resumeSessionRequest struct {
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
 	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
@@ -2191,6 +2247,7 @@ type resumeSessionRequest struct {
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
+	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
@@ -2203,7 +2260,9 @@ type resumeSessionRequest struct {
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

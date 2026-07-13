@@ -11,8 +11,10 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from copilot import (
+    CanvasProviderIdentity,
     CapiSessionOptions,
     CopilotClient,
+    ExtensionInfo,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
@@ -553,6 +555,49 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["contextTier"] == "long_context"
             assert captured["session.resume"]["contextTier"] == "default"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_canvas_provider(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                extension_info=ExtensionInfo(source="github-app", name="counter"),
+                canvas_provider=CanvasProviderIdentity(id="app:builtin:window-1", name="Built-in"),
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                canvas_provider=CanvasProviderIdentity(id="app:builtin:window-1"),
+            )
+
+            assert captured["session.create"]["canvasProvider"] == {
+                "id": "app:builtin:window-1",
+                "name": "Built-in",
+            }
+            assert captured["session.create"]["extensionInfo"] == {
+                "source": "github-app",
+                "name": "counter",
+            }
+            assert captured["session.resume"]["canvasProvider"] == {
+                "id": "app:builtin:window-1",
+            }
         finally:
             await client.force_stop()
 
@@ -2272,3 +2317,261 @@ class TestPostToolUseFailureHookDispatch:
             },
         )
         assert result == {"additionalContext": "sync-ok"}
+
+
+class TestGitHubTelemetry:
+    """Unit tests for the experimental gitHubTelemetry.event consumer surface."""
+
+    @pytest.mark.asyncio
+    async def test_create_session_enables_forwarding_when_handler_registered(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=lambda _notification: None,
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert captured["session.create"]["enableGitHubTelemetryForwarding"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_omits_forwarding_without_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "enableGitHubTelemetryForwarding" not in captured["session.create"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_enables_forwarding_when_handler_registered(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=lambda _notification: None,
+        )
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert captured["session.resume"]["enableGitHubTelemetryForwarding"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_omits_forwarding_without_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "enableGitHubTelemetryForwarding" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_connect_enables_forwarding_when_handler_registered(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=lambda _notification: None,
+        )
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert captured["connect"]["enableGitHubTelemetryForwarding"] is True
+
+    @pytest.mark.asyncio
+    async def test_connect_omits_forwarding_without_handler(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        captured = {}
+
+        class _FakeClient:
+            async def request(self, method, params, **kwargs):
+                captured[method] = params
+                return {"ok": True, "protocolVersion": 3, "version": "test"}
+
+        client._client = _FakeClient()
+        await client._verify_protocol_version()
+        assert "enableGitHubTelemetryForwarding" not in captured["connect"]
+
+    @pytest.mark.asyncio
+    async def test_event_routes_to_handler(self):
+        from copilot.generated.rpc import GitHubTelemetryNotification
+
+        received: list = []
+
+        def on_telemetry(notification):
+            received.append(notification)
+
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=on_telemetry,
+        )
+        await client.start()
+
+        try:
+            # gitHubTelemetry.event is a JSON-RPC *notification*: the generated
+            # client-global dispatcher wires it into the notification-handler
+            # table, never the request-handler table. Regressing to request-style
+            # dispatch would drop the runtime's id-less telemetry frames.
+            assert "gitHubTelemetry.event" in client._client.notification_method_handlers
+            assert "gitHubTelemetry.event" not in client._client.request_handlers
+
+            # Drive a real id-less notification frame through the dispatcher to
+            # exercise the full from_dict decode + adapter + user-callback path.
+            client._client._handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-telemetry",
+                        "restricted": True,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 12.5},
+                            "properties": {"tool": "shell"},
+                            "session_id": "sess-telemetry",
+                        },
+                    },
+                }
+            )
+
+            # Notifications dispatch onto the event loop; yield until delivered.
+            for _ in range(100):
+                if received:
+                    break
+                await asyncio.sleep(0.01)
+
+            assert len(received) == 1
+            notification = received[0]
+            assert isinstance(notification, GitHubTelemetryNotification)
+            assert notification.session_id == "sess-telemetry"
+            assert notification.restricted is True
+            assert notification.event.kind == "tool_call_executed"
+            assert notification.event.metrics["duration_ms"] == 12.5
+            assert notification.event.properties["tool"] == "shell"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_event_routes_to_async_handler(self):
+        from copilot.generated.rpc import GitHubTelemetryNotification
+
+        received: list = []
+        delivered = asyncio.Event()
+
+        async def on_telemetry(notification):
+            await asyncio.sleep(0)
+            received.append(notification)
+            delivered.set()
+
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            on_github_telemetry=on_telemetry,
+        )
+        await client.start()
+
+        try:
+            client._client._handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-async-telemetry",
+                        "restricted": False,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 3.5},
+                            "properties": {"tool": "python"},
+                            "session_id": "sess-async-telemetry",
+                        },
+                    },
+                }
+            )
+
+            await asyncio.wait_for(delivered.wait(), timeout=1)
+
+            assert len(received) == 1
+            notification = received[0]
+            assert isinstance(notification, GitHubTelemetryNotification)
+            assert notification.session_id == "sess-async-telemetry"
+            assert notification.restricted is False
+            assert notification.event.kind == "tool_call_executed"
+            assert notification.event.metrics["duration_ms"] == 3.5
+            assert notification.event.properties["tool"] == "python"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_event_handler_not_registered_without_option(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
+            assert "gitHubTelemetry.event" not in client._client.request_handlers
+        finally:
+            await client.force_stop()

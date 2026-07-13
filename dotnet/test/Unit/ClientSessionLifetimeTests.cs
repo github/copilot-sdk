@@ -33,6 +33,20 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task DisposeAsync_Requests_Runtime_Shutdown_For_Owned_Process()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        using var process = StartExitedProcess();
+        await ReplaceConnectionCliProcessAsync(client, process);
+
+        await client.DisposeAsync();
+
+        Assert.Equal(1, server.RuntimeShutdownCount);
+    }
+
+    [Fact]
     public async Task StopAsync_Does_Not_Throw_When_Runtime_Shutdown_Fails()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -423,7 +437,7 @@ public sealed class ClientSessionLifetimeTests
         var rpc = connectionType.GetProperty("Rpc")!.GetValue(connection);
         var networkStream = connectionType.GetProperty("NetworkStream")!.GetValue(connection);
         var constructor = connectionType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).Single();
-        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null]);
+        var updatedConnection = constructor.Invoke([rpc, process, networkStream, null, null]);
         var fromResult = typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(connectionType);
         field.SetValue(client, fromResult.Invoke(null, [updatedConnection]));
     }

@@ -14,6 +14,7 @@ from copilot.canvas import (
     CanvasDeclaration,
     CanvasError,
     CanvasHandler,
+    CanvasProviderIdentity,
     ExtensionInfo,
     OpenCanvasInstance,
 )
@@ -65,6 +66,16 @@ def test_canvas_declaration_serializes_input_schema_and_actions():
 def test_extension_info_serializes():
     info = ExtensionInfo(source="github-app", name="my-ext")
     assert info.to_dict() == {"source": "github-app", "name": "my-ext"}
+
+
+def test_canvas_provider_identity_serializes():
+    provider = CanvasProviderIdentity(id="app:builtin:window-1", name="Built-in")
+    assert provider.to_dict() == {"id": "app:builtin:window-1", "name": "Built-in"}
+
+
+def test_canvas_provider_identity_drops_optional_name():
+    provider = CanvasProviderIdentity(id="app:builtin:window-1")
+    assert provider.to_dict() == {"id": "app:builtin:window-1"}
 
 
 def test_canvas_open_response_drops_none_fields():

@@ -87,6 +87,11 @@ from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
+# Fixed name of the runtime's built-in tool-search tool. A client can replace
+# its behavior by registering a tool with this exact name and
+# ``overrides_built_in_tool=True``.
+_TOOL_SEARCH_TOOL_NAME = "tool_search_tool"
+
 
 if TYPE_CHECKING:
     from .session_fs_provider import SessionFsProvider
@@ -1134,6 +1139,28 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class ToolSearchConfig(TypedDict, total=False):
+    """
+    Override for the runtime's built-in tool-search behavior.
+
+    Tool search lets the model discover tools on demand instead of loading every
+    tool definition up front. When the total tool count exceeds the deferral
+    threshold, MCP and external tools are marked as deferred and surfaced through
+    the built-in ``tool_search_tool``.
+
+    To override the tool-search tool's implementation, register a :class:`Tool`
+    named ``tool_search_tool`` with ``overrides_built_in_tool=True``. To customize
+    the in-prompt tool-search guidance, use the ``tool_instructions`` section of
+    the system message in ``"customize"`` mode.
+    """
+
+    # Toggle that enables or disables tool search.
+    enabled: bool
+    # Overrides the total tool count at which MCP and external tools are
+    # automatically deferred behind tool search.
+    defer_threshold: int
+
+
 class MemoryConfiguration(TypedDict):
     """
     Configuration for session memory.
@@ -1932,11 +1959,25 @@ class CopilotSession:
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
+            # The built-in tool-search tool receives a snapshot of the session's
+            # currently initialized tools so an override can filter the live
+            # catalog without issuing its own RPC. Fetch it only for that tool to
+            # avoid a round-trip on every tool call; a failed fetch leaves the
+            # snapshot as None rather than failing the tool.
+            available_tools = None
+            if tool_name == _TOOL_SEARCH_TOOL_NAME:
+                try:
+                    metadata = await self.rpc.tools.get_current_metadata()
+                    available_tools = metadata.tools
+                except Exception:
+                    available_tools = None
+
             invocation = ToolInvocation(
                 session_id=self.session_id,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
                 arguments=arguments,
+                available_tools=available_tools,
             )
 
             with trace_context(traceparent, tracestate):
@@ -1997,6 +2038,7 @@ class CopilotSession:
                             text_result_for_llm=tool_result.text_result_for_llm,
                             error=tool_result.error,
                             result_type=tool_result.result_type,
+                            tool_references=tool_result.tool_references,
                             tool_telemetry=tool_result.tool_telemetry,
                         ),
                     )

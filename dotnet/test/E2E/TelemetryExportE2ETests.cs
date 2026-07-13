@@ -24,6 +24,7 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
+            Connection = RuntimeConnection.ForStdio(),
             Telemetry = new TelemetryConfig
             {
                 FilePath = telemetryPath,

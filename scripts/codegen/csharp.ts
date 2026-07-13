@@ -230,7 +230,8 @@ function stripDurationMillisecondsSuffix(name: string): string {
 }
 
 function toCSharpPropertyName(propName: string, schema: JSONSchema7): string {
-    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(propName) : propName);
+    const normalizedName = propName.replace(/^_+/, "") || propName;
+    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(normalizedName) : normalizedName);
 }
 
 function isSecondsDurationPropertyName(propName: string | undefined): boolean {
@@ -1431,6 +1432,7 @@ let nonExperimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 let externalRpcValueTypes = new Set<string>();
+let rpcRootJsonSerializableTypes = new Set<string>();
 
 /** Schema definitions available during RPC generation (for $ref resolution). */
 let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
@@ -1703,7 +1705,11 @@ function emitRpcResultType(typeName: string, schema: JSONSchema7, visibility: "p
         return typeName;
     }
 
-    return resolveRpcType(schema, true, typeName, "", classes);
+    const resultType = resolveRpcType(schema, true, typeName, "", classes);
+    if (resultType.includes("<") || resultType.endsWith("[]")) {
+        rpcRootJsonSerializableTypes.add(resultType.replace(/\?$/, ""));
+    }
+    return resultType;
 }
 
 /**
@@ -2446,6 +2452,7 @@ function generateRpcCode(
     nonExperimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
+    rpcRootJsonSerializableTypes.clear();
     generatedEnums.clear(); // Clear shared enum deduplication map
     externalRpcValueTypes = new Set([...externalValueTypes].map(typeToClassName));
     rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
@@ -2513,7 +2520,9 @@ namespace GitHub.Copilot.Rpc;
     if (clientGlobalParts.length > 0) lines.push(...clientGlobalParts, "");
 
     // Add JsonSerializerContext for AOT/trimming support
-    const typeNames = [...emittedRpcClassSchemas.keys(), ...emittedRpcEnumResultTypes].sort();
+    const typeNames = [
+        ...new Set([...emittedRpcClassSchemas.keys(), ...emittedRpcEnumResultTypes, ...rpcRootJsonSerializableTypes]),
+    ].sort();
     if (typeNames.length > 0) {
         lines.push(`[JsonSourceGenerationOptions(`);
         lines.push(`    JsonSerializerDefaults.Web,`);

@@ -23,9 +23,9 @@ describe("Session workspace checkpoint RPC", async () => {
     it("should return null or empty content for unknown checkpoint", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         try {
-            const result = await session.rpc.workspaces.readCheckpoint({
-                number: Number.MAX_SAFE_INTEGER,
-            });
+            // A high but 32-bit-safe checkpoint number that will never exist in a fresh
+            // session, so the read reports the checkpoint as missing.
+            const result = await session.rpc.workspaces.readCheckpoint({ number: 4294967294 });
             expect(result.content ?? "").toBe("");
         } finally {
             await session.disconnect();

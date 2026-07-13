@@ -722,15 +722,20 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.ToolSearch = config.ToolSearch
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
 	req.Canvases = config.Canvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -759,6 +764,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
@@ -1038,6 +1046,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	} else {
 		req.IncludeSubAgentStreamingEvents = Bool(true)
 	}
+	if c.options.OnGitHubTelemetry != nil {
+		req.EnableGitHubTelemetryForwarding = Bool(true)
+	}
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
@@ -1078,15 +1089,20 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.LargeOutput = config.LargeOutput
+	req.ToolSearch = config.ToolSearch
 	req.Memory = config.Memory
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
 	req.OpenCanvases = config.OpenCanvases
+	req.ExtensionInfo = config.ExtensionInfo
+	req.CanvasProvider = config.CanvasProvider
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionSDKPath = config.ExtensionSDKPath
+	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
+	req.EnableManagedSettings = config.EnableManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1679,7 +1695,15 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 		t := c.effectiveConnectionToken
 		tokenPtr = &t
 	}
-	connectResult, err := c.internalRPC.Connect(ctx, &rpc.ConnectRequest{Token: tokenPtr})
+	connectReq := &connectHandshakeRequest{Token: tokenPtr}
+	// Opt in to GitHub telemetry forwarding at the connection level when a handler is
+	// registered (mirrors the runtime, which reads this flag on the `connect` handshake
+	// so the first session's un-replayable `session.start` event is forwarded). Also
+	// sent on session.create/resume for older CLIs.
+	if c.options.OnGitHubTelemetry != nil {
+		connectReq.EnableGitHubTelemetryForwarding = Bool(true)
+	}
+	rawConnectResult, err := c.client.Request(ctx, "connect", connectReq)
 	if err != nil {
 		var rpcErr *jsonrpc2.Error
 		if errors.As(err, &rpcErr) && (rpcErr.Code == jsonrpc2.ErrMethodNotFound.Code || rpcErr.Message == "Unhandled method connect") {
@@ -1694,6 +1718,10 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 			return err
 		}
 	} else {
+		var connectResult rpc.ConnectResult
+		if err := json.Unmarshal(rawConnectResult, &connectResult); err != nil {
+			return err
+		}
 		v := int(connectResult.ProtocolVersion)
 		serverVersion = &v
 	}
@@ -1708,6 +1736,11 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 
 	c.negotiatedProtocolVersion = *serverVersion
 	return nil
+}
+
+type connectHandshakeRequest struct {
+	Token                           *string `json:"token,omitempty"`
+	EnableGitHubTelemetryForwarding *bool   `json:"enableGitHubTelemetryForwarding,omitempty"`
 }
 
 // stderrBufferSize is the maximum number of bytes kept from the CLI process's
@@ -2057,15 +2090,33 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil {
-		adapter := newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-			if c.RPC == nil {
-				return nil
-			}
-			return c.RPC.LlmInference
-		})
-		rpc.RegisterClientGlobalAPIHandlers(c.client, &rpc.ClientGlobalAPIHandlers{LlmInference: adapter})
+	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
+		handlers := &rpc.ClientGlobalAPIHandlers{}
+		if c.options.RequestHandler != nil {
+			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+				if c.RPC == nil {
+					return nil
+				}
+				return c.RPC.LlmInference
+			})
+		}
+		if c.options.OnGitHubTelemetry != nil {
+			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+		}
+		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 	}
+}
+
+// gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
+// rpc.GitHubTelemetryHandler interface.
+type gitHubTelemetryAdapter struct {
+	callback func(notification *rpc.GitHubTelemetryNotification)
+}
+
+func (a *gitHubTelemetryAdapter) Event(request *rpc.GitHubTelemetryNotification) error {
+	defer func() { recover() }() // Ignore handler panics
+	a.callback(request)
+	return nil
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

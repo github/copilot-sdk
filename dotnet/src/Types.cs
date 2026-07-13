@@ -145,6 +145,20 @@ public abstract class RuntimeConnection
     /// <param name="connectionToken">Optional shared secret to authenticate the connection.</param>
     public static UriRuntimeConnection ForUri(string url, string? connectionToken = null)
         => new() { Url = url, ConnectionToken = connectionToken };
+
+    /// <summary>
+    /// Host the runtime in-process by loading its native library and communicating
+    /// over the C ABI (FFI) — no child process is spawned by the SDK for JSON-RPC
+    /// transport. The bundled runtime is used; to point at a non-default runtime
+    /// entrypoint, set the <c>COPILOT_CLI_PATH</c> environment variable.
+    /// </summary>
+    /// <remarks>
+    /// Works across the SDK's target frameworks: modern .NET uses <c>NativeLibrary</c>,
+    /// while <c>netstandard2.0</c> consumers use a built-in fallback native loader.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public static InProcessRuntimeConnection ForInProcess()
+        => new();
 }
 
 /// <summary>
@@ -159,6 +173,16 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 
     /// <summary>Extra command-line arguments to pass to the runtime process.</summary>
     public IList<string>? Args { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment variables passed to the spawned runtime process,
+    /// replacing the inherited environment.
+    /// </summary>
+    /// <remarks>
+    /// Cannot be combined with <see cref="CopilotClientOptions.Environment"/>; setting both throws
+    /// an <see cref="ArgumentException"/> when the client is constructed.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string>? Environment { get; set; }
 }
 
 /// <summary>
@@ -168,6 +192,19 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 {
     internal StdioRuntimeConnection() { }
+}
+
+/// <summary>
+/// Hosts the runtime in-process by loading its native library and communicating
+/// over the C ABI (FFI). Construct via <see cref="RuntimeConnection.ForInProcess()"/>.
+/// Works across the SDK's target frameworks (modern .NET and <c>netstandard2.0</c>).
+/// To point at a non-default runtime entrypoint, set the <c>COPILOT_CLI_PATH</c>
+/// environment variable.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class InProcessRuntimeConnection : RuntimeConnection
+{
+    internal InProcessRuntimeConnection() { }
 }
 
 /// <summary>
@@ -281,6 +318,7 @@ public sealed class CopilotClientOptions
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
+        OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
         Mode = other.Mode;
@@ -330,7 +368,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
 
-    /// <summary>Environment variables to pass to the runtime process.</summary>
+    /// <summary>
+    /// Gets or sets environment variables passed to the runtime process.
+    /// </summary>
+    /// <remarks>
+    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
+    /// which runs the runtime in the host process; setting this option there throws an
+    /// <see cref="ArgumentException"/>. For child-process transports, prefer
+    /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
+    /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
 
     /// <summary>Logger instance for SDK diagnostic output.</summary>
@@ -377,6 +423,15 @@ public sealed class CopilotClientOptions
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public CopilotRequestHandler? RequestHandler { get; set; }
+
+    /// <summary>
+    /// Experimental. Receives GitHub telemetry events the runtime forwards to this
+    /// connection; setting a handler opts created/resumed sessions into forwarding.
+    /// The SDK awaits the handler task so it may perform asynchronous work.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Func<Rpc.GitHubTelemetryNotification, Task>? OnGitHubTelemetry { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the runtime.
@@ -643,6 +698,12 @@ public sealed class ToolResultObject
     public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>
+    /// Names of tools returned by a tool-search tool.
+    /// </summary>
+    [JsonPropertyName("toolReferences")]
+    public IList<string>? ToolReferences { get; set; }
+
+    /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
     /// <see cref="ToolResultObject"/>. Handles <see cref="ToolResultAIContent"/>,
     /// <see cref="AIContent"/>, and falls back to JSON serialization.
@@ -753,6 +814,14 @@ public sealed class ToolInvocation
     /// Arguments passed to the tool by the language model.
     /// </summary>
     public JsonElement? Arguments { get; set; }
+    /// <summary>
+    /// Snapshot of the session's currently initialized tools. The SDK populates
+    /// this only when the invocation targets the built-in tool-search tool
+    /// (<c>tool_search_tool</c>), so a tool-search override can rank/filter the
+    /// live catalog — including MCP tools configured in settings — without
+    /// issuing its own RPC. <c>null</c> for every other tool invocation.
+    /// </summary>
+    public IList<CurrentToolMetadata>? AvailableTools { get; set; }
 }
 
 /// <summary>
@@ -2667,6 +2736,30 @@ public sealed class LargeToolOutputConfig
 }
 
 /// <summary>
+/// Overrides the runtime's built-in tool-search behavior.
+/// Defers tools to keep the model's active tool set small.
+/// To override the tool-search tool's implementation, register a tool
+/// named "tool_search_tool" with <c>OverridesBuiltInTool</c> set to
+/// <see langword="true"/>.
+/// </summary>
+public sealed class ToolSearchConfig
+{
+    /// <summary>
+    /// Enable or disable tool search.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// The tool count above which MCP and external tools are deferred behind
+    /// tool search. When <see langword="null"/>, the runtime default (30)
+    /// applies.
+    /// </summary>
+    [JsonPropertyName("deferThreshold")]
+    public int? DeferThreshold { get; set; }
+}
+
+/// <summary>
 /// Configuration for session memory.
 /// </summary>
 public sealed class MemoryConfiguration
@@ -2774,6 +2867,7 @@ public abstract class SessionConfigBase
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         LargeOutput = other.LargeOutput;
+        ToolSearch = other.ToolSearch;
         Memory = other.Memory;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
@@ -2806,12 +2900,14 @@ public abstract class SessionConfigBase
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
+        EnableManagedSettings = other.EnableManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
         RequestExtensions = other.RequestExtensions;
         ExtensionSdkPath = other.ExtensionSdkPath;
         ExtensionInfo = other.ExtensionInfo;
+        CanvasProvider = other.CanvasProvider;
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
@@ -3179,6 +3275,13 @@ public abstract class SessionConfigBase
     public LargeToolOutputConfig? LargeOutput { get; set; }
 
     /// <summary>
+    /// Overrides the runtime's built-in tool-search behavior.
+    /// Tool search defers tools to keep the model's active tool set small. When <see langword="null"/>,
+    /// the runtime default applies.
+    /// </summary>
+    public ToolSearchConfig? ToolSearch { get; set; }
+
+    /// <summary>
     /// Configuration for session memory. When set, controls whether the
     /// session can read and write persistent memory.
     /// </summary>
@@ -3230,6 +3333,16 @@ public abstract class SessionConfigBase
     [EditorBrowsable(EditorBrowsableState.Never)]
     public JsonElement? ExpAssignments { get; set; }
 
+    /// <summary>
+    /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's <see cref="GitHubToken"/>. Requires <see cref="GitHubToken"/> to
+    /// be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When unset, behaves exactly as before. Serialized on the
+    /// wire as <c>enableManagedSettings</c>.
+    /// </summary>
+    public bool? EnableManagedSettings { get; set; }
+
 #pragma warning disable GHCP001
     /// <summary>
     /// Canvas declarations advertised by this connection. The runtime forwards
@@ -3270,6 +3383,16 @@ public abstract class SessionConfigBase
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public ExtensionInfo? ExtensionInfo { get; set; }
+
+    /// <summary>
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases. When set, the runtime uses <see cref="CanvasProviderIdentity.Id"/>
+    /// verbatim as the agent-facing canvas extension id, so canvases declared on
+    /// a control connection survive reconnect and CLI restart. Honored on
+    /// session create and resume.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public CanvasProviderIdentity? CanvasProvider { get; set; }
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
@@ -3955,5 +4078,6 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(CanvasProviderOpenResult))]
 [JsonSerializable(typeof(CanvasHostContext))]
 [JsonSerializable(typeof(ExtensionInfo))]
+[JsonSerializable(typeof(CanvasProviderIdentity))]
 #pragma warning restore GHCP001
 internal partial class TypesJsonContext : JsonSerializerContext;

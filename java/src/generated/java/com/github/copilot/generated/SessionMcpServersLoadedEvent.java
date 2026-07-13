@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.mcp_servers_loaded".
+ * Session event "session.mcp_servers_loaded". Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

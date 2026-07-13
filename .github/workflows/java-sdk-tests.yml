@@ -31,9 +31,7 @@ on:
   merge_group:
 
 permissions:
-  contents: write
-  checks: write
-  pull-requests: write
+  contents: read
 
 jobs:
   java-sdk:
@@ -77,12 +75,19 @@ jobs:
       - name: Run spotless check
         if: matrix.test-jdk == '25'
         run: |
-          mvn spotless:check
-          if [ $? -ne 0 ]; then
-            echo "❌ spotless:check failed. Please run 'mvn spotless:apply' in java"
-            exit 1
-          fi
-          echo "✅ spotless:check passed"
+          max_attempts=3
+          for ((attempt=1; attempt<=max_attempts; attempt++)); do
+            if mvn spotless:check; then
+              echo "✅ spotless:check passed"
+              exit 0
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "⚠️ spotless:check failed (attempt $attempt/$max_attempts), retrying in 10s..."
+              sleep 10
+            fi
+          done
+          echo "❌ spotless:check failed after $max_attempts attempts. Please run 'mvn spotless:apply' in java/"
+          exit 1
 
       - name: Run Java SDK tests (JDK 25)
         if: matrix.test-jdk == '25'
@@ -116,22 +121,6 @@ jobs:
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
           retention-days: 1
-
-      - name: Generate JaCoCo badge
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
-        working-directory: .
-        run: bash .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
-
-      - name: Create PR for JaCoCo badge update
-        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
-        with:
-          commit-message: "Update Java JaCoCo coverage badge"
-          title: "Update Java JaCoCo coverage badge"
-          body: "Automated Java JaCoCo coverage badge update from CI."
-          branch: auto/update-java-jacoco-badge
-          add-paths: .github/badges/
-          delete-branch: true
 
       - name: Generate Test Report Summary
         if: always()

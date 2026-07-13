@@ -16,6 +16,29 @@ import { formatError, retry } from "./sdkTestHelper";
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
 
+/**
+ * True when the E2E suite is running over the in-process (FFI) transport
+ * (COPILOT_SDK_DEFAULT_CONNECTION=inprocess). Use with `it.skipIf` / `describe.skipIf`
+ * to skip tests for features that are not supported over the in-process transport (the
+ * runtime loads into the shared host process), so the in-process CI cell stays green.
+ * Such features are covered by the default (stdio) cell.
+ */
+export const isInProcessTransport =
+    (process.env.COPILOT_SDK_DEFAULT_CONNECTION ?? "").toLowerCase() === "inprocess";
+
+// The in-process (FFI) transport resolves auth host-side, in this test process, and
+// ranks HMAC above the GitHub token — so an ambient COPILOT_HMAC_KEY (CI sets one as a
+// job-level credential) would be picked over the SDK/Bearer token the replay snapshots
+// expect, yielding 401s. Host-side auth can capture the key as early as client
+// construction (before any per-test beforeEach runs), so neutralize it at module load —
+// the analogue of .NET's InProcessEnvIsolation `[ModuleInitializer]`. Only applied for
+// the in-process transport; stdio/tcp children resolve auth in their own process where
+// the token already outranks HMAC. See https://github.com/github/copilot-sdk/issues/1934.
+if ((process.env.COPILOT_SDK_DEFAULT_CONNECTION ?? "").toLowerCase() === "inprocess") {
+    delete process.env.COPILOT_HMAC_KEY;
+    delete process.env.CAPI_HMAC_KEY;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
@@ -69,8 +92,14 @@ export async function createSdkTestContext({
         COPILOT_HOME: copilotHomeDir,
         COPILOT_SDK_AUTH_TOKEN: "",
         GH_CONFIG_DIR: homeDir,
-        GH_TOKEN: "",
-        GITHUB_TOKEN: "",
+        // Use the proxy-recognized token rather than blanking these. Tests that spin up
+        // their own client without passing `gitHubToken` (e.g. the stdio/tcp
+        // "works without onPermissionRequest" cases) rely on GH_TOKEN/GITHUB_TOKEN to
+        // authenticate against the replay proxy. Blanking them only worked on CI, where an
+        // ambient COPILOT_HMAC_KEY secret supplies the credential instead; locally there is
+        // no HMAC key, so the child CLI had nothing to authenticate with and got a 401.
+        GH_TOKEN: authTokenToUse,
+        GITHUB_TOKEN: authTokenToUse,
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -102,11 +131,17 @@ export async function createSdkTestContext({
         } else {
             connection = userConn;
         }
+    } else if (useStdio === false) {
+        connection = RuntimeConnection.forTcp({ path: cliPath });
+    } else if (
+        useStdio === undefined &&
+        (process.env.COPILOT_SDK_DEFAULT_CONNECTION ?? "").toLowerCase() === "inprocess"
+    ) {
+        // The in-process FFI transport resolves the CLI entrypoint itself
+        // (COPILOT_CLI_PATH or the bundled platform package), so no path is passed.
+        connection = RuntimeConnection.forInProcess();
     } else {
-        connection =
-            useStdio === false
-                ? RuntimeConnection.forTcp({ path: cliPath })
-                : RuntimeConnection.forStdio({ path: cliPath });
+        connection = RuntimeConnection.forStdio({ path: cliPath });
     }
 
     const {
@@ -114,19 +149,91 @@ export async function createSdkTestContext({
         env: userEnv,
         ...remainingClientOptions
     } = copilotClientOptions ?? {};
-    const copilotClient = new CopilotClient({
-        workingDirectory: workDir,
-        env: { ...env, ...userEnv },
-        logLevel: logLevel || "error",
-        connection,
-        gitHubToken: authTokenToUse,
-        ...remainingClientOptions,
-    });
 
-    const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
+    const mergedEnv = { ...env, ...userEnv };
+
+    // The in-process (FFI) transport loads the runtime into this test host process,
+    // and its worker inherits this process's ambient environment rather than a
+    // per-client env block (see https://github.com/github/copilot-sdk/issues/1934).
+    // So the per-test redirects, isolated home, and credentials must be mirrored onto
+    // the real process environment. Node's `process.env` writes reach native `getenv`,
+    // so host-side runtime reads (auth resolution, GitHub API redirect) observe them.
+    // Auth flows via GH_TOKEN/GITHUB_TOKEN here (the FFI argv omits the stdio
+    // `--auth-token-env COPILOT_SDK_AUTH_TOKEN` wiring), and HMAC is disabled so
+    // host-side auth resolution picks the SDK/Bearer token the replay snapshots expect.
+    const isInProcess = connection.kind === "inprocess";
+    const inProcessEnv: Record<string, string> = isInProcess
+        ? {
+              ...(mergedEnv as Record<string, string>),
+              GH_TOKEN: authTokenToUse,
+              GITHUB_TOKEN: authTokenToUse,
+              COPILOT_HMAC_KEY: "",
+              CAPI_HMAC_KEY: "",
+          }
+        : {};
+
+    // Builds a CopilotClient wired for the active transport, so tests that need a
+    // secondary client (e.g. resuming a session from a fresh client) don't have to
+    // reimplement the in-process env/cwd handling. Callers may override the connection
+    // (e.g. pin stdio for telemetry, which the in-process transport cannot carry
+    // per-client); env is attached to child-process transports and mirrored onto the
+    // process for in-process (see beforeEach below), never passed per-client for the
+    // in-process transport where it would be rejected.
+    function createClient(overrides: Partial<CopilotClientOptions> = {}): CopilotClient {
+        const {
+            connection: overrideConnection,
+            env: _ignoredEnv,
+            workingDirectory: overrideWorkingDirectory,
+            ...rest
+        } = overrides;
+
+        let effectiveConnection = overrideConnection ?? connection;
+        // Fill in the bundled CLI path for child-process connections that omit it
+        // (e.g. a bare RuntimeConnection.forStdio() used to pin telemetry to stdio).
+        if (effectiveConnection.kind === "stdio" && effectiveConnection.path === undefined) {
+            effectiveConnection = RuntimeConnection.forStdio({
+                ...effectiveConnection,
+                path: cliPath,
+            });
+        } else if (effectiveConnection.kind === "tcp" && effectiveConnection.path === undefined) {
+            effectiveConnection = RuntimeConnection.forTcp({
+                ...effectiveConnection,
+                path: cliPath,
+            });
+        }
+        const effectiveInProcess = effectiveConnection.kind === "inprocess";
+
+        return new CopilotClient({
+            // The in-process transport rejects a per-client workingDirectory (it would have to
+            // mutate the shared host process cwd). Instead the harness changes this process's
+            // cwd to workDir around the in-process worker's startup (see beforeEach below), so
+            // the worker still spawns with workDir as its cwd. Out-of-process clients get it
+            // as a normal per-client option.
+            workingDirectory:
+                overrideWorkingDirectory ?? (effectiveInProcess ? undefined : workDir),
+            // In-process hosting mirrors the environment onto the real process (per test, in
+            // beforeEach below), so the worker inherits it; passing a per-client env here
+            // would have no effect (and is rejected by the in-process transport).
+            env: effectiveInProcess ? undefined : mergedEnv,
+            logLevel: logLevel || "error",
+            connection: effectiveConnection,
+            gitHubToken: authTokenToUse,
+            ...rest,
+        });
+    }
+
+    const copilotClient = createClient(remainingClientOptions);
+
+    const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env, createClient };
 
     // Track if any test fails to avoid writing corrupted snapshots
     let anyTestFailed = false;
+
+    // Holds the process.env entries the current test overwrote, so afterEach restores them.
+    let restoreProcessEnv: Array<[string, string | undefined]> = [];
+
+    // Holds the process cwd before an in-process test changed it, so afterEach restores it.
+    let restoreCwd: string | undefined;
 
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
@@ -134,6 +241,25 @@ export async function createSdkTestContext({
         onTestFailed(() => {
             anyTestFailed = true;
         });
+
+        // Mirror this context's environment onto the real process for in-process
+        // hosting, right before the test runs (see the comment above the client). The
+        // client auto-starts on first use inside the test body, so the worker spawns
+        // under these values.
+        restoreProcessEnv = [];
+        for (const [key, value] of Object.entries(inProcessEnv)) {
+            restoreProcessEnv.push([key, process.env[key]]);
+            process.env[key] = value;
+        }
+
+        // The in-process worker inherits this process's cwd at spawn (the client auto-starts
+        // on first use inside the test body). Point cwd at workDir here so the worker spawns
+        // with the same working directory the out-of-process transport passes explicitly;
+        // afterEach restores it.
+        if (isInProcess) {
+            restoreCwd = process.cwd();
+            process.chdir(workDir);
+        }
 
         await openAiEndpoint.updateConfig({
             filePath: getTrafficCapturePath(testContext),
@@ -146,6 +272,20 @@ export async function createSdkTestContext({
     });
 
     afterEach(async () => {
+        // Undo this test's process.env mirror so it can't leak into the next test/suite.
+        for (const [key, previous] of restoreProcessEnv.reverse()) {
+            if (previous === undefined) {
+                delete process.env[key];
+            } else {
+                process.env[key] = previous;
+            }
+        }
+        restoreProcessEnv = [];
+        // Restore the cwd an in-process test changed for worker startup.
+        if (restoreCwd !== undefined) {
+            process.chdir(restoreCwd);
+            restoreCwd = undefined;
+        }
         // Empty directories but leave them in place for next test
         await rimraf([join(homeDir, "*"), join(workDir, "*")], { glob: true });
     });

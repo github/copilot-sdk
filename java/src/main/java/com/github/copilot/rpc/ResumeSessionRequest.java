@@ -145,6 +145,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("includeSubAgentStreamingEvents")
     private Boolean includeSubAgentStreamingEvents;
 
+    @JsonProperty("enableGitHubTelemetryForwarding")
+    private Boolean enableGitHubTelemetryForwarding;
+
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
@@ -174,6 +177,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("largeOutput")
     private LargeToolOutputConfig largeOutput;
+
+    @JsonProperty("toolSearch")
+    private ToolSearchConfig toolSearch;
 
     @JsonProperty("memory")
     private MemoryConfiguration memory;
@@ -210,6 +216,10 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
+
+    @JsonProperty("enableManagedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableManagedSettings;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -705,6 +715,27 @@ public final class ResumeSessionRequest {
         this.includeSubAgentStreamingEvents = null;
     }
 
+    /** Gets the GitHub telemetry forwarding flag. @return the flag */
+    public Boolean getEnableGitHubTelemetryForwarding() {
+        return enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Sets the GitHub telemetry forwarding flag. @param
+     * enableGitHubTelemetryForwarding the flag
+     */
+    public void setEnableGitHubTelemetryForwarding(boolean enableGitHubTelemetryForwarding) {
+        this.enableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Clears the enableGitHubTelemetryForwarding setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableGitHubTelemetryForwarding() {
+        this.enableGitHubTelemetryForwarding = null;
+    }
+
     /** Gets MCP servers. @return the servers map */
     public Map<String, McpServerConfig> getMcpServers() {
         return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
@@ -810,6 +841,16 @@ public final class ResumeSessionRequest {
     /** Sets large output config. @param largeOutput the large output config */
     public void setLargeOutput(LargeToolOutputConfig largeOutput) {
         this.largeOutput = largeOutput;
+    }
+
+    /** Gets tool-search config. @return the tool-search config */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /** Sets tool-search config. @param toolSearch the tool-search config */
+    public void setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
     }
 
     /** Gets memory config. @return the memory config */
@@ -956,5 +997,28 @@ public final class ResumeSessionRequest {
      */
     public void setExpAssignments(JsonNode expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /**
+     * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
+     * if not set
+     */
+    public Boolean getEnableManagedSettings() {
+        return enableManagedSettings;
+    }
+
+    /**
+     * Sets the self-fetch managed settings flag. @param enableManagedSettings the
+     * flag
+     */
+    public void setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+    }
+
+    /**
+     * Clears the enableManagedSettings setting, reverting to the default behavior.
+     */
+    public void clearEnableManagedSettings() {
+        this.enableManagedSettings = null;
     }
 }

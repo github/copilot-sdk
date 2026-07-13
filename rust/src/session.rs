@@ -12,7 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams, rpc_methods,
+    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -40,6 +41,11 @@ use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
     error_codes,
 };
+
+/// Fixed name of the runtime's built-in tool-search tool. A client can replace
+/// its behavior by registering a tool with this exact name and
+/// `overrides_built_in_tool` set to `true`.
+const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -529,6 +535,7 @@ impl Session {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
@@ -876,7 +883,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        let (mut wire, mut runtime) = config.into_wire(local_session_id.clone())?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1139,7 +1148,9 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire()?;
+        let (mut wire, mut runtime) = config.into_wire()?;
+        wire.enable_github_telemetry_forwarding =
+            self.inner.on_github_telemetry.is_some().then_some(true);
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -1511,6 +1522,7 @@ fn tool_failure_result(message: impl Into<String>) -> ToolResult {
         session_log: None,
         error: Some(message),
         tool_telemetry: None,
+        tool_references: None,
     })
 }
 
@@ -1802,6 +1814,30 @@ async fn handle_notification(
                     }
                     let tool_call_id = data.tool_call_id.clone();
                     let tool_name = data.tool_name.clone();
+                    // The built-in tool-search tool receives a snapshot of the
+                    // session's currently initialized tools so an override can
+                    // filter the live catalog without issuing its own RPC. Fetch
+                    // it only for that tool to avoid a round-trip on every tool
+                    // call; a failed fetch leaves the snapshot `None` rather than
+                    // failing the tool.
+                    let available_tools = if tool_name == TOOL_SEARCH_TOOL_NAME {
+                        match client
+                            .call(
+                                rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
+                                Some(serde_json::json!({ "sessionId": sid })),
+                            )
+                            .await
+                        {
+                            Ok(value) => {
+                                serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
+                                    .ok()
+                                    .and_then(|result| result.tools)
+                            }
+                            Err(_) => None,
+                        }
+                    } else {
+                        None
+                    };
                     let invocation = ToolInvocation {
                         session_id: sid.clone(),
                         tool_call_id: data.tool_call_id,
@@ -1809,6 +1845,7 @@ async fn handle_notification(
                         arguments: data
                             .arguments
                             .unwrap_or(Value::Object(serde_json::Map::new())),
+                        available_tools,
                         traceparent: data.traceparent,
                         tracestate: data.tracestate,
                     };

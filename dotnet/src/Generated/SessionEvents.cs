@@ -33,6 +33,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantReasoningEvent), "assistant.reasoning")]
 [JsonDerivedType(typeof(AssistantReasoningDeltaEvent), "assistant.reasoning_delta")]
 [JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
+[JsonDerivedType(typeof(AssistantToolCallDeltaEvent), "assistant.tool_call_delta")]
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
@@ -57,6 +58,9 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(McpHeadersRefreshRequiredEvent), "mcp.headers_refresh_required")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
+[JsonDerivedType(typeof(McpPromptsListChangedEvent), "mcp.prompts.list_changed")]
+[JsonDerivedType(typeof(McpResourcesListChangedEvent), "mcp.resources.list_changed")]
+[JsonDerivedType(typeof(McpToolsListChangedEvent), "mcp.tools.list_changed")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
@@ -65,6 +69,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedCompletedEvent), "session_limits_exhausted.completed")]
 [JsonDerivedType(typeof(SessionLimitsExhaustedRequestedEvent), "session_limits_exhausted.requested")]
+[JsonDerivedType(typeof(SessionAutoModeResolvedEvent), "session.auto_mode_resolved")]
 [JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionBinaryAssetEvent), "session.binary_asset")]
@@ -363,7 +368,7 @@ public sealed partial class SessionSessionLimitsChangedEvent : SessionEvent
     public required SessionSessionLimitsChangedData Data { get; set; }
 }
 
-/// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
+/// <summary>Permissions change details carrying the aggregate allow-all transition.</summary>
 /// <remarks>Represents the <c>session.permissions_changed</c> event.</remarks>
 public sealed partial class SessionPermissionsChangedEvent : SessionEvent
 {
@@ -545,7 +550,7 @@ public sealed partial class SessionTaskCompleteEvent : SessionEvent
     public required SessionTaskCompleteData Data { get; set; }
 }
 
-/// <summary>Schema for the `UserMessageData` type.</summary>
+/// <summary>Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.</summary>
 /// <remarks>Represents the <c>user.message</c> event.</remarks>
 public sealed partial class UserMessageEvent : SessionEvent
 {
@@ -621,6 +626,19 @@ public sealed partial class AssistantReasoningDeltaEvent : SessionEvent
     /// <summary>The <c>assistant.reasoning_delta</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantReasoningDeltaData Data { get; set; }
+}
+
+/// <summary>Streaming tool-call input delta for incremental tool-call updates.</summary>
+/// <remarks>Represents the <c>assistant.tool_call_delta</c> event.</remarks>
+public sealed partial class AssistantToolCallDeltaEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.tool_call_delta";
+
+    /// <summary>The <c>assistant.tool_call_delta</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantToolCallDeltaData Data { get; set; }
 }
 
 /// <summary>Streaming response progress with cumulative byte count.</summary>
@@ -1248,6 +1266,20 @@ public sealed partial class SessionLimitsExhaustedCompletedEvent : SessionEvent
     public required SessionLimitsExhaustedCompletedData Data { get; set; }
 }
 
+/// <summary>Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.</summary>
+/// <remarks>Represents the <c>session.auto_mode_resolved</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.auto_mode_resolved";
+
+    /// <summary>The <c>session.auto_mode_resolved</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionAutoModeResolvedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public sealed partial class CommandsChangedEvent : SessionEvent
@@ -1300,7 +1332,7 @@ public sealed partial class ExitPlanModeCompletedEvent : SessionEvent
     public required ExitPlanModeCompletedData Data { get; set; }
 }
 
-/// <summary>Schema for the `ToolsUpdatedData` type.</summary>
+/// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
 /// <remarks>Represents the <c>session.tools_updated</c> event.</remarks>
 public sealed partial class SessionToolsUpdatedEvent : SessionEvent
 {
@@ -1313,7 +1345,7 @@ public sealed partial class SessionToolsUpdatedEvent : SessionEvent
     public required SessionToolsUpdatedData Data { get; set; }
 }
 
-/// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
+/// <summary>Empty payload for `session.background_tasks_changed`, indicating background task state changed.</summary>
 /// <remarks>Represents the <c>session.background_tasks_changed</c> event.</remarks>
 public sealed partial class SessionBackgroundTasksChangedEvent : SessionEvent
 {
@@ -1326,7 +1358,7 @@ public sealed partial class SessionBackgroundTasksChangedEvent : SessionEvent
     public required SessionBackgroundTasksChangedData Data { get; set; }
 }
 
-/// <summary>Schema for the `SkillsLoadedData` type.</summary>
+/// <summary>Payload of `session.skills_loaded` listing resolved skill metadata.</summary>
 /// <remarks>Represents the <c>session.skills_loaded</c> event.</remarks>
 public sealed partial class SessionSkillsLoadedEvent : SessionEvent
 {
@@ -1339,7 +1371,7 @@ public sealed partial class SessionSkillsLoadedEvent : SessionEvent
     public required SessionSkillsLoadedData Data { get; set; }
 }
 
-/// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
+/// <summary>Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.</summary>
 /// <remarks>Represents the <c>session.custom_agents_updated</c> event.</remarks>
 public sealed partial class SessionCustomAgentsUpdatedEvent : SessionEvent
 {
@@ -1352,7 +1384,7 @@ public sealed partial class SessionCustomAgentsUpdatedEvent : SessionEvent
     public required SessionCustomAgentsUpdatedData Data { get; set; }
 }
 
-/// <summary>Schema for the `McpServersLoadedData` type.</summary>
+/// <summary>Payload of `session.mcp_servers_loaded` listing MCP server status summaries.</summary>
 /// <remarks>Represents the <c>session.mcp_servers_loaded</c> event.</remarks>
 public sealed partial class SessionMcpServersLoadedEvent : SessionEvent
 {
@@ -1365,7 +1397,7 @@ public sealed partial class SessionMcpServersLoadedEvent : SessionEvent
     public required SessionMcpServersLoadedData Data { get; set; }
 }
 
-/// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
+/// <summary>Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.</summary>
 /// <remarks>Represents the <c>session.mcp_server_status_changed</c> event.</remarks>
 public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
 {
@@ -1378,7 +1410,46 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     public required SessionMcpServerStatusChangedData Data { get; set; }
 }
 
-/// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
+public sealed partial class McpToolsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.tools.list_changed";
+
+    /// <summary>The <c>mcp.tools.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpToolsListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.resources.list_changed</c> event.</remarks>
+public sealed partial class McpResourcesListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.resources.list_changed";
+
+    /// <summary>The <c>mcp.resources.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpResourcesListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <remarks>Represents the <c>mcp.prompts.list_changed</c> event.</remarks>
+public sealed partial class McpPromptsListChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp.prompts.list_changed";
+
+    /// <summary>The <c>mcp.prompts.list_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpPromptsListChangedData Data { get; set; }
+}
+
+/// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
 /// <remarks>Represents the <c>session.extensions_loaded</c> event.</remarks>
 public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
 {
@@ -1391,7 +1462,7 @@ public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
     public required SessionExtensionsLoadedData Data { get; set; }
 }
 
-/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+/// <summary>Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.</summary>
 /// <remarks>Represents the <c>session.canvas.opened</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasOpenedEvent : SessionEvent
@@ -1405,7 +1476,7 @@ public sealed partial class SessionCanvasOpenedEvent : SessionEvent
     public required SessionCanvasOpenedData Data { get; set; }
 }
 
-/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+/// <summary>Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.</summary>
 /// <remarks>Represents the <c>session.canvas.registry_changed</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
@@ -1419,7 +1490,7 @@ public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
     public required SessionCanvasRegistryChangedData Data { get; set; }
 }
 
-/// <summary>Schema for the `CanvasClosedData` type.</summary>
+/// <summary>Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.</summary>
 /// <remarks>Represents the <c>session.canvas.closed</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasClosedEvent : SessionEvent
@@ -1475,7 +1546,7 @@ public sealed partial class SessionCanvasRemovedEvent : SessionEvent
     public required SessionCanvasRemovedData Data { get; set; }
 }
 
-/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+/// <summary>Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.</summary>
 /// <remarks>Represents the <c>session.extensions.attachments_pushed</c> event.</remarks>
 public sealed partial class SessionExtensionsAttachmentsPushedEvent : SessionEvent
 {
@@ -1565,6 +1636,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("startTime")]
     public required DateTimeOffset StartTime { get; set; }
 
+    /// <summary>Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
+
     /// <summary>Schema version number for the session event format.</summary>
     [JsonPropertyName("version")]
     public required long Version { get; set; }
@@ -1635,6 +1711,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("sessionWasActive")]
     public bool? SessionWasActive { get; set; }
+
+    /// <summary>Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 }
 
 /// <summary>Notifies that the session's remote steering capability has changed.</summary>
@@ -1866,6 +1947,11 @@ public sealed partial class SessionModelChangeData
     [JsonPropertyName("previousReasoningSummary")]
     public ReasoningSummary? PreviousReasoningSummary { get; set; }
 
+    /// <summary>Output verbosity level before the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousVerbosity")]
+    public Verbosity? PreviousVerbosity { get; set; }
+
     /// <summary>Reasoning effort level after the model change, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
@@ -1875,6 +1961,11 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningSummary")]
     public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>Output verbosity level after the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("verbosity")]
+    public Verbosity? Verbosity { get; set; }
 }
 
 /// <summary>Agent mode change details including previous and new modes.</summary>
@@ -1897,12 +1988,24 @@ public sealed partial class SessionSessionLimitsChangedData
     public SessionLimitsConfig? SessionLimits { get; set; }
 }
 
-/// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
+/// <summary>Permissions change details carrying the aggregate allow-all transition.</summary>
 public sealed partial class SessionPermissionsChangedData
 {
+    /// <summary>Allow-all mode after the change.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("allowAllPermissionMode")]
+    public PermissionAllowAllMode? AllowAllPermissionMode { get; set; }
+
     /// <summary>Aggregate allow-all flag after the change.</summary>
     [JsonPropertyName("allowAllPermissions")]
     public required bool AllowAllPermissions { get; set; }
+
+    /// <summary>Allow-all mode before the change.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousAllowAllPermissionMode")]
+    public PermissionAllowAllMode? PreviousAllowAllPermissionMode { get; set; }
 
     /// <summary>Aggregate allow-all flag before the change.</summary>
     [JsonPropertyName("previousAllowAllPermissions")]
@@ -2197,6 +2300,11 @@ public sealed partial class SessionCompactionStartData
     [JsonPropertyName("conversationTokens")]
     public long? ConversationTokens { get; set; }
 
+    /// <summary>Model identifier used for compaction, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     /// <summary>Token count from system message(s) at compaction start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("systemTokens")]
@@ -2315,7 +2423,7 @@ public sealed partial class SessionTaskCompleteData
     public string? Summary { get; set; }
 }
 
-/// <summary>Schema for the `UserMessageData` type.</summary>
+/// <summary>Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.</summary>
 public sealed partial class UserMessageData
 {
     /// <summary>The agent mode that was active when this message was sent.</summary>
@@ -2386,6 +2494,11 @@ public sealed partial class AssistantTurnStartData
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
 
+    /// <summary>Model identifier used for this turn, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
@@ -2423,6 +2536,28 @@ public sealed partial class AssistantReasoningDeltaData
     public required string ReasoningId { get; set; }
 }
 
+/// <summary>Streaming tool-call input delta for incremental tool-call updates.</summary>
+public sealed partial class AssistantToolCallDeltaData
+{
+    /// <summary>Raw provider tool input fragment to append for this tool call. Function/tool-use providers stream serialized JSON argument text (so newlines inside JSON string values may appear as escaped `\n` until the accumulated JSON is parsed); custom tool calls stream raw custom input.</summary>
+    [JsonPropertyName("inputDelta")]
+    public required string InputDelta { get; set; }
+
+    /// <summary>Tool call ID this delta belongs to, matching the corresponding assistant.message tool request.</summary>
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    /// <summary>Name of the tool being invoked, when known from the stream.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+
+    /// <summary>Tool call type, when known from the stream.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolType")]
+    public AssistantMessageToolRequestType? ToolType { get; set; }
+}
+
 /// <summary>Streaming response progress with cumulative byte count.</summary>
 public sealed partial class AssistantStreamingDeltaData
 {
@@ -2444,6 +2579,11 @@ public sealed partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("citations")]
     public Citations? Citations { get; set; }
+
+    /// <summary>Client-minted request id (x-request-id header) echoed by the server. Distinct from requestId (x-github-request-id) and serviceRequestId (x-copilot-service-request-id).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientRequestId")]
+    public string? ClientRequestId { get; set; }
 
     /// <summary>The assistant's text response content.</summary>
     [JsonPropertyName("content")]
@@ -2565,6 +2705,11 @@ public sealed partial class AssistantMessageDeltaData
 /// <summary>Turn completion metadata including the turn identifier.</summary>
 public sealed partial class AssistantTurnEndData
 {
+    /// <summary>Model identifier used for this turn, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     /// <summary>Identifier of the turn that has ended, matching the corresponding assistant.turn_start event.</summary>
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
@@ -2963,6 +3108,11 @@ public sealed partial class SkillInvokedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+
+    /// <summary>Model identifier active when the skill was invoked, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
 
     /// <summary>Name of the invoked skill.</summary>
     [JsonPropertyName("name")]
@@ -3660,6 +3810,40 @@ public sealed partial class SessionLimitsExhaustedCompletedData
     public required SessionLimitsExhaustedResponse Response { get; set; }
 }
 
+/// <summary>Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionAutoModeResolvedData
+{
+    /// <summary>Ordered candidate model list the router returned, when not a fallback.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("candidateModels")]
+    public string[]? CandidateModels { get; set; }
+
+    /// <summary>Per-category classifier scores (0-1) behind the bucket: the granular HYDRA capability scores (reasoning, code_gen, debugging, tool_use), or the binary needs_reasoning/no_reasoning scores when HYDRA didn't run. Lets clients show a breakdown rather than just the bucket.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("categoryScores")]
+    public IDictionary<string, double>? CategoryScores { get; set; }
+
+    /// <summary>The concrete model the session will use after any intent refinement.</summary>
+    [JsonPropertyName("chosenModel")]
+    public required string ChosenModel { get; set; }
+
+    /// <summary>Classifier confidence for the predicted label, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("confidence")]
+    public double? Confidence { get; set; }
+
+    /// <summary>The predicted classifier label (e.g. `needs_reasoning`), when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("predictedLabel")]
+    public string? PredictedLabel { get; set; }
+
+    /// <summary>Coarse request-difficulty bucket, for explaining why a model was chosen ("picked X because this looks like high-reasoning work").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningBucket")]
+    public AutoModeResolvedReasoningBucket? ReasoningBucket { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public sealed partial class CommandsChangedData
 {
@@ -3729,7 +3913,7 @@ public sealed partial class ExitPlanModeCompletedData
     public ExitPlanModeAction? SelectedAction { get; set; }
 }
 
-/// <summary>Schema for the `ToolsUpdatedData` type.</summary>
+/// <summary>Payload of `session.tools_updated` identifying the model whose resolved tools were updated.</summary>
 public sealed partial class SessionToolsUpdatedData
 {
     /// <summary>Identifier of the model the resolved tools apply to.</summary>
@@ -3737,12 +3921,12 @@ public sealed partial class SessionToolsUpdatedData
     public required string Model { get; set; }
 }
 
-/// <summary>Schema for the `BackgroundTasksChangedData` type.</summary>
+/// <summary>Empty payload for `session.background_tasks_changed`, indicating background task state changed.</summary>
 public sealed partial class SessionBackgroundTasksChangedData
 {
 }
 
-/// <summary>Schema for the `SkillsLoadedData` type.</summary>
+/// <summary>Payload of `session.skills_loaded` listing resolved skill metadata.</summary>
 public sealed partial class SessionSkillsLoadedData
 {
     /// <summary>Array of resolved skill metadata.</summary>
@@ -3750,7 +3934,7 @@ public sealed partial class SessionSkillsLoadedData
     public required SkillsLoadedSkill[] Skills { get; set; }
 }
 
-/// <summary>Schema for the `CustomAgentsUpdatedData` type.</summary>
+/// <summary>Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.</summary>
 public sealed partial class SessionCustomAgentsUpdatedData
 {
     /// <summary>Array of loaded custom agent metadata.</summary>
@@ -3766,7 +3950,7 @@ public sealed partial class SessionCustomAgentsUpdatedData
     public required string[] Warnings { get; set; }
 }
 
-/// <summary>Schema for the `McpServersLoadedData` type.</summary>
+/// <summary>Payload of `session.mcp_servers_loaded` listing MCP server status summaries.</summary>
 public sealed partial class SessionMcpServersLoadedData
 {
     /// <summary>Array of MCP server status summaries.</summary>
@@ -3774,7 +3958,7 @@ public sealed partial class SessionMcpServersLoadedData
     public required McpServersLoadedServer[] Servers { get; set; }
 }
 
-/// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
+/// <summary>Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.</summary>
 public sealed partial class SessionMcpServerStatusChangedData
 {
     /// <summary>Error message if the server entered a failed state.</summary>
@@ -3791,7 +3975,31 @@ public sealed partial class SessionMcpServerStatusChangedData
     public required McpServerStatus Status { get; set; }
 }
 
-/// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpToolsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpResourcesListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+public sealed partial class McpPromptsListChangedData
+{
+    /// <summary>Name of the MCP server whose list changed.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Payload of `session.extensions_loaded` listing discovered extensions and their statuses.</summary>
 public sealed partial class SessionExtensionsLoadedData
 {
     /// <summary>Array of discovered extensions and their status.</summary>
@@ -3799,7 +4007,7 @@ public sealed partial class SessionExtensionsLoadedData
     public required ExtensionsLoadedExtension[] Extensions { get; set; }
 }
 
-/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+/// <summary>Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasOpenedData
 {
@@ -3841,7 +4049,7 @@ public sealed partial class SessionCanvasOpenedData
     public string? Url { get; set; }
 }
 
-/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+/// <summary>Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasRegistryChangedData
 {
@@ -3850,7 +4058,7 @@ public sealed partial class SessionCanvasRegistryChangedData
     public required CanvasRegistryChangedCanvas[] Canvases { get; set; }
 }
 
-/// <summary>Schema for the `CanvasClosedData` type.</summary>
+/// <summary>Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionCanvasClosedData
 {
@@ -3936,7 +4144,7 @@ public sealed partial class SessionCanvasRemovedData
     public required string InstanceId { get; set; }
 }
 
-/// <summary>Schema for the `ExtensionsAttachmentsPushedData` type.</summary>
+/// <summary>Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.</summary>
 public sealed partial class SessionExtensionsAttachmentsPushedData
 {
     /// <summary>Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call.</summary>
@@ -4090,7 +4298,7 @@ public sealed partial class ShutdownModelMetricRequests
     public long? Count { get; set; }
 }
 
-/// <summary>Schema for the `ShutdownModelMetricTokenDetail` type.</summary>
+/// <summary>A token-type entry in a shutdown model metric, storing the accumulated token count.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetricTokenDetail</c>.</remarks>
 public sealed partial class ShutdownModelMetricTokenDetail
 {
@@ -4125,7 +4333,7 @@ public sealed partial class ShutdownModelMetricUsage
     public long? ReasoningTokens { get; set; }
 }
 
-/// <summary>Schema for the `ShutdownModelMetric` type.</summary>
+/// <summary>Per-model shutdown metrics with request counts, token usage, nano-AI units, and token details.</summary>
 /// <remarks>Nested data type for <c>ShutdownModelMetric</c>.</remarks>
 public sealed partial class ShutdownModelMetric
 {
@@ -4149,7 +4357,7 @@ public sealed partial class ShutdownModelMetric
     public required ShutdownModelMetricUsage Usage { get; set; }
 }
 
-/// <summary>Schema for the `ShutdownTokenDetail` type.</summary>
+/// <summary>A session-wide shutdown token-type entry storing the accumulated token count.</summary>
 /// <remarks>Nested data type for <c>ShutdownTokenDetail</c>.</remarks>
 public sealed partial class ShutdownTokenDetail
 {
@@ -5052,7 +5260,7 @@ public sealed partial class AssistantUsageCopilotUsage
     public required double TotalNanoAiu { get; set; }
 }
 
-/// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>
+/// <summary>Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</remarks>
 internal sealed partial class AssistantUsageQuotaSnapshot
 {
@@ -5163,7 +5371,7 @@ public sealed partial class ToolExecutionStartShellToolInfo
     public required string[] PossiblePaths { get; set; }
 }
 
-/// <summary>Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.</summary>
+/// <summary>MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionStartToolDescriptionMetaUI</c>.</remarks>
 public sealed partial class ToolExecutionStartToolDescriptionMetaUI
 {
@@ -5182,7 +5390,7 @@ public sealed partial class ToolExecutionStartToolDescriptionMetaUI
 /// <remarks>Nested data type for <c>ToolExecutionStartToolDescriptionMeta</c>.</remarks>
 public sealed partial class ToolExecutionStartToolDescriptionMeta
 {
-    /// <summary>Schema for the `ToolExecutionStartToolDescriptionMetaUI` type.</summary>
+    /// <summary>MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_start`.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
     public ToolExecutionStartToolDescriptionMetaUI? Ui { get; set; }
@@ -5195,7 +5403,7 @@ public sealed partial class ToolExecutionStartToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionStartToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionStartToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5617,7 +5825,7 @@ public sealed partial class ToolExecutionCompleteContentResourceLink : ToolExecu
     public required string Uri { get; set; }
 }
 
-/// <summary>Schema for the `EmbeddedTextResourceContents` type.</summary>
+/// <summary>Embedded text resource contents identified by a URI, with an optional MIME type and a text payload.</summary>
 /// <remarks>Nested data type for <c>EmbeddedTextResourceContents</c>.</remarks>
 public sealed partial class EmbeddedTextResourceContents
 {
@@ -5635,7 +5843,7 @@ public sealed partial class EmbeddedTextResourceContents
     public required string Uri { get; set; }
 }
 
-/// <summary>Schema for the `EmbeddedBlobResourceContents` type.</summary>
+/// <summary>Embedded binary resource contents identified by a URI, with an optional MIME type and a base64-encoded blob.</summary>
 /// <remarks>Nested data type for <c>EmbeddedBlobResourceContents</c>.</remarks>
 public sealed partial class EmbeddedBlobResourceContents
 {
@@ -5765,7 +5973,7 @@ public partial class ToolExecutionCompleteContent
 }
 
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.</summary>
+/// <summary>CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUICsp</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUICsp
 {
@@ -5790,60 +5998,60 @@ public sealed partial class ToolExecutionCompleteUIResourceMetaUICsp
     public string[]? ResourceDomains { get; set; }
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.</summary>
+/// <summary>Marker object for camera permission on an MCP Apps UI resource.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsCamera</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsCamera
 {
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.</summary>
+/// <summary>Marker object for clipboard-write permission on an MCP Apps UI resource.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite
 {
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.</summary>
+/// <summary>Marker object for geolocation permission on an MCP Apps UI resource.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation
 {
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.</summary>
+/// <summary>Marker object for microphone permission on an MCP Apps UI resource.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone
 {
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.</summary>
+/// <summary>Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissions</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissions
 {
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.</summary>
+    /// <summary>Marker object for camera permission on an MCP Apps UI resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("camera")]
     public ToolExecutionCompleteUIResourceMetaUIPermissionsCamera? Camera { get; set; }
 
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.</summary>
+    /// <summary>Marker object for clipboard-write permission on an MCP Apps UI resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("clipboardWrite")]
     public ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite? ClipboardWrite { get; set; }
 
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.</summary>
+    /// <summary>Marker object for geolocation permission on an MCP Apps UI resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("geolocation")]
     public ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation? Geolocation { get; set; }
 
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.</summary>
+    /// <summary>Marker object for microphone permission on an MCP Apps UI resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("microphone")]
     public ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone? Microphone { get; set; }
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.</summary>
+/// <summary>MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUI</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMetaUI
 {
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.</summary>
+    /// <summary>CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("csp")]
     public ToolExecutionCompleteUIResourceMetaUICsp? Csp { get; set; }
@@ -5853,7 +6061,7 @@ public sealed partial class ToolExecutionCompleteUIResourceMetaUI
     [JsonPropertyName("domain")]
     public string? Domain { get; set; }
 
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.</summary>
+    /// <summary>Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("permissions")]
     public ToolExecutionCompleteUIResourceMetaUIPermissions? Permissions { get; set; }
@@ -5868,7 +6076,7 @@ public sealed partial class ToolExecutionCompleteUIResourceMetaUI
 /// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMeta</c>.</remarks>
 public sealed partial class ToolExecutionCompleteUIResourceMeta
 {
-    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.</summary>
+    /// <summary>MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
     public ToolExecutionCompleteUIResourceMetaUI? Ui { get; set; }
@@ -5881,7 +6089,7 @@ public sealed partial class ToolExecutionCompleteUIResource
     /// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteUIResourceMeta? _meta { get; set; }
+    public ToolExecutionCompleteUIResourceMeta? Meta { get; set; }
 
     /// <summary>Base64-encoded HTML content.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5943,7 +6151,7 @@ public sealed partial class ToolExecutionCompleteResult
     public ToolExecutionCompleteUIResource? UiResource { get; set; }
 }
 
-/// <summary>Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.</summary>
+/// <summary>MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteToolDescriptionMetaUI</c>.</remarks>
 public sealed partial class ToolExecutionCompleteToolDescriptionMetaUI
 {
@@ -5962,7 +6170,7 @@ public sealed partial class ToolExecutionCompleteToolDescriptionMetaUI
 /// <remarks>Nested data type for <c>ToolExecutionCompleteToolDescriptionMeta</c>.</remarks>
 public sealed partial class ToolExecutionCompleteToolDescriptionMeta
 {
-    /// <summary>Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.</summary>
+    /// <summary>MCP Apps tool `_meta.ui` resource URI and visibility captured on `tool.execution_complete`.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
     public ToolExecutionCompleteToolDescriptionMetaUI? Ui { get; set; }
@@ -5975,7 +6183,7 @@ public sealed partial class ToolExecutionCompleteToolDescription
     /// <summary>MCP Apps metadata for UI resource association.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("_meta")]
-    public ToolExecutionCompleteToolDescriptionMeta? _meta { get; set; }
+    public ToolExecutionCompleteToolDescriptionMeta? Meta { get; set; }
 
     /// <summary>Tool description.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6021,7 +6229,7 @@ public sealed partial class SystemMessageMetadata
     public IDictionary<string, JsonElement>? Variables { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationAgentCompleted` type.</summary>
+/// <summary>System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.</summary>
 /// <remarks>The <c>agent_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationAgentCompleted : SystemNotification
 {
@@ -6052,7 +6260,7 @@ public sealed partial class SystemNotificationAgentCompleted : SystemNotificatio
     public required SystemNotificationAgentCompletedStatus Status { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationAgentIdle` type.</summary>
+/// <summary>System notification metadata for a background agent that became idle, including agent ID, type, and description.</summary>
 /// <remarks>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationAgentIdle : SystemNotification
 {
@@ -6074,7 +6282,7 @@ public sealed partial class SystemNotificationAgentIdle : SystemNotification
     public string? Description { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationNewInboxMessage` type.</summary>
+/// <summary>System notification metadata for a new inbox message, including entry ID, sender details, and summary.</summary>
 /// <remarks>The <c>new_inbox_message</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationNewInboxMessage : SystemNotification
 {
@@ -6099,7 +6307,7 @@ public sealed partial class SystemNotificationNewInboxMessage : SystemNotificati
     public required string Summary { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationShellCompleted` type.</summary>
+/// <summary>System notification metadata for a shell session that completed, including shell ID, optional exit code, and description.</summary>
 /// <remarks>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationShellCompleted : SystemNotification
 {
@@ -6122,7 +6330,7 @@ public sealed partial class SystemNotificationShellCompleted : SystemNotificatio
     public required string ShellId { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationShellDetachedCompleted` type.</summary>
+/// <summary>System notification metadata for a detached shell session that completed, including shell ID and description.</summary>
 /// <remarks>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationShellDetachedCompleted : SystemNotification
 {
@@ -6140,7 +6348,7 @@ public sealed partial class SystemNotificationShellDetachedCompleted : SystemNot
     public required string ShellId { get; set; }
 }
 
-/// <summary>Schema for the `SystemNotificationInstructionDiscovered` type.</summary>
+/// <summary>System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.</summary>
 /// <remarks>The <c>instruction_discovered</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationInstructionDiscovered : SystemNotification
 {
@@ -6185,7 +6393,7 @@ public partial class SystemNotification
 }
 
 
-/// <summary>Schema for the `PermissionRequestShellCommand` type.</summary>
+/// <summary>A parsed command identifier in a shell permission request, including whether it is read-only.</summary>
 /// <remarks>Nested data type for <c>PermissionRequestShellCommand</c>.</remarks>
 public sealed partial class PermissionRequestShellCommand
 {
@@ -6198,7 +6406,7 @@ public sealed partial class PermissionRequestShellCommand
     public required bool ReadOnly { get; set; }
 }
 
-/// <summary>Schema for the `PermissionRequestShellPossibleUrl` type.</summary>
+/// <summary>A URL that may be accessed by a command in a shell permission request.</summary>
 /// <remarks>Nested data type for <c>PermissionRequestShellPossibleUrl</c>.</remarks>
 public sealed partial class PermissionRequestShellPossibleUrl
 {
@@ -6293,6 +6501,16 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
 
+    /// <summary>True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -6377,6 +6595,16 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     /// <summary>Human-readable description of why the URL is being accessed.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
+
+    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6554,6 +6782,21 @@ public partial class PermissionRequest
 }
 
 
+/// <summary>Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.</summary>
+/// <remarks>Nested data type for <c>PermissionAutoApproval</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class PermissionAutoApproval
+{
+    /// <summary>Human-readable reason for the judge's recommendation, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>The auto-approval safety judge's outcome for this request.</summary>
+    [JsonPropertyName("recommendation")]
+    public required AutoApprovalRecommendation Recommendation { get; set; }
+}
+
 /// <summary>Shell command permission prompt.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
 public sealed partial class PermissionPromptRequestCommands : PermissionPromptRequest
@@ -6561,6 +6804,12 @@ public sealed partial class PermissionPromptRequestCommands : PermissionPromptRe
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "commands";
+
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
 
     /// <summary>Whether the UI can offer session-wide approval for this command pattern.</summary>
     [JsonPropertyName("canOfferSessionApproval")]
@@ -6597,6 +6846,12 @@ public sealed partial class PermissionPromptRequestWrite : PermissionPromptReque
     [JsonIgnore]
     public override string Kind => "write";
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
     [JsonPropertyName("canOfferSessionApproval")]
     public required bool CanOfferSessionApproval { get; set; }
@@ -6632,6 +6887,12 @@ public sealed partial class PermissionPromptRequestRead : PermissionPromptReques
     [JsonIgnore]
     public override string Kind => "read";
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Human-readable description of why the file is being read.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
@@ -6659,6 +6920,12 @@ public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
     [JsonPropertyName("args")]
     public JsonElement? Args { get; set; }
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Name of the MCP server providing the tool.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
@@ -6685,9 +6952,25 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonIgnore]
     public override string Kind => "url";
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Human-readable description of why the URL is being accessed.</summary>
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
+
+    /// <summary>True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypass")]
+    public bool? RequestSandboxBypass { get; set; }
+
+    /// <summary>Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestSandboxBypassReason")]
+    public string? RequestSandboxBypassReason { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6711,6 +6994,12 @@ public sealed partial class PermissionPromptRequestMemory : PermissionPromptRequ
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("action")]
     public PermissionRequestMemoryAction? Action { get; set; }
+
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
 
     /// <summary>Source references for the stored fact (store only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6755,6 +7044,12 @@ public sealed partial class PermissionPromptRequestCustomTool : PermissionPrompt
     [JsonPropertyName("args")]
     public JsonElement? Args { get; set; }
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]
@@ -6781,6 +7076,12 @@ public sealed partial class PermissionPromptRequestPath : PermissionPromptReques
     [JsonPropertyName("accessKind")]
     public required PermissionPromptRequestPathAccessKind AccessKind { get; set; }
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>File paths that require explicit approval.</summary>
     [JsonPropertyName("paths")]
     public required string[] Paths { get; set; }
@@ -6798,6 +7099,12 @@ public sealed partial class PermissionPromptRequestHook : PermissionPromptReques
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "hook";
+
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
 
     /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -6827,6 +7134,12 @@ public sealed partial class PermissionPromptRequestExtensionManagement : Permiss
     [JsonIgnore]
     public override string Kind => "extension-management";
 
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
     /// <summary>Name of the extension being managed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("extensionName")]
@@ -6849,6 +7162,12 @@ public sealed partial class PermissionPromptRequestExtensionPermissionAccess : P
     /// <inheritdoc />
     [JsonIgnore]
     public override string Kind => "extension-permission-access";
+
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
 
     /// <summary>Capabilities the extension is requesting.</summary>
     [JsonPropertyName("capabilities")]
@@ -6888,7 +7207,7 @@ public partial class PermissionPromptRequest
 }
 
 
-/// <summary>Schema for the `PermissionApproved` type.</summary>
+/// <summary>Permission response variant indicating the request was approved without persisting an approval rule.</summary>
 /// <remarks>The <c>approved</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultApproved : PermissionResult
 {
@@ -6897,7 +7216,7 @@ public sealed partial class PermissionResultApproved : PermissionResult
     public override string Kind => "approved";
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalCommands` type.</summary>
+/// <summary>Session-scoped tool-approval rule for specific shell command identifiers.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalCommands : UserToolSessionApproval
 {
@@ -6910,7 +7229,7 @@ public sealed partial class UserToolSessionApprovalCommands : UserToolSessionApp
     public required string[] CommandIdentifiers { get; set; }
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalRead` type.</summary>
+/// <summary>Session-scoped tool-approval rule for read-only filesystem operations.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalRead : UserToolSessionApproval
 {
@@ -6919,7 +7238,7 @@ public sealed partial class UserToolSessionApprovalRead : UserToolSessionApprova
     public override string Kind => "read";
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalWrite` type.</summary>
+/// <summary>Session-scoped tool-approval rule for filesystem write operations.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalWrite : UserToolSessionApproval
 {
@@ -6928,7 +7247,7 @@ public sealed partial class UserToolSessionApprovalWrite : UserToolSessionApprov
     public override string Kind => "write";
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalMcp` type.</summary>
+/// <summary>Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when `toolName` is null.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalMcp : UserToolSessionApproval
 {
@@ -6945,7 +7264,7 @@ public sealed partial class UserToolSessionApprovalMcp : UserToolSessionApproval
     public string? ToolName { get; set; }
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalMemory` type.</summary>
+/// <summary>Session-scoped tool-approval rule for writes to long-term memory.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalMemory : UserToolSessionApproval
 {
@@ -6954,7 +7273,7 @@ public sealed partial class UserToolSessionApprovalMemory : UserToolSessionAppro
     public override string Kind => "memory";
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalCustomTool` type.</summary>
+/// <summary>Session-scoped tool-approval rule for a custom tool, keyed by tool name.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalCustomTool : UserToolSessionApproval
 {
@@ -6967,7 +7286,7 @@ public sealed partial class UserToolSessionApprovalCustomTool : UserToolSessionA
     public required string ToolName { get; set; }
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalExtensionManagement` type.</summary>
+/// <summary>Session-scoped tool-approval rule for extension-management operations, optionally narrowed by operation.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalExtensionManagement : UserToolSessionApproval
 {
@@ -6981,7 +7300,7 @@ public sealed partial class UserToolSessionApprovalExtensionManagement : UserToo
     public string? Operation { get; set; }
 }
 
-/// <summary>Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.</summary>
+/// <summary>Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalExtensionPermissionAccess : UserToolSessionApproval
 {
@@ -7015,7 +7334,7 @@ public partial class UserToolSessionApproval
 }
 
 
-/// <summary>Schema for the `PermissionApprovedForSession` type.</summary>
+/// <summary>Permission response variant that approves a request and remembers the provided approval for the rest of the session.</summary>
 /// <remarks>The <c>approved-for-session</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultApprovedForSession : PermissionResult
 {
@@ -7028,7 +7347,7 @@ public sealed partial class PermissionResultApprovedForSession : PermissionResul
     public required UserToolSessionApproval Approval { get; set; }
 }
 
-/// <summary>Schema for the `PermissionApprovedForLocation` type.</summary>
+/// <summary>Permission response variant that approves a request and persists the provided approval to a project location key.</summary>
 /// <remarks>The <c>approved-for-location</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultApprovedForLocation : PermissionResult
 {
@@ -7045,7 +7364,7 @@ public sealed partial class PermissionResultApprovedForLocation : PermissionResu
     public required string LocationKey { get; set; }
 }
 
-/// <summary>Schema for the `PermissionCancelled` type.</summary>
+/// <summary>Permission response variant indicating the request was cancelled before use, with an optional reason.</summary>
 /// <remarks>The <c>cancelled</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultCancelled : PermissionResult
 {
@@ -7059,7 +7378,7 @@ public sealed partial class PermissionResultCancelled : PermissionResult
     public string? Reason { get; set; }
 }
 
-/// <summary>Schema for the `PermissionRule` type.</summary>
+/// <summary>A permission approval or denial rule matched against a tool request, identified by a rule kind with an optional argument value.</summary>
 /// <remarks>Nested data type for <c>PermissionRule</c>.</remarks>
 public sealed partial class PermissionRule
 {
@@ -7072,7 +7391,7 @@ public sealed partial class PermissionRule
     public required string Kind { get; set; }
 }
 
-/// <summary>Schema for the `PermissionDeniedByRules` type.</summary>
+/// <summary>Permission response variant denied because matching approval rules explicitly blocked the request.</summary>
 /// <remarks>The <c>denied-by-rules</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultDeniedByRules : PermissionResult
 {
@@ -7085,7 +7404,7 @@ public sealed partial class PermissionResultDeniedByRules : PermissionResult
     public required PermissionRule[] Rules { get; set; }
 }
 
-/// <summary>Schema for the `PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.</summary>
+/// <summary>Permission response variant denied because no approval rule matched and user confirmation was unavailable.</summary>
 /// <remarks>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionResult
 {
@@ -7094,7 +7413,7 @@ public sealed partial class PermissionResultDeniedNoApprovalRuleAndCouldNotReque
     public override string Kind => "denied-no-approval-rule-and-could-not-request-from-user";
 }
 
-/// <summary>Schema for the `PermissionDeniedInteractivelyByUser` type.</summary>
+/// <summary>Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag.</summary>
 /// <remarks>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultDeniedInteractivelyByUser : PermissionResult
 {
@@ -7113,7 +7432,7 @@ public sealed partial class PermissionResultDeniedInteractivelyByUser : Permissi
     public bool? ForceReject { get; set; }
 }
 
-/// <summary>Schema for the `PermissionDeniedByContentExclusionPolicy` type.</summary>
+/// <summary>Permission response variant denying a path under content exclusion policy, with the path and message.</summary>
 /// <remarks>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultDeniedByContentExclusionPolicy : PermissionResult
 {
@@ -7130,7 +7449,7 @@ public sealed partial class PermissionResultDeniedByContentExclusionPolicy : Per
     public required string Path { get; set; }
 }
 
-/// <summary>Schema for the `PermissionDeniedByPermissionRequestHook` type.</summary>
+/// <summary>Permission response variant denied by a permission-request hook, with optional message and interrupt flag.</summary>
 /// <remarks>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionResult"/>.</remarks>
 public sealed partial class PermissionResultDeniedByPermissionRequestHook : PermissionResult
 {
@@ -7252,7 +7571,7 @@ public sealed partial class SessionLimitsExhaustedResponse
     public double? MaxAiCredits { get; set; }
 }
 
-/// <summary>Schema for the `CommandsChangedCommand` type.</summary>
+/// <summary>A single slash command available in the session, as listed by the `commands.changed` event.</summary>
 /// <remarks>Nested data type for <c>CommandsChangedCommand</c>.</remarks>
 public sealed partial class CommandsChangedCommand
 {
@@ -7286,7 +7605,7 @@ public sealed partial class CapabilitiesChangedUI
     public bool? McpApps { get; set; }
 }
 
-/// <summary>Schema for the `SkillsLoadedSkill` type.</summary>
+/// <summary>A single resolved skill in `session.skills_loaded`, including source, invocability, enabled state, path, and argument hint.</summary>
 /// <remarks>Nested data type for <c>SkillsLoadedSkill</c>.</remarks>
 public sealed partial class SkillsLoadedSkill
 {
@@ -7321,7 +7640,7 @@ public sealed partial class SkillsLoadedSkill
     public required bool UserInvocable { get; set; }
 }
 
-/// <summary>Schema for the `CustomAgentsUpdatedAgent` type.</summary>
+/// <summary>A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.</summary>
 /// <remarks>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</remarks>
 public sealed partial class CustomAgentsUpdatedAgent
 {
@@ -7359,7 +7678,7 @@ public sealed partial class CustomAgentsUpdatedAgent
     public required bool UserInvocable { get; set; }
 }
 
-/// <summary>Schema for the `McpServersLoadedServer` type.</summary>
+/// <summary>A single MCP server status summary in `session.mcp_servers_loaded`, including name, status, source, transport, and plugin metadata.</summary>
 /// <remarks>Nested data type for <c>McpServersLoadedServer</c>.</remarks>
 public sealed partial class McpServersLoadedServer
 {
@@ -7397,7 +7716,7 @@ public sealed partial class McpServersLoadedServer
     public McpServerTransport? Transport { get; set; }
 }
 
-/// <summary>Schema for the `ExtensionsLoadedExtension` type.</summary>
+/// <summary>A single extension discovered by `session.extensions_loaded`, including qualified ID, source, and current status.</summary>
 /// <remarks>Nested data type for <c>ExtensionsLoadedExtension</c>.</remarks>
 public sealed partial class ExtensionsLoadedExtension
 {
@@ -7418,7 +7737,7 @@ public sealed partial class ExtensionsLoadedExtension
     public required ExtensionsLoadedExtensionStatus Status { get; set; }
 }
 
-/// <summary>Schema for the `CanvasRegistryChangedCanvasAction` type.</summary>
+/// <summary>A single action within a canvas declaration, with its name, optional description, and optional input schema.</summary>
 /// <remarks>Nested data type for <c>CanvasRegistryChangedCanvasAction</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class CanvasRegistryChangedCanvasAction
@@ -7438,7 +7757,7 @@ public sealed partial class CanvasRegistryChangedCanvasAction
     public required string Name { get; set; }
 }
 
-/// <summary>Schema for the `CanvasRegistryChangedCanvas` type.</summary>
+/// <summary>A single canvas declaration in `session.canvas.registry_changed`, including provider IDs, display metadata, input schema, and actions.</summary>
 /// <remarks>Nested data type for <c>CanvasRegistryChangedCanvas</c>.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class CanvasRegistryChangedCanvas
@@ -7486,7 +7805,7 @@ public sealed partial class McpAppToolCallCompleteError
     public required string Message { get; set; }
 }
 
-/// <summary>Schema for the `McpAppToolCallCompleteToolMetaUI` type.</summary>
+/// <summary>MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.</summary>
 /// <remarks>Nested data type for <c>McpAppToolCallCompleteToolMetaUI</c>.</remarks>
 public sealed partial class McpAppToolCallCompleteToolMetaUI
 {
@@ -7505,7 +7824,7 @@ public sealed partial class McpAppToolCallCompleteToolMetaUI
 /// <remarks>Nested data type for <c>McpAppToolCallCompleteToolMeta</c>.</remarks>
 public sealed partial class McpAppToolCallCompleteToolMeta
 {
-    /// <summary>Schema for the `McpAppToolCallCompleteToolMetaUI` type.</summary>
+    /// <summary>MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
     public McpAppToolCallCompleteToolMetaUI? Ui { get; set; }
@@ -7693,6 +8012,70 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
+        }
+    }
+}
+
+/// <summary>Output verbosity level used for supported model calls (e.g. "low", "medium", "high").</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct Verbosity : IEquatable<Verbosity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="Verbosity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="Verbosity"/>.</param>
+    [JsonConstructor]
+    public Verbosity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="Verbosity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A terse response was requested.</summary>
+    public static Verbosity Low { get; } = new("low");
+
+    /// <summary>A medium amount of response detail was requested.</summary>
+    public static Verbosity Medium { get; } = new("medium");
+
+    /// <summary>A more detailed response was requested.</summary>
+    public static Verbosity High { get; } = new("high");
+
+    /// <summary>Returns a value indicating whether two <see cref="Verbosity"/> instances are equivalent.</summary>
+    public static bool operator ==(Verbosity left, Verbosity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="Verbosity"/> instances are not equivalent.</summary>
+    public static bool operator !=(Verbosity left, Verbosity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is Verbosity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(Verbosity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{Verbosity}"/> for serializing <see cref="Verbosity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<Verbosity>
+    {
+        /// <inheritdoc />
+        public override Verbosity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, Verbosity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(Verbosity));
         }
     }
 }
@@ -7888,6 +8271,71 @@ public readonly struct SessionMode : IEquatable<SessionMode>
         public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
+        }
+    }
+}
+
+/// <summary>Allow-all mode for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionAllowAllMode : IEquatable<PermissionAllowAllMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionAllowAllMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionAllowAllMode"/>.</param>
+    [JsonConstructor]
+    public PermissionAllowAllMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionAllowAllMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Permission requests follow the normal approval flow.</summary>
+    public static PermissionAllowAllMode Off { get; } = new("off");
+
+    /// <summary>Tool, path, and URL permission requests are automatically approved.</summary>
+    public static PermissionAllowAllMode On { get; } = new("on");
+
+    /// <summary>Permission requests follow the normal approval flow with an LLM advisory recommendation attached; clients may choose to auto-approve requests the judge evaluated as acceptable.</summary>
+    public static PermissionAllowAllMode Auto { get; } = new("auto");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionAllowAllMode"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionAllowAllMode left, PermissionAllowAllMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionAllowAllMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionAllowAllMode left, PermissionAllowAllMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionAllowAllMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionAllowAllMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionAllowAllMode}"/> for serializing <see cref="PermissionAllowAllMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionAllowAllMode>
+    {
+        /// <inheritdoc />
+        public override PermissionAllowAllMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionAllowAllMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionAllowAllMode));
         }
     }
 }
@@ -8395,6 +8843,67 @@ public readonly struct UserMessageDelivery : IEquatable<UserMessageDelivery>
     }
 }
 
+/// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMessageToolRequestType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
+    [JsonConstructor]
+    public AssistantMessageToolRequestType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Standard function-style tool call.</summary>
+    public static AssistantMessageToolRequestType Function { get; } = new("function");
+
+    /// <summary>Custom grammar-based tool call.</summary>
+    public static AssistantMessageToolRequestType Custom { get; } = new("custom");
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
+    public static bool operator ==(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are not equivalent.</summary>
+    public static bool operator !=(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AssistantMessageToolRequestType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AssistantMessageToolRequestType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestType}"/> for serializing <see cref="AssistantMessageToolRequestType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AssistantMessageToolRequestType>
+    {
+        /// <inheritdoc />
+        public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
+        }
+    }
+}
+
 /// <summary>The system that produced a citation.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -8456,67 +8965,6 @@ public readonly struct CitationProvider : IEquatable<CitationProvider>
         public override void Write(Utf8JsonWriter writer, CitationProvider value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CitationProvider));
-        }
-    }
-}
-
-/// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMessageToolRequestType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="AssistantMessageToolRequestType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AssistantMessageToolRequestType"/>.</param>
-    [JsonConstructor]
-    public AssistantMessageToolRequestType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Standard function-style tool call.</summary>
-    public static AssistantMessageToolRequestType Function { get; } = new("function");
-
-    /// <summary>Custom grammar-based tool call.</summary>
-    public static AssistantMessageToolRequestType Custom { get; } = new("custom");
-
-    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
-    public static bool operator ==(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are not equivalent.</summary>
-    public static bool operator !=(AssistantMessageToolRequestType left, AssistantMessageToolRequestType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AssistantMessageToolRequestType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(AssistantMessageToolRequestType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{AssistantMessageToolRequestType}"/> for serializing <see cref="AssistantMessageToolRequestType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AssistantMessageToolRequestType>
-    {
-        /// <inheritdoc />
-        public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
         }
     }
 }
@@ -9512,6 +9960,74 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     }
 }
 
+/// <summary>Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoApprovalRecommendation : IEquatable<AutoApprovalRecommendation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoApprovalRecommendation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoApprovalRecommendation"/>.</param>
+    [JsonConstructor]
+    public AutoApprovalRecommendation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoApprovalRecommendation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The judge evaluated the request and recommends automatically approving it.</summary>
+    public static AutoApprovalRecommendation Approve { get; } = new("approve");
+
+    /// <summary>The judge evaluated the request and does not recommend auto-approving it; explicit approval is required. Whether that means prompting, denying, or something else is the consumer's decision.</summary>
+    public static AutoApprovalRecommendation RequireApproval { get; } = new("requireApproval");
+
+    /// <summary>Auto mode is enabled, but this request category is never auto-approvable (for example, sandbox-bypass requests), so the judge was not consulted.</summary>
+    public static AutoApprovalRecommendation Excluded { get; } = new("excluded");
+
+    /// <summary>The judge was consulted but did not return a usable recommendation, so the request requires explicit approval.</summary>
+    public static AutoApprovalRecommendation Error { get; } = new("error");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalRecommendation"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoApprovalRecommendation left, AutoApprovalRecommendation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoApprovalRecommendation"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoApprovalRecommendation left, AutoApprovalRecommendation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoApprovalRecommendation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoApprovalRecommendation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoApprovalRecommendation}"/> for serializing <see cref="AutoApprovalRecommendation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoApprovalRecommendation>
+    {
+        /// <inheritdoc />
+        public override AutoApprovalRecommendation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoApprovalRecommendation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoApprovalRecommendation));
+        }
+    }
+}
+
 /// <summary>Underlying permission kind that needs path approval.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -10088,6 +10604,70 @@ public readonly struct SessionLimitsExhaustedResponseAction : IEquatable<Session
     }
 }
 
+/// <summary>Coarse request-difficulty bucket for UX explainability.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutoModeResolvedReasoningBucket : IEquatable<AutoModeResolvedReasoningBucket>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutoModeResolvedReasoningBucket"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoModeResolvedReasoningBucket"/>.</param>
+    [JsonConstructor]
+    public AutoModeResolvedReasoningBucket(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutoModeResolvedReasoningBucket"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The request looks low-reasoning; a lighter model is appropriate.</summary>
+    public static AutoModeResolvedReasoningBucket Low { get; } = new("low");
+
+    /// <summary>The request needs a moderate amount of reasoning.</summary>
+    public static AutoModeResolvedReasoningBucket Medium { get; } = new("medium");
+
+    /// <summary>The request looks high-reasoning; a stronger model is appropriate.</summary>
+    public static AutoModeResolvedReasoningBucket High { get; } = new("high");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeResolvedReasoningBucket"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoModeResolvedReasoningBucket left, AutoModeResolvedReasoningBucket right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeResolvedReasoningBucket"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoModeResolvedReasoningBucket left, AutoModeResolvedReasoningBucket right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutoModeResolvedReasoningBucket other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutoModeResolvedReasoningBucket other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutoModeResolvedReasoningBucket}"/> for serializing <see cref="AutoModeResolvedReasoningBucket"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutoModeResolvedReasoningBucket>
+    {
+        /// <inheritdoc />
+        public override AutoModeResolvedReasoningBucket Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutoModeResolvedReasoningBucket value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoModeResolvedReasoningBucket));
+        }
+    }
+}
+
 /// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -10597,6 +11177,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantReasoningEvent))]
 [JsonSerializable(typeof(AssistantStreamingDeltaData))]
 [JsonSerializable(typeof(AssistantStreamingDeltaEvent))]
+[JsonSerializable(typeof(AssistantToolCallDeltaData))]
+[JsonSerializable(typeof(AssistantToolCallDeltaEvent))]
 [JsonSerializable(typeof(AssistantTurnEndData))]
 [JsonSerializable(typeof(AssistantTurnEndEvent))]
 [JsonSerializable(typeof(AssistantTurnStartData))]
@@ -10700,13 +11282,20 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
 [JsonSerializable(typeof(McpOauthWWWAuthenticateParams))]
+[JsonSerializable(typeof(McpPromptsListChangedData))]
+[JsonSerializable(typeof(McpPromptsListChangedEvent))]
+[JsonSerializable(typeof(McpResourcesListChangedData))]
+[JsonSerializable(typeof(McpResourcesListChangedEvent))]
 [JsonSerializable(typeof(McpServersLoadedServer))]
+[JsonSerializable(typeof(McpToolsListChangedData))]
+[JsonSerializable(typeof(McpToolsListChangedEvent))]
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
+[JsonSerializable(typeof(PermissionAutoApproval))]
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionPromptRequest))]
@@ -10753,6 +11342,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
 [JsonSerializable(typeof(SamplingRequestedEvent))]
+[JsonSerializable(typeof(SessionAutoModeResolvedData))]
+[JsonSerializable(typeof(SessionAutoModeResolvedEvent))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedData))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]

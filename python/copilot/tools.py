@@ -11,9 +11,12 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeVar, get_type_hints, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+
+if TYPE_CHECKING:
+    from .generated.rpc import CurrentToolMetadata
 
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
@@ -38,6 +41,7 @@ class ToolResult:
     binary_results_for_llm: list[ToolBinaryResult] | None = None
     session_log: str | None = None
     tool_telemetry: dict[str, Any] | None = None
+    tool_references: list[str] | None = None
     _from_exception: bool = field(default=False, repr=False)
 
 
@@ -49,6 +53,14 @@ class ToolInvocation:
     tool_call_id: str = ""
     tool_name: str = ""
     arguments: Any = None
+    available_tools: list[CurrentToolMetadata] | None = None
+    """Snapshot of the session's currently initialized tools.
+
+    Populated by the SDK only when this invocation targets the built-in
+    tool-search tool (``tool_search_tool``), so a tool-search override can
+    rank/filter the live catalog -- including MCP tools configured in settings --
+    without issuing its own RPC. ``None`` for every other tool invocation.
+    """
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
@@ -211,7 +223,21 @@ def define_tool(
                 if takes_params:
                     args = invocation.arguments or {}
                     if ptype is not None and _is_pydantic_model(ptype):
-                        call_args.append(ptype.model_validate(args))
+                        try:
+                            call_args.append(ptype.model_validate(args))
+                        except ValidationError as exc:
+                            # Highlight input validation problems to the LLM.
+                            parts = []
+                            for err in exc.errors():
+                                loc = ".".join(map(str, err["loc"]))
+                                msg = err["msg"]
+                                parts.append(f"{loc}: {msg}" if loc else msg)
+                            return ToolResult(
+                                text_result_for_llm="Invalid tool arguments:\n" + "\n".join(parts),
+                                result_type="failure",
+                                error=str(exc),
+                                tool_telemetry={},
+                            )
                     else:
                         call_args.append(args)
                 if takes_invocation:

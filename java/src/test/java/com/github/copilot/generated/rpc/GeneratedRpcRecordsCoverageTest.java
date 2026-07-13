@@ -321,11 +321,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-4.5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
+        assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
     }
 
@@ -803,7 +804,8 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
         var capabilities = new ModelCapabilities(supports, limits);
         var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
-        var billing = new ModelBilling(1.0, null, null);
+        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount");
+        var billing = new ModelBilling(1.0, null, null, promo);
         var modelItem = new Model("gpt-5", "GPT-5", capabilities, policy, billing, null, null, null, null);
         var result = new ModelsListResult(List.of(modelItem));
 
@@ -815,6 +817,10 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals(100000L, result.models().get(0).capabilities().limits().maxPromptTokens());
         assertEquals(ModelPolicyState.ENABLED, result.models().get(0).policy().state());
         assertEquals(Double.valueOf(1.0), result.models().get(0).billing().multiplier());
+        assertEquals("summer-2026", result.models().get(0).billing().promo().id());
+        assertEquals(Double.valueOf(25.0), result.models().get(0).billing().promo().discountPercent());
+        assertEquals("2026-08-01T00:00:00Z", result.models().get(0).billing().promo().endsAt());
+        assertEquals("Summer discount", result.models().get(0).billing().promo().message());
     }
 
     @Test
@@ -836,7 +842,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, capabilities, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());

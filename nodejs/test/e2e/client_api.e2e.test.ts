@@ -44,6 +44,7 @@ describe("Client session management", async () => {
         await waitFor(async () =>
             (await client.listSessions()).some((s) => s.sessionId === sessionId)
         );
+        await session.abort();
         await session.disconnect();
         await client.deleteSession(sessionId);
 

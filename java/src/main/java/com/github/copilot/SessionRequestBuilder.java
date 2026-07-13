@@ -145,6 +145,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDirectory(config.getConfigDirectory());
@@ -185,6 +186,7 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
         request.setCloud(config.getCloud());
         request.setExpAssignments(config.getExpAssignments());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }
@@ -280,6 +282,7 @@ final class SessionRequestBuilder {
         request.setInstructionDirectories(config.getInstructionDirectories());
         request.setPluginDirectories(config.getPluginDirectories());
         request.setLargeOutput(config.getLargeOutput());
+        request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
@@ -306,6 +309,7 @@ final class SessionRequestBuilder {
         request.setGitHubToken(config.getGitHubToken());
         request.setRemoteSession(config.getRemoteSession());
         request.setExpAssignments(config.getExpAssignments());
+        config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
 
         return request;
     }

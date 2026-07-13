@@ -26,7 +26,9 @@ import javax.annotation.processing.Generated;
 public record SessionPermissionsSetAllowAllResult(
     /** Whether the operation succeeded */
     @JsonProperty("success") Boolean success,
-    /** Authoritative allow-all state after the mutation */
-    @JsonProperty("enabled") Boolean enabled
+    /** Authoritative full allow-all state after the mutation */
+    @JsonProperty("enabled") Boolean enabled,
+    /** Authoritative allow-all mode after the mutation */
+    @JsonProperty("mode") PermissionsAllowAllMode mode
 ) {
 }

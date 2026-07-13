@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpAppToolCallCompleteToolMeta(
-    /** Schema for the `McpAppToolCallCompleteToolMetaUI` type. */
+    /** MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result. */
     @JsonProperty("ui") McpAppToolCallCompleteToolMetaUI ui
 ) {
 }

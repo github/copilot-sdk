@@ -102,6 +102,9 @@ public final class CreateSessionRequest {
     @JsonProperty("includeSubAgentStreamingEvents")
     private Boolean includeSubAgentStreamingEvents;
 
+    @JsonProperty("enableGitHubTelemetryForwarding")
+    private Boolean enableGitHubTelemetryForwarding;
+
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
@@ -134,6 +137,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("largeOutput")
     private LargeToolOutputConfig largeOutput;
+
+    @JsonProperty("toolSearch")
+    private ToolSearchConfig toolSearch;
 
     @JsonProperty("memory")
     private MemoryConfiguration memory;
@@ -208,6 +214,10 @@ public final class CreateSessionRequest {
 
     @JsonProperty("expAssignments")
     private JsonNode expAssignments;
+
+    @JsonProperty("enableManagedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableManagedSettings;
 
     /** Gets the model name. @return the model */
     public String getModel() {
@@ -617,6 +627,16 @@ public final class CreateSessionRequest {
         this.largeOutput = largeOutput;
     }
 
+    /** Gets tool-search config. @return the tool-search config */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /** Sets tool-search config. @param toolSearch the tool-search config */
+    public void setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
+    }
+
     /** Gets memory config. @return the memory config */
     public MemoryConfiguration getMemory() {
         return memory;
@@ -820,6 +840,27 @@ public final class CreateSessionRequest {
         this.includeSubAgentStreamingEvents = null;
     }
 
+    /** Gets the GitHub telemetry forwarding flag. @return the flag */
+    public Boolean getEnableGitHubTelemetryForwarding() {
+        return enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Sets the GitHub telemetry forwarding flag. @param
+     * enableGitHubTelemetryForwarding the flag
+     */
+    public void setEnableGitHubTelemetryForwarding(boolean enableGitHubTelemetryForwarding) {
+        this.enableGitHubTelemetryForwarding = enableGitHubTelemetryForwarding;
+    }
+
+    /**
+     * Clears the enableGitHubTelemetryForwarding setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableGitHubTelemetryForwarding() {
+        this.enableGitHubTelemetryForwarding = null;
+    }
+
     /** Gets the commands wire definitions. @return the commands */
     public List<CommandWireDefinition> getCommands() {
         return commands == null ? null : Collections.unmodifiableList(commands);
@@ -941,5 +982,28 @@ public final class CreateSessionRequest {
      */
     public void setExpAssignments(JsonNode expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /**
+     * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
+     * if not set
+     */
+    public Boolean getEnableManagedSettings() {
+        return enableManagedSettings;
+    }
+
+    /**
+     * Sets the self-fetch managed settings flag. @param enableManagedSettings the
+     * flag
+     */
+    public void setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+    }
+
+    /**
+     * Clears the enableManagedSettings setting, reverting to the default behavior.
+     */
+    public void clearEnableManagedSettings() {
+        this.enableManagedSettings = null;
     }
 }

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -19,7 +20,7 @@ pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarderBuilder, CopilotWebSocketHandler, CopilotWebSocketMessage,
     CopilotWebSocketResponse, WebSocketTransform, forward_http,
 };
-use crate::generated::api_types::OpenCanvasInstance;
+use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance};
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -332,8 +333,8 @@ pub struct Tool {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instructions: Option<String>,
     /// JSON Schema for the tool's input parameters.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub parameters: HashMap<String, Value>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub parameters: IndexMap<String, Value>,
     /// When `true`, this tool replaces a built-in tool of the same name
     /// (e.g. supplying a custom `grep` that the agent uses in place of the
     /// CLI's built-in implementation).
@@ -614,7 +615,7 @@ pub struct CustomAgentConfig {
     pub prompt: String,
     /// MCP servers specific to this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Whether the agent is available for model inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub infer: Option<bool>,
@@ -668,7 +669,7 @@ impl CustomAgentConfig {
     }
 
     /// Configure agent-specific MCP servers.
-    pub fn with_mcp_servers(mut self, mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, mcp_servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(mcp_servers);
         self
     }
@@ -754,6 +755,45 @@ impl LargeToolOutputConfig {
     /// Set the directory where large tool output files are written.
     pub fn with_output_directory<P: Into<PathBuf>>(mut self, output_directory: P) -> Self {
         self.output_directory = Some(output_directory.into());
+        self
+    }
+}
+
+/// Overrides the runtime's built-in tool-search behavior.
+///
+/// Tool search defers tools to keep the model's active tool set small.
+/// To override the tool-search tool's implementation, register a [`Tool`]
+/// named `"tool_search_tool"` with [`Tool::overrides_built_in_tool`] set to `true`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ToolSearchConfig {
+    /// Toggle to enable/disable tool search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// The tool count above which MCP and external tools are deferred behind
+    /// tool search. When unset, the runtime default (30) applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer_threshold: Option<u32>,
+}
+
+impl ToolSearchConfig {
+    /// Construct an empty [`ToolSearchConfig`]; all fields default to unset
+    /// (the runtime applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle that enables or disables tool search.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the tool count above which MCP and external tools are deferred
+    /// behind tool search.
+    pub fn with_defer_threshold(mut self, defer_threshold: u32) -> Self {
+        self.defer_threshold = Some(defer_threshold);
         self
     }
 }
@@ -916,6 +956,42 @@ impl ExtensionInfo {
     }
 }
 
+/// Stable identity for a host/SDK connection that supplies built-in canvases.
+///
+/// When set on session create or resume, the runtime uses [`id`] verbatim as
+/// the agent-facing canvas extension id, so canvases declared on a control
+/// connection survive stdio reconnect and CLI process restart instead of being
+/// re-keyed to a per-connection id. The id is opaque to the runtime; a
+/// per-window-stable value such as `app:builtin:<windowId>` is recommended. An
+/// id beginning with `connection:` is reserved and ignored by the runtime.
+///
+/// [`id`]: CanvasProviderIdentity::id
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderIdentity {
+    /// Opaque, stable provider id used verbatim as the canvas extension id.
+    pub id: String,
+    /// Optional display name surfaced as the canvas extension name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl CanvasProviderIdentity {
+    /// Create a canvas provider identity from a stable opaque id.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: None,
+        }
+    }
+
+    /// Set the optional display name surfaced as the canvas extension name.
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+}
+
 /// Configuration for a single MCP server.
 ///
 /// MCP (Model Context Protocol) servers expose external tools to the
@@ -929,8 +1005,8 @@ impl ExtensionInfo {
 ///
 /// ```
 /// # use github_copilot_sdk::types::{McpServerConfig, McpStdioServerConfig, McpHttpServerConfig};
-/// # use std::collections::HashMap;
-/// let mut servers = HashMap::new();
+/// # use github_copilot_sdk::IndexMap;
+/// let mut servers = IndexMap::new();
 /// servers.insert(
 ///     "playwright".to_string(),
 ///     McpServerConfig::Stdio(McpStdioServerConfig {
@@ -1598,6 +1674,9 @@ pub struct SessionConfig {
     pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases, so they survive reconnect and CLI restart.
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     /// Allowlist of built-in tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
@@ -1609,7 +1688,7 @@ pub struct SessionConfig {
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -1674,6 +1753,10 @@ pub struct SessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior, which defers
+    /// rarely used tools behind a searchable index. When unset, the runtime
+    /// default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
@@ -1770,6 +1853,13 @@ pub struct SessionConfig {
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
     pub exp_assignments: Option<Value>,
+    /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
+    /// settings (bypass-permissions policy) at session bootstrap using the
+    /// session's [`github_token`](Self::github_token). Requires `github_token`
+    /// to be set; if omitted, the runtime is expected to reject session creation
+    /// (fail-closed). When `None`, behaves exactly as before. Set via
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub enable_managed_settings: Option<bool>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1847,6 +1937,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_extensions", &self.request_extensions)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
+            .field("canvas_provider", &self.canvas_provider)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
@@ -1878,6 +1969,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -1905,6 +1997,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1968,6 +2061,7 @@ impl Default for SessionConfig {
             request_extensions: None,
             extension_sdk_path: None,
             extension_info: None,
+            canvas_provider: None,
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
@@ -1987,6 +2081,7 @@ impl Default for SessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -2010,6 +2105,7 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             exp_assignments: None,
+            enable_managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2057,7 +2153,7 @@ impl SessionConfig {
     ///
     /// Wire-format flags are derived from handler presence and the policy
     /// field; runtime fields are moved out into the returned runtime so
-    /// the deep `Vec<Tool>` / `HashMap<String, Value>` clones the previous
+    /// the deep `Vec<Tool>` / `IndexMap<String, Value>` clones the previous
     /// `&self`-based shape required are eliminated, and the order of
     /// reading-vs-moving is enforced at compile time.
     ///
@@ -2116,6 +2212,7 @@ impl SessionConfig {
             request_extensions: self.request_extensions,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
+            canvas_provider: self.canvas_provider,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
@@ -2143,6 +2240,7 @@ impl SessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -2163,8 +2261,10 @@ impl SessionConfig {
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
+            enable_managed_settings: self.enable_managed_settings,
         };
 
         let runtime = SessionConfigRuntime {
@@ -2389,6 +2489,13 @@ impl SessionConfig {
         self
     }
 
+    /// Set the canvas provider identity for this connection so host-supplied
+    /// canvases survive reconnect and CLI restart.
+    pub fn with_canvas_provider(mut self, canvas_provider: CanvasProviderIdentity) -> Self {
+        self.canvas_provider = Some(canvas_provider);
+        self
+    }
+
     /// Set the allowlist of built-in tool names the agent may use.
     pub fn with_available_tools<I, S>(mut self, tools: I) -> Self
     where
@@ -2420,7 +2527,7 @@ impl SessionConfig {
     }
 
     /// Set MCP server configurations passed through to the CLI.
-    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
         self
     }
@@ -2542,6 +2649,13 @@ impl SessionConfig {
     /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on session create.
     pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
         self.large_output = Some(config);
+        self
+    }
+
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on session create.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
         self
     }
 
@@ -2731,6 +2845,16 @@ impl SessionConfig {
         self.exp_assignments = Some(assignments);
         self
     }
+
+    /// Opt the runtime into self-fetching enterprise managed settings
+    /// (bypass-permissions policy) at session bootstrap using the session's
+    /// [`github_token`](Self::github_token). Requires `github_token` to be set;
+    /// if omitted, the runtime is expected to reject session creation
+    /// (fail-closed).
+    pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
+        self.enable_managed_settings = Some(enabled);
+        self
+    }
 }
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
@@ -2781,6 +2905,9 @@ pub struct ResumeSessionConfig {
     pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
+    /// Stable identity for a host/SDK connection that supplies built-in
+    /// canvases, so they rehydrate against a stable extension id on resume.
+    pub canvas_provider: Option<CanvasProviderIdentity>,
     /// Allowlist of tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
@@ -2792,7 +2919,7 @@ pub struct ResumeSessionConfig {
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
-    pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -2829,6 +2956,9 @@ pub struct ResumeSessionConfig {
     pub plugin_directories: Option<Vec<PathBuf>>,
     /// Configuration for large tool output handling, forwarded to the CLI on resume.
     pub large_output: Option<LargeToolOutputConfig>,
+    /// Overrides the runtime's built-in tool-search behavior on resume. When
+    /// unset, the runtime default applies.
+    pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
@@ -2899,6 +3029,12 @@ pub struct ResumeSessionConfig {
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
     pub exp_assignments: Option<Value>,
+    /// Opt-in flag injected on resume. See
+    /// [`SessionConfig::enable_managed_settings`]. Re-supply on resume so
+    /// the runtime re-applies the managed-settings self-fetch after a CLI
+    /// process restart. Set via
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub enable_managed_settings: Option<bool>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -2970,6 +3106,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_extensions", &self.request_extensions)
             .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
+            .field("canvas_provider", &self.canvas_provider)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
@@ -3001,6 +3138,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("instruction_directories", &self.instruction_directories)
             .field("plugin_directories", &self.plugin_directories)
             .field("large_output", &self.large_output)
+            .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -3027,6 +3165,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
+            .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -3127,6 +3266,7 @@ impl ResumeSessionConfig {
             request_extensions: self.request_extensions,
             extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
+            canvas_provider: self.canvas_provider,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
@@ -3154,6 +3294,7 @@ impl ResumeSessionConfig {
             instruction_directories: self.instruction_directories,
             plugin_directories: self.plugin_directories,
             large_output: self.large_output,
+            tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -3173,8 +3314,10 @@ impl ResumeSessionConfig {
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
+            enable_managed_settings: self.enable_managed_settings,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -3221,6 +3364,7 @@ impl ResumeSessionConfig {
             request_extensions: None,
             extension_sdk_path: None,
             extension_info: None,
+            canvas_provider: None,
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
@@ -3240,6 +3384,7 @@ impl ResumeSessionConfig {
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
+            tool_search: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -3262,6 +3407,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             exp_assignments: None,
+            enable_managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -3472,6 +3618,13 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the canvas provider identity for this connection on resume so
+    /// host-supplied canvases rehydrate against a stable extension id.
+    pub fn with_canvas_provider(mut self, canvas_provider: CanvasProviderIdentity) -> Self {
+        self.canvas_provider = Some(canvas_provider);
+        self
+    }
+
     /// Set the allowlist of tool names the agent may use.
     pub fn with_available_tools<I, S>(mut self, tools: I) -> Self
     where
@@ -3503,7 +3656,7 @@ impl ResumeSessionConfig {
     }
 
     /// Re-supply MCP server configurations on resume.
-    pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
+    pub fn with_mcp_servers(mut self, servers: IndexMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
         self
     }
@@ -3620,6 +3773,13 @@ impl ResumeSessionConfig {
     /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on resume.
     pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
         self.large_output = Some(config);
+        self
+    }
+
+    /// Set the [`ToolSearchConfig`] overriding the runtime's built-in
+    /// tool-search behavior on resume.
+    pub fn with_tool_search(mut self, config: ToolSearchConfig) -> Self {
+        self.tool_search = Some(config);
         self
     }
 
@@ -3809,6 +3969,13 @@ impl ResumeSessionConfig {
     #[doc(hidden)]
     pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
         self.exp_assignments = Some(assignments);
+        self
+    }
+
+    /// Opt the runtime into self-fetching enterprise managed settings on resume.
+    /// See [`SessionConfig::with_enable_managed_settings`].
+    pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
+        self.enable_managed_settings = Some(enabled);
         self
     }
 }
@@ -4742,6 +4909,15 @@ pub struct ToolInvocation {
     pub tool_name: String,
     /// Tool arguments as JSON.
     pub arguments: Value,
+    /// Snapshot of the session's currently initialized tools.
+    ///
+    /// The SDK populates this only when the invocation targets the built-in
+    /// tool-search tool (`tool_search_tool`), so a tool-search override can
+    /// rank/filter the live catalog — including MCP tools configured in
+    /// settings — without issuing its own RPC. `None` for every other tool
+    /// invocation. This field is not part of the wire protocol.
+    #[serde(skip)]
+    pub available_tools: Option<Vec<CurrentToolMetadata>>,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
     /// `execute_tool` span. Pass through to OpenTelemetry-aware code so
     /// child spans created inside the handler are parented to the CLI
@@ -4805,8 +4981,14 @@ pub struct ToolBinaryResult {
 }
 
 /// Expanded tool result with metadata for the LLM and session log.
+///
+/// This type is `#[non_exhaustive]`: it mirrors a growing wire shape, so
+/// construct it via [`ToolResultExpanded::new`] plus the `with_*` chain
+/// rather than a struct literal, allowing new fields to land without
+/// breaking callers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ToolResultExpanded {
     /// Result text sent back to the LLM.
     pub text_result_for_llm: String,
@@ -4824,6 +5006,60 @@ pub struct ToolResultExpanded {
     /// Tool-specific telemetry emitted with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, Value>>,
+    /// Names of tools returned by a tool-search tool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_references: Option<Vec<String>>,
+}
+
+impl ToolResultExpanded {
+    /// Construct an expanded result with the required `text_result_for_llm`
+    /// and `result_type` (`"success"` or `"failure"`). All optional metadata
+    /// fields start unset; populate them with the `with_*` builders.
+    pub fn new(text_result_for_llm: impl Into<String>, result_type: impl Into<String>) -> Self {
+        Self {
+            text_result_for_llm: text_result_for_llm.into(),
+            result_type: result_type.into(),
+            binary_results_for_llm: None,
+            session_log: None,
+            error: None,
+            tool_telemetry: None,
+            tool_references: None,
+        }
+    }
+
+    /// Set the binary payloads returned to the LLM.
+    pub fn with_binary_results(mut self, results: Vec<ToolBinaryResult>) -> Self {
+        self.binary_results_for_llm = Some(results);
+        self
+    }
+
+    /// Set the log message for the session timeline.
+    pub fn with_session_log(mut self, session_log: impl Into<String>) -> Self {
+        self.session_log = Some(session_log.into());
+        self
+    }
+
+    /// Set the error message, marking the tool as failed.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
+        self
+    }
+
+    /// Set the tool-specific telemetry emitted with the result.
+    pub fn with_tool_telemetry(mut self, telemetry: HashMap<String, Value>) -> Self {
+        self.tool_telemetry = Some(telemetry);
+        self
+    }
+
+    /// Set the names of tools returned by a tool-search tool.
+    pub fn with_tool_references<I, S>(mut self, references: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.tool_references = Some(references.into_iter().map(Into::into).collect());
+        self
+    }
 }
 
 /// Result of a tool invocation — either a plain text string or an expanded result.
@@ -5166,10 +5402,11 @@ mod tests {
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
         CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
-        LargeToolOutputConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig,
-        ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
+        NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
+        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
+        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
+        ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -5253,6 +5490,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
@@ -5287,6 +5525,7 @@ mod tests {
                 session_log: None,
                 error: None,
                 tool_telemetry: None,
+                tool_references: None,
             }),
         };
 
@@ -5294,6 +5533,70 @@ mod tests {
 
         assert_eq!(wire["result"]["textResultForLlm"], "ok");
         assert!(wire["result"].get("binaryResultsForLlm").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_serializes_tool_references() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(
+                ToolResultExpanded::new("found 2 tools", "success")
+                    .with_tool_references(["get_weather", "check_status"]),
+            ),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(
+            wire,
+            json!({
+                "result": {
+                    "textResultForLlm": "found 2 tools",
+                    "resultType": "success",
+                    "toolReferences": ["get_weather", "check_status"]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_omits_tool_references_when_none() {
+        let response = ToolResultResponse {
+            result: ToolResult::Expanded(ToolResultExpanded::new("ok", "success")),
+        };
+
+        let wire = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(wire["result"]["textResultForLlm"], "ok");
+        assert!(wire["result"].get("toolReferences").is_none());
+    }
+
+    #[test]
+    fn tool_result_expanded_with_tool_references_accepts_owned_strings() {
+        // The builder is generic over `Into<String>`, so an owned `Vec<String>`
+        // must compile and populate the field just like a `&str` array.
+        let names: Vec<String> = vec!["alpha".to_string(), "beta".to_string()];
+        let expanded = ToolResultExpanded::new("ok", "success").with_tool_references(names);
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn tool_result_expanded_deserializes_tool_references() {
+        let wire = json!({
+            "textResultForLlm": "found tools",
+            "resultType": "success",
+            "toolReferences": ["alpha", "beta"]
+        });
+
+        let expanded: ToolResultExpanded = serde_json::from_value(wire).unwrap();
+
+        assert_eq!(
+            expanded.tool_references.as_deref(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
     }
 
     #[test]
@@ -5718,7 +6021,7 @@ mod tests {
 
     #[test]
     fn session_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = SessionConfig::default()
             .with_session_id(SessionId::from("sess-1"))
@@ -5731,7 +6034,7 @@ mod tests {
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_enable_on_demand_instruction_discovery(true)
@@ -5792,7 +6095,7 @@ mod tests {
 
     #[test]
     fn resume_session_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
@@ -5802,7 +6105,7 @@ mod tests {
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_enable_on_demand_instruction_discovery(false)
@@ -5940,13 +6243,13 @@ mod tests {
 
     #[test]
     fn custom_agent_config_builder_composes() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
         let cfg = CustomAgentConfig::new("researcher", "You are a research assistant.")
             .with_display_name("Research Assistant")
             .with_description("Investigates technical questions.")
             .with_tools(["bash", "view"])
-            .with_mcp_servers(HashMap::new())
+            .with_mcp_servers(IndexMap::new())
             .with_infer(true)
             .with_skills(["rust-coding-skill"]);
 
@@ -5966,6 +6269,51 @@ mod tests {
         assert_eq!(
             cfg.skills.as_deref(),
             Some(&["rust-coding-skill".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn mcp_servers_serialize_in_insertion_order() {
+        use indexmap::IndexMap;
+
+        // Regression: `mcp_servers` was a `HashMap`, so the server keys (and
+        // thus the `session.create` payload) serialized in a per-process
+        // random order; `IndexMap` pins them to insertion order. The long
+        // sequence makes a `HashMap` regression reproduce this exact order by
+        // chance only 1/N!, avoiding a flaky false pass.
+        let order = [
+            "zebra", "quartz", "delta", "ivy", "mango", "bravo", "xenon", "amber", "falcon",
+            "ceres", "nova", "kelp", "otter", "yodel", "plum", "garnet",
+        ];
+        let mut servers = IndexMap::new();
+        for name in order {
+            servers.insert(
+                name.to_string(),
+                McpServerConfig::Stdio(McpStdioServerConfig {
+                    command: "run".to_string(),
+                    ..Default::default()
+                }),
+            );
+        }
+
+        let (wire, _runtime) = SessionConfig::default()
+            .with_mcp_servers(servers)
+            .into_wire(None)
+            .expect("into_wire should succeed");
+        let json = serde_json::to_string(&wire).expect("serialize wire");
+
+        let positions: Vec<usize> = order
+            .iter()
+            .map(|name| {
+                json.find(&format!("\"{name}\""))
+                    .unwrap_or_else(|| panic!("server {name} missing from wire JSON"))
+            })
+            .collect();
+        let mut ascending = positions.clone();
+        ascending.sort_unstable();
+        assert_eq!(
+            positions, ascending,
+            "mcp server keys must serialize in insertion order: {json}"
         );
     }
 

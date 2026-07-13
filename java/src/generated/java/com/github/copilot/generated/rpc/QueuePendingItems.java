@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Schema for the `QueuePendingItems` type.
+ * User-facing pending queue entry, with kind and display text for a queued message, slash command, or model change.
  *
  * @since 1.0.0
  */
