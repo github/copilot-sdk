@@ -81,6 +81,7 @@ schemars = "1"
 serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
