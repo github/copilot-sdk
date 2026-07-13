@@ -32,6 +32,17 @@ python -m copilot download-runtime
 This caches the runtime binary locally. If you skip this step, the SDK will
 attempt to download it automatically on first use as a fallback.
 
+To pre-provision the native library required by the in-process (FFI) transport
+(see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
+
+```bash
+python -m copilot download-runtime --in-process
+```
+
+This additionally fetches the native runtime shared library and places it next to
+the cached binary. Stdio/TCP users never download it. When omitted, the library is
+downloaded lazily on first use of the in-process transport.
+
 | Platform | Cache path |
 |----------|-----------|
 | Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
@@ -136,7 +147,7 @@ asyncio.run(main())
 ## Features
 
 - ✅ Full JSON-RPC protocol support
-- ✅ stdio and TCP transports
+- ✅ stdio, TCP, and in-process (FFI) transports
 - ✅ Real-time streaming events
 - ✅ Session history with `get_events()`
 - ✅ Type hints throughout
@@ -184,8 +195,9 @@ CopilotClient(connection=..., log_level="debug", github_token=..., ...)
 All options are kw-only parameters:
 
 - `connection` (RuntimeConnection | None): How to reach the runtime. Use
-  `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`, or
-  `RuntimeConnection.for_uri(...)`. Defaults to a stdio connection with the bundled binary.
+  `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`,
+  `RuntimeConnection.for_uri(...)`, or `RuntimeConnection.for_inprocess(...)`.
+  Defaults to a stdio connection with the bundled binary.
 - `working_directory` (str | None): Working directory for the CLI process (default: current dir).
 - `log_level` (str): Log level (default: "info").
 - `env` (dict | None): Environment variables for the CLI process.
@@ -204,6 +216,49 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
 - `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
+- `RuntimeConnection.for_inprocess(path=None, args=None)` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
+
+Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
+`env` field for the spawned process. Set it on the returned connection instead of
+the client-level `env` — setting both raises:
+
+```python
+conn = RuntimeConnection.for_stdio()
+conn.env = {"MY_VAR": "value"}
+client = CopilotClient(connection=conn)  # do NOT also pass env=... here
+```
+
+### In-process (FFI) transport
+
+> ⚠️ **Experimental.** The in-process transport loads the runtime's native shared
+> library into your process and drives JSON-RPC over its C ABI (via stdlib
+> `ctypes`), instead of spawning a child process. The native host spawns the
+> residual worker itself.
+
+```python
+from copilot import CopilotClient, RuntimeConnection
+
+client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+await client.start()
+try:
+    pong = await client.ping("hello")
+    print(pong.message)
+finally:
+    await client.stop()
+```
+
+**Requirements & behavior:**
+
+- Requires the native runtime library next to the CLI. Pre-provision it with
+  `python -m copilot download-runtime --in-process`, or let the SDK download it
+  lazily on first use of this transport.
+- Because the runtime shares this single host process, per-client options that
+  lower to environment variables or a working directory **cannot** be honored and
+  are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`
+  with `for_inprocess()`. Set the corresponding values on the host process
+  environment / working directory before creating the client instead.
+- Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
+  transport by default when no explicit `connection` is supplied.
 
 **`CopilotClient.create_session()`:**
 
