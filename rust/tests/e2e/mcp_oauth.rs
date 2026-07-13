@@ -502,14 +502,43 @@ impl OAuthMcpServer {
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
-        let text = reqwest::get(format!("{}/__requests", self.url))
+        // Use hyper for HTTP calls to avoid pulling in ring/rustls
+        let uri = format!("{}/__requests", self.url)
+            .parse::<http::Uri>()
+            .expect("valid URI");
+        
+        let host = uri.host().expect("URI has host");
+        let port = uri.port_u16().unwrap_or(80);
+        
+        let req = http::Request::builder()
+            .method(http::Method::GET)
+            .uri(&uri)
+            .body(http_body_util::Empty::new())
+            .expect("valid request");
+        
+        let conn = tokio::net::TcpStream::connect((host, port))
             .await
-            .expect("fetch OAuth MCP requests")
-            .error_for_status()
-            .expect("OAuth MCP request status")
-            .text()
+            .expect("connect to test server");
+        
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(conn)
             .await
-            .expect("read OAuth MCP requests");
+            .expect("HTTP handshake");
+        
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                eprintln!("Connection error: {}", e);
+            }
+        });
+        
+        let response = sender.send_request(req)
+            .await
+            .expect("send request");
+        
+        let body = hyper::body::to_bytes(response.into_body())
+            .await
+            .expect("read response body");
+        
+        let text = String::from_utf8(body.to_vec()).expect("UTF-8 response");
         serde_json::from_str(&text).expect("decode OAuth MCP requests")
     }
 
