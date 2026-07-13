@@ -389,6 +389,10 @@ static SHARED_HTTP_CLIENT: LazyLock<SharedHttpClient> = LazyLock::new(|| {
     hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(https)
 });
 
+/// Forward an HTTP request to its real upstream and stream the response back.
+///
+/// This is the default behaviour of [`CopilotRequestHandler::send_request`];
+/// consumers that mutate a request can call it to forward the mutated request.
 pub async fn forward_http(
     request: CopilotHttpRequest,
 ) -> Result<CopilotHttpResponse, CopilotRequestError> {
