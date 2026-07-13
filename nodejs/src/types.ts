@@ -103,15 +103,29 @@ export type RuntimeConnection =
     | UriRuntimeConnection;
 
 /**
- * Spawns a runtime child process and communicates over its stdin/stdout.
- * This is the default if no {@link CopilotClientOptions.connection} is set.
+ * Shared shape for the transports that spawn a runtime **child process**
+ * ({@link StdioRuntimeConnection} and {@link TcpRuntimeConnection}).
  */
-export interface StdioRuntimeConnection {
-    readonly kind: "stdio";
+export interface ChildProcessRuntimeConnection {
     /** Path to the runtime executable. When omitted, the bundled runtime is used. */
     readonly path?: string;
     /** Extra command-line arguments to pass to the runtime process. */
     readonly args?: readonly string[];
+    /**
+     * Environment variables for the spawned runtime child process, replacing the
+     * inherited environment. Cannot be combined with
+     * {@link CopilotClientOptions.env}; setting both throws when the client is
+     * constructed. When omitted, the client-level env (or `process.env`) is used.
+     */
+    readonly env?: Record<string, string>;
+}
+
+/**
+ * Spawns a runtime child process and communicates over its stdin/stdout.
+ * This is the default if no {@link CopilotClientOptions.connection} is set.
+ */
+export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
+    readonly kind: "stdio";
 }
 
 /**
@@ -137,7 +151,7 @@ export interface InProcessRuntimeConnection {
 /**
  * Spawns a runtime child process that listens on a TCP socket and connects to it.
  */
-export interface TcpRuntimeConnection {
+export interface TcpRuntimeConnection extends ChildProcessRuntimeConnection {
     readonly kind: "tcp";
     /**
      * TCP port to listen on. `0` (the default) auto-allocates a free port.
@@ -150,10 +164,6 @@ export interface TcpRuntimeConnection {
      * loopback listener is safe by default.
      */
     readonly connectionToken?: string;
-    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
-    readonly path?: string;
-    /** Extra command-line arguments to pass to the runtime process. */
-    readonly args?: readonly string[];
 }
 
 /**
@@ -177,8 +187,10 @@ export const RuntimeConnection = {
      * Spawn a runtime child process and communicate over its stdin/stdout.
      * This is the default if no {@link CopilotClientOptions.connection} is set.
      */
-    forStdio(opts: { path?: string; args?: readonly string[] } = {}): StdioRuntimeConnection {
-        return { kind: "stdio", path: opts.path, args: opts.args };
+    forStdio(
+        opts: { path?: string; args?: readonly string[]; env?: Record<string, string> } = {}
+    ): StdioRuntimeConnection {
+        return { kind: "stdio", path: opts.path, args: opts.args, env: opts.env };
     },
     /**
      * Spawn a runtime child process that listens on a TCP socket and connect to it.
@@ -189,6 +201,7 @@ export const RuntimeConnection = {
             connectionToken?: string;
             path?: string;
             args?: readonly string[];
+            env?: Record<string, string>;
         } = {}
     ): TcpRuntimeConnection {
         return {
@@ -197,6 +210,7 @@ export const RuntimeConnection = {
             connectionToken: opts.connectionToken,
             path: opts.path,
             args: opts.args,
+            env: opts.env,
         };
     },
     /**

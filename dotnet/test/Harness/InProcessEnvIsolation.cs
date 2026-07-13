@@ -22,6 +22,11 @@ internal static class InProcessEnvIsolation
     // Captured at load, before any fixture/test mutates env.
     private static readonly Dictionary<string, string?> s_ambient = CaptureEnvironment();
 
+    // The process working directory captured at load, restored after each test so an
+    // in-process test that repoints the cwd (the FFI worker inherits it at spawn)
+    // can't leak that change into the next test.
+    private static readonly string s_ambientCwd = Directory.GetCurrentDirectory();
+
     // Runs at assembly load so the ambient env is snapshotted before the shared
     // fixture mirrors per-test env onto the process. Justifies suppressing CA2255.
 #pragma warning disable CA2255 // ModuleInitializer discouraged in libraries; intentional in this test harness.
@@ -56,8 +61,21 @@ internal static class InProcessEnvIsolation
         }
     }
 
+    // Points the process working directory at the given path so the in-process FFI
+    // worker inherits it at spawn (the native host has no per-client cwd parameter).
+    // RestoreAmbient() returns the process to its load-time cwd after the test.
+    public static void SetWorkingDirectory(string path) =>
+        Directory.SetCurrentDirectory(path);
+
     public static void RestoreAmbient()
     {
+        // Unconditionally repoint the process cwd at its load-time value. We must
+        // not read Directory.GetCurrentDirectory() first: an in-process test can
+        // chdir into a temp work dir that the harness then deletes, so getcwd()
+        // would throw FileNotFoundException. SetCurrentDirectory to an absolute
+        // path succeeds regardless of whether the old cwd still exists.
+        Directory.SetCurrentDirectory(s_ambientCwd);
+
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
         {
             var name = (string)entry.Key;

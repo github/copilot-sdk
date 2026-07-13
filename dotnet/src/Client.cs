@@ -237,6 +237,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     nameof(options));
             }
 
+            if (options.WorkingDirectory is not null)
+            {
+                throw new ArgumentException(
+                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.WorkingDirectory)} is not supported with " +
+                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport hosts " +
+                    "the native runtime in the shared host process and spawns the worker without a working-directory " +
+                    "parameter, so a per-client working directory cannot be honored in-process. Use a child-process " +
+                    "transport, or set the process working directory before creating the client.",
+                    nameof(options));
+            }
+
             return;
         }
 

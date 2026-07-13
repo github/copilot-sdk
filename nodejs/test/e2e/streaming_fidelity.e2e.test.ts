@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient, SessionEvent, approveAll } from "../../src/index.js";
+import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext";
 
 describe("Streaming Fidelity", async () => {
-    const { copilotClient: client, env } = await createSdkTestContext();
+    const { copilotClient: client, createClient } = await createSdkTestContext();
 
     it("should produce delta events when streaming is enabled", async () => {
         const session = await client.createSession({
@@ -81,8 +81,7 @@ describe("Streaming Fidelity", async () => {
         await session.disconnect();
 
         // Resume using a new client
-        const newClient = new CopilotClient({
-            env,
+        const newClient = createClient({
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
         onTestFinished(() => newClient.stop());
@@ -120,8 +119,7 @@ describe("Streaming Fidelity", async () => {
         await session.disconnect();
 
         // Resume using a new client with streaming DISABLED
-        const newClient = new CopilotClient({
-            env,
+        const newClient = createClient({
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : process.env.GITHUB_TOKEN,
         });
         onTestFinished(() => newClient.stop());

@@ -46,6 +46,15 @@ SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests"
 
 
+def is_inprocess_transport() -> bool:
+    """Return True when the E2E suite should run over the in-process (FFI) transport.
+
+    Selected by the ``inprocess`` CI matrix cell via
+    ``COPILOT_SDK_DEFAULT_CONNECTION=inprocess``. Mirrors the Node/.NET harnesses.
+    """
+    return (os.environ.get("COPILOT_SDK_DEFAULT_CONNECTION") or "").lower() == "inprocess"
+
+
 class E2ETestContext:
     """Holds shared resources for E2E tests."""
 
@@ -56,6 +65,9 @@ class E2ETestContext:
         self.proxy_url: str = ""
         self._proxy: CapiProxy | None = None
         self._client: CopilotClient | None = None
+        self._inprocess: bool = is_inprocess_transport()
+        self._restore_env: list[tuple[str, str | None]] = []
+        self._restore_cwd: str | None = None
 
     async def setup(self, cli_args: list[str] | None = None):
         """Set up the test context with a shared client.
@@ -83,16 +95,88 @@ class E2ETestContext:
             },
         )
 
-        # Create the shared client (like Node.js/Go do)
-        self._client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(
-                path=self.cli_path,
-                args=tuple(cli_args or []),
-            ),
-            working_directory=self.work_dir,
-            env=self.get_env(),
-            github_token=DEFAULT_GITHUB_TOKEN,
+        # Create the shared client (like Node.js/Go do). The in-process (FFI)
+        # transport loads the runtime into this test host process, so it cannot
+        # honor a per-client working_directory or env block: the worker inherits
+        # this process's ambient cwd and environment. We therefore mirror the
+        # per-test redirects, isolated home, and credentials onto the real process
+        # (os.environ writes reach native getenv on CPython) and chdir into the
+        # work dir, then create the client without working_directory/env. This
+        # matches the Node/.NET in-process harnesses.
+        if self._inprocess:
+            self._apply_inprocess_environment()
+            self._client = CopilotClient(
+                connection=RuntimeConnection.for_inprocess(
+                    path=self.cli_path,
+                    args=tuple(cli_args or []),
+                ),
+                github_token=DEFAULT_GITHUB_TOKEN,
+            )
+        else:
+            self._client = CopilotClient(
+                connection=RuntimeConnection.for_stdio(
+                    path=self.cli_path,
+                    args=tuple(cli_args or []),
+                ),
+                working_directory=self.work_dir,
+                env=self.get_env(),
+                github_token=DEFAULT_GITHUB_TOKEN,
+            )
+
+    def _apply_inprocess_environment(self) -> None:
+        """Mirror the isolated test environment onto the real process for in-process hosting.
+
+        The in-process worker inherits this process's environment and cwd at
+        spawn, so the per-test redirects must live on ``os.environ`` and the
+        process cwd. Auth flows via GH_TOKEN/GITHUB_TOKEN (the FFI argv omits the
+        stdio ``--auth-token-env`` wiring) and HMAC is disabled so host-side auth
+        resolution matches the replay snapshots. Restored in ``teardown``.
+        """
+        inprocess_env = dict(self.get_env())
+        inprocess_env.update(
+            {
+                "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "COPILOT_HMAC_KEY": "",
+                "CAPI_HMAC_KEY": "",
+            }
         )
+        for key, value in inprocess_env.items():
+            self._restore_env.append((key, os.environ.get(key)))
+            os.environ[key] = value
+
+        self._restore_cwd = os.getcwd()
+        os.chdir(self.work_dir)
+
+    def add_runtime_env(self, key: str, value: str) -> None:
+        """Set an env var seen by the runtime, honoring the active transport.
+
+        Child-process transports read env from the client's env block, but the
+        in-process worker inherits *this* process's environment, so the var must
+        live on ``os.environ`` (and be restored in teardown). Must be called
+        before the runtime starts (i.e., before the first ``create_session``).
+        """
+        if self._inprocess:
+            self._restore_env.append((key, os.environ.get(key)))
+            os.environ[key] = value
+        else:
+            options = self.client._options
+            if options.env is None:
+                options.env = {}
+            options.env[key] = value
+
+    def _restore_inprocess_environment(self) -> None:
+        """Undo the in-process environment mirror and cwd change from setup."""
+        for key, previous in reversed(self._restore_env):
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+        self._restore_env = []
+        if self._restore_cwd is not None:
+            with contextlib.suppress(OSError):
+                os.chdir(self._restore_cwd)
+            self._restore_cwd = None
 
     async def teardown(self, test_failed: bool = False):
         """Clean up the test context.
@@ -106,6 +190,9 @@ class E2ETestContext:
             except ExceptionGroup:
                 pass  # stop() completes all cleanup before raising; safe to ignore in teardown
             self._client = None
+
+        if self._inprocess:
+            self._restore_inprocess_environment()
 
         if self._proxy:
             await self._proxy.stop(skip_writing_cache=test_failed)

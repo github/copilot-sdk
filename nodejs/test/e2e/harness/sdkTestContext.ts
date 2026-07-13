@@ -172,24 +172,59 @@ export async function createSdkTestContext({
           }
         : {};
 
-    const copilotClient = new CopilotClient({
-        // The in-process transport rejects a per-client workingDirectory (it would have to
-        // mutate the shared host process cwd). Instead the harness changes this process's
-        // cwd to workDir around the in-process worker's startup (see beforeEach below), so
-        // the worker still spawns with workDir as its cwd. Out-of-process clients get it
-        // as a normal per-client option.
-        workingDirectory: isInProcess ? undefined : workDir,
-        // In-process hosting mirrors the environment onto the real process (per test, in
-        // beforeEach below), so the worker inherits it; passing a per-client env here
-        // would have no effect.
-        env: isInProcess ? undefined : mergedEnv,
-        logLevel: logLevel || "error",
-        connection,
-        gitHubToken: authTokenToUse,
-        ...remainingClientOptions,
-    });
+    // Builds a CopilotClient wired for the active transport, so tests that need a
+    // secondary client (e.g. resuming a session from a fresh client) don't have to
+    // reimplement the in-process env/cwd handling. Callers may override the connection
+    // (e.g. pin stdio for telemetry, which the in-process transport cannot carry
+    // per-client); env is attached to child-process transports and mirrored onto the
+    // process for in-process (see beforeEach below), never passed per-client for the
+    // in-process transport where it would be rejected.
+    function createClient(overrides: Partial<CopilotClientOptions> = {}): CopilotClient {
+        const {
+            connection: overrideConnection,
+            env: _ignoredEnv,
+            workingDirectory: overrideWorkingDirectory,
+            ...rest
+        } = overrides;
 
-    const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
+        let effectiveConnection = overrideConnection ?? connection;
+        // Fill in the bundled CLI path for child-process connections that omit it
+        // (e.g. a bare RuntimeConnection.forStdio() used to pin telemetry to stdio).
+        if (effectiveConnection.kind === "stdio" && effectiveConnection.path === undefined) {
+            effectiveConnection = RuntimeConnection.forStdio({
+                ...effectiveConnection,
+                path: cliPath,
+            });
+        } else if (effectiveConnection.kind === "tcp" && effectiveConnection.path === undefined) {
+            effectiveConnection = RuntimeConnection.forTcp({
+                ...effectiveConnection,
+                path: cliPath,
+            });
+        }
+        const effectiveInProcess = effectiveConnection.kind === "inprocess";
+
+        return new CopilotClient({
+            // The in-process transport rejects a per-client workingDirectory (it would have to
+            // mutate the shared host process cwd). Instead the harness changes this process's
+            // cwd to workDir around the in-process worker's startup (see beforeEach below), so
+            // the worker still spawns with workDir as its cwd. Out-of-process clients get it
+            // as a normal per-client option.
+            workingDirectory:
+                overrideWorkingDirectory ?? (effectiveInProcess ? undefined : workDir),
+            // In-process hosting mirrors the environment onto the real process (per test, in
+            // beforeEach below), so the worker inherits it; passing a per-client env here
+            // would have no effect (and is rejected by the in-process transport).
+            env: effectiveInProcess ? undefined : mergedEnv,
+            logLevel: logLevel || "error",
+            connection: effectiveConnection,
+            gitHubToken: authTokenToUse,
+            ...rest,
+        });
+    }
+
+    const copilotClient = createClient(remainingClientOptions);
+
+    const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env, createClient };
 
     // Track if any test fails to avoid writing corrupted snapshots
     let anyTestFailed = false;

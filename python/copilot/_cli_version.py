@@ -36,6 +36,31 @@ _MUSL_ASSETS: dict[str, tuple[str, str]] = {
 
 _DOWNLOAD_BASE_URL = "https://github.com/github/copilot-cli/releases/download"
 
+# The native in-process (FFI) runtime library (`runtime.node`) is NOT part of the
+# GitHub Releases `copilot-<platform>` archive (that ships only the CLI binary). It
+# lives in the npm platform package `@github/copilot-<npm-platform>`, under
+# `package/prebuilds/<npm-platform>/runtime.node`. Mirrors the .NET SDK targets,
+# which download the same npm tarball.
+_NPM_REGISTRY_BASE_URL = "https://registry.npmjs.org"
+
+# Maps (sys.platform, platform.machine()) → npm platform name (glibc Linux/macOS/Windows).
+NPM_PLATFORMS: dict[tuple[str, str], str] = {
+    ("linux", "x86_64"): "linux-x64",
+    ("linux", "aarch64"): "linux-arm64",
+    ("linux", "arm64"): "linux-arm64",
+    ("darwin", "x86_64"): "darwin-x64",
+    ("darwin", "arm64"): "darwin-arm64",
+    ("win32", "AMD64"): "win32-x64",
+    ("win32", "ARM64"): "win32-arm64",
+}
+
+# Musl (Alpine) npm platform variants — detected at runtime via _is_musl().
+_MUSL_NPM_PLATFORMS: dict[str, str] = {
+    "x86_64": "linuxmusl-x64",
+    "aarch64": "linuxmusl-arm64",
+    "arm64": "linuxmusl-arm64",
+}
+
 
 def _is_musl() -> bool:
     """Detect whether the current Linux system uses musl libc (e.g. Alpine)."""
@@ -93,3 +118,45 @@ def get_checksums_url(version: str) -> str:
 
     base = os.environ.get("COPILOT_CLI_DOWNLOAD_BASE_URL", _DOWNLOAD_BASE_URL)
     return f"{base}/v{version}/SHA256SUMS.txt"
+
+
+def get_npm_platform() -> str:
+    """Return the npm platform name (e.g. ``linux-x64``) for the current host.
+
+    Used to locate the native in-process runtime library. Raises RuntimeError if
+    the platform is not supported.
+    """
+    key = get_platform_key()
+
+    if key[0] == "linux" and _is_musl():
+        musl = _MUSL_NPM_PLATFORMS.get(key[1])
+        if musl:
+            return musl
+
+    npm_platform = NPM_PLATFORMS.get(key)
+    if npm_platform is None:
+        raise RuntimeError(
+            f"Unsupported platform for in-process runtime: {key[0]}/{key[1]}. "
+            f"Supported platforms: {', '.join(f'{p}/{m}' for p, m in NPM_PLATFORMS)}"
+        )
+    return npm_platform
+
+
+def get_runtime_lib_packument_url(npm_platform: str) -> str:
+    """Return the npm packument URL for the platform runtime package."""
+    import os
+
+    base = os.environ.get("COPILOT_NPM_REGISTRY_URL", _NPM_REGISTRY_BASE_URL).rstrip("/")
+    return f"{base}/@github/copilot-{npm_platform}"
+
+
+def get_runtime_lib_url(version: str, npm_platform: str) -> str:
+    """Return the download URL for the platform runtime tarball.
+
+    Mirrors the .NET targets' URL layout
+    ``<registry>/@github/copilot-<platform>/-/copilot-<platform>-<version>.tgz``.
+    """
+    import os
+
+    base = os.environ.get("COPILOT_NPM_REGISTRY_URL", _NPM_REGISTRY_BASE_URL).rstrip("/")
+    return f"{base}/@github/copilot-{npm_platform}/-/copilot-{npm_platform}-{version}.tgz"
