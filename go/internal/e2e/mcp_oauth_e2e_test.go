@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -306,17 +305,14 @@ type oauthMCPRequest struct {
 func startOAuthMCPServer(t *testing.T) string {
 	t.Helper()
 
-	serverPath, err := filepath.Abs("../../../test/harness/test-mcp-oauth-server.mjs")
-	if err != nil {
-		t.Fatalf("Failed to resolve OAuth MCP server path: %v", err)
-	}
+	serverPath := testharness.RepoPath("test", "harness", "test-mcp-oauth-server.mjs")
 	cmd := exec.Command("node", serverPath)
 	cmd.Env = append(os.Environ(), "EXPECTED_TOKEN="+expectedMCPOAuthToken)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to pipe OAuth MCP server stdout: %v", err)
 	}
-	var stderr strings.Builder
+	var stderr syncBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("Failed to start OAuth MCP server: %v", err)
@@ -360,6 +356,26 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// syncBuffer is a minimal io.Writer whose contents can be read concurrently.
+// os/exec writes to cmd.Stderr on a separate goroutine, so reading a plain
+// strings.Builder while the process is running is a data race (caught by -race).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func fetchOAuthMCPRequests(t *testing.T, baseURL string) []oauthMCPRequest {

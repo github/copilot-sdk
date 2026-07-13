@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-//go:build !darwin
+//go:build !darwin && !linux
 
 package ffihost
 
-// rearmForeignSignalHandlers is a no-op off Darwin. The Go runtime only enforces
-// the SA_ONSTACK requirement that libuv's SIGCHLD handler violates on macOS;
-// Linux and Windows are unaffected, so no signal re-arming is needed.
-func rearmForeignSignalHandlers() {}
+// rearmForeignSignalHandlers is a no-op on platforms other than darwin and
+// linux. Only those Unix platforms deliver the SA_ONSTACK-less SIGCHLD handler
+// (installed by libuv) that the Go runtime rejects; Windows is unaffected.
+func rearmForeignSignalHandlers(_ uintptr) {}

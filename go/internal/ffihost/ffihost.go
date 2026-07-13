@@ -53,6 +53,7 @@ const symbolPrefix = "copilot_runtime_"
 
 // ffiLibrary binds the copilot_runtime_* C ABI exports of a loaded cdylib.
 type ffiLibrary struct {
+	handle          uintptr
 	hostStart       func(argv unsafe.Pointer, argvLen uintptr, env unsafe.Pointer, envLen uintptr) uint32
 	hostShutdown    func(serverID uint32) bool
 	connectionOpen  func(serverID uint32, cb uintptr, userData uintptr, a unsafe.Pointer, aLen uintptr, b unsafe.Pointer, bLen uintptr, c unsafe.Pointer, cLen uintptr) uint32
@@ -95,7 +96,7 @@ func loadLibrary(libraryPath string) (lib *ffiLibrary, err error) {
 		}
 	}()
 
-	bound := &ffiLibrary{}
+	bound := &ffiLibrary{handle: handle}
 	purego.RegisterLibFunc(&bound.hostStart, handle, symbolPrefix+"host_start")
 	purego.RegisterLibFunc(&bound.hostShutdown, handle, symbolPrefix+"host_shutdown")
 	purego.RegisterLibFunc(&bound.connectionOpen, handle, symbolPrefix+"connection_open")
@@ -119,22 +120,24 @@ type Host struct {
 	extraArgs     []string
 	lib           *ffiLibrary
 
+	// mu guards disposed, activeCallbacks, serverID, and connectionID. A single
+	// mutex is used so that publishing disposed=true and draining in-flight
+	// callbacks are serialized against onOutbound's disposed-check/increment;
+	// this prevents a callback from feeding the receive buffer after it is
+	// closed (and avoids a data race on disposed observed by the -race detector).
+	mu           sync.Mutex
 	serverID     uint32
 	connectionID uint32
+	disposed     bool
+	// activeCallbacks counts outbound native callbacks currently executing.
+	activeCallbacks int
 
 	recv *receiveBuffer
-
-	disposeMu sync.Mutex
-	disposed  bool
 
 	// callbackHandle is the purego callback trampoline address. purego keeps the
 	// underlying Go closure alive for the process lifetime, so it (and this Host,
 	// which the closure captures) must not be relied upon to be freed.
 	callbackHandle uintptr
-	// Serializes teardown against in-flight native callbacks so the receive
-	// buffer is not fed after it is closed.
-	callbackMu      sync.Mutex
-	activeCallbacks int
 }
 
 // Create resolves the cdylib next to the CLI entrypoint and prepares the host.
@@ -182,12 +185,14 @@ func (h *Host) Start() error {
 	}
 
 	// host_start spawned the worker child via libuv's uv_spawn, which installs a
-	// SIGCHLD handler without SA_ONSTACK on its first call. On macOS the Go runtime
-	// aborts ("non-Go code set up signal handler without SA_ONSTACK flag") when it
-	// later reaps one of its own os/exec children, so re-add SA_ONSTACK to that
-	// foreign handler now that it exists (no-op off Darwin, and before the first
-	// spawn there is nothing to fix — hence here rather than at library load).
-	rearmForeignSignalHandlers()
+	// SIGCHLD handler without SA_ONSTACK on its first call. The Go runtime aborts
+	// ("non-Go code set up signal handler without SA_ONSTACK flag") when it later
+	// reaps one of its own os/exec children (e.g. a test-spawned MCP server) and
+	// the delivered SIGCHLD lands on a non-signal stack. Re-add SA_ONSTACK to that
+	// foreign handler now that it exists (implemented on darwin+linux; a no-op on
+	// other platforms, and before the first spawn there is nothing to fix — hence
+	// here rather than at library load).
+	rearmForeignSignalHandlers(h.lib.handle)
 
 	h.callbackHandle = purego.NewCallback(h.onOutbound)
 	h.connectionID = h.lib.connectionOpen(h.serverID, h.callbackHandle, 0, nil, 0, nil, 0, nil, 0)
@@ -233,18 +238,18 @@ func (h *Host) buildEnv() []byte {
 // are copied out before returning. Nothing may panic across the FFI boundary.
 func (h *Host) onOutbound(userData uintptr, bytesPtr uintptr, bytesLen uintptr) uintptr {
 	_ = userData
-	h.callbackMu.Lock()
+	h.mu.Lock()
 	if h.disposed {
-		h.callbackMu.Unlock()
+		h.mu.Unlock()
 		return 0
 	}
 	h.activeCallbacks++
-	h.callbackMu.Unlock()
+	h.mu.Unlock()
 
 	defer func() {
-		h.callbackMu.Lock()
+		h.mu.Lock()
 		h.activeCallbacks--
-		h.callbackMu.Unlock()
+		h.mu.Unlock()
 		// Never let a panic unwind into native code.
 		_ = recover()
 	}()
@@ -263,10 +268,10 @@ func (h *Host) onOutbound(userData uintptr, bytesPtr uintptr, bytesLen uintptr) 
 }
 
 func (h *Host) writeFrame(frame []byte) (int, error) {
-	h.disposeMu.Lock()
+	h.mu.Lock()
 	closed := h.disposed || h.connectionID == 0
 	connID := h.connectionID
-	h.disposeMu.Unlock()
+	h.mu.Unlock()
 	if closed {
 		return 0, fmt.Errorf("the in-process runtime connection is closed")
 	}
@@ -285,27 +290,30 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 // resources. It is idempotent and waits for any in-flight outbound callback to
 // finish before closing the receive buffer.
 func (h *Host) Dispose() {
-	h.disposeMu.Lock()
+	h.mu.Lock()
 	if h.disposed {
-		h.disposeMu.Unlock()
+		h.mu.Unlock()
 		return
 	}
+	// Publish disposed under the same lock onOutbound uses to check it, so no new
+	// callback can pass the check and increment activeCallbacks after the drain
+	// loop below observes zero.
 	h.disposed = true
 	connID := h.connectionID
 	serverID := h.serverID
 	h.connectionID = 0
 	h.serverID = 0
-	h.disposeMu.Unlock()
+	h.mu.Unlock()
 
 	// Stop accepting new callbacks and wait for in-flight ones to drain before
 	// closing the receive buffer they feed.
 	for {
-		h.callbackMu.Lock()
+		h.mu.Lock()
 		if h.activeCallbacks == 0 {
-			h.callbackMu.Unlock()
+			h.mu.Unlock()
 			break
 		}
-		h.callbackMu.Unlock()
+		h.mu.Unlock()
 		runtime.Gosched()
 	}
 

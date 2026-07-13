@@ -31,15 +31,15 @@ const (
 // without SA_ONSTACK flag" when such a signal (notably SIGCHLD, signal 20 on
 // Darwin) is delivered while a Go-managed child process is reaped. libuv
 // installs a SIGCHLD handler without SA_ONSTACK, which poisons every subsequent
-// os/exec child reaped by Go in the same process (only observed on macOS; Linux
-// does not enforce this).
+// os/exec child reaped by Go in the same process (enforced by the Go runtime on
+// both macOS and Linux; the Linux variant lives in sigonstack_linux.go).
 //
 // We preserve each foreign handler and merely OR in SA_ONSTACK, so libuv's child
 // watching keeps working while the Go runtime stays happy. Handlers left at
 // SIG_DFL/SIG_IGN and Go's own handlers (which already carry SA_ONSTACK) are
 // untouched. Best-effort: any failure is silently ignored, since the worst case
 // is the pre-existing crash.
-func rearmForeignSignalHandlers() {
+func rearmForeignSignalHandlers(_ uintptr) {
 	handle, err := purego.Dlopen("/usr/lib/libSystem.B.dylib", purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil || handle == 0 {
 		return

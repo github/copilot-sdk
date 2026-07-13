@@ -33,13 +33,11 @@ func CLIPath() string {
 		// 1.0.64-1 the @github/copilot package is a thin loader; the runnable
 		// index.js ships in the installed platform package
 		// (e.g. @github/copilot-linux-x64).
-		base, err := filepath.Abs("../../../nodejs/node_modules/@github")
-		if err == nil {
-			matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
-			if len(matches) > 0 {
-				cliPath = matches[0]
-				return
-			}
+		base := RepoPath("nodejs", "node_modules", "@github")
+		matches, _ := filepath.Glob(filepath.Join(base, "copilot-*", "index.js"))
+		if len(matches) > 0 {
+			cliPath = matches[0]
+			return
 		}
 	})
 	return cliPath
