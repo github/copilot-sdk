@@ -48,6 +48,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
+	"github.com/github/copilot-sdk/go/internal/ffihost"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
@@ -93,6 +94,37 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 	return nil
 }
 
+// validateEnvironmentOptions enforces the transport-specific rules for
+// per-client environment, working directory, and telemetry. It panics (fails
+// loud) on a misconfiguration, matching the other SDKs.
+//
+// The in-process transport loads the native runtime into this process, whose
+// single environment block and process-global working directory cannot carry
+// per-client values, and whose telemetry lowers to shared process-global env
+// vars — so options that depend on them are rejected there. Child-process
+// transports each own their OS process, so per-connection env is allowed, but
+// setting it in both the client-level option and the connection is rejected.
+func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOptions) {
+	if _, ok := connection.(InProcessConnection); ok {
+		if opts.Env != nil {
+			panic("Env is not supported with InProcessConnection: the in-process transport loads the native runtime into the shared host process, whose single environment block cannot carry per-client values. Set the variables on the host process environment instead.")
+		}
+		if opts.WorkingDirectory != "" {
+			panic("WorkingDirectory is not supported with InProcessConnection: the in-process transport hosts the runtime in the shared host process and spawns the worker without a working-directory parameter. Use a child-process transport, or set the process working directory before creating the client.")
+		}
+		if opts.Telemetry != nil {
+			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use a child-process transport.")
+		}
+		return
+	}
+
+	if cp, ok := connection.(childProcessConnection); ok {
+		if cp.connEnv() != nil && opts.Env != nil {
+			panic("Set environment variables via either the client-level Env option or the connection's Env, not both. Prefer the connection-level Env for child-process transports.")
+		}
+	}
+}
+
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
 // The Client can either spawn a CLI server process or connect to an existing server.
@@ -124,6 +156,8 @@ type Client struct {
 	isExternalServer bool
 	conn             net.Conn // stores net.Conn for external TCP connections
 	useStdio         bool     // resolved value from options
+	useInProcess     bool     // true for InProcessConnection (FFI transport)
+	ffiHost          *ffihost.Host
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -223,13 +257,36 @@ func NewClient(options *ClientOptions) *Client {
 		client.isExternalServer = true
 		client.useStdio = false
 		client.tcpConnectionToken = conn.ConnectionToken
+	case InProcessConnection:
+		client.useStdio = false
+		client.useInProcess = true
+		client.cliPath = conn.Path
+		if len(conn.Args) > 0 {
+			client.cliArgs = append([]string{}, conn.Args...)
+		}
 	default:
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
 
+	// Validate transport-specific option constraints (fail loud). The in-process
+	// transport loads the runtime into this process, whose single environment
+	// block, process-global working directory, and shared telemetry state cannot
+	// carry per-client values. Child-process transports may set env via either
+	// the client-level option or the connection, but not both.
+	validateEnvironmentOptions(connection, &opts)
+
 	// Validate auth options when connecting to an external runtime.
 	if client.isExternalServer && (opts.GitHubToken != "" || opts.UseLoggedInUser != nil) {
 		panic("GitHubToken and UseLoggedInUser cannot be used with URIConnection (external runtime manages its own auth)")
+	}
+
+	// For child-process transports, a connection-level env takes precedence over
+	// the client-level env (setting both was rejected above). Resolve it before
+	// defaulting so an explicit empty connection env stays authoritative.
+	if cp, ok := connection.(childProcessConnection); ok {
+		if env := cp.connEnv(); env != nil {
+			opts.Env = env
+		}
 	}
 
 	// Default Env to current environment if not set
@@ -237,18 +294,21 @@ func NewClient(options *ClientOptions) *Client {
 		opts.Env = os.Environ()
 	}
 
-	// Check effective environment for CLI path (only if not explicitly set via options)
-	if client.cliPath == "" {
+	// Check effective environment for CLI path (only if not explicitly set via
+	// options). The in-process transport never falls back to PATH, so its
+	// entrypoint is resolved separately in startInProcess.
+	if client.cliPath == "" && !client.useInProcess {
 		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
 			client.cliPath = cliPath
 		}
 	}
 
 	// Resolve the effective connection token: explicit value if set; else if the SDK
-	// spawns its own runtime in TCP mode, generate a UUID; otherwise empty.
+	// spawns its own runtime in TCP mode, generate a UUID; otherwise empty. The
+	// in-process transport uses no socket, so it needs no connection token.
 	if client.tcpConnectionToken != "" {
 		client.effectiveConnectionToken = client.tcpConnectionToken
-	} else if !client.useStdio && !client.isExternalServer {
+	} else if !client.useStdio && !client.isExternalServer && !client.useInProcess {
 		client.effectiveConnectionToken = uuid.NewString()
 	}
 
@@ -451,7 +511,7 @@ func (c *Client) Stop() error {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	if c.process != nil && !c.isExternalServer && c.RPC != nil {
+	if (c.process != nil || c.ffiHost != nil) && !c.isExternalServer && c.RPC != nil {
 		rpcClient := c.RPC
 		runtimeShutdownStart := time.Now()
 		shutdownDone := make(chan error, 1)
@@ -485,6 +545,13 @@ func (c *Client) Stop() error {
 		}
 	}
 	c.process = nil
+
+	// Tear down the in-process FFI host (closes the connection and shuts down the
+	// native runtime). No child process to reap in this mode.
+	if c.ffiHost != nil {
+		c.ffiHost.Dispose()
+		c.ffiHost = nil
+	}
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
@@ -566,6 +633,12 @@ func (c *Client) ForceStop() {
 		_ = c.killProcess() // Ignore errors since we're force stopping
 	}
 	c.process = nil
+
+	// Dispose the in-process FFI host (if any) without waiting on graceful shutdown.
+	if c.ffiHost != nil {
+		c.ffiHost.Dispose()
+		c.ffiHost = nil
+	}
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
@@ -1753,6 +1826,10 @@ const stderrBufferSize = 64 * 1024
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
+	if c.useInProcess {
+		return c.startInProcess(ctx)
+	}
+
 	cliPath := c.cliPath
 	if cliPath == "" {
 		// If no CLI path is provided, attempt to use the embedded CLI if available
@@ -1962,7 +2039,72 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 }
 
+// startInProcess hosts the runtime in-process via the native FFI library. It
+// resolves the CLI entrypoint (no PATH fallback — the entrypoint must be an
+// explicit path, COPILOT_CLI_PATH, or the bundled runtime), loads the sibling
+// cdylib, lets the native host spawn the worker, and wires the JSON-RPC client
+// to the FFI byte streams exactly like the stdio transport.
+func (c *Client) startInProcess(ctx context.Context) error {
+	entrypoint := c.cliPath
+	if entrypoint == "" {
+		// The in-process transport does not resolve a bare command name from PATH
+		// (unlike the child-process transport); fall back only to COPILOT_CLI_PATH
+		// and then the bundled runtime, all absolute on-disk paths.
+		if p := getEnvValue(c.options.Env, "COPILOT_CLI_PATH"); p != "" {
+			entrypoint = p
+		}
+	}
+	if entrypoint == "" {
+		entrypoint = embeddedcli.Path()
+	}
+	if entrypoint == "" {
+		return errors.New("in-process transport requires the Copilot CLI: set InProcessConnection.Path or COPILOT_CLI_PATH, or build with the bundled embedded runtime")
+	}
+
+	host, err := ffihost.Create(entrypoint, nil, c.cliArgs)
+	if err != nil {
+		return err
+	}
+	// Own the host before the blocking handshake so a cancelled or failed start
+	// leaves it disposable by Stop/ForceStop rather than leaking (host.Start runs
+	// on its own goroutine and cannot be interrupted once the native call begins).
+	c.ffiHost = host
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- host.Start() }()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	c.client = jsonrpc2.NewClient(host.Writer(), host.Reader())
+	c.client.SetOnClose(func() {
+		// Run in a goroutine to avoid deadlocking with Stop/ForceStop, which hold
+		// startStopMux while waiting for readLoop to finish.
+		go func() {
+			c.startStopMux.Lock()
+			defer c.startStopMux.Unlock()
+			c.state = stateDisconnected
+		}()
+	})
+	c.RPC = rpc.NewServerRPC(c.client)
+	c.internalRPC = rpc.NewInternalServerRPC(c.client)
+	c.setupNotificationHandler()
+	c.client.Start()
+	return nil
+}
+
 func (c *Client) killProcess() error {
+	// Tear down the in-process FFI host on error paths that reuse killProcess to
+	// abort a start (there is no OS process to kill in that mode).
+	if c.ffiHost != nil {
+		c.ffiHost.Dispose()
+		c.ffiHost = nil
+	}
 	if p := c.osProcess.Swap(nil); p != nil {
 		if err := p.Kill(); err != nil {
 			return fmt.Errorf("failed to kill CLI process: %w", err)
@@ -2024,8 +2166,8 @@ func (c *Client) monitorProcess() {
 
 // connectToServer establishes a connection to the server.
 func (c *Client) connectToServer(ctx context.Context) error {
-	if c.useStdio {
-		// Already connected via stdio in startCLIServer
+	if c.useStdio || c.useInProcess {
+		// Already connected: stdio in startCLIServer, FFI streams in startInProcess.
 		return nil
 	}
 

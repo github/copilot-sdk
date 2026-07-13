@@ -53,6 +53,36 @@ type TestContext struct {
 	ProxyURL string
 
 	proxy *CapiProxy
+
+	// In-process transport state. When the inprocess CI matrix cell is active the
+	// worker inherits this process's ambient env and cwd (per-client env/working
+	// directory are rejected in-process), so the isolated test env/cwd are mirrored
+	// onto the real process and restored on Close.
+	inProcess  bool
+	restoreEnv []envRestore
+	restoreCwd string
+}
+
+// envRestore captures a single environment variable's prior value so the
+// in-process ambient mirror can be undone during teardown.
+type envRestore struct {
+	key  string
+	prev string
+	had  bool
+}
+
+// isInProcessTransport reports whether the in-process (FFI) transport is selected
+// for E2E tests via COPILOT_SDK_DEFAULT_CONNECTION=inprocess. Mirrors the
+// Node/Python/.NET harnesses.
+func isInProcessTransport() bool {
+	return strings.EqualFold(os.Getenv("COPILOT_SDK_DEFAULT_CONNECTION"), "inprocess")
+}
+
+// IsInProcessTransport reports whether E2E tests run under the in-process (FFI)
+// transport. Tests that configure options unsupported in-process (e.g. per-client
+// telemetry) should skip when this returns true.
+func IsInProcessTransport() bool {
+	return isInProcessTransport()
 }
 
 // NewTestContext creates a new test context with isolated directories and a replaying proxy.
@@ -106,11 +136,12 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 
 	ctx := &TestContext{
-		CLIPath:  cliPath,
-		HomeDir:  homeDir,
-		WorkDir:  workDir,
-		ProxyURL: proxyURL,
-		proxy:    proxy,
+		CLIPath:   cliPath,
+		HomeDir:   homeDir,
+		WorkDir:   workDir,
+		ProxyURL:  proxyURL,
+		proxy:     proxy,
+		inProcess: isInProcessTransport(),
 	}
 
 	t.Cleanup(func() {
@@ -172,6 +203,7 @@ func (c *TestContext) ConfigureWithoutSnapshot(t *testing.T) {
 
 // Close cleans up the test context resources.
 func (c *TestContext) Close(testFailed bool) {
+	c.restoreInProcessEnvironment()
 	if c.proxy != nil {
 		c.proxy.StopWithOptions(testFailed)
 	}
@@ -180,6 +212,60 @@ func (c *TestContext) Close(testFailed bool) {
 	}
 	if c.WorkDir != "" {
 		os.RemoveAll(c.WorkDir)
+	}
+}
+
+// applyInProcessEnvironment mirrors the isolated test environment onto the real
+// process for in-process hosting: the worker inherits this process's env and cwd
+// at spawn, so per-test redirects must live on os.Environ and the process cwd.
+// Auth flows via GH_TOKEN/GITHUB_TOKEN (the FFI argv omits the stdio auth-token
+// wiring) and HMAC is disabled so host-side auth matches the replay snapshots.
+// mergedEnv is the effective per-client env (harness defaults plus any per-test
+// additions); workDir is the effective working directory. Values are restored in
+// Close. Safe to call more than once (restores unwind in reverse).
+func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir string) {
+	inprocessEnv := map[string]string{}
+	for _, kv := range mergedEnv {
+		if key, value, ok := strings.Cut(kv, "="); ok {
+			inprocessEnv[key] = value
+		}
+	}
+	// Auth flows via GH_TOKEN/GITHUB_TOKEN and HMAC is disabled for the in-process
+	// host, overriding any inherited values.
+	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
+	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
+	inprocessEnv["COPILOT_HMAC_KEY"] = ""
+	inprocessEnv["CAPI_HMAC_KEY"] = ""
+
+	for key, value := range inprocessEnv {
+		prev, had := os.LookupEnv(key)
+		c.restoreEnv = append(c.restoreEnv, envRestore{key: key, prev: prev, had: had})
+		os.Setenv(key, value)
+	}
+	if workDir != "" {
+		if c.restoreCwd == "" {
+			if cwd, err := os.Getwd(); err == nil {
+				c.restoreCwd = cwd
+			}
+		}
+		os.Chdir(workDir)
+	}
+}
+
+// restoreInProcessEnvironment undoes applyInProcessEnvironment during teardown.
+func (c *TestContext) restoreInProcessEnvironment() {
+	for i := len(c.restoreEnv) - 1; i >= 0; i-- {
+		r := c.restoreEnv[i]
+		if r.had {
+			os.Setenv(r.key, r.prev)
+		} else {
+			os.Unsetenv(r.key)
+		}
+	}
+	c.restoreEnv = nil
+	if c.restoreCwd != "" {
+		os.Chdir(c.restoreCwd)
+		c.restoreCwd = ""
 	}
 }
 
@@ -261,7 +347,36 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 		options.GitHubToken = defaultGitHubToken
 	}
 
+	// Under the inprocess matrix cell, host the default stdio connection in-process.
+	// The worker inherits this process's ambient env/cwd (per-client env and working
+	// directory are rejected in-process), so mirror the effective (merged) env and
+	// cwd onto the real process and drop those options. Tests that pin a specific
+	// transport (TCP/URI/custom stdio) or configure per-client telemetry are left on
+	// their transport, mirroring the Node/.NET harnesses.
+	if c.inProcess && c.shouldUseInProcess(options) {
+		c.applyInProcessEnvironment(options.Env, options.WorkingDirectory)
+		options.Connection = copilot.InProcessConnection{Path: c.CLIPath}
+		options.Env = nil
+		options.WorkingDirectory = ""
+	}
+
 	return copilot.NewClient(options)
+}
+
+// shouldUseInProcess reports whether a client built from options should be hosted
+// in-process for the inprocess matrix cell. Only the harness default stdio
+// connection is swapped; a test that pins a custom stdio path/args/env, a TCP/URI
+// connection, or configures per-client telemetry (which cannot be carried
+// in-process) is exercising behavior that must stay on its own transport.
+func (c *TestContext) shouldUseInProcess(options *copilot.ClientOptions) bool {
+	if options.Telemetry != nil {
+		return false
+	}
+	s, ok := options.Connection.(copilot.StdioConnection)
+	if !ok {
+		return false
+	}
+	return s.Path == c.CLIPath && len(s.Args) == 0 && s.Env == nil
 }
 
 func fileExists(path string) bool {

@@ -20,12 +20,21 @@ const (
 
 // RuntimeConnection describes how a [Client] connects to the Copilot runtime.
 //
-// Construct one with a [StdioConnection], [TCPConnection], or [URIConnection]
-// literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
-// is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
-// runtime and communicates over stdin/stdout).
+// Construct one with a [StdioConnection], [TCPConnection], [URIConnection], or
+// [InProcessConnection] literal and pass it via [ClientOptions.Connection]. When
+// [ClientOptions.Connection] is nil, the default is an empty [StdioConnection]
+// (the SDK spawns the bundled runtime and communicates over stdin/stdout).
 type RuntimeConnection interface {
 	runtimeConnection()
+}
+
+// childProcessConnection is implemented by the connection types that spawn a
+// runtime child process ([StdioConnection] and [TCPConnection]). It exposes the
+// per-connection environment so the client can resolve and validate it uniformly
+// regardless of the specific child-process transport.
+type childProcessConnection interface {
+	RuntimeConnection
+	connEnv() []string
 }
 
 // StdioConnection spawns a runtime child process and communicates over its
@@ -35,9 +44,16 @@ type StdioConnection struct {
 	Path string
 	// Args are extra command-line arguments inserted before SDK-managed args.
 	Args []string
+	// Env are the environment variables for the runtime process, each of the
+	// form "KEY=VALUE". When set, these take precedence over
+	// [ClientOptions.Env]; setting both is rejected. When nil, the client-level
+	// env (or the current process environment) is used.
+	Env []string
 }
 
 func (StdioConnection) runtimeConnection() {}
+
+func (c StdioConnection) connEnv() []string { return c.Env }
 
 // TCPConnection spawns a runtime child process that listens on a TCP socket
 // and connects to it.
@@ -54,9 +70,16 @@ type TCPConnection struct {
 	Path string
 	// Args are extra command-line arguments inserted before SDK-managed args.
 	Args []string
+	// Env are the environment variables for the runtime process, each of the
+	// form "KEY=VALUE". When set, these take precedence over
+	// [ClientOptions.Env]; setting both is rejected. When nil, the client-level
+	// env (or the current process environment) is used.
+	Env []string
 }
 
 func (TCPConnection) runtimeConnection() {}
+
+func (c TCPConnection) connEnv() []string { return c.Env }
 
 // URIConnection connects to an already-running runtime at the given URL.
 // The SDK does not spawn a process in this mode.
@@ -70,6 +93,32 @@ type URIConnection struct {
 }
 
 func (URIConnection) runtimeConnection() {}
+
+// InProcessConnection hosts the Copilot runtime in-process by loading its native
+// runtime library (a Rust cdylib) and driving JSON-RPC over the library's C ABI,
+// instead of spawning a runtime child process. The native host spawns the
+// residual worker itself; the SDK never launches it directly.
+//
+// Because the runtime is loaded into the calling process, per-client
+// environment, working directory, and telemetry cannot be represented and are
+// rejected by [NewClient] (see [ClientOptions]). Set those via the host process
+// environment instead, or use a child-process transport ([StdioConnection] /
+// [TCPConnection]).
+//
+// Experimental: the in-process transport is experimental and its API and
+// behavior may change in a future release.
+type InProcessConnection struct {
+	// Path is the runtime executable used to locate and launch the worker and
+	// to resolve the sibling native library. When empty, the client resolves
+	// COPILOT_CLI_PATH and then the bundled runtime. Unlike the child-process
+	// transports, no executable is looked up on PATH.
+	Path string
+	// Args are extra command-line arguments passed to the residual worker,
+	// appended after the SDK-managed args.
+	Args []string
+}
+
+func (InProcessConnection) runtimeConnection() {}
 
 // ClientOptions configures the [Client].
 type ClientOptions struct {
@@ -95,6 +144,12 @@ type ClientOptions struct {
 	// Env are the environment variables for the runtime process (default:
 	// inherits from current process). Each entry is of the form "KEY=VALUE".
 	// If Env contains duplicate keys, only the last value for each key is used.
+	//
+	// For child-process transports ([StdioConnection] / [TCPConnection]) the
+	// per-connection Env, when set, takes precedence over this field; setting
+	// both is rejected. Env is not supported with [InProcessConnection] (the
+	// runtime shares this process's single environment block) and is rejected
+	// by [NewClient].
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the runtime via environment

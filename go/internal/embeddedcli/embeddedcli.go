@@ -21,11 +21,19 @@ import (
 // system cache directory. Version is used to suffix the installed binary name to
 // allow multiple versions to coexist. License, when provided, is written next
 // to the installed binary.
+//
+// RuntimeLib and RuntimeLibHash are optional: when set, the native in-process
+// runtime library (cdylib) is installed next to the CLI binary under its natural
+// platform name so the in-process (FFI) transport can load it. They are omitted
+// for CLI packages that do not ship the native runtime.
 type Config struct {
 	Cli     io.Reader
 	CliHash []byte
 
 	License []byte
+
+	RuntimeLib     io.Reader
+	RuntimeLibHash []byte
 
 	Dir     string
 	Version string
@@ -61,11 +69,22 @@ var Path = sync.OnceValue(func() string {
 	return path
 })
 
+// RuntimeLibPath returns the on-disk path to the installed native in-process
+// runtime library (cdylib), or "" when no runtime library was bundled or the
+// CLI could not be installed. It ensures the embedded CLI is installed first.
+func RuntimeLibPath() string {
+	Path()
+	setupMu.Lock()
+	defer setupMu.Unlock()
+	return runtimeLibPath
+}
+
 var (
 	config          Config
 	setupMu         sync.Mutex
 	setupDone       bool
 	pathInitialized bool
+	runtimeLibPath  string
 )
 
 func install() (path string) {
@@ -155,7 +174,83 @@ func installAt(installDir string) (string, error) {
 			return "", fmt.Errorf("writing license file: %w", err)
 		}
 	}
+
+	// Install the native in-process runtime library (if bundled) next to the CLI
+	// binary under its natural platform name, so the FFI transport resolves it via
+	// the flat-name lookup. Fail closed on any hash mismatch — never place
+	// unverified native code.
+	if config.RuntimeLib != nil {
+		libPath, err := installRuntimeLib(installDir)
+		if err != nil {
+			return "", err
+		}
+		runtimeLibPath = libPath
+	}
+
 	return finalPath, nil
+}
+
+// installRuntimeLib writes the embedded runtime cdylib into installDir under its
+// natural platform file name, verifying its SHA-256. It is idempotent: an
+// existing file with a matching hash is reused; a mismatch is a hard error.
+func installRuntimeLib(installDir string) (string, error) {
+	if len(config.RuntimeLibHash) != sha256.Size {
+		return "", fmt.Errorf("RuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(config.RuntimeLibHash))
+	}
+	libPath := filepath.Join(installDir, naturalRuntimeLibName())
+
+	if _, err := os.Stat(libPath); err == nil {
+		existingHash, err := hashFile(libPath)
+		if err != nil {
+			return "", fmt.Errorf("hashing existing runtime library: %w", err)
+		}
+		if !bytes.Equal(existingHash, config.RuntimeLibHash) {
+			return "", fmt.Errorf("existing runtime library hash mismatch")
+		}
+		return libPath, nil
+	}
+
+	// Write to a temp file in the same directory, verify, then atomically rename.
+	tmp, err := os.CreateTemp(installDir, ".copilot-runtime-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("creating temp runtime library: %w", err)
+	}
+	tmpPath := tmp.Name()
+	h := sha256.New()
+	_, err = io.Copy(io.MultiWriter(tmp, h), config.RuntimeLib)
+	if err1 := tmp.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	if closer, ok := config.RuntimeLib.(io.Closer); ok {
+		closer.Close()
+	}
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("writing runtime library: %w", err)
+	}
+	if !bytes.Equal(h.Sum(nil), config.RuntimeLibHash) {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("runtime library hash mismatch")
+	}
+	if err := os.Rename(tmpPath, libPath); err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("installing runtime library: %w", err)
+	}
+	return libPath, nil
+}
+
+// naturalRuntimeLibName is the flat platform file name for the runtime cdylib,
+// matching ffihost.NaturalLibraryName (kept in sync; embeddedcli stays
+// dependency-free for use by generated embed files).
+func naturalRuntimeLibName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "copilot_runtime.dll"
+	case "darwin":
+		return "libcopilot_runtime.dylib"
+	default:
+		return "libcopilot_runtime.so"
+	}
 }
 
 // versionedBinaryPath builds the unpacked binary filename with an optional version suffix.

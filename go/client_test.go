@@ -625,6 +625,100 @@ func TestClient_EnvOptions(t *testing.T) {
 	})
 }
 
+func TestClient_InProcessConnection(t *testing.T) {
+	t.Run("uses in-process transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{Path: "/tmp/copilot"}})
+		if !client.useInProcess {
+			t.Error("Expected useInProcess=true for InProcessConnection")
+		}
+		if client.useStdio {
+			t.Error("Expected useStdio=false for InProcessConnection")
+		}
+		if client.isExternalServer {
+			t.Error("Expected isExternalServer=false for InProcessConnection")
+		}
+		if client.cliPath != "/tmp/copilot" {
+			t.Errorf("Expected cliPath to be '/tmp/copilot', got %q", client.cliPath)
+		}
+	})
+
+	t.Run("does not resolve COPILOT_CLI_PATH into cliPath at construction", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "/from/env/copilot")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		if client.cliPath != "" {
+			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("panics when Env is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Env is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"FOO=bar"},
+		})
+	})
+
+	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when WorkingDirectory is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection:       InProcessConnection{},
+			WorkingDirectory: "/tmp/work",
+		})
+	})
+
+	t.Run("panics when Telemetry is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Telemetry is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Telemetry:  &TelemetryConfig{ExporterType: "file"},
+		})
+	})
+}
+
+func TestClient_ConnectionLevelEnv(t *testing.T) {
+	t.Run("rejects env set on both client and connection", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when env is set on both client and connection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: StdioConnection{Env: []string{"A=1"}},
+			Env:        []string{"B=2"},
+		})
+	})
+
+	t.Run("stdio connection env is used when client env is unset", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: StdioConnection{Env: []string{"ONLY=conn"}},
+		})
+		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
+		}
+	})
+
+	t.Run("tcp connection env is used when client env is unset", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: TCPConnection{Port: 9000, Env: []string{"ONLY=conn"}},
+		})
+		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
+		}
+	})
+}
+
 func TestClient_SessionIdleTimeoutSeconds(t *testing.T) {
 	t.Run("should store SessionIdleTimeoutSeconds option", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
