@@ -6,8 +6,8 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { approveAll, defineTool } from "../../src/index.js";
-import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
+import { approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
+import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
 
 interface TelemetryEntry {
@@ -58,6 +58,12 @@ describe("Telemetry export", async () => {
 
     const { copilotClient: client, workDir } = await createSdkTestContext({
         copilotClientOptions: {
+            // Telemetry is lowered to environment variables the native runtime reads, which
+            // the in-process transport cannot carry per-client (the runtime runs in the shared
+            // host process); see https://github.com/github/copilot-sdk/issues/1934. Pin the
+            // child-process (stdio) transport so this scenario is exercised even in the
+            // in-process CI cell, matching the .NET suite.
+            connection: RuntimeConnection.forStdio(),
             telemetry: {
                 filePath: telemetryFileName,
                 exporterType: "file",
@@ -67,11 +73,7 @@ describe("Telemetry export", async () => {
         },
     });
 
-    // Telemetry is configured via environment variables the runtime reads, which the
-    // in-process transport cannot carry per-client (the runtime runs in the shared host
-    // process); see https://github.com/github/copilot-sdk/issues/1934. Covered by the
-    // default (stdio) cell.
-    it.skipIf(isInProcessTransport)(
+    it(
         "should export file telemetry for sdk interactions",
         { timeout: 90_000 },
         async () => {

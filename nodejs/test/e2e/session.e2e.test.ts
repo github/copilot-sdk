@@ -11,6 +11,7 @@ const {
     homeDir,
     workDir,
     env,
+    createClient,
 } = await createSdkTestContext();
 
 describe("Sessions", () => {
@@ -368,8 +369,7 @@ describe("Sessions", () => {
         expect(answer?.data.content).toContain("2");
 
         // Resume using a new client
-        const newClient = new CopilotClient({
-            env,
+        const newClient = createClient({
             gitHubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
 
@@ -466,8 +466,7 @@ describe("Sessions", () => {
         // `session.eventLog.registerInterest` for `mcp.oauth_required`; that must
         // be sent AFTER `session.resume`, otherwise the runtime rejects it with
         // "Session not found: <id>".
-        const newClient = new CopilotClient({
-            env,
+        const newClient = createClient({
             gitHubToken: isCI
                 ? DEFAULT_GITHUB_TOKEN
                 : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN),
