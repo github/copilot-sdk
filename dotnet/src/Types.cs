@@ -2660,7 +2660,8 @@ public sealed class CustomAgentConfig
 
     /// <summary>
     /// Reasoning effort level for this agent's model.
-    /// When omitted, no per-agent reasoning effort is sent to the runtime.
+    /// When omitted, the runtime inherits an explicit parent session effort.
+    /// If the parent effort is also omitted, the backend chooses the effort.
     /// </summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }

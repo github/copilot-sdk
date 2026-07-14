@@ -630,7 +630,8 @@ pub struct CustomAgentConfig {
     pub model: Option<String>,
     /// Reasoning effort level for this agent's model.
     ///
-    /// When unset, no per-agent reasoning effort is sent to the runtime.
+    /// When unset, the runtime inherits an explicit parent session effort. If
+    /// the parent effort is also unset, the backend chooses the effort.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
 }

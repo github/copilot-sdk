@@ -950,7 +950,8 @@ type CustomAgentConfig struct {
 	// falling back to the parent session model if unavailable.
 	Model string `json:"model,omitempty"`
 	// ReasoningEffort is the reasoning effort level for this agent's model.
-	// When empty, no per-agent reasoning effort is sent to the runtime.
+	// When empty, the runtime inherits an explicit parent session effort.
+	// If the parent effort is also empty, the backend chooses the effort.
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 }
 

@@ -298,7 +298,8 @@ public class CustomAgentConfig {
     /**
      * Sets the reasoning effort level for this agent's model.
      * <p>
-     * When omitted, no per-agent reasoning effort is sent to the runtime.
+     * When omitted, the runtime inherits an explicit parent session effort. If the
+     * parent effort is also omitted, the backend chooses the effort.
      *
      * @param reasoningEffort
      *            the reasoning effort level
