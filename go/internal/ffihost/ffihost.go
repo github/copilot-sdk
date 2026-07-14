@@ -1,14 +1,9 @@
 //go:build copilot_inprocess && (darwin || linux || windows)
 
-// Package ffihost hosts the Copilot runtime in-process by loading the native
-// runtime library (runtime.node — a Rust cdylib) and driving JSON-RPC over its
-// C ABI (FFI) instead of spawning the CLI as a child process and talking over
-// stdio/TCP.
+// Package ffihost hosts the Copilot runtime in-process by loading its native
+// library and driving JSON-RPC over the runtime's C ABI.
 //
-// The native copilot_runtime_host_start export spawns the residual CLI worker
-// itself (`<entrypoint> --embedded-host --no-auto-update`), so the SDK never
-// launches the worker directly; it only pumps opaque LSP `Content-Length:`-framed
-// JSON-RPC bytes across the boundary:
+// It pumps opaque LSP Content-Length-framed JSON-RPC bytes across the boundary:
 //
 //   - client → server frames go to copilot_runtime_connection_write
 //   - server → client frames arrive on a native callback that feeds a
@@ -135,20 +130,21 @@ func loadLibrary(libraryPath string) (lib *ffiLibrary, err error) {
 
 // Host hosts the Copilot runtime in-process via its native C ABI.
 //
-// Construct with Create, call Start to spawn the worker and open the FFI
-// connection, wire Writer/Reader into jsonrpc2.NewClient, and call Dispose to
-// tear everything down.
+// Construct with Create, call Start to open the FFI connection, wire
+// Writer/Reader into jsonrpc2.NewClient, and call Dispose to tear everything
+// down.
 type Host struct {
 	libraryPath   string
 	cliEntrypoint string
 	environment   map[string]string
+	args          []string
 	lib           *ffiLibrary
 
-	// mu guards disposed, activeCallbacks, serverID, and connectionID. A single
-	// mutex is used so that publishing disposed=true and draining in-flight
-	// callbacks are serialized against onOutbound's disposed-check/increment;
-	// this prevents a callback from feeding the receive buffer after it is
-	// closed (and avoids a data race on disposed observed by the -race detector).
+	// lifecycleMu serializes native start/write/shutdown operations. hostStart
+	// cannot be interrupted, so Dispose waits for it before closing native IDs.
+	lifecycleMu sync.Mutex
+	// mu serializes disposal with native callbacks so the receive buffer cannot
+	// be fed after it is closed.
 	mu           sync.Mutex
 	serverID     uint32
 	connectionID uint32
@@ -161,9 +157,9 @@ type Host struct {
 	callbackToken uintptr
 }
 
-// Create resolves the cdylib next to the CLI entrypoint and prepares the host.
-// It does not spawn the worker; call Start for that. environment may be nil.
-func Create(cliEntrypoint string, environment map[string]string) (*Host, error) {
+// Create resolves the native library and prepares the host. environment and
+// args contain SDK-managed runtime options.
+func Create(cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
 	libraryPath, err := ResolveLibraryPath(cliEntrypoint)
 	if err != nil {
 		return nil, err
@@ -176,15 +172,25 @@ func Create(cliEntrypoint string, environment map[string]string) (*Host, error) 
 		libraryPath:   libraryPath,
 		cliEntrypoint: cliEntrypoint,
 		environment:   environment,
+		args:          append([]string(nil), args...),
 		lib:           lib,
 		recv:          newReceiveBuffer(),
 	}, nil
 }
 
-// Start spawns the worker and opens the FFI connection. It blocks until the
-// worker connects back and signals readiness (up to ~30s), so callers should
+// Start opens the FFI connection. Native startup may block, so callers should
 // run it off any latency-sensitive goroutine.
 func (h *Host) Start() error {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
+	h.mu.Lock()
+	if h.disposed {
+		h.mu.Unlock()
+		return fmt.Errorf("the in-process runtime host is disposed")
+	}
+	h.mu.Unlock()
+
 	argv := h.buildArgv()
 	env := h.buildEnv()
 
@@ -245,6 +251,7 @@ func (h *Host) buildArgv() []byte {
 	} else {
 		argv = []string{h.cliEntrypoint, "--embedded-host", "--no-auto-update"}
 	}
+	argv = append(argv, h.args...)
 	b, _ := json.Marshal(argv)
 	return b
 }
@@ -291,11 +298,14 @@ func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 }
 
 func (h *Host) writeFrame(frame []byte) (int, error) {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
 	h.mu.Lock()
-	closed := h.disposed || h.connectionID == 0
-	connID := h.connectionID
+	disposed := h.disposed
 	h.mu.Unlock()
-	if closed {
+	connID := h.connectionID
+	if disposed || connID == 0 {
 		return 0, fmt.Errorf("the in-process runtime connection is closed")
 	}
 	if len(frame) == 0 {
@@ -313,6 +323,9 @@ func (h *Host) writeFrame(frame []byte) (int, error) {
 // resources. It is idempotent and waits for any in-flight outbound callback to
 // finish before closing the receive buffer.
 func (h *Host) Dispose() {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+
 	h.mu.Lock()
 	if h.disposed {
 		h.mu.Unlock()

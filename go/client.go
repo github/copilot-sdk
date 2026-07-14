@@ -2080,7 +2080,9 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
 	}
 
-	host, err := createInProcessHost(runtimePath)
+	config := c.inProcessHostConfig()
+
+	host, err := createInProcessHost(runtimePath, config)
 	if err != nil {
 		return err
 	}
@@ -2094,9 +2096,16 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	select {
 	case err := <-errCh:
 		if err != nil {
+			host.Dispose()
+			c.ffiHost = nil
 			return err
 		}
 	case <-ctx.Done():
+		c.ffiHost = nil
+		go func() {
+			<-errCh
+			host.Dispose()
+		}()
 		return ctx.Err()
 	}
 
@@ -2115,6 +2124,47 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	c.setupNotificationHandler()
 	c.client.Start()
 	return nil
+}
+
+func (c *Client) inProcessHostConfig() inProcessHostConfig {
+	args := make([]string, 0, 8)
+	if c.options.LogLevel != "" {
+		args = append(args, "--log-level", c.options.LogLevel)
+	}
+	if c.options.GitHubToken != "" {
+		args = append(args, "--auth-token-env", "COPILOT_SDK_AUTH_TOKEN")
+	}
+	useLoggedInUser := true
+	if c.options.UseLoggedInUser != nil {
+		useLoggedInUser = *c.options.UseLoggedInUser
+	} else if c.options.GitHubToken != "" {
+		useLoggedInUser = false
+	}
+	if !useLoggedInUser {
+		args = append(args, "--no-auto-login")
+	}
+	if c.options.SessionIdleTimeoutSeconds > 0 {
+		args = append(args, "--session-idle-timeout", strconv.Itoa(c.options.SessionIdleTimeoutSeconds))
+	}
+	if c.options.EnableRemoteSessions {
+		args = append(args, "--remote")
+	}
+
+	environment := make(map[string]string)
+	if c.options.GitHubToken != "" {
+		environment["COPILOT_SDK_AUTH_TOKEN"] = c.options.GitHubToken
+	}
+	if c.options.BaseDirectory != "" {
+		environment["COPILOT_HOME"] = c.options.BaseDirectory
+	}
+	if c.options.Mode == ModeEmpty {
+		environment["COPILOT_DISABLE_KEYTAR"] = "1"
+	}
+
+	return inProcessHostConfig{
+		Environment: environment,
+		Args:        args,
+	}
 }
 
 func (c *Client) killProcess() error {

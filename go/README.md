@@ -133,6 +133,7 @@ Resolution and requirements:
   always takes precedence.
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible runtime package; otherwise the bundled runtime is used. No `PATH` lookup is performed.
 - Embedded runtime versions are isolated in separate cache directories. Start fails loudly if the native runtime is unavailable.
+- Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
 - Only one native runtime version may be loaded per process.
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):

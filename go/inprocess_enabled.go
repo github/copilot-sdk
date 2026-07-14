@@ -6,6 +6,6 @@ import "github.com/github/copilot-sdk/go/internal/ffihost"
 
 const inProcessAvailable = true
 
-func createInProcessHost(runtimePath string) (inProcessHost, error) {
-	return ffihost.Create(runtimePath, nil)
+func createInProcessHost(runtimePath string, config inProcessHostConfig) (inProcessHost, error) {
+	return ffihost.Create(runtimePath, config.Environment, config.Args)
 }

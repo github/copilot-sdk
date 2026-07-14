@@ -17,6 +17,7 @@ func resetGlobals() {
 	setupDone = false
 	pathInitialized = false
 	runtimeLibPath = ""
+	linuxMuslBundle = false
 }
 
 func mustPanic(t *testing.T, fn func()) {
@@ -35,6 +36,31 @@ func binaryNameForOS() string {
 		name += ".exe"
 	}
 	return name
+}
+
+func TestLinuxMuslConfigSelectsAlternativeArtifacts(t *testing.T) {
+	glibcCLI := strings.NewReader("glibc-cli")
+	glibcRuntime := strings.NewReader("glibc-runtime")
+	muslCLI := strings.NewReader("musl-cli")
+	muslRuntime := strings.NewReader("musl-runtime")
+	muslCLIHash := bytes.Repeat([]byte{1}, sha256.Size)
+	muslRuntimeHash := bytes.Repeat([]byte{2}, sha256.Size)
+
+	selected := linuxMuslConfig(Config{
+		Cli:                     glibcCLI,
+		RuntimeLib:              glibcRuntime,
+		LinuxMuslCli:            muslCLI,
+		LinuxMuslCliHash:        muslCLIHash,
+		LinuxMuslRuntimeLib:     muslRuntime,
+		LinuxMuslRuntimeLibHash: muslRuntimeHash,
+	})
+
+	if selected.Cli != muslCLI || selected.RuntimeLib != muslRuntime {
+		t.Fatal("Expected Linux musl artifacts to replace the glibc artifacts")
+	}
+	if !bytes.Equal(selected.CliHash, muslCLIHash) || !bytes.Equal(selected.RuntimeLibHash, muslRuntimeHash) {
+		t.Fatal("Expected Linux musl hashes to replace the glibc hashes")
+	}
 }
 
 func TestSetupPanicsOnNilCli(t *testing.T) {

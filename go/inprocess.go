@@ -8,3 +8,8 @@ type inProcessHost interface {
 	Reader() io.ReadCloser
 	Dispose()
 }
+
+type inProcessHostConfig struct {
+	Environment map[string]string
+	Args        []string
+}

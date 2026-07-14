@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -35,6 +36,13 @@ type Config struct {
 	RuntimeLib     io.Reader
 	RuntimeLibHash []byte
 
+	// LinuxMuslCli and LinuxMuslRuntimeLib are optional alternatives selected
+	// automatically when the application runs on a musl-based Linux system.
+	LinuxMuslCli            io.Reader
+	LinuxMuslCliHash        []byte
+	LinuxMuslRuntimeLib     io.Reader
+	LinuxMuslRuntimeLibHash []byte
+
 	Dir     string
 	Version string
 }
@@ -45,6 +53,12 @@ func Setup(cfg Config) {
 	}
 	if len(cfg.CliHash) != sha256.Size {
 		panic(fmt.Sprintf("CliHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(cfg.CliHash)))
+	}
+	if cfg.LinuxMuslCli != nil && len(cfg.LinuxMuslCliHash) != sha256.Size {
+		panic(fmt.Sprintf("LinuxMuslCliHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(cfg.LinuxMuslCliHash)))
+	}
+	if cfg.LinuxMuslRuntimeLib != nil && len(cfg.LinuxMuslRuntimeLibHash) != sha256.Size {
+		panic(fmt.Sprintf("LinuxMuslRuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(cfg.LinuxMuslRuntimeLibHash)))
 	}
 	setupMu.Lock()
 	defer setupMu.Unlock()
@@ -85,9 +99,12 @@ var (
 	setupDone       bool
 	pathInitialized bool
 	runtimeLibPath  string
+	linuxMuslBundle bool
 )
 
 func install() (path string) {
+	selectLinuxMuslBundle()
+
 	verbose := os.Getenv("COPILOT_CLI_INSTALL_VERBOSE") == "1"
 	logError := func(msg string, err error) {
 		if verbose {
@@ -122,10 +139,34 @@ func install() (path string) {
 	return path
 }
 
+func selectLinuxMuslBundle() {
+	if runtime.GOOS != "linux" || config.LinuxMuslCli == nil || !isMusl() {
+		return
+	}
+	config = linuxMuslConfig(config)
+	linuxMuslBundle = true
+}
+
+func linuxMuslConfig(cfg Config) Config {
+	cfg.Cli = cfg.LinuxMuslCli
+	cfg.CliHash = cfg.LinuxMuslCliHash
+	cfg.RuntimeLib = cfg.LinuxMuslRuntimeLib
+	cfg.RuntimeLibHash = cfg.LinuxMuslRuntimeLibHash
+	return cfg
+}
+
+func isMusl() bool {
+	out, _ := exec.Command("ldd", "--version").CombinedOutput()
+	return strings.Contains(strings.ToLower(string(out)), "musl")
+}
+
 func installAt(installDir string) (string, error) {
 	version := sanitizeVersion(config.Version)
 	if version != "" {
 		installDir = filepath.Join(installDir, version)
+	}
+	if linuxMuslBundle {
+		installDir = filepath.Join(installDir, "linuxmusl")
 	}
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		return "", fmt.Errorf("creating install directory: %w", err)

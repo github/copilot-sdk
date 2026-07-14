@@ -128,10 +128,10 @@ pub enum Transport {
     /// This is **experimental**. Per-client [`ClientOptions::program`],
     /// [`ClientOptions::extra_args`], [`ClientOptions::working_directory`],
     /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
-    /// [`ClientOptions::telemetry`], and [`ClientOptions::github_token`] are
-    /// not supported because native runtime code shares the host process.
-    /// [`ClientOptions::base_directory`] remains supported because it is
-    /// applied to the native runtime as `COPILOT_HOME`.
+    /// and [`ClientOptions::telemetry`] are not supported because native
+    /// runtime code shares the host process. Typed runtime options such as
+    /// authentication, log level, and [`ClientOptions::base_directory`] remain
+    /// supported.
     ///
     /// Requires the `bundled-in-process` Cargo feature.
     InProcess,
@@ -935,8 +935,6 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         Some("env_remove")
     } else if options.telemetry.is_some() {
         Some("telemetry")
-    } else if options.github_token.is_some() {
-        Some("github_token")
     } else if !options.prefix_args.is_empty() {
         Some("prefix_args")
     } else {
@@ -1246,6 +1244,12 @@ impl Client {
                     if options.mode == ClientMode::Empty {
                         environment.push(("COPILOT_DISABLE_KEYTAR".to_string(), "1".to_string()));
                     }
+                    if let Some(github_token) = &options.github_token {
+                        environment.push((
+                            "COPILOT_SDK_AUTH_TOKEN".to_string(),
+                            github_token.clone(),
+                        ));
+                    }
                     let mut args = Vec::new();
                     args.extend(
                         Self::log_level_args(&options)
@@ -1254,7 +1258,16 @@ impl Client {
                     );
                     args.extend(Self::session_idle_timeout_args(&options));
                     args.extend(Self::remote_args(&options));
-                    if options.use_logged_in_user == Some(false) {
+                    if options.github_token.is_some() {
+                        args.extend([
+                            "--auth-token-env".to_string(),
+                            "COPILOT_SDK_AUTH_TOKEN".to_string(),
+                        ]);
+                    }
+                    let use_logged_in_user = options
+                        .use_logged_in_user
+                        .unwrap_or(options.github_token.is_none());
+                    if !use_logged_in_user {
                         args.push("--no-auto-login".to_string());
                     }
                     let host = crate::ffi::FfiHost::create(&program, environment, args)?;
@@ -2530,7 +2543,6 @@ mod tests {
             ClientOptions::new().with_env([("KEY", "value")]),
             ClientOptions::new().with_env_remove(["KEY"]),
             ClientOptions::new().with_telemetry(TelemetryConfig::default()),
-            ClientOptions::new().with_github_token("token"),
             ClientOptions::new().with_prefix_args(["index.js"]),
             ClientOptions::new().with_program(CliProgram::Path("copilot".into())),
             ClientOptions::new().with_extra_args(["--verbose"]),
@@ -2547,6 +2559,7 @@ mod tests {
             .with_base_directory("state")
             .with_log_level(LogLevel::Debug)
             .with_session_idle_timeout_seconds(10)
+            .with_github_token("token")
             .with_use_logged_in_user(false)
             .with_enable_remote_sessions(true);
 

@@ -1279,10 +1279,12 @@ class CopilotClient:
         """
         Initialize a new CopilotClient.
 
-        All process-management options (``working_directory``, ``log_level``,
-        ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
-        (stdio / tcp connections). They are ignored when connecting to an
-        existing runtime via :meth:`RuntimeConnection.for_uri`.
+        Runtime options apply to locally hosted connections. The in-process
+        transport supports typed runtime options such as ``log_level``,
+        ``github_token``, and ``base_directory``, but rejects per-client
+        ``working_directory``, ``env``, and ``telemetry``. Options are ignored
+        when connecting to an existing runtime via
+        :meth:`RuntimeConnection.for_uri`.
 
         Args:
             connection: How to reach the runtime. Defaults to
@@ -3956,9 +3958,32 @@ class CopilotClient:
             extra={"runtime_path": runtime_path, "runtime_path_source": self._cli_path_source},
         )
 
-        # env/telemetry/working_directory are rejected for the in-process transport
-        # because the native runtime shares this process's ambient state.
-        host = FfiRuntimeHost.create(runtime_path, environment=None, args=())
+        opts = self._options
+        args: list[str] = []
+        if opts.log_level:
+            args.extend(["--log-level", opts.log_level])
+        if opts.github_token:
+            args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
+        if not opts.use_logged_in_user:
+            args.append("--no-auto-login")
+        if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
+            args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
+        if opts.enable_remote_sessions:
+            args.append("--remote")
+
+        environment: dict[str, str] = {}
+        if opts.github_token:
+            environment["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
+        if opts.base_directory:
+            environment["COPILOT_HOME"] = opts.base_directory
+        if opts.mode == "empty":
+            environment["COPILOT_DISABLE_KEYTAR"] = "1"
+
+        host = FfiRuntimeHost.create(
+            runtime_path,
+            environment=environment or None,
+            args=tuple(args),
+        )
 
         # Track the host and expose its process-like adapter *before* the blocking
         # handshake. asyncio.to_thread keeps running host_start after a cancellation

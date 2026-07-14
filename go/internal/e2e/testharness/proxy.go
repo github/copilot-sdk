@@ -45,7 +45,7 @@ func (p *CapiProxy) Start() (string, error) {
 	serverPath := RepoPath("test", "harness", "server.ts")
 
 	p.cmd = exec.Command("npx", "tsx", serverPath)
-	p.cmd.Dir = "." // Will be resolved relative to test execution
+	p.cmd.Dir = RepoPath("test", "harness")
 
 	stdout, err := p.cmd.StdoutPipe()
 	if err != nil {

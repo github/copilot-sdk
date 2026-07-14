@@ -91,14 +91,47 @@ func main() {
 
 	fmt.Printf("Building bundle for %s (CLI version %s)\n", *platform, version)
 
-	binaryPath, sha256Hash, runtimeArtifactPath, runtimeHash, err := buildBundle(info, version, outputPath, goos, goarch)
+	binaryPath, sha256Hash, runtimeArtifactPath, runtimeHash, err := buildBundle(info, version, outputPath, goos)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
+	var muslBinaryPath, muslRuntimeArtifactPath string
+	var muslBinaryHash, muslRuntimeHash []byte
+	if goos == "linux" {
+		muslInfo := platformInfo{
+			npmPlatform: strings.Replace(info.npmPlatform, "linux-", "linuxmusl-", 1),
+			binaryName:  info.binaryName,
+		}
+		muslOutputPath := filepath.Join(*output, defaultOutputFileName(version, "linuxmusl", goarch, info.binaryName))
+		muslBinaryPath, muslBinaryHash, muslRuntimeArtifactPath, muslRuntimeHash, err = buildBundle(
+			muslInfo,
+			version,
+			muslOutputPath,
+			goos,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Generate the Go file with embed directive
-	if err := generateGoFile(goos, goarch, binaryPath, version, sha256Hash, runtimeArtifactPath, runtimeHash, "main"); err != nil {
+	if err := generateGoFile(
+		goos,
+		goarch,
+		binaryPath,
+		version,
+		sha256Hash,
+		runtimeArtifactPath,
+		runtimeHash,
+		muslBinaryPath,
+		muslBinaryHash,
+		muslRuntimeArtifactPath,
+		muslRuntimeHash,
+		"main",
+	); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -257,12 +290,12 @@ func isHex(s string) bool {
 // native in-process runtime library) and writes them to outputPath's directory.
 // It returns the CLI bundle path and hash, plus the runtime-library artifact path
 // and hash (both empty when the package does not ship the runtime library).
-func buildBundle(info platformInfo, cliVersion, outputPath, goos, goarch string) (string, []byte, string, []byte, error) {
+func buildBundle(info platformInfo, cliVersion, outputPath, goos string) (string, []byte, string, []byte, error) {
 	outputDir := filepath.Dir(outputPath)
 	if outputDir == "" {
 		outputDir = "."
 	}
-	runtimeArtifactPath := filepath.Join(outputDir, runtimeLibArtifactName(cliVersion, goos, goarch))
+	runtimeArtifactPath := filepath.Join(outputDir, runtimeLibArtifactName(cliVersion, info.npmPlatform, goos))
 
 	// Check if output already exists
 	if _, err := os.Stat(outputPath); err == nil {
@@ -346,8 +379,8 @@ func buildBundle(info platformInfo, cliVersion, outputPath, goos, goarch string)
 }
 
 // runtimeLibArtifactName builds the compressed runtime-library artifact filename.
-func runtimeLibArtifactName(version, goos, goarch string) string {
-	return fmt.Sprintf("zcopilotruntime_%s_%s_%s.%s.zst", version, goos, goarch, runtimeLibExt(goos))
+func runtimeLibArtifactName(version, npmPlatform, goos string) string {
+	return fmt.Sprintf("zcopilotruntime_%s_%s.%s.zst", version, npmPlatform, runtimeLibExt(goos))
 }
 
 // runtimeLibExt returns the shared-library extension for the target OS.
@@ -365,7 +398,20 @@ func runtimeLibExt(goos string) string {
 // generateGoFile creates separate source files for normal and in-process builds.
 // Both embed the CLI, while only the copilot_inprocess-tagged file embeds the
 // native runtime library.
-func generateGoFile(goos, goarch, binaryPath, cliVersion string, sha256Hash []byte, runtimeArtifactPath string, runtimeHash []byte, pkgName string) error {
+func generateGoFile(
+	goos,
+	goarch,
+	binaryPath,
+	cliVersion string,
+	sha256Hash []byte,
+	runtimeArtifactPath string,
+	runtimeHash []byte,
+	muslBinaryPath string,
+	muslBinaryHash []byte,
+	muslRuntimeArtifactPath string,
+	muslRuntimeHash []byte,
+	pkgName string,
+) error {
 	binaryName := filepath.Base(binaryPath)
 	licenseName := licenseFileName(binaryName)
 	hashBase64 := ""
@@ -384,6 +430,10 @@ func generateGoFile(goos, goarch, binaryPath, cliVersion string, sha256Hash []by
 		hashBase64,
 		"",
 		nil,
+		"",
+		nil,
+		"",
+		nil,
 	)
 	if err := os.WriteFile(defaultPath, []byte(defaultContent), 0644); err != nil {
 		return err
@@ -399,6 +449,10 @@ func generateGoFile(goos, goarch, binaryPath, cliVersion string, sha256Hash []by
 		hashBase64,
 		runtimeArtifactPath,
 		runtimeHash,
+		muslBinaryPath,
+		muslBinaryHash,
+		muslRuntimeArtifactPath,
+		muslRuntimeHash,
 	)
 	if err := os.WriteFile(inProcessPath, []byte(inProcessContent), 0644); err != nil {
 		return err
@@ -409,7 +463,20 @@ func generateGoFile(goos, goarch, binaryPath, cliVersion string, sha256Hash []by
 	return nil
 }
 
-func generatedGoFileContent(buildConstraint, pkgName, binaryName, licenseName, cliVersion, hashBase64, runtimeArtifactPath string, runtimeHash []byte) string {
+func generatedGoFileContent(
+	buildConstraint,
+	pkgName,
+	binaryName,
+	licenseName,
+	cliVersion,
+	hashBase64,
+	runtimeArtifactPath string,
+	runtimeHash []byte,
+	muslBinaryPath string,
+	muslBinaryHash []byte,
+	muslRuntimeArtifactPath string,
+	muslRuntimeHash []byte,
+) string {
 	runtimeEmbed := ""
 	runtimeConfig := ""
 	runtimeReader := ""
@@ -426,6 +493,45 @@ var localEmbeddedCopilotRuntimeLib []byte
 		runtimeReader = `
 func runtimeLibReader() io.Reader {
 	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLib))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
+}
+`
+	}
+
+	muslEmbed := ""
+	muslConfig := ""
+	muslReaders := ""
+	if muslBinaryPath != "" && muslRuntimeArtifactPath != "" {
+		muslBinaryName := filepath.Base(muslBinaryPath)
+		muslBinaryHashBase64 := base64.StdEncoding.EncodeToString(muslBinaryHash)
+		muslRuntimeName := filepath.Base(muslRuntimeArtifactPath)
+		muslRuntimeHashBase64 := base64.StdEncoding.EncodeToString(muslRuntimeHash)
+		muslEmbed = fmt.Sprintf(`
+//go:embed %s
+var localEmbeddedCopilotCLILinuxMusl []byte
+
+//go:embed %s
+var localEmbeddedCopilotRuntimeLibLinuxMusl []byte
+`, muslBinaryName, muslRuntimeName)
+		muslConfig = fmt.Sprintf(`
+		LinuxMuslCli:            linuxMuslCLIReader(),
+		LinuxMuslCliHash:        mustDecodeBase64(%q),
+		LinuxMuslRuntimeLib:     linuxMuslRuntimeLibReader(),
+		LinuxMuslRuntimeLibHash: mustDecodeBase64(%q),`, muslBinaryHashBase64, muslRuntimeHashBase64)
+		muslReaders = `
+func linuxMuslCLIReader() io.Reader {
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotCLILinuxMusl))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
+}
+
+func linuxMuslRuntimeLibReader() io.Reader {
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLibLinuxMusl))
 	if err != nil {
 		panic("failed to create zstd reader: " + err.Error())
 	}
@@ -456,13 +562,14 @@ var localEmbeddedCopilotCLI []byte
 //go:embed %s
 var localEmbeddedCopilotCLILicense []byte
 %s
+%s
 
 func init() {
 	embeddedcli.Setup(embeddedcli.Config{
 		Cli: cliReader(),
 		License: localEmbeddedCopilotCLILicense,
 		Version: %q,
-		CliHash: mustDecodeBase64(%q),%s
+		CliHash: mustDecodeBase64(%q),%s%s
 	})
 }
 
@@ -474,6 +581,7 @@ func cliReader() io.Reader {
 	return r
 }
 %s
+%s
 func mustDecodeBase64(s string) []byte {
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
@@ -481,7 +589,7 @@ func mustDecodeBase64(s string) []byte {
 	}
 	return b
 }
-`, buildConstraint, pkgName, binaryName, licenseName, runtimeEmbed, cliVersion, hashBase64, runtimeConfig, runtimeReader)
+`, buildConstraint, pkgName, binaryName, licenseName, runtimeEmbed, muslEmbed, cliVersion, hashBase64, runtimeConfig, muslConfig, runtimeReader, muslReaders)
 }
 
 // downloadCLIBinary downloads the npm tarball and extracts the CLI binary. It

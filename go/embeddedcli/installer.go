@@ -7,7 +7,8 @@ import "github.com/github/copilot-sdk/go/internal/embeddedcli"
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
 // system cache directory. When Version is set, the CLI and runtime library are
 // installed into a version-specific child directory so multiple versions can
-// coexist. License, when provided, is written next to the installed binary.
+// coexist. Linux musl alternatives, when provided, are selected automatically.
+// License, when provided, is written next to the installed binary.
 type Config = embeddedcli.Config
 
 // Setup sets the embedded GitHub Copilot CLI install configuration.

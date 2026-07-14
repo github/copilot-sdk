@@ -697,6 +697,39 @@ func TestClient_InProcessConnection(t *testing.T) {
 			Telemetry:  &TelemetryConfig{ExporterType: "file"},
 		})
 	})
+
+	t.Run("forwards typed runtime options", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection:                InProcessConnection{},
+			GitHubToken:               "test-token",
+			UseLoggedInUser:           Bool(false),
+			BaseDirectory:             "/copilot-home",
+			LogLevel:                  "debug",
+			SessionIdleTimeoutSeconds: 30,
+			EnableRemoteSessions:      true,
+			Mode:                      ModeEmpty,
+		})
+
+		config := client.inProcessHostConfig()
+		expectedArgs := []string{
+			"--log-level", "debug",
+			"--auth-token-env", "COPILOT_SDK_AUTH_TOKEN",
+			"--no-auto-login",
+			"--session-idle-timeout", "30",
+			"--remote",
+		}
+		if !reflect.DeepEqual(config.Args, expectedArgs) {
+			t.Fatalf("Expected managed arguments %v, got %v", expectedArgs, config.Args)
+		}
+		expectedEnvironment := map[string]string{
+			"COPILOT_SDK_AUTH_TOKEN": "test-token",
+			"COPILOT_HOME":           "/copilot-home",
+			"COPILOT_DISABLE_KEYTAR": "1",
+		}
+		if !reflect.DeepEqual(config.Environment, expectedEnvironment) {
+			t.Fatalf("Expected managed environment %v, got %v", expectedEnvironment, config.Environment)
+		}
+	})
 }
 
 func TestClient_DefaultConnection(t *testing.T) {

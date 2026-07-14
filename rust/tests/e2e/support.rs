@@ -178,18 +178,7 @@ impl E2eContext {
     }
 
     pub fn client_options_with_github_token(&self, token: &str) -> ClientOptions {
-        let options = self.client_options();
-        if is_inprocess_default() {
-            // SAFETY: the in-process E2E suite is serialized for the full
-            // lifetime of InProcessEnvGuard.
-            unsafe {
-                std::env::set_var("GH_TOKEN", token);
-                std::env::set_var("GITHUB_TOKEN", token);
-            }
-            options
-        } else {
-            options.with_github_token(token)
-        }
+        self.client_options().with_github_token(token)
     }
 
     pub async fn start_client(&self) -> Client {
