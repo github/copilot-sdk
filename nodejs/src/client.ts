@@ -92,8 +92,6 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
-const SESSION_ABORT_TIMEOUT_MS = 5_000;
-const SESSION_DISCONNECT_TIMEOUT_MS = 5_000;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -948,7 +946,6 @@ export class CopilotClient {
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
-        const connectedSessions = activeSessions.filter((session) => !session._isDisconnected());
         // TEMPORARY: over the in-process (FFI) transport the runtime shares this
         // process, so a turn still running when the runtime disposes the session
         // can leave that session's SQLite session.db handle open — it isn't
@@ -960,46 +957,17 @@ export class CopilotClient {
         // on shutdown (which frees the handle), and for external servers we don't
         // own the runtime and aborting would cancel pending work other clients
         // may still resume. Remove once the runtime cleans up fully on shutdown.
-        const isInProcess = this.connectionConfig.kind === "inprocess";
-        if (isInProcess) {
-            const abortResults = await Promise.allSettled(
-                connectedSessions.map((session) =>
-                    withTimeout(
-                        session.abort(),
-                        SESSION_ABORT_TIMEOUT_MS,
-                        `session.abort timed out after ${SESSION_ABORT_TIMEOUT_MS}ms for ${session.sessionId}`
-                    )
-                )
-            );
-            for (const [index, result] of abortResults.entries()) {
-                if (result.status === "rejected") {
-                    const error =
-                        result.reason instanceof Error
-                            ? result.reason
-                            : new Error(String(result.reason));
-                    errors.push(
-                        new Error(
-                            `Failed to abort session ${connectedSessions[index].sessionId} during in-process teardown: ${error.message}`
-                        )
-                    );
-                }
-            }
+        if (this.connectionConfig.kind === "inprocess") {
+            await Promise.allSettled(activeSessions.map((session) => session.abort()));
         }
-        for (const session of connectedSessions) {
+        for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
 
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const disconnectPromise = session.disconnect();
-                    await (isInProcess
-                        ? withTimeout(
-                              disconnectPromise,
-                              SESSION_DISCONNECT_TIMEOUT_MS,
-                              `session.disconnect timed out after ${SESSION_DISCONNECT_TIMEOUT_MS}ms`
-                          )
-                        : disconnectPromise);
+                    await session.disconnect();
                     lastError = null;
                     break; // Success
                 } catch (error) {

@@ -291,6 +291,7 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
+        removeDisconnectedSessionEntries(copilotClient);
         const stopErrors = await copilotClient.stop();
         let proxyStopError: unknown;
         try {
@@ -310,6 +311,22 @@ export async function createSdkTestContext({
     });
 
     return harness;
+}
+
+function removeDisconnectedSessionEntries(client: CopilotClient): void {
+    // `CopilotSession.disconnect()` leaves its object in the client's private registry.
+    // The in-process client stop path aborts every registry entry, including these
+    // already-destroyed sessions. Remove only stale test entries before teardown.
+    const sessions = (
+        client as unknown as {
+            sessions: Map<string, { disconnected: boolean }>;
+        }
+    ).sessions;
+    for (const [sessionId, session] of sessions) {
+        if (session.disconnected) {
+            sessions.delete(sessionId);
+        }
+    }
 }
 
 function getTrafficCapturePath(testContext: TestContext): string {
