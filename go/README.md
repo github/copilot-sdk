@@ -121,8 +121,11 @@ defer client.Stop()
 
 Resolution and requirements:
 
+- Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
+  transport when `ClientOptions.Connection` is nil. An explicit connection
+  always takes precedence.
 - The entrypoint is resolved with **no `PATH` lookup**: explicit `InProcessConnection.Path`, then `COPILOT_CLI_PATH`, then the bundled embedded CLI. It must be an on-disk path.
-- The runtime library is loaded from next to the resolved entrypoint (the flat `libcopilot_runtime.*` name installed by the bundler, or the package's `prebuilds/<platform>/runtime.node`). Start fails loudly if it cannot be found.
+- The runtime library is loaded from next to the resolved entrypoint (the matching versioned `libcopilot_runtime_*` name installed for an embedded CLI, a flat package library name, or the package's `prebuilds/<platform>/runtime.node`). Start fails loudly if it cannot be found.
 - The runtime library is loaded once per process; loading a different library path in the same process is an error.
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):

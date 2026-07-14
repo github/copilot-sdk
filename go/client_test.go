@@ -687,6 +687,59 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 }
 
+func TestClient_DefaultConnection(t *testing.T) {
+	t.Run("defaults to stdio when override is unset", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "")
+
+		client := NewClient(nil)
+
+		if !client.useStdio || client.useInProcess {
+			t.Fatalf("Expected stdio default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("selects in-process case-insensitively", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "InPrOcEsS")
+
+		client := NewClient(nil)
+
+		if !client.useInProcess || client.useStdio {
+			t.Fatalf("Expected in-process default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("accepts explicit stdio override", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "STDIO")
+
+		client := NewClient(nil)
+
+		if !client.useStdio || client.useInProcess {
+			t.Fatalf("Expected stdio default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("explicit connection takes precedence", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "inprocess")
+
+		client := NewClient(&ClientOptions{Connection: TCPConnection{Port: 1234}})
+
+		if client.useInProcess || client.useStdio || client.port != 1234 {
+			t.Fatalf("Expected explicit TCP connection to win, got useStdio=%v useInProcess=%v port=%d", client.useStdio, client.useInProcess, client.port)
+		}
+	})
+
+	t.Run("panics for invalid override", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "tcp")
+
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("Expected invalid default connection override to panic")
+			}
+		}()
+		NewClient(nil)
+	})
+}
+
 func TestClient_ConnectionLevelEnv(t *testing.T) {
 	t.Run("rejects env set on both client and connection", func(t *testing.T) {
 		defer func() {

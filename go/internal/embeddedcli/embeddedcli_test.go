@@ -16,6 +16,7 @@ func resetGlobals() {
 	config = Config{}
 	setupDone = false
 	pathInitialized = false
+	runtimeLibPath = ""
 }
 
 func mustPanic(t *testing.T, fn func()) {
@@ -132,5 +133,45 @@ func TestVersionedBinaryPath(t *testing.T) {
 	want := filepath.Join("/tmp", "copilot_1.0.0.exe")
 	if got != want {
 		t.Fatalf("versionedBinaryPath() = %q want %q", got, want)
+	}
+}
+
+func TestInstallAtAllowsMultipleRuntimeVersions(t *testing.T) {
+	resetGlobals()
+	tempDir := t.TempDir()
+
+	installVersion := func(version string, cliContent, runtimeContent []byte) (string, string) {
+		t.Helper()
+		cliHash := sha256.Sum256(cliContent)
+		runtimeHash := sha256.Sum256(runtimeContent)
+		config = Config{
+			Cli:            bytes.NewReader(cliContent),
+			CliHash:        cliHash[:],
+			RuntimeLib:     bytes.NewReader(runtimeContent),
+			RuntimeLibHash: runtimeHash[:],
+			Version:        version,
+		}
+
+		cliPath, err := installAt(tempDir)
+		if err != nil {
+			t.Fatalf("install version %s: %v", version, err)
+		}
+		return cliPath, runtimeLibPath
+	}
+
+	cli1, runtime1 := installVersion("1.0.0", []byte("cli-one"), []byte("runtime-one"))
+	cli2, runtime2 := installVersion("2.0.0", []byte("cli-two"), []byte("runtime-two"))
+
+	if cli1 == cli2 {
+		t.Fatalf("Expected versioned CLI paths to differ, got %q", cli1)
+	}
+	if runtime1 == runtime2 {
+		t.Fatalf("Expected versioned runtime paths to differ, got %q", runtime1)
+	}
+	if got, err := os.ReadFile(runtime1); err != nil || string(got) != "runtime-one" {
+		t.Fatalf("Unexpected first runtime: content=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(runtime2); err != nil || string(got) != "runtime-two" {
+		t.Fatalf("Unexpected second runtime: content=%q err=%v", got, err)
 	}
 }

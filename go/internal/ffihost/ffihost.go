@@ -44,6 +44,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -68,6 +69,28 @@ var (
 	loadedLibrary     *ffiLibrary
 	loadedLibraryPath string
 )
+
+var (
+	outboundCallbackOnce   sync.Once
+	outboundCallbackHandle uintptr
+	outboundTargets        sync.Map
+	nextOutboundToken      atomic.Uint64
+)
+
+func sharedOutboundCallback() uintptr {
+	outboundCallbackOnce.Do(func() {
+		outboundCallbackHandle = purego.NewCallback(routeOutbound)
+	})
+	return outboundCallbackHandle
+}
+
+func routeOutbound(userData uintptr, bytesPtr uintptr, bytesLen uintptr) uintptr {
+	target, ok := outboundTargets.Load(userData)
+	if !ok {
+		return 0
+	}
+	return target.(*Host).onOutbound(bytesPtr, bytesLen)
+}
 
 func loadLibrary(libraryPath string) (lib *ffiLibrary, err error) {
 	loadMu.Lock()
@@ -134,10 +157,7 @@ type Host struct {
 
 	recv *receiveBuffer
 
-	// callbackHandle is the purego callback trampoline address. purego keeps the
-	// underlying Go closure alive for the process lifetime, so it (and this Host,
-	// which the closure captures) must not be relied upon to be freed.
-	callbackHandle uintptr
+	callbackToken uintptr
 }
 
 // Create resolves the cdylib next to the CLI entrypoint and prepares the host.
@@ -194,9 +214,14 @@ func (h *Host) Start() error {
 	// here rather than at library load).
 	rearmForeignSignalHandlers(h.lib.handle)
 
-	h.callbackHandle = purego.NewCallback(h.onOutbound)
-	h.connectionID = h.lib.connectionOpen(h.serverID, h.callbackHandle, 0, nil, 0, nil, 0, nil, 0)
+	callbackHandle := sharedOutboundCallback()
+	callbackToken := uintptr(nextOutboundToken.Add(1))
+	outboundTargets.Store(callbackToken, h)
+	h.callbackToken = callbackToken
+	h.connectionID = h.lib.connectionOpen(h.serverID, callbackHandle, callbackToken, nil, 0, nil, 0, nil, 0)
 	if h.connectionID == 0 {
+		outboundTargets.Delete(callbackToken)
+		h.callbackToken = 0
 		h.lib.hostShutdown(h.serverID)
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
@@ -236,8 +261,7 @@ func (h *Host) buildEnv() []byte {
 // onOutbound is the native server → client callback, invoked on a foreign
 // runtime thread. The native pointer is only valid for this call, so the bytes
 // are copied out before returning. Nothing may panic across the FFI boundary.
-func (h *Host) onOutbound(userData uintptr, bytesPtr uintptr, bytesLen uintptr) uintptr {
-	_ = userData
+func (h *Host) onOutbound(bytesPtr uintptr, bytesLen uintptr) uintptr {
 	h.mu.Lock()
 	if h.disposed {
 		h.mu.Unlock()
@@ -301,9 +325,15 @@ func (h *Host) Dispose() {
 	h.disposed = true
 	connID := h.connectionID
 	serverID := h.serverID
+	callbackToken := h.callbackToken
 	h.connectionID = 0
 	h.serverID = 0
+	h.callbackToken = 0
 	h.mu.Unlock()
+
+	if callbackToken != 0 {
+		outboundTargets.Delete(callbackToken)
+	}
 
 	// Stop accepting new callbacks and wait for in-flight ones to drain before
 	// closing the receive buffer they feed.

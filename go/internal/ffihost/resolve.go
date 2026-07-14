@@ -62,9 +62,9 @@ func PrebuildsFolder() string {
 // ResolveLibraryPath resolves the native runtime library next to the given CLI
 // entrypoint. It checks, in order:
 //
-//  1. The natural platform library name next to the CLI (bundled/flat layout,
-//     what the embedded-CLI installer writes).
-//  2. prebuilds/<platform>/runtime.node next to the CLI (dev/package layout).
+//  1. A versioned platform library name matching a versioned embedded CLI.
+//  2. The natural platform library name next to the CLI (flat package layout).
+//  3. prebuilds/<platform>/runtime.node next to the CLI (dev/package layout).
 //
 // It returns an error when neither exists.
 func ResolveLibraryPath(cliEntrypoint string) (string, error) {
@@ -73,6 +73,10 @@ func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 		abs = cliEntrypoint
 	}
 	dir := filepath.Dir(abs)
+
+	if versioned := versionedLibraryPathForEntrypoint(abs); versioned != "" && fileExists(versioned) {
+		return versioned, nil
+	}
 
 	flat := filepath.Join(dir, NaturalLibraryName())
 	if fileExists(flat) {
@@ -87,9 +91,28 @@ func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 	}
 
 	return "", fmt.Errorf(
-		"in-process FFI runtime library not found next to %q (looked for %q and prebuilds/%s/runtime.node); "+
+		"in-process FFI runtime library not found next to %q (looked for a matching versioned library, %q, and prebuilds/%s/runtime.node); "+
 			"use a runtime package that ships the native library",
 		abs, NaturalLibraryName(), PrebuildsFolder())
+}
+
+func versionedLibraryPathForEntrypoint(cliEntrypoint string) string {
+	name := filepath.Base(cliEntrypoint)
+	stem := name
+	if strings.HasSuffix(strings.ToLower(stem), ".exe") {
+		stem = stem[:len(stem)-len(".exe")]
+	}
+	version, ok := strings.CutPrefix(stem, "copilot_")
+	if !ok || version == "" {
+		return ""
+	}
+
+	libraryName := NaturalLibraryName()
+	libraryStem := strings.TrimSuffix(libraryName, filepath.Ext(libraryName))
+	return filepath.Join(
+		filepath.Dir(cliEntrypoint),
+		libraryStem+"_"+version+filepath.Ext(libraryName),
+	)
 }
 
 func fileExists(path string) bool {

@@ -18,13 +18,13 @@ import (
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system cache directory. Version is used to suffix the installed binary name to
-// allow multiple versions to coexist. License, when provided, is written next
-// to the installed binary.
+// system cache directory. Version is used to suffix the installed binary and
+// runtime-library names so multiple versions can coexist. License, when
+// provided, is written next to the installed binary.
 //
 // RuntimeLib and RuntimeLibHash are optional: when set, the native in-process
-// runtime library (cdylib) is installed next to the CLI binary under its natural
-// platform name so the in-process (FFI) transport can load it. They are omitted
+// runtime library (cdylib) is installed next to the CLI binary with the same
+// version suffix so the in-process (FFI) transport can load it. They are omitted
 // for CLI packages that do not ship the native runtime.
 type Config struct {
 	Cli     io.Reader
@@ -176,11 +176,10 @@ func installAt(installDir string) (string, error) {
 	}
 
 	// Install the native in-process runtime library (if bundled) next to the CLI
-	// binary under its natural platform name, so the FFI transport resolves it via
-	// the flat-name lookup. Fail closed on any hash mismatch — never place
-	// unverified native code.
+	// binary with the same version suffix. Fail closed on any hash mismatch —
+	// never place unverified native code.
 	if config.RuntimeLib != nil {
-		libPath, err := installRuntimeLib(installDir)
+		libPath, err := installRuntimeLib(installDir, version)
 		if err != nil {
 			return "", err
 		}
@@ -190,14 +189,14 @@ func installAt(installDir string) (string, error) {
 	return finalPath, nil
 }
 
-// installRuntimeLib writes the embedded runtime cdylib into installDir under its
-// natural platform file name, verifying its SHA-256. It is idempotent: an
+// installRuntimeLib writes the embedded runtime cdylib into installDir under a
+// versioned platform file name, verifying its SHA-256. It is idempotent: an
 // existing file with a matching hash is reused; a mismatch is a hard error.
-func installRuntimeLib(installDir string) (string, error) {
+func installRuntimeLib(installDir, version string) (string, error) {
 	if len(config.RuntimeLibHash) != sha256.Size {
 		return "", fmt.Errorf("RuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(config.RuntimeLibHash))
 	}
-	libPath := filepath.Join(installDir, naturalRuntimeLibName())
+	libPath := versionedRuntimeLibPath(installDir, naturalRuntimeLibName(), version)
 
 	if _, err := os.Stat(libPath); err == nil {
 		existingHash, err := hashFile(libPath)
@@ -260,6 +259,17 @@ func versionedBinaryPath(dir, binaryName, version string) string {
 	}
 	base := strings.TrimSuffix(binaryName, filepath.Ext(binaryName))
 	ext := filepath.Ext(binaryName)
+	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", base, version, ext))
+}
+
+// versionedRuntimeLibPath builds the runtime-library filename with the same
+// optional version suffix as the embedded CLI.
+func versionedRuntimeLibPath(dir, libraryName, version string) string {
+	if version == "" {
+		return filepath.Join(dir, libraryName)
+	}
+	base := strings.TrimSuffix(libraryName, filepath.Ext(libraryName))
+	ext := filepath.Ext(libraryName)
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", base, version, ext))
 }
 

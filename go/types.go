@@ -22,8 +22,8 @@ const (
 //
 // Construct one with a [StdioConnection], [TCPConnection], [URIConnection], or
 // [InProcessConnection] literal and pass it via [ClientOptions.Connection]. When
-// [ClientOptions.Connection] is nil, the default is an empty [StdioConnection]
-// (the SDK spawns the bundled runtime and communicates over stdin/stdout).
+// [ClientOptions.Connection] is nil, COPILOT_SDK_DEFAULT_CONNECTION may select
+// "inprocess" or "stdio"; when unset, the default is an empty [StdioConnection].
 type RuntimeConnection interface {
 	runtimeConnection()
 }
@@ -123,8 +123,8 @@ func (InProcessConnection) runtimeConnection() {}
 // ClientOptions configures the [Client].
 type ClientOptions struct {
 	// Connection describes how to connect to the Copilot runtime. When nil,
-	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
-	// stdio).
+	// COPILOT_SDK_DEFAULT_CONNECTION may select "inprocess" or "stdio";
+	// when unset, defaults to an empty [StdioConnection].
 	Connection RuntimeConnection
 	// WorkingDirectory is the working directory for the runtime process.
 	// If empty, inherits the current process's working directory.

@@ -227,10 +227,15 @@ func NewClient(options *ClientOptions) *Client {
 		opts = *options
 	}
 
-	// Resolve the connection. nil defaults to an empty StdioConnection.
+	// Resolve the connection. An explicit connection always wins; otherwise
+	// honor the same process/environment override as the other SDKs.
 	connection := opts.Connection
 	if connection == nil {
-		connection = StdioConnection{}
+		env := opts.Env
+		if env == nil {
+			env = os.Environ()
+		}
+		connection = resolveDefaultConnection(env)
 	}
 	switch conn := connection.(type) {
 	case StdioConnection:
@@ -324,6 +329,27 @@ func NewClient(options *ClientOptions) *Client {
 	client.options = opts
 	validateNewClientForMode(&client.options)
 	return client
+}
+
+const defaultConnectionEnvVar = "COPILOT_SDK_DEFAULT_CONNECTION"
+
+// resolveDefaultConnection selects the transport when no explicit connection
+// was supplied. The override is primarily used by hosts and the E2E transport
+// matrix; explicit connection options always take precedence.
+func resolveDefaultConnection(env []string) RuntimeConnection {
+	value := getEnvValue(env, defaultConnectionEnvVar)
+	switch {
+	case value == "", strings.EqualFold(value, "stdio"):
+		return StdioConnection{}
+	case strings.EqualFold(value, "inprocess"):
+		return InProcessConnection{}
+	default:
+		panic(fmt.Sprintf(
+			"invalid %s value %q: expected \"inprocess\", \"stdio\", or unset",
+			defaultConnectionEnvVar,
+			value,
+		))
+	}
 }
 
 // getEnvValue looks up a key in an environment slice ([]string of "KEY=VALUE").
