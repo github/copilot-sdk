@@ -962,7 +962,7 @@ export class CopilotClient {
         // may still resume. Remove once the runtime cleans up fully on shutdown.
         const isInProcess = this.connectionConfig.kind === "inprocess";
         if (isInProcess) {
-            await Promise.allSettled(
+            const abortResults = await Promise.allSettled(
                 connectedSessions.map((session) =>
                     withTimeout(
                         session.abort(),
@@ -971,6 +971,19 @@ export class CopilotClient {
                     )
                 )
             );
+            for (const [index, result] of abortResults.entries()) {
+                if (result.status === "rejected") {
+                    const error =
+                        result.reason instanceof Error
+                            ? result.reason
+                            : new Error(String(result.reason));
+                    errors.push(
+                        new Error(
+                            `Failed to abort session ${connectedSessions[index].sessionId} during in-process teardown: ${error.message}`
+                        )
+                    );
+                }
+            }
         }
         for (const session of connectedSessions) {
             const sessionId = session.sessionId;

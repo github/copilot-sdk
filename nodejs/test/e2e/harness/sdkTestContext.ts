@@ -291,11 +291,22 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
-        await copilotClient.stop();
-        await openAiEndpoint.stop(anyTestFailed);
+        const stopErrors = await copilotClient.stop();
+        let proxyStopError: unknown;
+        try {
+            await openAiEndpoint.stop(anyTestFailed);
+        } catch (error) {
+            proxyStopError = error;
+        }
         await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
+        if (stopErrors.length > 0) {
+            throw new AggregateError(stopErrors, "Copilot client cleanup failed");
+        }
+        if (proxyStopError) {
+            throw proxyStopError;
+        }
     });
 
     return harness;

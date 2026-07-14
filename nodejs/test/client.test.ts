@@ -3258,13 +3258,20 @@ describe("CopilotClient", () => {
                 expect(session.disconnect).toHaveBeenCalledTimes(3);
 
                 await vi.advanceTimersByTimeAsync(5_000);
-                await expect(stopPromise).resolves.toEqual([
-                    expect.objectContaining({
-                        message:
-                            "Failed to disconnect session stalled-session after 3 attempts: " +
-                            "session.disconnect timed out after 5000ms",
-                    }),
-                ]);
+                await expect(stopPromise).resolves.toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            message:
+                                "Failed to abort session stalled-session during in-process teardown: " +
+                                "session.abort timed out after 5000ms for stalled-session",
+                        }),
+                        expect.objectContaining({
+                            message:
+                                "Failed to disconnect session stalled-session after 3 attempts: " +
+                                "session.disconnect timed out after 5000ms",
+                        }),
+                    ])
+                );
                 expect(session._markDisconnected).toHaveBeenCalledTimes(1);
             } finally {
                 vi.useRealTimers();
