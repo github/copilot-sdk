@@ -2556,12 +2556,9 @@ mod tests {
     #[cfg(not(feature = "bundled-in-process"))]
     #[tokio::test]
     async fn inprocess_requires_cargo_feature() {
-        let error = Client::start(
-            ClientOptions::new()
-                .with_transport(Transport::InProcess),
-        )
-        .await
-        .unwrap_err();
+        let error = Client::start(ClientOptions::new().with_transport(Transport::InProcess))
+            .await
+            .unwrap_err();
 
         assert!(error.to_string().contains("bundled-in-process"));
     }

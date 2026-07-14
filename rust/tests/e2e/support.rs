@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -625,6 +625,10 @@ impl InProcessEnvGuard {
             return None;
         }
         let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
+        pairs.retain(|(key, _)| {
+            key.as_os_str() != OsStr::new("COPILOT_HMAC_KEY")
+                && key.as_os_str() != OsStr::new("CAPI_HMAC_KEY")
+        });
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
         pairs.push((
             "COPILOT_CLI_PATH".into(),
@@ -651,6 +655,12 @@ impl InProcessEnvGuard {
             // SAFETY: the E2E suite runs serially in-process (concurrency 1), so no
             // other thread races these process-wide env mutations.
             unsafe { std::env::set_var(key, value) };
+        }
+        for key in ["COPILOT_HMAC_KEY", "CAPI_HMAC_KEY"] {
+            let key = OsString::from(key);
+            saved.push((key.clone(), std::env::var_os(&key)));
+            // SAFETY: as above, the in-process suite is serialized.
+            unsafe { std::env::remove_var(key) };
         }
         let previous_cwd = std::env::current_dir().expect("read in-process test cwd");
         std::env::set_current_dir(ctx.work_dir()).expect("set in-process test cwd");

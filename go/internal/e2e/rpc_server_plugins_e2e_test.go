@@ -311,7 +311,10 @@ func newStartedPortedClient(t *testing.T, ctx *testharness.TestContext, opts ...
 
 func newStartedIsolatedPortedClient(t *testing.T, ctx *testharness.TestContext) *copilot.Client {
 	t.Helper()
-	home := t.TempDir()
+	home, err := os.MkdirTemp(ctx.WorkDir, "plugin-home-")
+	if err != nil {
+		t.Fatalf("Failed to create isolated plugin home: %v", err)
+	}
 	return newStartedPortedClient(t, ctx, func(opts *copilot.ClientOptions) {
 		opts.Env = append(opts.Env,
 			"COPILOT_HOME="+home,
