@@ -3,10 +3,31 @@ package testharness
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
+
+// RepoPath resolves a path relative to the repository root, anchored to this
+// source file's directory rather than the process working directory. The
+// in-process (FFI) transport os.Chdir's the whole test process into a per-test
+// temp workdir (the shared runtime host inherits the process cwd), so any
+// cwd-relative resolution (e.g. filepath.Abs("../../../test/...")) would break
+// for every test after the first in-process one. This helper stays correct
+// regardless of the current working directory.
+func RepoPath(elem ...string) string {
+	_, callerFile, _, ok := runtime.Caller(0)
+	if !ok {
+		// Fall back to a cwd-relative join; only correct before any chdir.
+		return filepath.Join(append([]string{"..", "..", ".."}, elem...)...)
+	}
+	// This file lives at go/internal/e2e/testharness/, so the repo root is four
+	// levels up from its directory.
+	repoRoot := filepath.Join(filepath.Dir(callerFile), "..", "..", "..", "..")
+	return filepath.Join(append([]string{repoRoot}, elem...)...)
+}
 
 // GetFinalAssistantMessage waits for and returns the final assistant message from a session turn.
 // If alreadyIdle is true, skip waiting for session.idle (useful for resumed sessions where the

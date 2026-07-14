@@ -9,7 +9,8 @@ use github_copilot_sdk::rpc::{
     McpAppsSetHostContextRequest, McpCancelSamplingExecutionParams, McpDisableRequest,
     McpEnableRequest, McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
     McpResourcesReadRequest, McpSamplingExecutionAction, McpSetEnvValueModeDetails,
-    McpSetEnvValueModeParams, SkillsDisableRequest, SkillsEnableRequest,
+    McpSetEnvValueModeParams, PermissionsAllowAllMode, PermissionsSetAllowAllRequest,
+    SkillsDisableRequest, SkillsEnableRequest,
 };
 use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 
@@ -339,14 +340,22 @@ async fn should_list_extensions() {
     with_e2e_context("rpc_mcp_and_skills", "should_list_extensions", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
-            let client =
-                github_copilot_sdk::Client::start(ctx.client_options().with_extra_args(["--yolo"]))
-                    .await
-                    .expect("start yolo client");
+            let client = ctx.start_client().await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await
                 .expect("create session");
+            session
+                .rpc()
+                .permissions()
+                .set_allow_all(PermissionsSetAllowAllRequest {
+                    enabled: None,
+                    mode: Some(PermissionsAllowAllMode::On),
+                    model: None,
+                    source: None,
+                })
+                .await
+                .expect("enable allow-all");
 
             let result = session
                 .rpc()
@@ -677,15 +686,22 @@ async fn should_report_error_when_extensions_are_not_available() {
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
-                let client = github_copilot_sdk::Client::start(
-                    ctx.client_options().with_extra_args(["--yolo"]),
-                )
-                .await
-                .expect("start client");
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
+                session
+                    .rpc()
+                    .permissions()
+                    .set_allow_all(PermissionsSetAllowAllRequest {
+                        enabled: None,
+                        mode: Some(PermissionsAllowAllMode::On),
+                        model: None,
+                        source: None,
+                    })
+                    .await
+                    .expect("enable allow-all");
 
                 expect_err_contains(
                     session.rpc().extensions().enable(ExtensionsEnableRequest {

@@ -8,16 +8,14 @@ import (
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func testMCPServers(t *testing.T, serverNames ...string) map[string]copilot.MCPServerConfig {
 	t.Helper()
 
-	mcpServerPath, err := filepath.Abs("../../../test/harness/test-mcp-server.mjs")
-	if err != nil {
-		t.Fatalf("Failed to resolve test-mcp-server path: %v", err)
-	}
+	mcpServerPath := testharness.RepoPath("test", "harness", "test-mcp-server.mjs")
 
 	mcpServerDir := filepath.Dir(mcpServerPath)
 	mcpServers := make(map[string]copilot.MCPServerConfig, len(serverNames))

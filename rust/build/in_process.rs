@@ -329,29 +329,38 @@ impl Platform {
 fn target_platform() -> Option<Platform> {
     let os = std::env::var("CARGO_CFG_TARGET_OS").ok()?;
     let arch = std::env::var("CARGO_CFG_TARGET_ARCH").ok()?;
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
-    match (os.as_str(), arch.as_str()) {
-        ("macos", "aarch64") => Some(Platform {
+    match (os.as_str(), arch.as_str(), target_env.as_str()) {
+        ("macos", "aarch64", _) => Some(Platform {
             package_name: "copilot-darwin-arm64",
             binary_name: "copilot",
         }),
-        ("macos", "x86_64") => Some(Platform {
+        ("macos", "x86_64", _) => Some(Platform {
             package_name: "copilot-darwin-x64",
             binary_name: "copilot",
         }),
-        ("linux", "x86_64") => Some(Platform {
+        ("linux", "x86_64", "musl") => Some(Platform {
+            package_name: "copilot-linuxmusl-x64",
+            binary_name: "copilot",
+        }),
+        ("linux", "aarch64", "musl") => Some(Platform {
+            package_name: "copilot-linuxmusl-arm64",
+            binary_name: "copilot",
+        }),
+        ("linux", "x86_64", _) => Some(Platform {
             package_name: "copilot-linux-x64",
             binary_name: "copilot",
         }),
-        ("linux", "aarch64") => Some(Platform {
+        ("linux", "aarch64", _) => Some(Platform {
             package_name: "copilot-linux-arm64",
             binary_name: "copilot",
         }),
-        ("windows", "x86_64") => Some(Platform {
+        ("windows", "x86_64", _) => Some(Platform {
             package_name: "copilot-win32-x64",
             binary_name: "copilot.exe",
         }),
-        ("windows", "aarch64") => Some(Platform {
+        ("windows", "aarch64", _) => Some(Platform {
             package_name: "copilot-win32-arm64",
             binary_name: "copilot.exe",
         }),

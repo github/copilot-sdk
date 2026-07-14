@@ -5,6 +5,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 """
 
 import asyncio
+import inspect
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -40,6 +41,14 @@ from copilot.session_events import (
     SessionEventType,
 )
 from e2e.testharness import CLI_PATH
+
+
+def test_inprocess_connection_has_no_child_process_options():
+    connection = RuntimeConnection.for_inprocess()
+
+    assert list(inspect.signature(RuntimeConnection.for_inprocess).parameters) == []
+    assert not hasattr(connection, "path")
+    assert not hasattr(connection, "args")
 
 
 class TestClientShutdown:

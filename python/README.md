@@ -39,9 +39,9 @@ To pre-provision the native library required by the in-process (FFI) transport
 python -m copilot download-runtime --in-process
 ```
 
-This additionally fetches the native runtime shared library and places it next to
-the cached binary. Stdio/TCP users never download it. When omitted, the library is
-downloaded lazily on first use of the in-process transport.
+This additionally fetches the native runtime library into the versioned runtime
+cache. Stdio/TCP users never download it. When omitted, it is downloaded
+lazily on first use of the in-process transport.
 
 | Platform | Cache path |
 |----------|-----------|
@@ -216,7 +216,7 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
 - `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
-- `RuntimeConnection.for_inprocess(path=None, args=None)` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
+- `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of
@@ -232,8 +232,7 @@ client = CopilotClient(connection=conn)  # do NOT also pass env=... here
 
 > ⚠️ **Experimental.** The in-process transport loads the runtime's native shared
 > library into your process and drives JSON-RPC over its C ABI (via stdlib
-> `ctypes`), instead of spawning a child process. The native host spawns the
-> residual worker itself.
+> `ctypes`), instead of spawning a child process.
 
 ```python
 from copilot import CopilotClient, RuntimeConnection
@@ -249,9 +248,12 @@ finally:
 
 **Requirements & behavior:**
 
-- Requires the native runtime library next to the CLI. Pre-provision it with
+- Pre-provision the native runtime with
   `python -m copilot download-runtime --in-process`, or let the SDK download it
   lazily on first use of this transport.
+- Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
+  runtime package. In-process connections do not accept per-connection paths
+  or raw process arguments.
 - Because the runtime shares this single host process, per-client options that
   lower to environment variables or a working directory **cannot** be honored and
   are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`

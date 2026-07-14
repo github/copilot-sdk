@@ -2558,17 +2558,7 @@ export class CopilotClient {
         }
     }
 
-    /**
-     * Start the in-process FFI runtime host: resolve the CLI entrypoint and native
-     * runtime library, then let the native host spawn the CLI worker.
-     *
-     * The worker inherits this host process's ambient environment; per-client options
-     * that lower to environment variables (`env`, `telemetry`, `gitHubToken`,
-     * `baseDirectory`) are intentionally not applied here, because the native runtime
-     * loads into the shared host process and a single env block cannot carry per-client
-     * values. Configure the in-process runtime via the host process environment instead.
-     * See https://github.com/github/copilot-sdk/issues/1934.
-     */
+    /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
         const entrypoint = this.resolveCliPathForFfi();
         // Load the FFI host lazily so the native `koffi` addon (and its
@@ -2577,7 +2567,40 @@ export class CopilotClient {
         // The transpiled output is per-file (not bundled), so this resolves the
         // sibling module at runtime in both the ESM and CJS builds.
         const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
-        const host = FfiRuntimeHost.create(entrypoint, CopilotClient.getNapiPrebuildsFolder());
+        const environment: Record<string, string> = {};
+        if (this.options.gitHubToken) {
+            environment.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
+        }
+        if (this.options.baseDirectory) {
+            environment.COPILOT_HOME = this.options.baseDirectory;
+        }
+        if (this.options.mode === "empty") {
+            environment.COPILOT_DISABLE_KEYTAR = "1";
+        }
+
+        const args: string[] = [];
+        if (this.options.logLevel) {
+            args.push("--log-level", this.options.logLevel);
+        }
+        if (this.options.gitHubToken) {
+            args.push("--auth-token-env", "COPILOT_SDK_AUTH_TOKEN");
+        }
+        if (!this.options.useLoggedInUser) {
+            args.push("--no-auto-login");
+        }
+        if (this.options.sessionIdleTimeoutSeconds > 0) {
+            args.push("--session-idle-timeout", this.options.sessionIdleTimeoutSeconds.toString());
+        }
+        if (this.options.enableRemoteSessions) {
+            args.push("--remote");
+        }
+
+        const host = FfiRuntimeHost.create(
+            entrypoint,
+            CopilotClient.getNapiPrebuildsFolder(entrypoint),
+            environment,
+            args
+        );
         this.ffiHost = host;
         await host.start();
     }
@@ -2611,14 +2634,34 @@ export class CopilotClient {
     /**
      * Returns the napi prebuilds folder name for the current host — the
      * `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
-     * `linux-x64`) under which the runtime ships `prebuilds/<folder>/runtime.node`.
+     * `linux-x64`, `linuxmusl-x64`) under which the runtime ships
+     * `prebuilds/<folder>/runtime.node`.
      */
-    private static getNapiPrebuildsFolder(): string {
+    private static getNapiPrebuildsFolder(entrypoint: string): string {
         const arch = process.arch;
         if (arch !== "x64" && arch !== "arm64") {
             throw new Error(`Unsupported architecture '${arch}' for in-process FFI hosting.`);
         }
-        return `${process.platform}-${arch}`;
+        let platform: string = process.platform;
+        if (platform === "linux" && CopilotClient.isMusl(entrypoint)) {
+            platform = "linuxmusl";
+        }
+        return `${platform}-${arch}`;
+    }
+
+    private static isMusl(entrypoint: string): boolean {
+        if (entrypoint.includes(`copilot-linuxmusl-${process.arch}`)) {
+            return true;
+        }
+        if (entrypoint.includes(`copilot-linux-${process.arch}`)) {
+            return false;
+        }
+        const report = process.report?.getReport();
+        const header =
+            report && "header" in report
+                ? (report.header as { glibcVersionRuntime?: string })
+                : undefined;
+        return header !== undefined && header.glibcVersionRuntime === undefined;
     }
 
     /**

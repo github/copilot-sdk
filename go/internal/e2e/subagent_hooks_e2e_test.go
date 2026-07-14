@@ -77,6 +77,7 @@ func assertSubagentRequestMetadata(t *testing.T, records []subagentRequestRecord
 }
 
 func TestSubagentHooksE2E(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	transport := newRecordingForwardingTransport()
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {

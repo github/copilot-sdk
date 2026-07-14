@@ -101,6 +101,49 @@ Follow these steps to embed the CLI:
 
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
 
+The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
+
+## In-process transport (Experimental)
+
+> **Experimental:** the in-process API may change in a future release.
+
+By default the SDK starts the runtime as a child process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads a native runtime library directly into your process.
+
+Build your application with the `copilot_inprocess` build tag:
+
+```sh
+go build -tags copilot_inprocess
+```
+
+```go
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection: copilot.InProcessConnection{},
+})
+if err := client.Start(context.Background()); err != nil {
+    log.Fatal(err)
+}
+defer client.Stop()
+```
+
+Resolution and requirements:
+
+- The application must be built with the `copilot_inprocess` build tag.
+- Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
+  transport when `ClientOptions.Connection` is nil. An explicit connection
+  always takes precedence.
+- Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible runtime package; otherwise the bundled runtime is used. No `PATH` lookup is performed.
+- Embedded runtime versions are isolated in separate cache directories. Start fails loudly if the native runtime is unavailable.
+- Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
+- Only one native runtime version may be loaded per process.
+
+The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
+
+- `Env` — the host process has a single environment block. Set variables on the host process environment instead.
+- `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
+- `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
+
+Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
+
 ## API Reference
 
 ### Client
@@ -142,11 +185,14 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **ClientOptions:**
 
 - `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
-  - `StdioConnection{Path, Args}` — spawn a runtime over stdio (the default if `Connection` is nil)
-  - `TCPConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
+  - `StdioConnection{Path, Args, Env}` — spawn a runtime over stdio (the default if `Connection` is nil)
+  - `TCPConnection{Port, ConnectionToken, Path, Args, Env}` — spawn a runtime that listens on TCP
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
+  - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
 
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
+
+  `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
 - `WorkingDirectory` (string): Working directory for the runtime process
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).

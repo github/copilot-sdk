@@ -776,14 +776,18 @@ none of them are scheduled for removal.
 
 ## Embedded CLI
 
-The SDK provisions the Copilot CLI binary at build time. By default the
-`bundled-cli` feature embeds only the verified CLI executable in your compiled
-crate. Enable `bundled-in-process` to additionally embed the native
-runtime library and use `Transport::InProcess`:
+The SDK provisions its runtime at build time. By default the `bundled-cli`
+feature embeds the verified child-process runtime in your compiled crate.
+Enable `bundled-in-process` to additionally embed the native runtime library
+and use `Transport::InProcess`:
 
 ```toml
 github-copilot-sdk = { version = "0.1", features = ["bundled-in-process"] }
 ```
+
+`CliProgram::Path` and raw `ClientOptions::extra_args` apply only to
+child-process transports. Set `COPILOT_CLI_PATH` only when using an externally
+provisioned compatible runtime package with in-process transport.
 
 For builds that prefer a smaller artifact, disable the `bundled-cli` feature:
 

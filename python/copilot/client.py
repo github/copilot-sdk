@@ -362,11 +362,7 @@ class RuntimeConnection:
         return UriRuntimeConnection(url=url, connection_token=connection_token)
 
     @staticmethod
-    def for_inprocess(
-        *,
-        path: str | None = None,
-        args: Sequence[str] = (),
-    ) -> InProcessRuntimeConnection:
+    def for_inprocess() -> InProcessRuntimeConnection:
         """Host the runtime **in-process** via its native C ABI (FFI).
 
         **Experimental.** The in-process (FFI) transport is experimental and its
@@ -374,7 +370,7 @@ class RuntimeConnection:
 
         Instead of spawning the runtime as a child process, the SDK loads the
         runtime's native shared library into this process and drives JSON-RPC
-        over its C ABI. The native host spawns the residual worker itself.
+        over its C ABI.
 
         Because the runtime loads into this single shared process, per-client
         options that lower to environment variables or a working directory
@@ -382,17 +378,15 @@ class RuntimeConnection:
         :attr:`CopilotClientOptions.telemetry`, and
         :attr:`CopilotClientOptions.working_directory` are rejected with this
         transport. Set those on the host process before creating the client.
-
-        Args:
-            path: Path to the runtime executable used to resolve the native
-                library location. When ``None``, uses the bundled binary.
-            args: Extra command-line arguments passed to the worker.
+        Set ``COPILOT_CLI_PATH`` only when using an externally provisioned
+        compatible runtime package.
 
         Note:
-            The native runtime library must be available next to the CLI
-            (download it with ``python -m copilot download-runtime --in-process``).
+            Pre-provision the native runtime with
+            ``python -m copilot download-runtime --in-process`` when automatic
+            downloads are disabled.
         """
-        return InProcessRuntimeConnection(path=path, args=tuple(args))
+        return InProcessRuntimeConnection()
 
 
 @dataclass
@@ -461,16 +455,8 @@ class InProcessRuntimeConnection(RuntimeConnection):
 
     Construct via :meth:`RuntimeConnection.for_inprocess`. The runtime's native
     shared library is loaded into this process and JSON-RPC is driven over its
-    C ABI; the native host spawns the residual worker itself.
+    C ABI.
     """
-
-    path: str | None = None
-    """Path to the runtime executable used to resolve the native library.
-
-    ``None`` uses the bundled binary."""
-
-    args: Sequence[str] = ()
-    """Extra command-line arguments passed to the worker."""
 
 
 class _GitHubTelemetryAdapter:
@@ -1117,7 +1103,7 @@ def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
     with no pinned version, or auto-download disabled).
 
     When ``include_runtime_lib`` is set, also ensures the native in-process FFI
-    runtime library is present next to the CLI (downloading it on first use).
+    runtime is available (downloading it on first use).
     """
     from ._cli_download import get_or_download_cli
 
@@ -1217,9 +1203,9 @@ def _validate_environment_options(
         if options.working_directory is not None:
             raise ValueError(
                 "working_directory is not supported with RuntimeConnection.for_inprocess(): "
-                "the in-process transport hosts the runtime in the shared host process and "
-                "spawns the worker without a working-directory parameter, so a per-client "
-                "working directory cannot be honored in-process. Use a child-process "
+                "the native runtime shares the host process working directory, so a "
+                "per-client working directory cannot be honored in-process. Use a "
+                "child-process "
                 "transport, or set the process working directory before creating the client."
             )
         return
@@ -1293,10 +1279,12 @@ class CopilotClient:
         """
         Initialize a new CopilotClient.
 
-        All process-management options (``working_directory``, ``log_level``,
-        ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
-        (stdio / tcp connections). They are ignored when connecting to an
-        existing runtime via :meth:`RuntimeConnection.for_uri`.
+        Runtime options apply to locally hosted connections. The in-process
+        transport supports typed runtime options such as ``log_level``,
+        ``github_token``, and ``base_directory``, but rejects per-client
+        ``working_directory``, ``env``, and ``telemetry``. Options are ignored
+        when connecting to an existing runtime via
+        :meth:`RuntimeConnection.for_uri`.
 
         Args:
             connection: How to reach the runtime. Defaults to
@@ -1392,6 +1380,7 @@ class CopilotClient:
         self._is_external_server: bool = isinstance(connection, UriRuntimeConnection)
         self._cli_path_source: str | None = None
         self._ffi_host: FfiRuntimeHost | None = None
+        self._inprocess_runtime_path: str | None = None
 
         if isinstance(connection, UriRuntimeConnection):
             if connection.connection_token is not None and len(connection.connection_token) == 0:
@@ -1400,14 +1389,11 @@ class CopilotClient:
             self._runtime_port: int | None = actual_port
             self._effective_connection_token: str | None = connection.connection_token
         elif isinstance(connection, InProcessRuntimeConnection):
-            # In-process (FFI): no child process and no per-connection token; the
-            # native host spawns the worker itself. Resolve the runtime entrypoint
-            # exactly like stdio (explicit > COPILOT_CLI_PATH > downloaded), and
-            # ensure the native runtime library is present alongside it.
+            # In-process (FFI): no child process and no per-connection token.
             self._runtime_port = None
             self._effective_connection_token = None
-            connection.path = self._resolve_runtime_entrypoint(
-                connection.path, include_runtime_lib=True
+            self._inprocess_runtime_path = self._resolve_runtime_entrypoint(
+                None, include_runtime_lib=True
             )
             if options.use_logged_in_user is None:
                 options.use_logged_in_user = not bool(options.github_token)
@@ -1502,8 +1488,7 @@ class CopilotClient:
             "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
             "or pass an explicit path via "
             "RuntimeConnection.for_stdio(path=...) / "
-            "RuntimeConnection.for_tcp(path=...) / "
-            "RuntimeConnection.for_inprocess(path=...)."
+            "RuntimeConnection.for_tcp(path=...)."
         )
 
     @staticmethod
@@ -1791,9 +1776,7 @@ class CopilotClient:
         async with self._models_cache_lock:
             self._models_cache = None
 
-        # Dispose the in-process FFI host (shuts down the native runtime worker and
-        # releases the loaded shared library). The process-like adapter's terminate()
-        # delegates here, but call dispose() explicitly so teardown is unambiguous.
+        # Dispose the in-process FFI host and release the loaded native library.
         if self._ffi_host is not None:
             try:
                 self._ffi_host.dispose()
@@ -1895,8 +1878,7 @@ class CopilotClient:
             except Exception:
                 logger.debug("Error while force-stopping Copilot CLI process", exc_info=True)
 
-        # Force-dispose the in-process FFI host (kills the native worker and releases
-        # the shared library) before tearing down the JSON-RPC client.
+        # Force-dispose the in-process FFI host before tearing down JSON-RPC.
         if self._ffi_host is not None:
             try:
                 self._ffi_host.dispose()
@@ -3962,36 +3944,46 @@ class CopilotClient:
     async def _start_inprocess_ffi(self) -> None:
         """Host the runtime in-process via the native FFI library.
 
-        Loads the runtime cdylib next to the resolved CLI entrypoint, lets the
-        native host spawn the worker, and opens the FFI JSON-RPC connection. The
-        resulting :class:`FfiRuntimeHost` exposes a process-like adapter that the
-        JSON-RPC client drives exactly like a spawned child process.
+        Loads the native runtime library and opens the FFI JSON-RPC connection.
 
         Raises:
             RuntimeError: If the native library is missing or startup fails.
         """
         assert isinstance(self._connection, InProcessRuntimeConnection)
-        conn = self._connection
-        cli_path = conn.path
-        assert cli_path is not None  # resolved in __init__
+        runtime_path = self._inprocess_runtime_path
+        assert runtime_path is not None  # resolved in __init__
 
-        # No PATH lookup here (unlike the child-process transport): the in-process
-        # entrypoint is always an absolute on-disk path — an explicit path,
-        # COPILOT_CLI_PATH, or the downloaded CLI — so the native library provisioned
-        # next to it in __init__ is exactly the one FfiRuntimeHost loads. Resolving a
-        # bare command name via PATH would look for the library beside a different
-        # directory than the one it was provisioned into and fail. A packaged
-        # single-file CLI is invoked directly; a `.js` dev entrypoint is launched via
-        # node — both handled inside FfiRuntimeHost.
         logger.info(
             "CopilotClient._start_inprocess_ffi hosting Copilot runtime in-process",
-            extra={"cli_path": cli_path, "cli_path_source": self._cli_path_source},
+            extra={"runtime_path": runtime_path, "runtime_path_source": self._cli_path_source},
         )
 
-        # env/telemetry/working_directory are rejected for the in-process transport
-        # (see _validate_environment_options); the worker inherits this process's
-        # ambient environment. Pass extra worker args via connection.args.
-        host = FfiRuntimeHost.create(cli_path, environment=None, args=conn.args)
+        opts = self._options
+        args: list[str] = []
+        if opts.log_level:
+            args.extend(["--log-level", opts.log_level])
+        if opts.github_token:
+            args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
+        if not opts.use_logged_in_user:
+            args.append("--no-auto-login")
+        if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
+            args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
+        if opts.enable_remote_sessions:
+            args.append("--remote")
+
+        environment: dict[str, str] = {}
+        if opts.github_token:
+            environment["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
+        if opts.base_directory:
+            environment["COPILOT_HOME"] = opts.base_directory
+        if opts.mode == "empty":
+            environment["COPILOT_DISABLE_KEYTAR"] = "1"
+
+        host = FfiRuntimeHost.create(
+            runtime_path,
+            environment=environment or None,
+            args=tuple(args),
+        )
 
         # Track the host and expose its process-like adapter *before* the blocking
         # handshake. asyncio.to_thread keeps running host_start after a cancellation
@@ -4003,8 +3995,7 @@ class CopilotClient:
         self._process = host.process
 
         ffi_start = time.perf_counter()
-        # host_start blocks until the worker connects back and signals readiness,
-        # so run the handshake off the event loop.
+        # Native startup may block, so run the handshake off the event loop.
         await asyncio.to_thread(host.start_blocking)
         log_timing(
             logger,

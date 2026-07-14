@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -178,18 +178,7 @@ impl E2eContext {
     }
 
     pub fn client_options_with_github_token(&self, token: &str) -> ClientOptions {
-        let options = self.client_options();
-        if is_inprocess_default() {
-            // SAFETY: the in-process E2E suite is serialized for the full
-            // lifetime of InProcessEnvGuard.
-            unsafe {
-                std::env::set_var("GH_TOKEN", token);
-                std::env::set_var("GITHUB_TOKEN", token);
-            }
-            options
-        } else {
-            options.with_github_token(token)
-        }
+        self.client_options().with_github_token(token)
     }
 
     pub async fn start_client(&self) -> Client {
@@ -205,10 +194,7 @@ impl E2eContext {
     /// runtime cdylib), so a `.js` entrypoint is not split into node +
     /// prefix_args here.
     pub async fn start_inprocess_client(&self) -> Client {
-        let options = ClientOptions::new()
-            .with_use_logged_in_user(false)
-            .with_program(CliProgram::Path(self.cli_path.clone()))
-            .with_transport(Transport::InProcess);
+        let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)
             .await
             .expect("start in-process FFI E2E client")
@@ -626,9 +612,17 @@ impl InProcessEnvGuard {
             return None;
         }
         let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
+        pairs.retain(|(key, _)| {
+            key.as_os_str() != OsStr::new("COPILOT_HMAC_KEY")
+                && key.as_os_str() != OsStr::new("CAPI_HMAC_KEY")
+        });
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
+        pairs.push((
+            "COPILOT_CLI_PATH".into(),
+            ctx.cli_path.clone().into_os_string(),
+        ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
-        // in-process transport does not pass to the shared worker (see issue #1934).
+        // in-process transport does not pass to the shared native runtime (see issue #1934).
         // These are process-global runtime gates (not per-client behavior), so applying
         // them to the host process for the serial in-process suite is equivalent and
         // inert for tests that don't exercise the gated API.
@@ -648,6 +642,12 @@ impl InProcessEnvGuard {
             // SAFETY: the E2E suite runs serially in-process (concurrency 1), so no
             // other thread races these process-wide env mutations.
             unsafe { std::env::set_var(key, value) };
+        }
+        for key in ["COPILOT_HMAC_KEY", "CAPI_HMAC_KEY"] {
+            let key = OsString::from(key);
+            saved.push((key.clone(), std::env::var_os(&key)));
+            // SAFETY: as above, the in-process suite is serialized.
+            unsafe { std::env::remove_var(key) };
         }
         let previous_cwd = std::env::current_dir().expect("read in-process test cwd");
         std::env::set_current_dir(ctx.work_dir()).expect("set in-process test cwd");
@@ -759,17 +759,8 @@ fn client_options_for_cli(
     cwd: &Path,
     env: Vec<(OsString, OsString)>,
 ) -> ClientOptions {
-    // When the in-process FFI transport is the default (matrix cell that sets
-    // COPILOT_SDK_DEFAULT_CONNECTION=inprocess), pass the CLI entrypoint
-    // directly: the FFI host builds the `node <entrypoint> --embedded-host`
-    // argv itself and loads the sibling runtime cdylib. Splitting a `.js`
-    // entrypoint into node + prefix_args (the stdio layout) would point the
-    // library resolver at node's directory instead.
-    let inprocess_default = std::env::var("COPILOT_SDK_DEFAULT_CONNECTION")
-        .map(|value| value.eq_ignore_ascii_case("inprocess"))
-        .unwrap_or(false);
-    if inprocess_default {
-        return ClientOptions::new().with_program(CliProgram::Path(cli_path.to_path_buf()));
+    if is_inprocess_default() {
+        return ClientOptions::new();
     }
     let options = ClientOptions::new()
         .with_cwd(cwd)
