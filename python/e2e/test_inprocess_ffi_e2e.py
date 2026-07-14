@@ -21,14 +21,15 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestInProcessFfi:
-    async def test_should_start_and_connect_over_in_process_ffi(self, ctx: E2ETestContext):
+    async def test_should_start_and_connect_over_in_process_ffi(
+        self, ctx: E2ETestContext, monkeypatch: pytest.MonkeyPatch
+    ):
         # In-process hosting loads the runtime cdylib next to the resolved CLI
         # entrypoint and lets the native host spawn the worker. ``ping`` is a
         # purely local RPC round-trip, so no auth or replay proxy is involved.
         # If the native library is unavailable, start() raises and the test fails.
-        client = CopilotClient(
-            connection=RuntimeConnection.for_inprocess(path=get_cli_path_for_tests()),
-        )
+        monkeypatch.setenv("COPILOT_CLI_PATH", get_cli_path_for_tests())
+        client = CopilotClient(connection=RuntimeConnection.for_inprocess())
         await client.start()
 
         try:

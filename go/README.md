@@ -101,17 +101,17 @@ Follow these steps to embed the CLI:
 
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
 
-The bundler also embeds the native in-process runtime library (`runtime.node`) alongside the CLI binary when the target platform's Copilot package ships one, so the [in-process transport](#in-process-transport-experimental) works out of the box for embedded builds.
+The bundler also embeds the native runtime library required by the [in-process transport](#in-process-transport-experimental), so it works out of the box for embedded builds.
 
 ## In-process transport (Experimental)
 
 > **Experimental:** the in-process API may change in a future release.
 
-By default the SDK spawns the Copilot CLI as a child process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads the native runtime library (`runtime.node`) into your process and hosts the runtime there; the native host spawns the CLI worker itself. This avoids a separate long-lived child process for the runtime server.
+By default the SDK starts the runtime as a child process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads a native runtime library directly into your process.
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    Connection: copilot.InProcessConnection{Path: "/path/to/copilot"},
+    Connection: copilot.InProcessConnection{},
 })
 if err := client.Start(context.Background()); err != nil {
     log.Fatal(err)
@@ -124,14 +124,14 @@ Resolution and requirements:
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport when `ClientOptions.Connection` is nil. An explicit connection
   always takes precedence.
-- The entrypoint is resolved with **no `PATH` lookup**: explicit `InProcessConnection.Path`, then `COPILOT_CLI_PATH`, then the bundled embedded CLI. It must be an on-disk path.
-- The runtime library is loaded from next to the resolved entrypoint (the natural platform library name installed for an embedded CLI or flat package, or the package's `prebuilds/<platform>/runtime.node`). Embedded CLI versions are isolated in separate cache directories so the CLI and runtime library always remain paired. Start fails loudly if the library cannot be found.
-- The runtime library is loaded once per process; loading a different library path in the same process is an error.
+- Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible runtime package; otherwise the bundled runtime is used. No `PATH` lookup is performed.
+- Embedded runtime versions are isolated in separate cache directories. Start fails loudly if the native runtime is unavailable.
+- Only one native runtime version may be loaded per process.
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
 
 - `Env` — the host process has a single environment block. Set variables on the host process environment instead.
-- `WorkingDirectory` — the worker is spawned without a working-directory parameter. Change the process working directory before creating the client.
+- `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
 - `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
 
 Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
@@ -180,7 +180,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   - `StdioConnection{Path, Args, Env}` — spawn a runtime over stdio (the default if `Connection` is nil)
   - `TCPConnection{Port, ConnectionToken, Path, Args, Env}` — spawn a runtime that listens on TCP
   - `URIConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
-  - `InProcessConnection{Path, Args}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
+  - `InProcessConnection{}` — **Experimental.** Host the runtime in-process via the native FFI library instead of spawning a child process. See [In-process transport](#in-process-transport-experimental) below.
 
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
 

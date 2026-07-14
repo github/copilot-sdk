@@ -207,7 +207,6 @@ impl E2eContext {
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new()
             .with_use_logged_in_user(false)
-            .with_program(CliProgram::Path(self.cli_path.clone()))
             .with_transport(Transport::InProcess);
         Client::start(options)
             .await
@@ -627,8 +626,12 @@ impl InProcessEnvGuard {
         }
         let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
         pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
+        pairs.push((
+            "COPILOT_CLI_PATH".into(),
+            ctx.cli_path.clone().into_os_string(),
+        ));
         // Some tests opt into gated runtime APIs via per-client `options.env`, which the
-        // in-process transport does not pass to the shared worker (see issue #1934).
+        // in-process transport does not pass to the shared native runtime (see issue #1934).
         // These are process-global runtime gates (not per-client behavior), so applying
         // them to the host process for the serial in-process suite is equivalent and
         // inert for tests that don't exercise the gated API.
@@ -759,17 +762,8 @@ fn client_options_for_cli(
     cwd: &Path,
     env: Vec<(OsString, OsString)>,
 ) -> ClientOptions {
-    // When the in-process FFI transport is the default (matrix cell that sets
-    // COPILOT_SDK_DEFAULT_CONNECTION=inprocess), pass the CLI entrypoint
-    // directly: the FFI host builds the `node <entrypoint> --embedded-host`
-    // argv itself and loads the sibling runtime cdylib. Splitting a `.js`
-    // entrypoint into node + prefix_args (the stdio layout) would point the
-    // library resolver at node's directory instead.
-    let inprocess_default = std::env::var("COPILOT_SDK_DEFAULT_CONNECTION")
-        .map(|value| value.eq_ignore_ascii_case("inprocess"))
-        .unwrap_or(false);
-    if inprocess_default {
-        return ClientOptions::new().with_program(CliProgram::Path(cli_path.to_path_buf()));
+    if is_inprocess_default() {
+        return ClientOptions::new().with_use_logged_in_user(false);
     }
     let options = ClientOptions::new()
         .with_cwd(cwd)

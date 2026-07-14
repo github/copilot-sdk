@@ -271,6 +271,7 @@ func (c *TestContext) applyInProcessEnvironment(mergedEnv []string, workDir stri
 	// inherited values. The HMAC key is neutralized process-wide at package load.
 	inprocessEnv["GH_TOKEN"] = defaultGitHubToken
 	inprocessEnv["GITHUB_TOKEN"] = defaultGitHubToken
+	inprocessEnv["COPILOT_CLI_PATH"] = c.CLIPath
 	delete(inprocessEnv, "COPILOT_HMAC_KEY")
 	delete(inprocessEnv, "CAPI_HMAC_KEY")
 
@@ -392,7 +393,7 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 	// their transport, mirroring the Node/.NET harnesses.
 	if c.inProcess && c.shouldUseInProcess(options) {
 		c.applyInProcessEnvironment(options.Env, options.WorkingDirectory)
-		options.Connection = copilot.InProcessConnection{Path: c.CLIPath}
+		options.Connection = copilot.InProcessConnection{}
 		options.Env = nil
 		options.WorkingDirectory = ""
 	}

@@ -140,7 +140,6 @@ type Host struct {
 	libraryPath   string
 	cliEntrypoint string
 	environment   map[string]string
-	extraArgs     []string
 	lib           *ffiLibrary
 
 	// mu guards disposed, activeCallbacks, serverID, and connectionID. A single
@@ -162,7 +161,7 @@ type Host struct {
 
 // Create resolves the cdylib next to the CLI entrypoint and prepares the host.
 // It does not spawn the worker; call Start for that. environment may be nil.
-func Create(cliEntrypoint string, environment map[string]string, extraArgs []string) (*Host, error) {
+func Create(cliEntrypoint string, environment map[string]string) (*Host, error) {
 	libraryPath, err := ResolveLibraryPath(cliEntrypoint)
 	if err != nil {
 		return nil, err
@@ -175,7 +174,6 @@ func Create(cliEntrypoint string, environment map[string]string, extraArgs []str
 		libraryPath:   libraryPath,
 		cliEntrypoint: cliEntrypoint,
 		environment:   environment,
-		extraArgs:     append([]string(nil), extraArgs...),
 		lib:           lib,
 		recv:          newReceiveBuffer(),
 	}, nil
@@ -245,7 +243,6 @@ func (h *Host) buildArgv() []byte {
 	} else {
 		argv = []string{h.cliEntrypoint, "--embedded-host", "--no-auto-update"}
 	}
-	argv = append(argv, h.extraArgs...)
 	b, _ := json.Marshal(argv)
 	return b
 }

@@ -30,10 +30,11 @@ func TestInProcessFfiE2E(t *testing.T) {
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
 	}
+	t.Setenv("COPILOT_CLI_PATH", cliPath)
 
 	t.Run("should start and connect over in-process FFI", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			Connection: copilot.InProcessConnection{Path: cliPath},
+			Connection: copilot.InProcessConnection{},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

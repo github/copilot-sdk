@@ -96,8 +96,7 @@ func (URIConnection) runtimeConnection() {}
 
 // InProcessConnection hosts the Copilot runtime in-process by loading its native
 // runtime library (a Rust cdylib) and driving JSON-RPC over the library's C ABI,
-// instead of spawning a runtime child process. The native host spawns the
-// residual worker itself; the SDK never launches it directly.
+// instead of spawning a runtime child process.
 //
 // Because the runtime is loaded into the calling process, per-client
 // environment, working directory, and telemetry cannot be represented and are
@@ -108,14 +107,6 @@ func (URIConnection) runtimeConnection() {}
 // Experimental: the in-process transport is experimental and its API and
 // behavior may change in a future release.
 type InProcessConnection struct {
-	// Path is the runtime executable used to locate and launch the worker and
-	// to resolve the sibling native library. When empty, the client resolves
-	// COPILOT_CLI_PATH and then the bundled runtime. Unlike the child-process
-	// transports, no executable is looked up on PATH.
-	Path string
-	// Args are extra command-line arguments passed to the residual worker,
-	// appended after the SDK-managed args.
-	Args []string
 }
 
 func (InProcessConnection) runtimeConnection() {}

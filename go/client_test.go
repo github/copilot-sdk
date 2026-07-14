@@ -627,7 +627,7 @@ func TestClient_EnvOptions(t *testing.T) {
 
 func TestClient_InProcessConnection(t *testing.T) {
 	t.Run("uses in-process transport", func(t *testing.T) {
-		client := NewClient(&ClientOptions{Connection: InProcessConnection{Path: "/tmp/copilot"}})
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		if !client.useInProcess {
 			t.Error("Expected useInProcess=true for InProcessConnection")
 		}
@@ -637,8 +637,8 @@ func TestClient_InProcessConnection(t *testing.T) {
 		if client.isExternalServer {
 			t.Error("Expected isExternalServer=false for InProcessConnection")
 		}
-		if client.cliPath != "/tmp/copilot" {
-			t.Errorf("Expected cliPath to be '/tmp/copilot', got %q", client.cliPath)
+		if client.cliPath != "" {
+			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
 		}
 	})
 

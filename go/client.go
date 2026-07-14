@@ -110,7 +110,7 @@ func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOption
 			panic("Env is not supported with InProcessConnection: the in-process transport loads the native runtime into the shared host process, whose single environment block cannot carry per-client values. Set the variables on the host process environment instead.")
 		}
 		if opts.WorkingDirectory != "" {
-			panic("WorkingDirectory is not supported with InProcessConnection: the in-process transport hosts the runtime in the shared host process and spawns the worker without a working-directory parameter. Use a child-process transport, or set the process working directory before creating the client.")
+			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Use a child-process transport, or set the process working directory before creating the client.")
 		}
 		if opts.Telemetry != nil {
 			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use a child-process transport.")
@@ -265,10 +265,6 @@ func NewClient(options *ClientOptions) *Client {
 	case InProcessConnection:
 		client.useStdio = false
 		client.useInProcess = true
-		client.cliPath = conn.Path
-		if len(conn.Args) > 0 {
-			client.cliArgs = append([]string{}, conn.Args...)
-		}
 	default:
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
@@ -299,9 +295,7 @@ func NewClient(options *ClientOptions) *Client {
 		opts.Env = os.Environ()
 	}
 
-	// Check effective environment for CLI path (only if not explicitly set via
-	// options). The in-process transport never falls back to PATH, so its
-	// entrypoint is resolved separately in startInProcess.
+	// Check the effective environment for a child-process runtime override.
 	if client.cliPath == "" && !client.useInProcess {
 		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
 			client.cliPath = cliPath
@@ -2065,29 +2059,25 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 }
 
-// startInProcess hosts the runtime in-process via the native FFI library. It
-// resolves the CLI entrypoint (no PATH fallback — the entrypoint must be an
-// explicit path, COPILOT_CLI_PATH, or the bundled runtime), loads the sibling
-// cdylib, lets the native host spawn the worker, and wires the JSON-RPC client
-// to the FFI byte streams exactly like the stdio transport.
+// startInProcess loads the native runtime library and wires the JSON-RPC client
+// to its FFI byte streams.
 func (c *Client) startInProcess(ctx context.Context) error {
-	entrypoint := c.cliPath
-	if entrypoint == "" {
+	runtimePath := c.cliPath
+	if runtimePath == "" {
 		// The in-process transport does not resolve a bare command name from PATH
-		// (unlike the child-process transport); fall back only to COPILOT_CLI_PATH
-		// and then the bundled runtime, all absolute on-disk paths.
+		// (unlike the child-process transport).
 		if p := getEnvValue(c.options.Env, "COPILOT_CLI_PATH"); p != "" {
-			entrypoint = p
+			runtimePath = p
 		}
 	}
-	if entrypoint == "" {
-		entrypoint = embeddedcli.Path()
+	if runtimePath == "" {
+		runtimePath = embeddedcli.Path()
 	}
-	if entrypoint == "" {
-		return errors.New("in-process transport requires the Copilot CLI: set InProcessConnection.Path or COPILOT_CLI_PATH, or build with the bundled embedded runtime")
+	if runtimePath == "" {
+		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
 	}
 
-	host, err := ffihost.Create(entrypoint, nil, c.cliArgs)
+	host, err := ffihost.Create(runtimePath, nil)
 	if err != nil {
 		return err
 	}
