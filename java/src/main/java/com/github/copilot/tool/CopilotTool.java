@@ -52,25 +52,24 @@ public @interface CopilotTool {
     ToolDefer defer() default ToolDefer.NONE;
 
     /**
-     * Opaque, host-defined metadata for this tool. Keys are namespaced and not
-     * part of the stable public API; specific keys may be recognized to inform
+     * Opaque, host-defined metadata for this tool. Keys are namespaced and not part
+     * of the stable public API; specific keys may be recognized to inform
      * host-specific behavior.
      *
      * <p>
      * Because annotation members cannot express arbitrary maps, this uses a
-     * deliberately shallow representation: each {@link MetadataEntry} maps a
-     * string key to a single {@link MetadataValue} that is either a boolean, a
-     * string, or a one-level map of named boolean {@link MetadataFlag flags}.
-     * Numbers, arrays, and deeper nesting are not supported here; use the
-     * programmatic {@code ToolDefinition.createWithMetadata(...)} /
+     * deliberately shallow representation: each {@link MetadataEntry} maps a string
+     * key to a single {@link MetadataValue} that is either a boolean, a string, or
+     * a one-level map of named boolean {@link MetadataFlag flags}. Numbers, arrays,
+     * and deeper nesting are not supported here; use the programmatic
+     * {@code ToolDefinition.createWithMetadata(...)} /
      * {@code ToolDefinition.metadata(...)} API for richer values.
      *
      * <p>
      * Example emitted shape:
      *
      * <pre>
-     * Map.of("github.com/copilot:safeForTelemetry",
-     *        Map.of("name", true, "inputsNames", false))
+     * Map.of("github.com/copilot:safeForTelemetry", Map.of("name", true, "inputsNames", false))
      * </pre>
      */
     MetadataEntry[] metadata() default {};
@@ -92,22 +91,31 @@ public @interface CopilotTool {
     }
 
     /**
-     * A metadata value. Exactly one representation is intended per value: a map
-     * of named boolean {@link #flags()} (when non-empty), otherwise a
-     * {@link #str()} (when non-empty), otherwise a {@link #bool()}.
+     * A metadata value. Exactly one representation is intended per value: a map of
+     * named boolean {@link #flags()} (when non-empty), otherwise a {@link #str()}
+     * (when non-empty), otherwise a {@link #bool()}.
      */
     @Documented
     @Retention(RetentionPolicy.RUNTIME)
     @Target({})
     @interface MetadataValue {
 
-        /** Scalar boolean value. Used when {@link #flags()} and {@link #str()} are unset. */
+        /**
+         * Scalar boolean value. Used when {@link #flags()} and {@link #str()} are
+         * unset.
+         */
         boolean bool() default false;
 
-        /** Scalar string value. Used when {@link #flags()} is empty and this is non-empty. */
+        /**
+         * Scalar string value. Used when {@link #flags()} is empty and this is
+         * non-empty.
+         */
         String str() default "";
 
-        /** Object-like value: a one-level map of named boolean flags. Takes precedence when non-empty. */
+        /**
+         * Object-like value: a one-level map of named boolean flags. Takes precedence
+         * when non-empty.
+         */
         MetadataFlag[] flags() default {};
     }
 

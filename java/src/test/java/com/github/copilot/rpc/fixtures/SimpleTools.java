@@ -15,7 +15,7 @@ public class SimpleTools {
     @CopilotTool(value = "Greets a user by name", metadata = {
             @CopilotTool.MetadataEntry(key = "github.com/copilot:safeForTelemetry", value = @CopilotTool.MetadataValue(flags = {
                     @CopilotTool.MetadataFlag(name = "name", value = true),
-                    @CopilotTool.MetadataFlag(name = "inputsNames", value = false) })) })
+                    @CopilotTool.MetadataFlag(name = "inputsNames", value = false)}))})
     public String greetUser(@CopilotToolParam(value = "The user's name", required = true) String name) {
         return "Hello, " + name + "!";
     }

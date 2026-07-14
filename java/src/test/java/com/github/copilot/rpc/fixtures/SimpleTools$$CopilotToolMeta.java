@@ -30,7 +30,8 @@ public final class SimpleTools$$CopilotToolMeta implements CopilotToolMetadataPr
                     Map<String, Object> args = invocation.getArguments();
                     String name = (String) args.get("name");
                     return CompletableFuture.completedFuture(instance.greetUser(name));
-                }, null, null, null, Map.<String, Object>of("github.com/copilot:safeForTelemetry",
+                }, null, null, null,
+                Map.<String, Object>of("github.com/copilot:safeForTelemetry",
                         Map.of("name", true, "inputsNames", false))),
                 new ToolDefinition("add_numbers", "Adds two numbers together",
                         Map.of("type", "object", "properties",
