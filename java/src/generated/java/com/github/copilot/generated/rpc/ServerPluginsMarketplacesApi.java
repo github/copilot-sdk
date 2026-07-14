@@ -38,7 +38,7 @@ public final class ServerPluginsMarketplacesApi {
     }
 
     /**
-     * Marketplace source to register.
+     * Marketplace source and optional working directory for relative-path resolution.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

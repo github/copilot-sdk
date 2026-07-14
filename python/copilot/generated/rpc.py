@@ -3166,17 +3166,15 @@ class MCPAppsListToolsResult:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-# Deprecated: this type is part of a deprecated API and will be removed in a future version.
 @dataclass
 class MCPAppsReadResourceRequest:
-    """Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
-    `session.mcp.resources.read` instead.
-    """
+    """MCP server and resource URI to fetch."""
+
     server_name: str
     """Name of the MCP server hosting the resource"""
 
     uri: str
-    """Resource URI"""
+    """Resource URI (typically ui://...)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPAppsReadResourceRequest':
@@ -3194,14 +3192,14 @@ class MCPAppsReadResourceRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPAppsResourceContent:
-    """Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use
-    `session.mcp.resources.read` instead.
+    """MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
+    metadata.
     """
     uri: str
-    """The resource URI"""
+    """The resource URI (typically ui://...)"""
 
     meta: dict[str, Any] | None = None
-    """Resource-level metadata"""
+    """Resource-level metadata (CSP, permissions, etc.)"""
 
     blob: str | None = None
     """Base64-encoded binary content"""
@@ -4181,8 +4179,11 @@ class MetadataRecordContextChangeResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MetadataSetWorkingDirectoryRequest:
-    """Absolute path to set as the session's new working directory."""
-
+    """Absolute path to set as the session's new working directory. For local sessions the path
+    must be absolute and exist on disk: it is validated before any session state changes, and
+    a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote
+    sessions record the path as-is.
+    """
     working_directory: str
     """Absolute path to set as the session's working directory. The runtime updates the
     session's recorded cwd so subsequent operations (shell tools, file lookups, telemetry)
@@ -4204,9 +4205,13 @@ class MetadataSetWorkingDirectoryRequest:
 @dataclass
 class MetadataSetWorkingDirectoryResult:
     """Update the session's working directory. Used by the host when the user explicitly changes
-    cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any
-    related side-effects (file index, etc.); this method only updates the session's own
-    recorded path.
+    cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects
+    (file index, etc.); it does NOT change the process working directory (a session's cwd is
+    per-session, not process-global). For local sessions the runtime validates the target
+    first (an absolute path that exists on disk) and re-bases the permission primary
+    directory; a rejected validation fails the call before anything is mutated, persisted, or
+    emitted. Location-scoped permission rules are then re-keyed to the new directory
+    (best-effort). Remote sessions only record the path.
     """
     working_directory: str
     """Working directory after the update"""
@@ -5754,7 +5759,7 @@ class PluginUpdateResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PluginsMarketplacesAddRequest:
-    """Marketplace source to register."""
+    """Marketplace source and optional working directory for relative-path resolution."""
 
     source: str
     """Marketplace source. Accepts the same forms as the CLI: "owner/repo" or "owner/repo#ref"
@@ -5762,16 +5767,23 @@ class PluginsMarketplacesAddRequest:
     (user@host:path), or a local path. The marketplace's own name (from its manifest) is used
     as the registration key.
     """
+    working_directory: str | None = None
+    """Working directory used to resolve relative local paths in `source`. Defaults to the
+    server's current working directory.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'PluginsMarketplacesAddRequest':
         assert isinstance(obj, dict)
         source = from_str(obj.get("source"))
-        return PluginsMarketplacesAddRequest(source)
+        working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
+        return PluginsMarketplacesAddRequest(source, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["source"] = from_str(self.source)
+        if self.working_directory is not None:
+            result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6234,16 +6246,18 @@ class RegisterEventInterestParams:
     """The event type the consumer wants the runtime to treat as 'observed' for
     behavior-switching gating. Some runtime code paths inspect whether any consumer is
     interested in a specific event type and choose a different implementation accordingly
-    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token
-    acquisition to the consumer; when no interest is registered OAuth-required servers become
-    needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners
-    to these gating checks — they must explicitly call `registerInterest` for each event type
-    they want the runtime to count as having a consumer. Multiple registrations for the same
-    event type from the same or different consumers are tracked independently and must each
-    be released. See: `mcp.oauth_required`, `sampling.requested`,
-    `auto_mode_switch.requested`, `session_limits_exhausted.requested`,
-    `user_input.requested`, `elicitation.requested`, `command.queued`,
-    `exit_plan_mode.requested`.
+    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates interactive
+    OAuth token acquisition to the consumer via `mcp.oauth_required` events; when no interest
+    is registered the runtime still attempts non-interactive reconnect from cached or
+    refreshable tokens, and only marks the server `needs-auth` if usable credentials are
+    unavailable — it does not open a browser or start interactive OAuth without a consumer).
+    SDK clients that long-poll events do NOT automatically appear as listeners to these
+    gating checks — they must explicitly call `registerInterest` for each event type they
+    want the runtime to count as having a consumer. Multiple registrations for the same event
+    type from the same or different consumers are tracked independently and must each be
+    released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
+    `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
+    `command.queued`, `exit_plan_mode.requested`.
     """
 
     @staticmethod
@@ -12514,9 +12528,8 @@ class MCPAppsSetHostContextDetails:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPAppsReadResourceResult:
-    """Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
-    `session.mcp.resources.read` instead.
-    """
+    """Resource contents returned by the MCP server."""
+
     contents: list[MCPAppsResourceContent]
     """Resource contents returned by the server"""
 
@@ -16801,7 +16814,7 @@ class SkillDiscoveryPath:
 @dataclass
 class SlashCommandAgentPromptResult:
     """Slash-command invocation result that submits an agent prompt, with display prompt,
-    optional mode, and settings-change flag.
+    optional mode, optional user-facing notice, and settings-change flag.
     """
     display_prompt: str
     """Prompt text to display to the user"""
@@ -16815,6 +16828,9 @@ class SlashCommandAgentPromptResult:
     mode: SessionMode | None = None
     """Optional target session mode for the agent prompt"""
 
+    notice: str | None = None
+    """Optional user-facing notice to show before the prompt is submitted"""
+
     runtime_settings_changed: bool | None = None
     """True when the invocation mutated user runtime settings; consumers caching settings should
     refresh
@@ -16826,8 +16842,9 @@ class SlashCommandAgentPromptResult:
         display_prompt = from_str(obj.get("displayPrompt"))
         prompt = from_str(obj.get("prompt"))
         mode = from_union([SessionMode, from_none], obj.get("mode"))
+        notice = from_union([from_str, from_none], obj.get("notice"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandAgentPromptResult(display_prompt, prompt, mode, runtime_settings_changed)
+        return SlashCommandAgentPromptResult(display_prompt, prompt, mode, notice, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -16836,6 +16853,8 @@ class SlashCommandAgentPromptResult:
         result["prompt"] = from_str(self.prompt)
         if self.mode is not None:
             result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
+        if self.notice is not None:
+            result["notice"] = from_union([from_str, from_none], self.notice)
         if self.runtime_settings_changed is not None:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
@@ -27121,7 +27140,7 @@ class ServerPluginsMarketplacesApi:
         return MarketplaceListResult.from_dict(await self._client.request("plugins.marketplaces.list", {}, **_timeout_kwargs(timeout)))
 
     async def add(self, params: PluginsMarketplacesAddRequest, *, timeout: float | None = None) -> MarketplaceAddResult:
-        "Registers a new marketplace from a source (owner/repo, URL, or local path).\n\nArgs:\n    params: Marketplace source to register.\n\nReturns:\n    Result of registering a new marketplace."
+        "Registers a new marketplace from a source (owner/repo, URL, or local path).\n\nArgs:\n    params: Marketplace source and optional working directory for relative-path resolution.\n\nReturns:\n    Result of registering a new marketplace."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceAddResult.from_dict(await self._client.request("plugins.marketplaces.add", params_dict, **_timeout_kwargs(timeout)))
 
@@ -27943,7 +27962,7 @@ class McpAppsApi:
         self._session_id = session_id
 
     async def read_resource(self, params: MCPAppsReadResourceRequest, *, timeout: float | None = None) -> MCPAppsReadResourceResult:
-        "Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.\n\nArgs:\n    params: Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.\n\nReturns:\n    Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.\n\n.. deprecated:: This API is deprecated and will be removed in a future version."
+        "Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.\n\nArgs:\n    params: MCP server and resource URI to fetch.\n\nReturns:\n    Resource contents returned by the MCP server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPAppsReadResourceResult.from_dict(await self._client.request("session.mcp.apps.readResource", params_dict, **_timeout_kwargs(timeout)))
@@ -28530,7 +28549,7 @@ class MetadataApi:
         return MetadataRecordContextChangeResult.from_dict(await self._client.request("session.metadata.recordContextChange", params_dict, **_timeout_kwargs(timeout)))
 
     async def set_working_directory(self, params: MetadataSetWorkingDirectoryRequest, *, timeout: float | None = None) -> MetadataSetWorkingDirectoryResult:
-        "Updates the session's recorded working directory.\n\nArgs:\n    params: Absolute path to set as the session's new working directory.\n\nReturns:\n    Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path."
+        "Updates the session's working directory. For local sessions the target is validated first (an absolute path that exists on disk) and the permission primary directory is re-based; a rejected validation fails the call before any session state changes.\n\nArgs:\n    params: Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.\n\nReturns:\n    Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataSetWorkingDirectoryResult.from_dict(await self._client.request("session.metadata.setWorkingDirectory", params_dict, **_timeout_kwargs(timeout)))

@@ -137,6 +137,7 @@ const (
 	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
 	SessionEventTypeSessionMCPServersLoaded            SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionMemoryChanged               SessionEventType = "session.memory_changed"
 	SessionEventTypeSessionModeChanged                 SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange                 SessionEventType = "session.model_change"
 	SessionEventTypeSessionPermissionsChanged          SessionEventType = "session.permissions_changed"
@@ -1539,6 +1540,13 @@ type SessionTitleChangedData struct {
 func (*SessionTitleChangedData) sessionEventData()      {}
 func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTypeSessionTitleChanged }
 
+// Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
+type SessionMemoryChangedData struct {
+}
+
+func (*SessionMemoryChangedData) sessionEventData()      {}
+func (*SessionMemoryChangedData) Type() SessionEventType { return SessionEventTypeSessionMemoryChanged }
+
 // Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
 type SessionTodosChangedData struct {
 }
@@ -1762,6 +1770,9 @@ type ToolExecutionCompleteData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// Whether this tool call was explicitly requested by the user rather than the assistant
 	IsUserRequested *bool `json:"isUserRequested,omitempty"`
+	// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental.
+	// Experimental: MCPMeta is part of an experimental API and may change or be removed.
+	MCPMeta any `json:"mcpMeta,omitempty"`
 	// Model identifier that generated this tool call
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -3469,6 +3480,9 @@ type ToolExecutionCompleteResult struct {
 	Contents []ToolExecutionCompleteContent `json:"contents,omitzero"`
 	// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
 	DetailedContent *string `json:"detailedContent,omitempty"`
+	// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
+	// Experimental: MCPMeta is part of an experimental API and may change or be removed.
+	MCPMeta any `json:"mcpMeta,omitempty"`
 	// Structured content (arbitrary JSON) returned verbatim by the MCP tool
 	StructuredContent any `json:"structuredContent,omitempty"`
 	// MCP Apps UI resource content for rendering in a sandboxed iframe

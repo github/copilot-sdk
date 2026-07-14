@@ -140,6 +140,7 @@ class SessionEventType(Enum):
     SESSION_PERMISSIONS_CHANGED = "session.permissions_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_TODOS_CHANGED = "session.todos_changed"
+    SESSION_MEMORY_CHANGED = "session.memory_changed"
     SESSION_WORKSPACE_FILE_CHANGED = "session.workspace_file_changed"
     SESSION_HANDOFF = "session.handoff"
     SESSION_TRUNCATION = "session.truncation"
@@ -5853,6 +5854,18 @@ class SessionMcpServersLoadedData:
 
 
 @dataclass
+class SessionMemoryChangedData:
+    "Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns."
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionMemoryChangedData":
+        assert isinstance(obj, dict)
+        return SessionMemoryChangedData()
+
+    def to_dict(self) -> dict:
+        return {}
+
+
+@dataclass
 class SessionModeChangedData:
     "Agent mode change details including previous and new modes"
     new_mode: SessionMode
@@ -7613,6 +7626,8 @@ class ToolExecutionCompleteData:
     error: ToolExecutionCompleteError | None = None
     interaction_id: str | None = None
     is_user_requested: bool | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mcp_meta: Any = None
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -7630,6 +7645,7 @@ class ToolExecutionCompleteData:
         error = from_union([from_none, ToolExecutionCompleteError.from_dict], obj.get("error"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_user_requested = from_union([from_none, from_bool], obj.get("isUserRequested"))
+        mcp_meta = obj.get("mcpMeta")
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
@@ -7643,6 +7659,7 @@ class ToolExecutionCompleteData:
             error=error,
             interaction_id=interaction_id,
             is_user_requested=is_user_requested,
+            mcp_meta=mcp_meta,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
             result=result,
@@ -7662,6 +7679,8 @@ class ToolExecutionCompleteData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.is_user_requested is not None:
             result["isUserRequested"] = from_union([from_none, from_bool], self.is_user_requested)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
@@ -7713,6 +7732,8 @@ class ToolExecutionCompleteResult:
     citable_sources: list[CitableSource] | None = None
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mcp_meta: Any = None
     structured_content: Any = None
     ui_resource: ToolExecutionCompleteUIResource | None = None
 
@@ -7724,6 +7745,7 @@ class ToolExecutionCompleteResult:
         citable_sources = from_union([from_none, lambda x: from_list(CitableSource.from_dict, x)], obj.get("citableSources"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
+        mcp_meta = obj.get("mcpMeta")
         structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
@@ -7732,6 +7754,7 @@ class ToolExecutionCompleteResult:
             citable_sources=citable_sources,
             contents=contents,
             detailed_content=detailed_content,
+            mcp_meta=mcp_meta,
             structured_content=structured_content,
             ui_resource=ui_resource,
         )
@@ -7747,6 +7770,8 @@ class ToolExecutionCompleteResult:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
         if self.structured_content is not None:
             result["structuredContent"] = self.structured_content
         if self.ui_resource is not None:
@@ -9312,7 +9337,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionMemoryChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -9356,6 +9381,7 @@ class SessionEvent:
             case SessionEventType.SESSION_PERMISSIONS_CHANGED: data = SessionPermissionsChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_PLAN_CHANGED: data = SessionPlanChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_TODOS_CHANGED: data = SessionTodosChangedData.from_dict(data_obj)
+            case SessionEventType.SESSION_MEMORY_CHANGED: data = SessionMemoryChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_WORKSPACE_FILE_CHANGED: data = SessionWorkspaceFileChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_HANDOFF: data = SessionHandoffData.from_dict(data_obj)
             case SessionEventType.SESSION_TRUNCATION: data = SessionTruncationData.from_dict(data_obj)
@@ -9689,6 +9715,7 @@ __all__ = [
     "SessionLimitsExhaustedResponseAction",
     "SessionMcpServerStatusChangedData",
     "SessionMcpServersLoadedData",
+    "SessionMemoryChangedData",
     "SessionMode",
     "SessionModeChangedData",
     "SessionModelChangeData",

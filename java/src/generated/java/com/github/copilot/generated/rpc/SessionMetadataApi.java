@@ -123,7 +123,7 @@ public final class SessionMetadataApi {
     }
 
     /**
-     * Absolute path to set as the session's new working directory.
+     * Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

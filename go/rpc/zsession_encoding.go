@@ -443,6 +443,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionMemoryChanged:
+		var d SessionMemoryChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionModeChanged:
 		var d SessionModeChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1248,6 +1254,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		Content             string                           `json:"content"`
 		Contents            []json.RawMessage                `json:"contents,omitzero"`
 		DetailedContent     *string                          `json:"detailedContent,omitempty"`
+		MCPMeta             any                              `json:"mcpMeta,omitempty"`
 		StructuredContent   any                              `json:"structuredContent,omitempty"`
 		UIResource          *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
@@ -1278,6 +1285,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.DetailedContent = raw.DetailedContent
+	r.MCPMeta = raw.MCPMeta
 	r.StructuredContent = raw.StructuredContent
 	r.UIResource = raw.UIResource
 	return nil
