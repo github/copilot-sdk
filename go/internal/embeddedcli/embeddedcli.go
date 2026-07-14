@@ -18,14 +18,14 @@ import (
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system cache directory. Version is used to suffix the installed binary and
-// runtime-library names so multiple versions can coexist. License, when
-// provided, is written next to the installed binary.
+// system cache directory. When Version is set, the CLI is installed into a
+// version-specific child directory so multiple versions can coexist. License,
+// when provided, is written next to the installed binary.
 //
 // RuntimeLib and RuntimeLibHash are optional: when set, the native in-process
-// runtime library (cdylib) is installed next to the CLI binary with the same
-// version suffix so the in-process (FFI) transport can load it. They are omitted
-// for CLI packages that do not ship the native runtime.
+// runtime library (cdylib) is installed next to the CLI binary so the in-process
+// (FFI) transport can load it. They are omitted for CLI packages that do not
+// ship the native runtime.
 type Config struct {
 	Cli     io.Reader
 	CliHash []byte
@@ -123,17 +123,16 @@ func install() (path string) {
 }
 
 func installAt(installDir string) (string, error) {
+	version := sanitizeVersion(config.Version)
+	if version != "" {
+		installDir = filepath.Join(installDir, version)
+	}
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		return "", fmt.Errorf("creating install directory: %w", err)
 	}
-	version := sanitizeVersion(config.Version)
-	lockName := ".copilot-cli.lock"
-	if version != "" {
-		lockName = fmt.Sprintf(".copilot-cli-%s.lock", version)
-	}
 
 	// Best effort to prevent concurrent installs.
-	if release, _ := flock.Acquire(filepath.Join(installDir, lockName)); release != nil {
+	if release, _ := flock.Acquire(filepath.Join(installDir, ".copilot-cli.lock")); release != nil {
 		defer release()
 	}
 
@@ -141,7 +140,7 @@ func installAt(installDir string) (string, error) {
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
-	finalPath := versionedBinaryPath(installDir, binaryName, version)
+	finalPath := filepath.Join(installDir, binaryName)
 
 	if _, err := os.Stat(finalPath); err == nil {
 		existingHash, err := hashFile(finalPath)
@@ -150,6 +149,13 @@ func installAt(installDir string) (string, error) {
 		}
 		if !bytes.Equal(existingHash, config.CliHash) {
 			return "", fmt.Errorf("existing binary hash mismatch")
+		}
+		if config.RuntimeLib != nil {
+			libPath, err := installRuntimeLib(installDir)
+			if err != nil {
+				return "", err
+			}
+			runtimeLibPath = libPath
 		}
 		return finalPath, nil
 	}
@@ -175,11 +181,10 @@ func installAt(installDir string) (string, error) {
 		}
 	}
 
-	// Install the native in-process runtime library (if bundled) next to the CLI
-	// binary with the same version suffix. Fail closed on any hash mismatch —
-	// never place unverified native code.
+	// Install the native in-process runtime library (if bundled) next to the CLI.
+	// Fail closed on any hash mismatch; never place unverified native code.
 	if config.RuntimeLib != nil {
-		libPath, err := installRuntimeLib(installDir, version)
+		libPath, err := installRuntimeLib(installDir)
 		if err != nil {
 			return "", err
 		}
@@ -189,14 +194,14 @@ func installAt(installDir string) (string, error) {
 	return finalPath, nil
 }
 
-// installRuntimeLib writes the embedded runtime cdylib into installDir under a
-// versioned platform file name, verifying its SHA-256. It is idempotent: an
+// installRuntimeLib writes the embedded runtime cdylib into installDir under its
+// natural platform file name, verifying its SHA-256. It is idempotent: an
 // existing file with a matching hash is reused; a mismatch is a hard error.
-func installRuntimeLib(installDir, version string) (string, error) {
+func installRuntimeLib(installDir string) (string, error) {
 	if len(config.RuntimeLibHash) != sha256.Size {
 		return "", fmt.Errorf("RuntimeLibHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(config.RuntimeLibHash))
 	}
-	libPath := versionedRuntimeLibPath(installDir, naturalRuntimeLibName(), version)
+	libPath := filepath.Join(installDir, naturalRuntimeLibName())
 
 	if _, err := os.Stat(libPath); err == nil {
 		existingHash, err := hashFile(libPath)
@@ -252,27 +257,6 @@ func naturalRuntimeLibName() string {
 	}
 }
 
-// versionedBinaryPath builds the unpacked binary filename with an optional version suffix.
-func versionedBinaryPath(dir, binaryName, version string) string {
-	if version == "" {
-		return filepath.Join(dir, binaryName)
-	}
-	base := strings.TrimSuffix(binaryName, filepath.Ext(binaryName))
-	ext := filepath.Ext(binaryName)
-	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", base, version, ext))
-}
-
-// versionedRuntimeLibPath builds the runtime-library filename with the same
-// optional version suffix as the embedded CLI.
-func versionedRuntimeLibPath(dir, libraryName, version string) string {
-	if version == "" {
-		return filepath.Join(dir, libraryName)
-	}
-	base := strings.TrimSuffix(libraryName, filepath.Ext(libraryName))
-	ext := filepath.Ext(libraryName)
-	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", base, version, ext))
-}
-
 // sanitizeVersion makes a version string safe for filenames.
 func sanitizeVersion(version string) string {
 	if version == "" {
@@ -293,7 +277,11 @@ func sanitizeVersion(version string) string {
 			b.WriteRune('_')
 		}
 	}
-	return b.String()
+	sanitized := b.String()
+	if sanitized == "." || sanitized == ".." {
+		return strings.Repeat("_", len(sanitized))
+	}
+	return sanitized
 }
 
 // hashFile returns the SHA-256 hash of a file on disk.

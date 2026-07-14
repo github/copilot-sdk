@@ -5,9 +5,9 @@ import "github.com/github/copilot-sdk/go/internal/embeddedcli"
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system cache directory. Version is used to suffix the installed binary and
-// runtime-library names so multiple versions can coexist. License, when
-// provided, is written next to the installed binary.
+// system cache directory. When Version is set, the CLI and runtime library are
+// installed into a version-specific child directory so multiple versions can
+// coexist. License, when provided, is written next to the installed binary.
 type Config = embeddedcli.Config
 
 // Setup sets the embedded GitHub Copilot CLI install configuration.

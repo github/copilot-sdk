@@ -125,7 +125,7 @@ Resolution and requirements:
   transport when `ClientOptions.Connection` is nil. An explicit connection
   always takes precedence.
 - The entrypoint is resolved with **no `PATH` lookup**: explicit `InProcessConnection.Path`, then `COPILOT_CLI_PATH`, then the bundled embedded CLI. It must be an on-disk path.
-- The runtime library is loaded from next to the resolved entrypoint (the matching versioned `libcopilot_runtime_*` name installed for an embedded CLI, a flat package library name, or the package's `prebuilds/<platform>/runtime.node`). Start fails loudly if it cannot be found.
+- The runtime library is loaded from next to the resolved entrypoint (the natural platform library name installed for an embedded CLI or flat package, or the package's `prebuilds/<platform>/runtime.node`). Embedded CLI versions are isolated in separate cache directories so the CLI and runtime library always remain paired. Start fails loudly if the library cannot be found.
 - The runtime library is loaded once per process; loading a different library path in the same process is an error.
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
