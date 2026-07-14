@@ -1752,7 +1752,7 @@ type SetModelOptions struct {
 //
 // Example:
 //
-//	if err := session.SetModel(context.Background(), "gpt-4.1", nil); err != nil {
+//	if err := session.SetModel(context.Background(), "gpt-5.4", nil); err != nil {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
 //	if err := session.SetModel(context.Background(), "claude-sonnet-4.6", &SetModelOptions{ReasoningEffort: new("high")}); err != nil {

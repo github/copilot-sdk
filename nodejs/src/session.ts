@@ -1372,7 +1372,7 @@ export class CopilotSession {
      *
      * @example
      * ```typescript
-     * await session.setModel("gpt-4.1");
+     * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      * ```
      */
