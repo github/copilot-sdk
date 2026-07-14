@@ -146,11 +146,7 @@ export class CapiProxy {
         }
 
         if (!(await waitForProcessExit(process, 5000))) {
-            try {
-                process.kill();
-            } catch {
-                // Process may have already exited between wait timeout and kill attempt.
-            }
+            await terminateProcessTree(process);
             await waitForProcessExit(process, 5000);
         }
         this.serverProcess = undefined;
@@ -191,6 +187,33 @@ async function waitForProcessExit(process: ChildProcess, timeoutMs: number): Pro
         }, timeoutMs);
         process.once("exit", onExit);
     });
+}
+
+async function terminateProcessTree(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) {
+        return;
+    }
+    const pid = child.pid;
+    if (!pid) {
+        return;
+    }
+
+    if (process.platform === "win32") {
+        await new Promise<void>((resolve) => {
+            const taskkill = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+                stdio: "ignore",
+            });
+            taskkill.once("error", () => resolve());
+            taskkill.once("exit", () => resolve());
+        });
+        return;
+    }
+
+    try {
+        child.kill();
+    } catch {
+        // Process may have already exited between wait timeout and kill attempt.
+    }
 }
 
 function tryParseStartupInfo(line: string): ProxyStartupInfo | undefined {

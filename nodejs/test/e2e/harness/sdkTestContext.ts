@@ -361,14 +361,17 @@ async function stopClientWithFallback(
     const timeoutPromise = new Promise<"timeout">((resolve) => {
         timeoutId = setTimeout(() => resolve("timeout"), options.timeoutMs);
     });
-    const result = await Promise.race([stopPromise, timeoutPromise]);
-    if (timeoutId) {
-        clearTimeout(timeoutId);
+    try {
+        const result = await Promise.race([stopPromise, timeoutPromise]);
+        if (result === "timeout") {
+            stopPromise.catch(() => undefined);
+            await client.forceStop();
+            return { timedOut: true, errors: [] };
+        }
+        return { timedOut: false, errors: result };
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
     }
-    if (result === "timeout") {
-        stopPromise.catch(() => undefined);
-        await client.forceStop();
-        return { timedOut: true, errors: [] };
-    }
-    return { timedOut: false, errors: result };
 }
