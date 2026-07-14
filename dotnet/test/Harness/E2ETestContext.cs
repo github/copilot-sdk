@@ -163,7 +163,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         var sanitizedName = Regex.Replace(testName!, @"[^a-zA-Z0-9]", "_").ToLowerInvariant();
         var snapshotPath = Path.Combine(_repoRoot, "test", "snapshots", testFile, $"{sanitizedName}.yaml");
-        await _proxy.ConfigureAsync(snapshotPath, WorkDir);
+        await _proxy.ConfigureAsync(
+            snapshotPath,
+            WorkDir,
+            E2ETestBackendConfiguration.Current.ToWireName());
     }
 
     public Task<List<ParsedHttpExchange>> GetExchangesAsync()
@@ -350,6 +353,25 @@ public sealed class E2ETestContext : IAsyncDisposable
             }
         }
         return client;
+    }
+
+    public Task<CopilotSession> CreateSessionAsync(
+        CopilotClient client,
+        SessionConfig? config = null)
+    {
+        config ??= new SessionConfig();
+        E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
+        return client.CreateSessionAsync(config);
+    }
+
+    public Task<CopilotSession> ResumeSessionAsync(
+        CopilotClient client,
+        string sessionId,
+        ResumeSessionConfig? config = null)
+    {
+        config ??= new ResumeSessionConfig();
+        E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
+        return client.ResumeSessionAsync(sessionId, config);
     }
 
     public void UntrackClient(CopilotClient client)

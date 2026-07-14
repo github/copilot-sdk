@@ -21,7 +21,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Empty_Mode_Isolated_Set_Shell_Tool_Is_Not_Exposed()
     {
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
@@ -45,7 +45,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Empty_Mode_Builtin_Star_Exposes_All_Built_In_Tools()
     {
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn("*"),
@@ -65,7 +65,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var shellToolName = OperatingSystem.IsWindows() ? "powershell" : "bash";
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn("*"),
@@ -85,7 +85,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Empty_Mode_Strips_Environment_Context_From_The_System_Message_By_Default()
     {
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
@@ -109,7 +109,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Empty_Mode_System_Message_Replace_Llm_Follows_Caller_Content_Verbatim()
     {
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
@@ -128,7 +128,7 @@ public class ModeEmptyE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Empty_Mode_Append_Caller_Instruction_Takes_Effect_And_Env_Context_Stripped()
     {
         await using var client = Ctx.CreateClient(options: EmptyModeOptions(Ctx));
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),

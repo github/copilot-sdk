@@ -150,16 +150,19 @@ public sealed partial class CapiProxy : IAsyncDisposable
         _startupTask = null;
     }
 
-    public async Task ConfigureAsync(string filePath, string workDir)
+    public async Task ConfigureAsync(string filePath, string workDir, string backend)
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        var response = await client.PostAsJsonAsync($"{url}/config", new ConfigureRequest(filePath, workDir), CapiProxyJsonContext.Default.ConfigureRequest);
+        var response = await client.PostAsJsonAsync(
+            $"{url}/config",
+            new ConfigureRequest(filePath, workDir, backend),
+            CapiProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
 
-    private record ConfigureRequest(string FilePath, string WorkDir);
+    private record ConfigureRequest(string FilePath, string WorkDir, string Backend);
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 

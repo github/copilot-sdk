@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
+[Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
 public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "mode_handlers", output)
 {
@@ -24,7 +25,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = CreateAuthenticatedClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -92,7 +93,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = CreateAuthenticatedClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,

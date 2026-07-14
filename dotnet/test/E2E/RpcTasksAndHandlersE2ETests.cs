@@ -72,6 +72,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Report_Implemented_Error_For_Invalid_Task_Agent_Model()
     {
         var session = await CreateSessionAsync();

@@ -12,6 +12,7 @@ namespace GitHub.Copilot.Test.E2E;
 
 #pragma warning disable GHCP001 // GitHub telemetry forwarding is experimental.
 
+[Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
 public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "github_telemetry", output)
 {
@@ -32,7 +33,7 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
         CopilotSession? session = null;
         try
         {
-            session = await client.CreateSessionAsync(new SessionConfig
+            session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             });

@@ -7,19 +7,19 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'dotnet/**'
-      - 'test/**'
-      - 'nodejs/package.json'
-      - '.github/workflows/dotnet-sdk-tests.yml'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
+      - "dotnet/**"
+      - "test/**"
+      - "nodejs/package.json"
+      - ".github/workflows/dotnet-sdk-tests.yml"
+      - "!**/*.md"
+      - "!**/LICENSE*"
+      - "!**/.gitignore"
+      - "!**/.editorconfig"
+      - "!**/*.png"
+      - "!**/*.jpg"
+      - "!**/*.jpeg"
+      - "!**/*.gif"
+      - "!**/*.svg"
   workflow_dispatch:
   merge_group:
 
@@ -28,19 +28,49 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
+      COPILOT_SDK_E2E_BACKEND: ${{ matrix.backend }}
+      DOTNET_TEST_FILTER: ${{ matrix.test-filter }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        transport: ["default", "inprocess"]
-        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows
-        exclude:
+        include:
+          - os: ubuntu-latest
+            transport: default
+            backend: capi
+            test-filter: ""
+          - os: macos-latest
+            transport: default
+            backend: capi
+            test-filter: ""
           - os: windows-latest
-            transport: "inprocess"
+            transport: default
+            backend: capi
+            test-filter: ""
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: capi
+            test-filter: ""
+          - os: macos-latest
+            transport: inprocess
+            backend: capi
+            test-filter: ""
+          # TODO: Add Windows after fixing in-process sqlite file locking on shutdown.
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: anthropic-messages
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-responses
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-completions
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -81,6 +111,11 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      - name: Run replay harness tests
+        if: matrix.os == 'ubuntu-latest' && matrix.transport == 'default'
+        working-directory: ./test/harness
+        run: npm test
+
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
@@ -92,4 +127,9 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: dotnet test --no-build -v n
+        run: |
+          args=(--no-build -v n)
+          if [[ -n "$DOTNET_TEST_FILTER" ]]; then
+            args+=(--filter "$DOTNET_TEST_FILTER")
+          fi
+          dotnet test "${args[@]}"
