@@ -26,11 +26,9 @@ func TestRpcUiEphemeralQuery(t *testing.T) {
 		}
 		if result == nil {
 			t.Fatal("Expected non-nil ephemeral query result")
-		}
-		if strings.TrimSpace(result.Answer) == "" {
+		} else if strings.TrimSpace(result.Answer) == "" {
 			t.Fatal("Expected non-empty ephemeral query answer")
-		}
-		if !strings.Contains(strings.ToLower(result.Answer), "blue") {
+		} else if !strings.Contains(strings.ToLower(result.Answer), "blue") {
 			t.Fatalf("Expected answer to contain blue, got %q", result.Answer)
 		}
 	})

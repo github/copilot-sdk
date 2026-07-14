@@ -168,8 +168,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		if answer == nil {
 			t.Fatal("Expected SendAndWait to return an assistant message")
-		}
-		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
+		} else if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
 			t.Errorf("Expected answer to contain '18', got %v", answer.Data)
 		}
 	})

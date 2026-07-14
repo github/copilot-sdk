@@ -58,8 +58,7 @@ func TestRpcServerPlugins(t *testing.T) {
 		listed := findPortedInstalledPlugin(afterInstall.Plugins, portedPluginName, portedMarketplaceName)
 		if listed == nil {
 			t.Fatalf("Expected installed plugin %q in marketplace %q", portedPluginName, portedMarketplaceName)
-		}
-		if !listed.Enabled {
+		} else if !listed.Enabled {
 			t.Fatal("Expected listed marketplace plugin to be enabled")
 		}
 
@@ -229,8 +228,7 @@ func TestRpcServerPlugins(t *testing.T) {
 		mine := findPortedMarketplace(list.Marketplaces, portedMarketplaceName)
 		if mine == nil {
 			t.Fatalf("Expected marketplace %q in list %+v", portedMarketplaceName, list.Marketplaces)
-		}
-		if mine.IsDefault != nil && *mine.IsDefault {
+		} else if mine.IsDefault != nil && *mine.IsDefault {
 			t.Fatal("Expected local marketplace not to be marked default")
 		}
 		if !containsPortedDefaultMarketplace(list.Marketplaces) {

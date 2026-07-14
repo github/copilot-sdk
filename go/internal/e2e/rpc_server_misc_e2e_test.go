@@ -159,14 +159,15 @@ func TestRpcServerMisc(t *testing.T) {
 		}
 		if users == nil {
 			t.Fatal("Expected non-nil users result")
-		}
-		for _, user := range *users {
-			userInfo, ok := user.AuthInfo.(*rpc.UserAuthInfo)
-			if !ok {
-				t.Fatalf("Expected user auth info in all users, got %#v", user.AuthInfo)
-			}
-			if userInfo.Login == "go-account-user" && (user.Token == nil || *user.Token != "go-account-token") {
-				t.Fatalf("Expected logged-in user's token to round trip, got %+v", user)
+		} else {
+			for _, user := range *users {
+				userInfo, ok := user.AuthInfo.(*rpc.UserAuthInfo)
+				if !ok {
+					t.Fatalf("Expected user auth info in all users, got %#v", user.AuthInfo)
+				}
+				if userInfo.Login == "go-account-user" && (user.Token == nil || *user.Token != "go-account-token") {
+					t.Fatalf("Expected logged-in user's token to round trip, got %+v", user)
+				}
 			}
 		}
 

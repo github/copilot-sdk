@@ -43,15 +43,15 @@ func TestSystemMessageSectionsE2E(t *testing.T) {
 		}
 		if response == nil {
 			t.Fatal("Expected a response from the assistant")
-		}
-
-		ad, ok := response.Data.(*copilot.AssistantMessageData)
-		if !ok {
-			t.Fatalf("Expected AssistantMessageData, got %T", response.Data)
-		}
-		content := strings.ToLower(ad.Content)
-		if !strings.Contains(content, "botanica") && !strings.Contains(content, "garden") && !strings.Contains(content, "plant") {
-			t.Errorf("Expected response to reflect the replaced identity section, but got: %s", ad.Content)
+		} else {
+			ad, ok := response.Data.(*copilot.AssistantMessageData)
+			if !ok {
+				t.Fatalf("Expected AssistantMessageData, got %T", response.Data)
+			}
+			content := strings.ToLower(ad.Content)
+			if !strings.Contains(content, "botanica") && !strings.Contains(content, "garden") && !strings.Contains(content, "plant") {
+				t.Errorf("Expected response to reflect the replaced identity section, but got: %s", ad.Content)
+			}
 		}
 	})
 
@@ -82,15 +82,15 @@ func TestSystemMessageSectionsE2E(t *testing.T) {
 		}
 		if response == nil {
 			t.Fatal("Expected a response from the assistant")
-		}
-
-		ad, ok := response.Data.(*copilot.AssistantMessageData)
-		if !ok {
-			t.Fatalf("Expected AssistantMessageData, got %T", response.Data)
-		}
-		content := strings.ToLower(ad.Content)
-		if !strings.Contains(content, "botanica") && !strings.Contains(content, "garden") && !strings.Contains(content, "plant") {
-			t.Errorf("Expected response to reflect the replaced preamble section, but got: %s", ad.Content)
+		} else {
+			ad, ok := response.Data.(*copilot.AssistantMessageData)
+			if !ok {
+				t.Fatalf("Expected AssistantMessageData, got %T", response.Data)
+			}
+			content := strings.ToLower(ad.Content)
+			if !strings.Contains(content, "botanica") && !strings.Contains(content, "garden") && !strings.Contains(content, "plant") {
+				t.Errorf("Expected response to reflect the replaced preamble section, but got: %s", ad.Content)
+			}
 		}
 	})
 }
