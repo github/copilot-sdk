@@ -173,6 +173,7 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
         session_log: None,
         error: None,
         tool_telemetry: None,
+        tool_references: None,
     }))
 }
 
@@ -603,6 +604,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({"msg": "hello"}),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -643,6 +645,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "weather".to_string(),
             arguments: serde_json::json!({"city": "Seattle"}),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -725,6 +728,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"city": "Seattle", "unit": "celsius"}),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -744,6 +748,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"wrong_field": 42}),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -765,6 +770,7 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
                     arguments: serde_json::json!({"city": "Portland"}),
+                    available_tools: None,
                     traceparent: None,
                     tracestate: None,
                 })

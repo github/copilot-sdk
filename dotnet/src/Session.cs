@@ -91,6 +91,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
         new() { SingleReader = true });
 
     /// <summary>
+    /// Fixed name of the runtime's built-in tool-search tool. A client can
+    /// replace its behavior by registering a tool with this exact name and
+    /// <c>OverridesBuiltInTool</c> set to <c>true</c>.
+    /// </summary>
+    private const string ToolSearchToolName = "tool_search_tool";
+
+    /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
@@ -840,6 +847,26 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 ToolName = toolName,
                 Arguments = arguments
             };
+
+            // The built-in tool-search tool receives a snapshot of the session's
+            // currently initialized tools so an override can filter the live
+            // catalog without issuing its own RPC. Fetch it only for that tool
+            // to avoid a round-trip on every tool call; a failed fetch leaves
+            // the snapshot null rather than failing the tool.
+            if (toolName == ToolSearchToolName)
+            {
+                try
+                {
+                    var metadata = await Rpc.Tools.GetCurrentMetadataAsync();
+                    invocation.AvailableTools = metadata.Tools;
+                }
+                catch (Exception ex) when (ex is RemoteRpcException or IOException or ObjectDisposedException or JsonException)
+                {
+                    // A failed metadata fetch is non-fatal: leave AvailableTools
+                    // null so the tool still runs without the snapshot.
+                    LogToolMetadataFetchFailed(ex, toolName);
+                }
+            }
 
             var aiFunctionArgs = new AIFunctionArguments
             {
@@ -1748,15 +1775,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Changes the model for this session.
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
-    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
     /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
     /// <param name="modelCapabilities">Per-property overrides for model capabilities, deep-merged over runtime defaults.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
     /// <code>
-    /// await session.SetModelAsync("gpt-4.1");
+    /// await session.SetModelAsync("gpt-5.4");
     /// await session.SetModelAsync("claude-sonnet-4.6", "high");
-    /// await session.SetModelAsync("gpt-4.1", new SetModelOptions { ContextTier = ContextTier.LongContext });
+    /// await session.SetModelAsync("gpt-5.4", new SetModelOptions { ContextTier = ContextTier.LongContext });
     /// </code>
     /// </example>
     public Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
@@ -1775,7 +1802,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Changes the model for this session.
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
-    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
     /// <param name="options">Settings for the new model.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     public async Task SetModelAsync(string model, SetModelOptions options, CancellationToken cancellationToken = default)
@@ -1906,6 +1933,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in session event handler")]
     private partial void LogEventHandlerError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
+    private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
 
     internal record SendMessageRequest
     {

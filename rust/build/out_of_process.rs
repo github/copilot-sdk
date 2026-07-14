@@ -599,7 +599,12 @@ struct DownloadError {
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>, DownloadError> {
+    let connector = native_tls::TlsConnector::new().map_err(|e| DownloadError {
+        message: format!("native-tls init error: {e}"),
+        transient: false,
+    })?;
     let agent = ureq::AgentBuilder::new()
+        .tls_connector(std::sync::Arc::new(connector))
         .timeout_connect(Duration::from_secs(30))
         .timeout_read(Duration::from_secs(120))
         .build();

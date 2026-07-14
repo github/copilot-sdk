@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <h2>Example: Custom Result</h2>
  *
  * <pre>{@code
- * return new ToolResultObject("success", "Result text", null, null, null, null);
+ * return new ToolResultObject("success", "Result text", null, null, null, null, null);
  * }</pre>
  *
  * @param resultType
@@ -46,6 +46,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *            the session log text
  * @param toolTelemetry
  *            the tool telemetry data
+ * @param toolReferences
+ *            names of tools returned by a tool-search tool
  * @see ToolHandler
  * @see ToolBinaryResult
  * @since 1.0.0
@@ -55,7 +57,33 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
         @JsonProperty("textResultForLlm") String textResultForLlm,
         @JsonProperty("binaryResultsForLlm") List<ToolBinaryResult> binaryResultsForLlm,
         @JsonProperty("error") String error, @JsonProperty("sessionLog") String sessionLog,
-        @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry) {
+        @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
+        @JsonProperty("toolReferences") List<String> toolReferences) {
+
+    /**
+     * Creates a result without tool references.
+     * <p>
+     * Provided for source and binary compatibility with callers written or compiled
+     * before the {@code toolReferences} component was added. Delegates to the
+     * canonical constructor with {@code toolReferences} set to {@code null}.
+     *
+     * @param resultType
+     *            the result type ("success" or "error"), defaults to "success"
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param binaryResultsForLlm
+     *            the list of binary results to be sent to the LLM
+     * @param error
+     *            the error message, or {@code null} if successful
+     * @param sessionLog
+     *            the session log text
+     * @param toolTelemetry
+     *            the tool telemetry data
+     */
+    public ToolResultObject(String resultType, String textResultForLlm, List<ToolBinaryResult> binaryResultsForLlm,
+            String error, String sessionLog, Map<String, Object> toolTelemetry) {
+        this(resultType, textResultForLlm, binaryResultsForLlm, error, sessionLog, toolTelemetry, null);
+    }
 
     /**
      * Creates a success result with the given text.
@@ -65,7 +93,7 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
      * @return a success result
      */
     public static ToolResultObject success(String textResultForLlm) {
-        return new ToolResultObject("success", textResultForLlm, null, null, null, null);
+        return new ToolResultObject("success", textResultForLlm, null, null, null, null, null);
     }
 
     /**
@@ -76,7 +104,7 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
      * @return an error result
      */
     public static ToolResultObject error(String error) {
-        return new ToolResultObject("error", null, null, error, null, null);
+        return new ToolResultObject("error", null, null, error, null, null, null);
     }
 
     /**
@@ -89,7 +117,7 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
      * @return an error result
      */
     public static ToolResultObject error(String textResultForLlm, String error) {
-        return new ToolResultObject("error", textResultForLlm, null, error, null, null);
+        return new ToolResultObject("error", textResultForLlm, null, error, null, null, null);
     }
 
     /**
@@ -106,6 +134,6 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
      * @return a failure result
      */
     public static ToolResultObject failure(String textResultForLlm, String error) {
-        return new ToolResultObject("failure", textResultForLlm, null, error, null, null);
+        return new ToolResultObject("failure", textResultForLlm, null, error, null, null, null);
     }
 }

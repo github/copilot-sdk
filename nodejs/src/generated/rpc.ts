@@ -7610,6 +7610,7 @@ export interface ModelBilling {
    * Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models.
    */
   discountPercent?: number;
+  promo?: ModelBillingPromo;
 }
 /**
  * Token-level pricing information for this model
@@ -7693,6 +7694,31 @@ export interface ModelBillingTokenPricesLongContext {
    * Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens.
    */
   maxPromptTokens?: number;
+}
+/**
+ * Active server-driven promotion for a model, including its discount and expiry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelBillingPromo".
+ */
+/** @experimental */
+export interface ModelBillingPromo {
+  /**
+   * Stable identifier for the promotion campaign.
+   */
+  id?: string;
+  /**
+   * Percentage discount (0-100) applied while the promotion is active. May be fractional.
+   */
+  discountPercent?: number;
+  /**
+   * UTC ISO 8601 timestamp marking when the promotion ends. Always present: the API only surfaces a promo whose expiry parses and is in the future. Consumers should treat a past value as expired.
+   */
+  endsAt: string;
+  /**
+   * Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it.
+   */
+  message?: string;
 }
 /**
  * Optional capability overrides (vision, tool_calls, reasoning, etc.).

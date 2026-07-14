@@ -9,6 +9,7 @@
     <_CopilotOs Condition="'$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('win'))">win</_CopilotOs>
     <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('osx'))">osx</_CopilotOs>
     <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('maccatalyst'))">osx</_CopilotOs>
+    <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('linux-musl'))">linux-musl</_CopilotOs>
     <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != ''">linux</_CopilotOs>
 
     <!-- Determine arch: from RID suffix if set, otherwise from build host -->
@@ -22,7 +23,7 @@
 
   <!-- Fail if we couldn't determine a portable RID from the given RuntimeIdentifier -->
   <Target Name="_ValidateCopilotRid" BeforeTargets="BeforeBuild" Condition="'$(RuntimeIdentifier)' != '' And '$(_CopilotRid)' == ''">
-    <Error Text="Could not determine a supported portable RID from RuntimeIdentifier '$(RuntimeIdentifier)'. Supported RIDs: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
+    <Error Text="Could not determine a supported portable RID from RuntimeIdentifier '$(RuntimeIdentifier)'. Supported RIDs: win-x64, win-arm64, linux-x64, linux-arm64, linux-musl-x64, linux-musl-arm64, osx-x64, osx-arm64." />
   </Target>
 
   <!-- Map RID to platform name used in npm packages -->
@@ -31,6 +32,8 @@
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-arm64'">win32-arm64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-x64'">linux-x64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-arm64'">linux-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-musl-x64'">linuxmusl-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-musl-arm64'">linuxmusl-arm64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-x64'">darwin-x64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
     <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>

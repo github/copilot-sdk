@@ -5,7 +5,19 @@ import os
 import pytest
 import pytest_asyncio
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, is_inprocess_transport
+
+# Host-side auth resolution ranks HMAC above the GitHub token, so an ambient
+# COPILOT_HMAC_KEY (CI sets one as a job-level credential) would be picked over
+# the token the replay snapshots expect, yielding 401s. For the in-process
+# transport the runtime is hosted in this test process and can capture the key as
+# early as client construction, so neutralize it at module load — the analogue of
+# .NET's InProcessEnvIsolation [ModuleInitializer] and Node's module-init guard.
+# Out-of-process children resolve auth in their own process where the token already
+# outranks HMAC. See https://github.com/github/copilot-sdk/issues/1934.
+if is_inprocess_transport():
+    os.environ.pop("COPILOT_HMAC_KEY", None)
+    os.environ.pop("CAPI_HMAC_KEY", None)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

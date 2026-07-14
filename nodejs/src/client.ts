@@ -644,6 +644,32 @@ export class CopilotClient {
                     "constructing the client instead."
             );
         }
+        if (conn.kind === "inprocess" && options.env !== undefined) {
+            throw new Error(
+                "env is not supported with RuntimeConnection.forInProcess(): the in-process transport loads " +
+                    "the native runtime into the shared host process, whose single environment block cannot " +
+                    "carry per-client values. Set the variables on the host process environment instead."
+            );
+        }
+        if (conn.kind === "inprocess" && options.telemetry !== undefined) {
+            throw new Error(
+                "telemetry is not supported with RuntimeConnection.forInProcess(): telemetry configuration " +
+                    "is lowered to environment variables read by native runtime code running in the shared " +
+                    "host process, so per-client telemetry cannot be honored in-process. Configure telemetry " +
+                    "via the host process environment, or use a child-process transport."
+            );
+        }
+        if (
+            (conn.kind === "stdio" || conn.kind === "tcp") &&
+            conn.env !== undefined &&
+            options.env !== undefined
+        ) {
+            throw new Error(
+                "Set environment variables via either the client-level env option or the connection's env " +
+                    "(RuntimeConnection.forStdio/forTcp), not both. Prefer the connection-level env for " +
+                    "child-process transports."
+            );
+        }
         if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
             if (typeof conn.connectionToken !== "string" || conn.connectionToken.length === 0) {
                 throw new Error("connectionToken must be a non-empty string");
@@ -681,7 +707,13 @@ export class CopilotClient {
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
 
-        const effectiveEnv = options.env ?? process.env;
+        // Connection-level env (child-process transports only) takes precedence
+        // over the client-level env, which falls back to the ambient process env.
+        // The constructor guard above rejects setting both, so at most one of the
+        // first two is defined. Mirrors .NET/Python precedence.
+        const connEnv: Record<string, string> | undefined =
+            conn.kind === "stdio" || conn.kind === "tcp" ? conn.env : undefined;
+        const effectiveEnv = connEnv ?? options.env ?? process.env;
         this.resolvedEnv = effectiveEnv;
         this.resolvedCliPath =
             conn.kind === "stdio" || conn.kind === "tcp"
@@ -1491,6 +1523,7 @@ export class CopilotClient {
                     defer: tool.defer,
                     metadata: tool.metadata,
                 })),
+                toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
@@ -1710,6 +1743,7 @@ export class CopilotClient {
                     defer: tool.defer,
                     metadata: tool.metadata,
                 })),
+                toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
@@ -2526,17 +2560,7 @@ export class CopilotClient {
         }
     }
 
-    /**
-     * Start the in-process FFI runtime host: resolve the CLI entrypoint and native
-     * runtime library, then let the native host spawn the CLI worker.
-     *
-     * The worker inherits this host process's ambient environment; per-client options
-     * that lower to environment variables (`env`, `telemetry`, `gitHubToken`,
-     * `baseDirectory`) are intentionally not applied here, because the native runtime
-     * loads into the shared host process and a single env block cannot carry per-client
-     * values. Configure the in-process runtime via the host process environment instead.
-     * See https://github.com/github/copilot-sdk/issues/1934.
-     */
+    /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
         const entrypoint = this.resolveCliPathForFfi();
         // Load the FFI host lazily so the native `koffi` addon (and its
@@ -2545,7 +2569,40 @@ export class CopilotClient {
         // The transpiled output is per-file (not bundled), so this resolves the
         // sibling module at runtime in both the ESM and CJS builds.
         const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
-        const host = FfiRuntimeHost.create(entrypoint, CopilotClient.getNapiPrebuildsFolder());
+        const environment: Record<string, string> = {};
+        if (this.options.gitHubToken) {
+            environment.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
+        }
+        if (this.options.baseDirectory) {
+            environment.COPILOT_HOME = this.options.baseDirectory;
+        }
+        if (this.options.mode === "empty") {
+            environment.COPILOT_DISABLE_KEYTAR = "1";
+        }
+
+        const args: string[] = [];
+        if (this.options.logLevel) {
+            args.push("--log-level", this.options.logLevel);
+        }
+        if (this.options.gitHubToken) {
+            args.push("--auth-token-env", "COPILOT_SDK_AUTH_TOKEN");
+        }
+        if (!this.options.useLoggedInUser) {
+            args.push("--no-auto-login");
+        }
+        if (this.options.sessionIdleTimeoutSeconds > 0) {
+            args.push("--session-idle-timeout", this.options.sessionIdleTimeoutSeconds.toString());
+        }
+        if (this.options.enableRemoteSessions) {
+            args.push("--remote");
+        }
+
+        const host = FfiRuntimeHost.create(
+            entrypoint,
+            CopilotClient.getNapiPrebuildsFolder(entrypoint),
+            environment,
+            args
+        );
         this.ffiHost = host;
         await host.start();
     }
@@ -2579,14 +2636,34 @@ export class CopilotClient {
     /**
      * Returns the napi prebuilds folder name for the current host — the
      * `<node-platform>-<arch>` convention (e.g. `win32-x64`, `darwin-arm64`,
-     * `linux-x64`) under which the runtime ships `prebuilds/<folder>/runtime.node`.
+     * `linux-x64`, `linuxmusl-x64`) under which the runtime ships
+     * `prebuilds/<folder>/runtime.node`.
      */
-    private static getNapiPrebuildsFolder(): string {
+    private static getNapiPrebuildsFolder(entrypoint: string): string {
         const arch = process.arch;
         if (arch !== "x64" && arch !== "arm64") {
             throw new Error(`Unsupported architecture '${arch}' for in-process FFI hosting.`);
         }
-        return `${process.platform}-${arch}`;
+        let platform: string = process.platform;
+        if (platform === "linux" && CopilotClient.isMusl(entrypoint)) {
+            platform = "linuxmusl";
+        }
+        return `${platform}-${arch}`;
+    }
+
+    private static isMusl(entrypoint: string): boolean {
+        if (entrypoint.includes(`copilot-linuxmusl-${process.arch}`)) {
+            return true;
+        }
+        if (entrypoint.includes(`copilot-linux-${process.arch}`)) {
+            return false;
+        }
+        const report = process.report?.getReport();
+        const header =
+            report && "header" in report
+                ? (report.header as { glibcVersionRuntime?: string })
+                : undefined;
+        return header !== undefined && header.glibcVersionRuntime === undefined;
     }
 
     /**

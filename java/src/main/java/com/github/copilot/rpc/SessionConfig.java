@@ -80,6 +80,7 @@ public class SessionConfig {
     private List<String> instructionDirectories;
     private List<String> pluginDirectories;
     private LargeToolOutputConfig largeOutput;
+    private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
     private String configDirectory;
@@ -1131,6 +1132,28 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the tool-search override configuration.
+     *
+     * @return the tool-search config, or {@code null} for the runtime default
+     */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /**
+     * Sets the tool-search override configuration. When {@code null}, the runtime
+     * default tool-search behavior applies.
+     *
+     * @param toolSearch
+     *            the tool-search config
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
+        return this;
+    }
+
+    /**
      * Gets the configuration for session memory.
      *
      * @return the memory config, or {@code null} for default
@@ -1964,6 +1987,7 @@ public class SessionConfig {
                 : null;
         copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
         copy.largeOutput = this.largeOutput;
+        copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDirectory = this.configDirectory;

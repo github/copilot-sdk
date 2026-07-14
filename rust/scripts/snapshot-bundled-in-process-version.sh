@@ -27,6 +27,8 @@ PACKAGES=(
   "copilot-darwin-x64"
   "copilot-linux-arm64"
   "copilot-linux-x64"
+  "copilot-linuxmusl-arm64"
+  "copilot-linuxmusl-x64"
   "copilot-win32-arm64"
   "copilot-win32-x64"
 )

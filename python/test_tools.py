@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from copilot import define_tool
+from copilot.generated.rpc import ExternalToolTextResultForLlm
 from copilot.tools import (
     ToolInvocation,
     ToolResult,
@@ -512,3 +513,40 @@ class TestConvertMcpCallToolResult:
         result = _normalize_result({"content": [{"type": "text", "text": "hello"}]})
         parsed = json.loads(result.text_result_for_llm)
         assert parsed == {"content": [{"type": "text", "text": "hello"}]}
+
+
+class TestToolReferences:
+    def test_tool_references_pass_through_normalize(self):
+        input_result = ToolResult(
+            text_result_for_llm="found 2 tools",
+            result_type="success",
+            tool_references=["get_weather", "check_status"],
+        )
+        result = _normalize_result(input_result)
+        assert result.tool_references == ["get_weather", "check_status"]
+
+    def test_tool_references_serialized_to_wire(self):
+        wire = ExternalToolTextResultForLlm(
+            text_result_for_llm="found 2 tools",
+            result_type="success",
+            tool_references=["get_weather", "check_status"],
+        )
+        data = wire.to_dict()
+        assert data["toolReferences"] == ["get_weather", "check_status"]
+
+    def test_tool_references_omitted_when_none(self):
+        wire = ExternalToolTextResultForLlm(
+            text_result_for_llm="ok",
+            result_type="success",
+        )
+        assert "toolReferences" not in wire.to_dict()
+
+    def test_tool_references_round_trip_from_wire(self):
+        wire = ExternalToolTextResultForLlm.from_dict(
+            {
+                "textResultForLlm": "found tools",
+                "resultType": "success",
+                "toolReferences": ["alpha", "beta"],
+            }
+        )
+        assert wire.tool_references == ["alpha", "beta"]

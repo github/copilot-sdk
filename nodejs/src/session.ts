@@ -13,6 +13,7 @@ import { createSessionRpc } from "./generated/rpc.js";
 import type {
     ClientSessionApiHandlers,
     CanvasActionInvokeResult,
+    CurrentToolMetadata,
     McpOauthPendingRequestResponse,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
@@ -96,6 +97,8 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
+const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
+
 /**
  * Represents a single conversation session with the Copilot CLI.
  *
@@ -121,6 +124,12 @@ export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.mes
  * await session.disconnect();
  * ```
  */
+/**
+ * Fixed name of the runtime's built-in tool-search tool. A client can replace
+ * its behavior by registering a {@link Tool} with this exact name and
+ * `overridesBuiltInTool: true`.
+ */
+
 export class CopilotSession {
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
@@ -606,11 +615,26 @@ export class CopilotSession {
         tracestate?: string
     ): Promise<void> {
         try {
+            // The built-in tool-search tool receives a snapshot of the session's
+            // currently initialized tools so an override can filter the live
+            // catalog without issuing its own RPC. Fetch it only for that tool
+            // to avoid a round-trip on every tool call; a failed fetch simply
+            // leaves the snapshot undefined rather than failing the tool.
+            let availableTools: CurrentToolMetadata[] | undefined;
+            if (toolName === TOOL_SEARCH_TOOL_NAME) {
+                try {
+                    const metadata = await this.rpc.tools.getCurrentMetadata();
+                    availableTools = metadata.tools ?? undefined;
+                } catch {
+                    availableTools = undefined;
+                }
+            }
             const rawResult = await handler(args, {
                 sessionId: this.sessionId,
                 toolCallId,
                 toolName,
                 arguments: args,
+                availableTools,
                 traceparent,
                 tracestate,
             });
@@ -1348,7 +1372,7 @@ export class CopilotSession {
      *
      * @example
      * ```typescript
-     * await session.setModel("gpt-4.1");
+     * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      * ```
      */
