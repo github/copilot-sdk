@@ -100,7 +100,7 @@ async def _wait_for_mcp_server_status(
 
 
 @pytest.mark.skip(
-    reason="Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race"
+    reason="Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race",
 )
 class TestMcpOAuth:
     async def test_should_satisfy_mcp_oauth_using_host_provided_token(self, ctx: E2ETestContext):
