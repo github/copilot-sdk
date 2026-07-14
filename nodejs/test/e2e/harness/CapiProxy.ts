@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { ChildProcess, spawn } from "child_process";
 import { resolve } from "path";
 import { createInterface } from "readline";
 import { expect } from "vitest";
@@ -21,6 +21,7 @@ interface ProxyStartupInfo {
 export class CapiProxy {
     private proxyUrl: string | undefined;
     private startupInfo: ProxyStartupInfo | undefined;
+    private serverProcess: ChildProcess | undefined;
 
     /**
      * Returns the URL of the running proxy. Throws if the proxy has not been started.
@@ -37,6 +38,7 @@ export class CapiProxy {
             stdio: ["ignore", "pipe", "inherit"],
             shell: true,
         });
+        this.serverProcess = serverProcess;
 
         this.startupInfo = await new Promise<ProxyStartupInfo>((resolve, reject) => {
             const stdout = serverProcess.stdout!;
@@ -122,11 +124,34 @@ export class CapiProxy {
     }
 
     async stop(skipWritingCache?: boolean): Promise<void> {
+        const process = this.serverProcess;
+        if (!process) {
+            return;
+        }
+
         const url = skipWritingCache
             ? `${this.proxyUrl}/stop?skipWritingCache=true`
             : `${this.proxyUrl}/stop`;
-        const response = await fetch(url, { method: "POST" });
-        expect(response.ok).toBe(true);
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            try {
+                const response = await fetch(url, { method: "POST", signal: controller.signal });
+                expect(response.ok).toBe(true);
+            } finally {
+                clearTimeout(timeout);
+            }
+        } catch {
+            // Best-effort graceful stop; process termination below is the hard guarantee.
+        }
+
+        if (!(await waitForProcessExit(process, 5000))) {
+            process.kill();
+            await waitForProcessExit(process, 5000);
+        }
+        this.serverProcess = undefined;
+        this.proxyUrl = undefined;
+        this.startupInfo = undefined;
     }
 
     /**
@@ -142,6 +167,26 @@ export class CapiProxy {
         });
         expect(res.ok).toBe(true);
     }
+
+}
+
+// Wait for proxy child exit so teardown doesn't leave hanging harness processes.
+async function waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<boolean> {
+    if (process.exitCode !== null || process.signalCode !== null) {
+        return true;
+    }
+    return await new Promise<boolean>((resolve) => {
+        const onExit = () => {
+            clearTimeout(timer);
+            process.off("exit", onExit);
+            resolve(true);
+        };
+        const timer = setTimeout(() => {
+            process.off("exit", onExit);
+            resolve(false);
+        }, timeoutMs);
+        process.once("exit", onExit);
+    });
 }
 
 function tryParseStartupInfo(line: string): ProxyStartupInfo | undefined {

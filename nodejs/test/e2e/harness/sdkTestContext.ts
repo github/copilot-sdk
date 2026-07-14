@@ -291,7 +291,18 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
-        await copilotClient.stop();
+        const stopResult = await stopClientWithFallback(copilotClient, {
+            timeoutMs: isInProcess && process.platform === "win32" ? 10_000 : undefined,
+        });
+        if (stopResult.timedOut) {
+            console.warn("WARN: Copilot client stop timed out during e2e cleanup; force-stopped.");
+        } else if (stopResult.errors.length > 0) {
+            console.warn(
+                `WARN: Copilot client stop returned ${stopResult.errors.length} cleanup error(s): ${stopResult.errors
+                    .map((error) => error.message)
+                    .join("; ")}`
+            );
+        }
         await openAiEndpoint.stop(anyTestFailed);
         await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
         await rmDir("remove e2e test homeDir", homeDir);
@@ -333,4 +344,25 @@ async function rmDir(message: string, path: string): Promise<void> {
             `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`
         );
     }
+}
+
+async function stopClientWithFallback(
+    client: CopilotClient,
+    options: { timeoutMs?: number } = {}
+): Promise<{ timedOut: boolean; errors: Error[] }> {
+    const stopPromise = client.stop();
+    if (!options.timeoutMs) {
+        return { timedOut: false, errors: await stopPromise };
+    }
+
+    const timeoutPromise = new Promise<"timeout">((resolve) =>
+        setTimeout(() => resolve("timeout"), options.timeoutMs)
+    );
+    const result = await Promise.race([stopPromise, timeoutPromise]);
+    if (result === "timeout") {
+        stopPromise.catch(() => undefined);
+        await client.forceStop();
+        return { timedOut: true, errors: [] };
+    }
+    return { timedOut: false, errors: result };
 }
