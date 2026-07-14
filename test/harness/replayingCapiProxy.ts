@@ -959,7 +959,10 @@ function normalizeModelRequest(
 ): string {
   switch (protocol) {
     case "anthropic-messages":
-      return anthropicMessagesRequestToChatCompletion(requestBody);
+      return coalesceAdjacentUserMessages(
+        anthropicMessagesRequestToChatCompletion(requestBody),
+        true,
+      );
     case "openai-responses":
       return coalesceAdjacentUserMessages(
         responsesApiRequestToChatCompletion(requestBody),

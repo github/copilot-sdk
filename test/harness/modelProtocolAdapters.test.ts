@@ -522,6 +522,57 @@ describe("protocol-aware replay", () => {
     }
   });
 
+  test("normalizes Anthropic spacing for adjacent user turns", async () => {
+    await writeFile(
+      cachePath,
+      yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "First prompt" },
+              { role: "user", content: "Recovery prompt" },
+              { role: "assistant", content: "Recovered" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData),
+    );
+    const proxy = new ReplayingCapiProxy(
+      "http://localhost:9999",
+      cachePath,
+      workDir,
+    );
+    const proxyUrl = await proxy.start();
+    await proxy.updateConfig({
+      filePath: cachePath,
+      workDir,
+      backend: "anthropic-messages",
+    });
+
+    try {
+      const response = await fetch(`${proxyUrl}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "test-model",
+          system: "Be helpful",
+          messages: [
+            {
+              role: "user",
+              content: "First prompt\n\n\n\n\nRecovery prompt",
+            },
+          ],
+          max_tokens: 128,
+        }),
+      });
+      expect(response.status).toBe(200);
+    } finally {
+      await proxy.stop(true);
+    }
+  });
+
   test.each([
     {
       backend: "anthropic-messages" as ReplayBackend,
