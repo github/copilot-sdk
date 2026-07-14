@@ -1945,12 +1945,12 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * <pre>{@code
-     * session.setModel("gpt-4.1").get();
+     * session.setModel("gpt-5.4").get();
      * session.setModel("claude-sonnet-4.6", "high").get();
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
      *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
@@ -1980,7 +1980,7 @@ public final class CopilotSession implements AutoCloseable {
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
      *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
@@ -2005,7 +2005,7 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level; {@code null} to use default
      * @param reasoningSummary
@@ -2053,11 +2053,11 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * <pre>{@code
-     * session.setModel("gpt-4.1").get();
+     * session.setModel("gpt-5.4").get();
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated

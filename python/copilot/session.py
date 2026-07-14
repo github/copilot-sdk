@@ -2892,7 +2892,7 @@ class CopilotSession:
         is preserved.
 
         Args:
-            model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+            model: Model ID to switch to (e.g., "gpt-5.4", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
             reasoning_summary: Optional reasoning summary mode for supported
@@ -2906,7 +2906,7 @@ class CopilotSession:
             Exception: If the session has been destroyed or the connection fails.
 
         Example:
-            >>> await session.set_model("gpt-4.1")
+            >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
         """
         rpc_caps = None

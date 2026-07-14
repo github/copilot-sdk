@@ -31,7 +31,7 @@
  * try (var client = new CopilotClient()) {
  * 	client.start().get();
  *
- * 	var session = client.createSession(new SessionConfig().setModel("gpt-4.1")).get();
+ * 	var session = client.createSession(new SessionConfig().setModel("gpt-5.4")).get();
  *
  * 	session.on(AssistantMessageEvent.class, msg -> {
  * 		System.out.println(msg.getData().content());

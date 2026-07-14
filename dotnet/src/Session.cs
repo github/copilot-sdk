@@ -1775,15 +1775,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Changes the model for this session.
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
-    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
     /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
     /// <param name="modelCapabilities">Per-property overrides for model capabilities, deep-merged over runtime defaults.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
     /// <code>
-    /// await session.SetModelAsync("gpt-4.1");
+    /// await session.SetModelAsync("gpt-5.4");
     /// await session.SetModelAsync("claude-sonnet-4.6", "high");
-    /// await session.SetModelAsync("gpt-4.1", new SetModelOptions { ContextTier = ContextTier.LongContext });
+    /// await session.SetModelAsync("gpt-5.4", new SetModelOptions { ContextTier = ContextTier.LongContext });
     /// </code>
     /// </example>
     public Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
@@ -1802,7 +1802,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Changes the model for this session.
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
-    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
     /// <param name="options">Settings for the new model.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     public async Task SetModelAsync(string model, SetModelOptions options, CancellationToken cancellationToken = default)

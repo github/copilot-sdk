@@ -80,7 +80,7 @@
  * <h2>Usage Example</h2>
  *
  * <pre>{@code
- * var config = new SessionConfig().setModel("gpt-4.1").setStreaming(true)
+ * var config = new SessionConfig().setModel("gpt-5.4").setStreaming(true)
  * 		.setSystemMessage(new SystemMessageConfig().setMode(SystemMessageMode.APPEND)
  * 				.setContent("Be concise in your responses."))
  * 		.setTools(List.of(ToolDefinition.create("my_tool", "Description", schema, handler)));
