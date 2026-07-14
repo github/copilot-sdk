@@ -66,7 +66,8 @@ func PrebuildsFolder() string {
 //  2. The natural platform library name next to the CLI (flat package layout).
 //  3. prebuilds/<platform>/runtime.node next to the CLI (dev/package layout).
 //
-// It returns an error when neither exists.
+// Versioned embedded CLIs require their exactly matching versioned library.
+// Unversioned entrypoints fall back to the flat and package layouts.
 func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 	abs, err := filepath.Abs(cliEntrypoint)
 	if err != nil {
@@ -74,8 +75,13 @@ func ResolveLibraryPath(cliEntrypoint string) (string, error) {
 	}
 	dir := filepath.Dir(abs)
 
-	if versioned := versionedLibraryPathForEntrypoint(abs); versioned != "" && fileExists(versioned) {
-		return versioned, nil
+	if versioned := versionedLibraryPathForEntrypoint(abs); versioned != "" {
+		if fileExists(versioned) {
+			return versioned, nil
+		}
+		return "", fmt.Errorf(
+			"in-process FFI runtime library matching versioned CLI %q not found at %q",
+			abs, versioned)
 	}
 
 	flat := filepath.Join(dir, NaturalLibraryName())

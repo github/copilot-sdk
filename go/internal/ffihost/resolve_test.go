@@ -25,7 +25,7 @@ func TestVersionedLibraryPathForEntrypoint(t *testing.T) {
 	}
 }
 
-func TestResolveLibraryPathPrefersMatchingVersion(t *testing.T) {
+func TestResolveLibraryPathRequiresMatchingVersion(t *testing.T) {
 	dir := t.TempDir()
 	cliName := "copilot_1.2.3"
 	if filepath.Ext(NaturalLibraryName()) == ".dll" {
@@ -47,6 +47,30 @@ func TestResolveLibraryPathPrefersMatchingVersion(t *testing.T) {
 	}
 	if got != versionedPath {
 		t.Fatalf("ResolveLibraryPath() = %q, want %q", got, versionedPath)
+	}
+}
+
+func TestResolveLibraryPathRejectsFlatLibraryForVersionedCLI(t *testing.T) {
+	dir := t.TempDir()
+	cliName := "copilot_1.2.3"
+	if filepath.Ext(NaturalLibraryName()) == ".dll" {
+		cliName += ".exe"
+	}
+	cliPath := filepath.Join(dir, cliName)
+	flatPath := filepath.Join(dir, NaturalLibraryName())
+
+	for _, path := range []string{cliPath, flatPath} {
+		if err := os.WriteFile(path, []byte("test"), 0600); err != nil {
+			t.Fatalf("WriteFile(%q): %v", path, err)
+		}
+	}
+
+	_, err := ResolveLibraryPath(cliPath)
+	if err == nil {
+		t.Fatal("ResolveLibraryPath() succeeded with a flat library for a versioned CLI")
+	}
+	if !strings.Contains(err.Error(), filepath.Base(versionedLibraryPathForEntrypoint(cliPath))) {
+		t.Fatalf("ResolveLibraryPath() error = %q, want matching versioned library path", err)
 	}
 }
 
