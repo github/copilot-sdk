@@ -222,6 +222,135 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 Sub-agent events share the parent session stream and include envelope-level `agentId`. Root/main agent events and session-level events omit `agentId`, so main-chat renderers can ignore assistant events where `agentId` is set and route those events to traces or progress UI instead.
 
+<details open>
+<summary><strong>TypeScript</strong></summary>
+
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+export function subscribeParentResponse(session: CopilotSession): void {
+    session.on("assistant.message_delta", (event) => {
+        if (!event.agentId) {
+            process.stdout.write(event.data.deltaContent);
+        }
+    });
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotSession, SessionEvent, SessionEventType
+from copilot.session_events import AssistantMessageDeltaData
+
+
+def subscribe_parent_response(session: CopilotSession) -> None:
+    def handle(event: SessionEvent) -> None:
+        if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA and event.agent_id is None:
+            data = event.data
+            if isinstance(data, AssistantMessageDeltaData):
+                print(data.delta_content, end="", flush=True)
+
+    session.on(handle)
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+package example
+
+import (
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func subscribeParentResponse(session *copilot.Session) {
+	session.On(func(event copilot.SessionEvent) {
+		if event.AgentID != nil {
+			return
+		}
+
+		if d, ok := event.Data.(*copilot.AssistantMessageDeltaData); ok {
+			fmt.Print(d.DeltaContent)
+		}
+	})
+}
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using System;
+using GitHub.Copilot;
+
+static class ParentAgentResponseExample
+{
+    public static void SubscribeParentResponse(CopilotSession session)
+    {
+        session.On<AssistantMessageDeltaEvent>(evt =>
+        {
+            if (evt.AgentId is null)
+            {
+                Console.Write(evt.Data.DeltaContent);
+            }
+        });
+    }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
+
+final class ParentAgentResponseExample {
+    static void subscribeParentResponse(CopilotSession session) {
+        session.on(AssistantMessageDeltaEvent.class, event -> {
+            if (event.getAgentId() == null) {
+                System.out.print(event.getData().deltaContent());
+            }
+        });
+    }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+use github_copilot_sdk::session::Session;
+
+async fn subscribe_parent_response(session: &Session) {
+    let mut events = session.subscribe();
+
+    while let Ok(event) = events.recv().await {
+        if event.event_type == "assistant.message_delta" && event.agent_id.is_none() {
+            if let Some(delta) = event.data.get("deltaContent").and_then(|v| v.as_str()) {
+                print!("{delta}");
+            }
+        }
+    }
+}
+```
+
+</details>
+
 ## Assistant events
 
 These events track the agent's response lifecycle—from turn start through streaming chunks to the final message.
