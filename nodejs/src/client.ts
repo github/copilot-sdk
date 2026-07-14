@@ -960,7 +960,8 @@ export class CopilotClient {
         // on shutdown (which frees the handle), and for external servers we don't
         // own the runtime and aborting would cancel pending work other clients
         // may still resume. Remove once the runtime cleans up fully on shutdown.
-        if (this.connectionConfig.kind === "inprocess") {
+        const isInProcess = this.connectionConfig.kind === "inprocess";
+        if (isInProcess) {
             await Promise.allSettled(
                 connectedSessions.map((session) =>
                     withTimeout(
@@ -978,11 +979,14 @@ export class CopilotClient {
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    await withTimeout(
-                        session.disconnect(),
-                        SESSION_DISCONNECT_TIMEOUT_MS,
-                        `session.disconnect timed out after ${SESSION_DISCONNECT_TIMEOUT_MS}ms`
-                    );
+                    const disconnectPromise = session.disconnect();
+                    await (isInProcess
+                        ? withTimeout(
+                              disconnectPromise,
+                              SESSION_DISCONNECT_TIMEOUT_MS,
+                              `session.disconnect timed out after ${SESSION_DISCONNECT_TIMEOUT_MS}ms`
+                          )
+                        : disconnectPromise);
                     lastError = null;
                     break; // Success
                 } catch (error) {

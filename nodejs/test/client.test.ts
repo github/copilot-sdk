@@ -3228,5 +3228,47 @@ describe("CopilotClient", () => {
             expect(connectedSession._markDisconnected).toHaveBeenCalledTimes(1);
             expect(disconnectedSession._markDisconnected).toHaveBeenCalledTimes(1);
         });
+
+        it("bounds stalled in-process session teardown", async () => {
+            vi.useFakeTimers();
+            try {
+                const client = new CopilotClient({
+                    connection: RuntimeConnection.forInProcess(),
+                });
+                const never = () => new Promise<void>(() => {});
+                const session = {
+                    sessionId: "stalled-session",
+                    abort: vi.fn(never),
+                    disconnect: vi.fn(never),
+                    _markDisconnected: vi.fn(),
+                    _isDisconnected: vi.fn(() => false),
+                };
+                (client as any).sessions = new Map([["stalled-session", session]]);
+
+                const stopPromise = client.stop();
+
+                await vi.advanceTimersByTimeAsync(5_000);
+                expect(session.abort).toHaveBeenCalledTimes(1);
+                expect(session.disconnect).toHaveBeenCalledTimes(1);
+
+                await vi.advanceTimersByTimeAsync(5_100);
+                expect(session.disconnect).toHaveBeenCalledTimes(2);
+
+                await vi.advanceTimersByTimeAsync(5_200);
+                expect(session.disconnect).toHaveBeenCalledTimes(3);
+
+                await vi.advanceTimersByTimeAsync(5_000);
+                await expect(stopPromise).resolves.toEqual([
+                    expect.objectContaining({
+                        message:
+                            "Failed to disconnect session stalled-session after 3 attempts: " +
+                            "session.disconnect timed out after 5000ms",
+                    }),
+                ]);
+                expect(session._markDisconnected).toHaveBeenCalledTimes(1);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
     });
 });
