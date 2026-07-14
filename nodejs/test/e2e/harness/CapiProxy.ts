@@ -146,7 +146,11 @@ export class CapiProxy {
         }
 
         if (!(await waitForProcessExit(process, 5000))) {
-            process.kill();
+            try {
+                process.kill();
+            } catch {
+                // Process may have already exited between wait timeout and kill attempt.
+            }
             await waitForProcessExit(process, 5000);
         }
         this.serverProcess = undefined;

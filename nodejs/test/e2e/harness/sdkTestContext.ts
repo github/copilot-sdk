@@ -292,7 +292,9 @@ export async function createSdkTestContext({
 
     afterAll(async () => {
         const stopResult = await stopClientWithFallback(copilotClient, {
-            timeoutMs: isInProcess && process.platform === "win32" ? 10_000 : undefined,
+            // Keep this above the client's runtime-shutdown timeout (10s) so we only
+            // force-stop if graceful teardown has truly stalled.
+            timeoutMs: isInProcess && process.platform === "win32" ? 12_000 : undefined,
         });
         if (stopResult.timedOut) {
             console.warn("WARN: Copilot client stop timed out during e2e cleanup; force-stopped.");
@@ -355,10 +357,14 @@ async function stopClientWithFallback(
         return { timedOut: false, errors: await stopPromise };
     }
 
-    const timeoutPromise = new Promise<"timeout">((resolve) =>
-        setTimeout(() => resolve("timeout"), options.timeoutMs)
-    );
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<"timeout">((resolve) => {
+        timeoutId = setTimeout(() => resolve("timeout"), options.timeoutMs);
+    });
     const result = await Promise.race([stopPromise, timeoutPromise]);
+    if (timeoutId) {
+        clearTimeout(timeoutId);
+    }
     if (result === "timeout") {
         stopPromise.catch(() => undefined);
         await client.forceStop();
