@@ -205,9 +205,7 @@ impl E2eContext {
     /// runtime cdylib), so a `.js` entrypoint is not split into node +
     /// prefix_args here.
     pub async fn start_inprocess_client(&self) -> Client {
-        let options = ClientOptions::new()
-            .with_use_logged_in_user(false)
-            .with_transport(Transport::InProcess);
+        let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)
             .await
             .expect("start in-process FFI E2E client")
@@ -773,7 +771,7 @@ fn client_options_for_cli(
     env: Vec<(OsString, OsString)>,
 ) -> ClientOptions {
     if is_inprocess_default() {
-        return ClientOptions::new().with_use_logged_in_user(false);
+        return ClientOptions::new();
     }
     let options = ClientOptions::new()
         .with_cwd(cwd)
