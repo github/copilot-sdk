@@ -1245,10 +1245,8 @@ impl Client {
                         environment.push(("COPILOT_DISABLE_KEYTAR".to_string(), "1".to_string()));
                     }
                     if let Some(github_token) = &options.github_token {
-                        environment.push((
-                            "COPILOT_SDK_AUTH_TOKEN".to_string(),
-                            github_token.clone(),
-                        ));
+                        environment
+                            .push(("COPILOT_SDK_AUTH_TOKEN".to_string(), github_token.clone()));
                     }
                     let mut args = Vec::new();
                     args.extend(
