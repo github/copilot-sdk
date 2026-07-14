@@ -111,6 +111,7 @@ func (rt *byokCapturingRoundTripper) reset() {
 //  3. per-provider dispatch routes each provider's turn to its own callback, and
 //     the resulting token reaches that provider's endpoint.
 func TestBYOKBearerTokenProvider(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	rt := &byokCapturingRoundTripper{}
 	handler := &copilot.CopilotRequestHandler{Transport: rt}

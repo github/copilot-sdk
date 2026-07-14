@@ -124,15 +124,14 @@ pub enum Transport {
     Stdio,
     /// Host the runtime in-process over FFI (no child process).
     ///
-    /// Loads the native runtime library next to the resolved CLI entrypoint
-    /// and speaks JSON-RPC over its C ABI. The runtime spawns its
-    /// own worker; the SDK never launches a CLI child process. This is
-    /// **experimental**. Per-client [`ClientOptions::working_directory`],
+    /// Loads the native runtime library and speaks JSON-RPC over its C ABI.
+    /// This is **experimental**. Per-client [`ClientOptions::program`],
+    /// [`ClientOptions::extra_args`], [`ClientOptions::working_directory`],
     /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
-    /// [`ClientOptions::telemetry`], and [`ClientOptions::github_token`] are
-    /// not supported because native runtime code shares the host process.
-    /// [`ClientOptions::base_directory`] remains supported because it is
-    /// passed to the spawned worker as `COPILOT_HOME`.
+    /// and [`ClientOptions::telemetry`] are not supported because native
+    /// runtime code shares the host process. Typed runtime options such as
+    /// authentication, log level, and [`ClientOptions::base_directory`] remain
+    /// supported.
     ///
     /// Requires the `bundled-in-process` Cargo feature.
     InProcess,
@@ -227,7 +226,7 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 /// This skips auto-resolution entirely.
 #[non_exhaustive]
 pub struct ClientOptions {
-    /// How to locate the CLI binary.
+    /// How to locate the child-process runtime.
     pub program: CliProgram,
     /// Arguments prepended before `--server` (e.g. the script path for node).
     pub prefix_args: Vec<OsString>,
@@ -239,7 +238,7 @@ pub struct ClientOptions {
     pub env: Vec<(OsString, OsString)>,
     /// Environment variable names to remove from the child process.
     pub env_remove: Vec<OsString>,
-    /// Extra CLI flags appended after the transport-specific arguments.
+    /// Extra flags for child-process transports.
     pub extra_args: Vec<String>,
     /// Transport mode used to communicate with the CLI server.
     pub transport: Transport,
@@ -658,7 +657,7 @@ impl ClientOptions {
         Self::default()
     }
 
-    /// How to locate the CLI binary. See [`CliProgram`].
+    /// How to locate the child-process runtime. See [`CliProgram`].
     pub fn with_program(mut self, program: impl Into<CliProgram>) -> Self {
         self.program = program.into();
         self
@@ -913,6 +912,21 @@ fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
 
 #[cfg(any(feature = "bundled-in-process", test))]
 fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
+    if !matches!(&options.program, CliProgram::Resolve) {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "ClientOptions::program is not supported with Transport::InProcess; \
+             set COPILOT_CLI_PATH only when using an externally provisioned runtime package",
+        ));
+    }
+    if !options.extra_args.is_empty() {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "ClientOptions::extra_args is not supported with Transport::InProcess; \
+             use typed client options instead",
+        ));
+    }
+
     let unsupported = if !options.working_directory.as_os_str().is_empty() {
         Some("working_directory")
     } else if !options.env.is_empty() {
@@ -921,8 +935,6 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         Some("env_remove")
     } else if options.telemetry.is_some() {
         Some("telemetry")
-    } else if options.github_token.is_some() {
-        Some("github_token")
     } else if !options.prefix_args.is_empty() {
         Some("prefix_args")
     } else {
@@ -964,7 +976,7 @@ struct ClientInner {
     child: parking_lot::Mutex<Option<Child>>,
     #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
-    /// Closing it tears down the FFI connection and worker.
+    /// Closing it tears down the native runtime connection.
     ffi_host: parking_lot::Mutex<Option<Arc<crate::ffi::FfiShared>>>,
     rpc: JsonRpcClient,
     cwd: PathBuf,
@@ -1218,7 +1230,7 @@ impl Client {
             Transport::InProcess => {
                 #[cfg(feature = "bundled-in-process")]
                 {
-                    info!(entrypoint = %program.display(), "hosting copilot runtime in-process (FFI)");
+                    info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
                     let mut environment = Vec::new();
                     if let Some(base_directory) = &options.base_directory {
                         let value = base_directory.to_str().ok_or_else(|| {
@@ -1232,6 +1244,10 @@ impl Client {
                     if options.mode == ClientMode::Empty {
                         environment.push(("COPILOT_DISABLE_KEYTAR".to_string(), "1".to_string()));
                     }
+                    if let Some(github_token) = &options.github_token {
+                        environment
+                            .push(("COPILOT_SDK_AUTH_TOKEN".to_string(), github_token.clone()));
+                    }
                     let mut args = Vec::new();
                     args.extend(
                         Self::log_level_args(&options)
@@ -1240,10 +1256,18 @@ impl Client {
                     );
                     args.extend(Self::session_idle_timeout_args(&options));
                     args.extend(Self::remote_args(&options));
-                    if options.use_logged_in_user == Some(false) {
+                    if options.github_token.is_some() {
+                        args.extend([
+                            "--auth-token-env".to_string(),
+                            "COPILOT_SDK_AUTH_TOKEN".to_string(),
+                        ]);
+                    }
+                    let use_logged_in_user = options
+                        .use_logged_in_user
+                        .unwrap_or(options.github_token.is_none());
+                    if !use_logged_in_user {
                         args.push("--no-auto-login".to_string());
                     }
-                    args.extend(options.extra_args.clone());
                     let host = crate::ffi::FfiHost::create(&program, environment, args)?;
                     let (reader, writer, shared) = host.start().await?;
                     let client = Self::from_transport(
@@ -2304,7 +2328,7 @@ impl Client {
             }
         }
 
-        // The runtime.shutdown RPC above already asked the worker to clean up;
+        // The runtime.shutdown RPC above already asked the runtime to clean up;
         // closing here tears down the transport.
         #[cfg(feature = "bundled-in-process")]
         {
@@ -2517,8 +2541,9 @@ mod tests {
             ClientOptions::new().with_env([("KEY", "value")]),
             ClientOptions::new().with_env_remove(["KEY"]),
             ClientOptions::new().with_telemetry(TelemetryConfig::default()),
-            ClientOptions::new().with_github_token("token"),
             ClientOptions::new().with_prefix_args(["index.js"]),
+            ClientOptions::new().with_program(CliProgram::Path("copilot".into())),
+            ClientOptions::new().with_extra_args(["--verbose"]),
         ];
 
         for options in invalid {
@@ -2527,14 +2552,14 @@ mod tests {
     }
 
     #[test]
-    fn inprocess_allows_worker_and_rpc_options() {
+    fn inprocess_allows_typed_runtime_options() {
         let options = ClientOptions::new()
             .with_base_directory("state")
             .with_log_level(LogLevel::Debug)
             .with_session_idle_timeout_seconds(10)
+            .with_github_token("token")
             .with_use_logged_in_user(false)
-            .with_enable_remote_sessions(true)
-            .with_extra_args(["--verbose"]);
+            .with_enable_remote_sessions(true);
 
         assert!(validate_inprocess_options(&options).is_ok());
     }
@@ -2542,13 +2567,9 @@ mod tests {
     #[cfg(not(feature = "bundled-in-process"))]
     #[tokio::test]
     async fn inprocess_requires_cargo_feature() {
-        let error = Client::start(
-            ClientOptions::new()
-                .with_program(CliProgram::Path("copilot".into()))
-                .with_transport(Transport::InProcess),
-        )
-        .await
-        .unwrap_err();
+        let error = Client::start(ClientOptions::new().with_transport(Transport::InProcess))
+            .await
+            .unwrap_err();
 
         assert!(error.to_string().contains("bundled-in-process"));
     }

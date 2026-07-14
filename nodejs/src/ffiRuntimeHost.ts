@@ -97,7 +97,7 @@ function loadLibrary(libraryPath: string): FfiLibrary {
     return loadedLibrary;
 }
 
-function buildArgvJson(cliEntrypoint: string): Buffer {
+function buildArgvJson(cliEntrypoint: string, args: readonly string[]): Buffer {
     // A `.js` entrypoint is launched via node; the packaged single-file CLI binary
     // embeds its own Node and is invoked directly. `--no-auto-update` pins the worker
     // to the bundled pkg matching the loaded cdylib, instead of drifting to a newer
@@ -105,6 +105,7 @@ function buildArgvJson(cliEntrypoint: string): Buffer {
     const argv = cliEntrypoint.toLowerCase().endsWith(".js")
         ? ["node", cliEntrypoint, "--embedded-host", "--no-auto-update"]
         : [cliEntrypoint, "--embedded-host", "--no-auto-update"];
+    argv.push(...args);
     return Buffer.from(JSON.stringify(argv), "utf8");
 }
 
@@ -140,7 +141,8 @@ export class FfiRuntimeHost {
     private constructor(
         private readonly libraryPath: string,
         private readonly cliEntrypoint: string,
-        private readonly environment?: Record<string, string | undefined>
+        private readonly environment: Record<string, string | undefined> | undefined,
+        private readonly args: readonly string[]
     ) {
         this.lib = loadLibrary(libraryPath);
         this.receiveStream = new PassThrough();
@@ -167,7 +169,8 @@ export class FfiRuntimeHost {
     static create(
         cliEntrypoint: string,
         prebuildsFolder: string,
-        environment?: Record<string, string | undefined>
+        environment: Record<string, string | undefined> | undefined,
+        args: readonly string[]
     ): FfiRuntimeHost {
         const fullEntrypoint = resolve(cliEntrypoint);
         const distDir = dirname(fullEntrypoint);
@@ -175,7 +178,7 @@ export class FfiRuntimeHost {
         if (!existsSync(libraryPath)) {
             throw new Error(`FFI runtime library not found. Looked for '${libraryPath}'.`);
         }
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment);
+        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, args);
     }
 
     /**
@@ -183,7 +186,7 @@ export class FfiRuntimeHost {
      * waits for readiness, and opens the FFI JSON-RPC connection.
      */
     async start(): Promise<void> {
-        const argvJson = buildArgvJson(this.cliEntrypoint);
+        const argvJson = buildArgvJson(this.cliEntrypoint, this.args);
         const envJson = buildEnvJson(this.environment);
 
         // The native host spawns the CLI worker itself and has no cwd parameter, so the
