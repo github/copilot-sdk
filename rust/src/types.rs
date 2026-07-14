@@ -107,6 +107,13 @@ pub struct SessionLifecycleEvent {
     pub metadata: Option<SessionLifecycleEventMetadata>,
 }
 
+/// Runtime-owned managed settings payload returned by
+/// [`Client::read_managed_settings`](crate::Client::read_managed_settings).
+///
+/// The SDK treats the payload as opaque JSON and does not reinterpret policy
+/// decisions made by the runtime.
+pub type ManagedSettings = Value;
+
 /// Opaque session identifier assigned by the CLI.
 ///
 /// A newtype wrapper around `String` that provides type safety — prevents
