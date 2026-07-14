@@ -222,33 +222,6 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 
 Sub-agent events share the parent session stream and include envelope-level `agentId`. Root/main agent events and session-level events omit `agentId`, so main-chat renderers can ignore assistant events where `agentId` is set and route those events to traces or progress UI instead.
 
-<details open>
-<summary><strong>TypeScript</strong></summary>
-
-```typescript
-session.on("assistant.message_delta", (event) => {
-    if (!event.agentId) process.stdout.write(event.data.deltaContent);
-});
-```
-
-</details>
-<details>
-<summary><strong>Python</strong></summary>
-
-```python
-from copilot import CopilotSession
-from copilot.session_events import SessionEventType
-
-def subscribe_parent_response(session: CopilotSession):
-    def handle(event):
-        if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA and event.agent_id is None:
-            print(event.data.delta_content, end="", flush=True)
-
-    session.on(handle)
-```
-
-</details>
-
 ## Assistant events
 
 These events track the agent's response lifecycle—from turn start through streaming chunks to the final message.
