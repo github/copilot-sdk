@@ -105,7 +105,8 @@ func (URIConnection) runtimeConnection() {}
 // [TCPConnection]).
 //
 // Experimental: the in-process transport is experimental and its API and
-// behavior may change in a future release.
+// behavior may change in a future release. Build the application with the
+// copilot_inprocess build tag to enable this transport.
 type InProcessConnection struct {
 }
 

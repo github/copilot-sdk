@@ -626,6 +626,18 @@ func TestClient_EnvOptions(t *testing.T) {
 }
 
 func TestClient_InProcessConnection(t *testing.T) {
+	t.Run("requires build tag", func(t *testing.T) {
+		if inProcessAvailable {
+			t.Skip("in-process transport is enabled")
+		}
+
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		err := client.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "-tags copilot_inprocess") {
+			t.Fatalf("Expected build-tag error, got %v", err)
+		}
+	})
+
 	t.Run("uses in-process transport", func(t *testing.T) {
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		if !client.useInProcess {

@@ -83,6 +83,7 @@ jobs:
         if: matrix.transport == 'inprocess'
         run: |
           echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
+          echo "GOFLAGS=-tags=copilot_inprocess" >> "$GITHUB_ENV"
 
       - name: Run Go SDK tests
         env:

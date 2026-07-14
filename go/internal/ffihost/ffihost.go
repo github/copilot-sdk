@@ -1,3 +1,5 @@
+//go:build copilot_inprocess && (darwin || linux || windows)
+
 // Package ffihost hosts the Copilot runtime in-process by loading the native
 // runtime library (runtime.node — a Rust cdylib) and driving JSON-RPC over its
 // C ABI (FFI) instead of spawning the CLI as a child process and talking over

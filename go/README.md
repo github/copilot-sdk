@@ -101,13 +101,19 @@ Follow these steps to embed the CLI:
 
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
 
-The bundler also embeds the native runtime library required by the [in-process transport](#in-process-transport-experimental), so it works out of the box for embedded builds.
+The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
 
 ## In-process transport (Experimental)
 
 > **Experimental:** the in-process API may change in a future release.
 
 By default the SDK starts the runtime as a child process and talks JSON-RPC over stdio or TCP. The **in-process** transport instead loads a native runtime library directly into your process.
+
+Build your application with the `copilot_inprocess` build tag:
+
+```sh
+go build -tags copilot_inprocess
+```
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
@@ -121,6 +127,7 @@ defer client.Stop()
 
 Resolution and requirements:
 
+- The application must be built with the `copilot_inprocess` build tag.
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport when `ClientOptions.Connection` is nil. An explicit connection
   always takes precedence.

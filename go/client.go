@@ -48,7 +48,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
-	"github.com/github/copilot-sdk/go/internal/ffihost"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
@@ -157,7 +156,7 @@ type Client struct {
 	conn             net.Conn // stores net.Conn for external TCP connections
 	useStdio         bool     // resolved value from options
 	useInProcess     bool     // true for InProcessConnection (FFI transport)
-	ffiHost          *ffihost.Host
+	ffiHost          inProcessHost
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -2062,6 +2061,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 // startInProcess loads the native runtime library and wires the JSON-RPC client
 // to its FFI byte streams.
 func (c *Client) startInProcess(ctx context.Context) error {
+	if !inProcessAvailable {
+		return errors.New("in-process transport unavailable: rebuild with -tags copilot_inprocess on a supported platform")
+	}
+
 	runtimePath := c.cliPath
 	if runtimePath == "" {
 		// The in-process transport does not resolve a bare command name from PATH
@@ -2077,7 +2080,7 @@ func (c *Client) startInProcess(ctx context.Context) error {
 		return errors.New("in-process runtime unavailable: set COPILOT_CLI_PATH to a compatible runtime package or build with the bundled embedded runtime")
 	}
 
-	host, err := ffihost.Create(runtimePath, nil)
+	host, err := createInProcessHost(runtimePath)
 	if err != nil {
 		return err
 	}

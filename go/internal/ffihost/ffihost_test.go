@@ -1,3 +1,5 @@
+//go:build copilot_inprocess && (darwin || linux || windows)
+
 package ffihost
 
 import "testing"

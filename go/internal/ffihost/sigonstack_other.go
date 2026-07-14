@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//go:build !darwin && !linux
+//go:build copilot_inprocess && windows
 
 package ffihost
 
