@@ -90,6 +90,36 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         @JsonProperty("metadata") Map<String, Object> metadata) {
 
     /**
+     * Backward-compatible constructor without the {@code metadata} component.
+     * <p>
+     * Delegates to the canonical constructor with {@code metadata} set to
+     * {@code null}. Retained so existing direct constructor call sites (including
+     * previously-generated {@code $$CopilotToolMeta} classes) keep compiling after
+     * {@code metadata} was added.
+     *
+     * @param name
+     *            the unique name of the tool
+     * @param description
+     *            a description of what the tool does
+     * @param parameters
+     *            the JSON Schema for the tool's parameters
+     * @param handler
+     *            the handler function to execute when invoked
+     * @param overridesBuiltInTool
+     *            whether this tool overrides a built-in tool; {@code null} for the
+     *            default
+     * @param skipPermission
+     *            whether the tool may run without a permission check; {@code null}
+     *            for the default
+     * @param defer
+     *            the deferral mode; {@code null} lets the runtime decide
+     */
+    public ToolDefinition(String name, String description, Object parameters, ToolHandler handler,
+            Boolean overridesBuiltInTool, Boolean skipPermission, ToolDefer defer) {
+        this(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer, null);
+    }
+
+    /**
      * Creates a tool definition with a JSON schema for parameters.
      * <p>
      * This is a convenience factory method for creating tools with a
