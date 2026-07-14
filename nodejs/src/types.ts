@@ -1634,8 +1634,8 @@ export interface CustomAgentConfig {
     model?: string;
     /**
      * Reasoning effort level for this agent's model.
-     * When omitted, the runtime inherits an explicit parent session effort.
-     * If the parent effort is also omitted, the backend chooses the effort.
+     * When omitted, no per-agent override is sent and the backend chooses its
+     * default. The parent session effort is not inherited.
      */
     reasoningEffort?: ReasoningEffort;
 }
