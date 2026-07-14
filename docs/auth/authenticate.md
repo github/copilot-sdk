@@ -9,7 +9,7 @@ The GitHub Copilot SDK supports multiple authentication methods to fit different
 | [GitHub Signed-in User](#github-signed-in-user) | Interactive apps where users sign in with GitHub | Yes |
 | [OAuth GitHub App](#oauth-github-app) | Apps acting on behalf of users via OAuth | Yes |
 | [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server | Yes |
-| [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, etc.) | No |
+| [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, and more) | No |
 
 ## GitHub signed-in user
 
@@ -221,7 +221,7 @@ client.start().get();
 
 **Supported token types:**
 * `gho_` - OAuth user access tokens
-* `ghu_` - GitHub App user access tokens  
+* `ghu_` - GitHub App user access tokens
 * `github_pat_` - Fine-grained personal access tokens
 
 **Not supported:**
@@ -275,7 +275,7 @@ await client.start()
 </details>
 
 **When to use:**
-* CI/CD pipelines (GitHub Actions, Jenkins, etc.)
+* CI/CD pipelines (GitHub Actions, Jenkins, and more)
 * Automated testing
 * Server-side applications with service accounts
 * Development when you don't want to use interactive login
