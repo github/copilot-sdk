@@ -3193,5 +3193,40 @@ describe("CopilotClient", () => {
             await expect(externalClient.stop()).resolves.toEqual([]);
             expect(externalSendRequest).not.toHaveBeenCalled();
         });
+
+        it("only aborts and disconnects sessions that are still connected", async () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forInProcess(),
+            });
+
+            const connectedSession = {
+                sessionId: "connected-session",
+                abort: vi.fn(async () => {}),
+                disconnect: vi.fn(async () => {}),
+                _markDisconnected: vi.fn(),
+                _isDisconnected: vi.fn(() => false),
+            };
+            const disconnectedSession = {
+                sessionId: "disconnected-session",
+                abort: vi.fn(async () => {}),
+                disconnect: vi.fn(async () => {}),
+                _markDisconnected: vi.fn(),
+                _isDisconnected: vi.fn(() => true),
+            };
+
+            (client as any).sessions = new Map([
+                ["connected-session", connectedSession],
+                ["disconnected-session", disconnectedSession],
+            ]);
+
+            await expect(client.stop()).resolves.toEqual([]);
+
+            expect(connectedSession.abort).toHaveBeenCalledTimes(1);
+            expect(connectedSession.disconnect).toHaveBeenCalledTimes(1);
+            expect(disconnectedSession.abort).not.toHaveBeenCalled();
+            expect(disconnectedSession.disconnect).not.toHaveBeenCalled();
+            expect(connectedSession._markDisconnected).toHaveBeenCalledTimes(1);
+            expect(disconnectedSession._markDisconnected).toHaveBeenCalledTimes(1);
+        });
     });
 });

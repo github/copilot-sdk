@@ -92,6 +92,8 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
  */
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
+const SESSION_ABORT_TIMEOUT_MS = 5_000;
+const SESSION_DISCONNECT_TIMEOUT_MS = 5_000;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -946,6 +948,7 @@ export class CopilotClient {
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
+        const connectedSessions = activeSessions.filter((session) => !session._isDisconnected());
         // TEMPORARY: over the in-process (FFI) transport the runtime shares this
         // process, so a turn still running when the runtime disposes the session
         // can leave that session's SQLite session.db handle open — it isn't
@@ -958,16 +961,28 @@ export class CopilotClient {
         // own the runtime and aborting would cancel pending work other clients
         // may still resume. Remove once the runtime cleans up fully on shutdown.
         if (this.connectionConfig.kind === "inprocess") {
-            await Promise.allSettled(activeSessions.map((session) => session.abort()));
+            await Promise.allSettled(
+                connectedSessions.map((session) =>
+                    withTimeout(
+                        session.abort(),
+                        SESSION_ABORT_TIMEOUT_MS,
+                        `session.abort timed out after ${SESSION_ABORT_TIMEOUT_MS}ms for ${session.sessionId}`
+                    )
+                )
+            );
         }
-        for (const session of activeSessions) {
+        for (const session of connectedSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
 
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    await session.disconnect();
+                    await withTimeout(
+                        session.disconnect(),
+                        SESSION_DISCONNECT_TIMEOUT_MS,
+                        `session.disconnect timed out after ${SESSION_DISCONNECT_TIMEOUT_MS}ms`
+                    );
                     lastError = null;
                     break; // Success
                 } catch (error) {

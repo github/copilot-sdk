@@ -361,6 +361,11 @@ export class CopilotSession {
         this.transformCallbacks?.clear();
     }
 
+    /** @internal */
+    _isDisconnected(): boolean {
+        return this.disconnected;
+    }
+
     /**
      * Subscribes to events from this session.
      *
