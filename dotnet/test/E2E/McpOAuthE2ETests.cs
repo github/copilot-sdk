@@ -19,7 +19,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     private const string UpscopeToken = ExpectedToken + "-upscope";
     private const string ReauthToken = ExpectedToken + "-reauth";
 
-    [Fact]
+    [Fact(Skip = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race")]
     public async Task Should_Satisfy_MCP_OAuth_Using_Host_Provided_Token()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
@@ -70,7 +70,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         Assert.Contains(requests, request => request.Authorization == $"Bearer {ExpectedToken}");
     }
 
-    [Fact]
+    [Fact(Skip = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race")]
     public async Task Should_Resolve_Pending_MCP_OAuth_Request_With_Direct_Rpc()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
@@ -121,7 +121,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         releaseHandler.SetResult(McpAuthResult.FromToken(new McpAuthToken { AccessToken = ExpectedToken }));
     }
 
-    [Fact]
+    [Fact(Skip = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race")]
     public async Task Should_Request_Replacement_Tokens_Across_MCP_OAuth_Lifecycle()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
@@ -199,7 +199,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         Assert.Contains(requests, request => request.Authorization == $"Bearer {ReauthToken}");
     }
 
-    [Fact]
+    [Fact(Skip = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race")]
     public async Task Should_Cancel_Pending_MCP_OAuth_Request()
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);

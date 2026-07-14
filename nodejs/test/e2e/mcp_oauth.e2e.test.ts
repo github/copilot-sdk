@@ -20,7 +20,8 @@ const REFRESH_TOKEN = `${EXPECTED_TOKEN}-refresh`;
 const UPSCOPE_TOKEN = `${EXPECTED_TOKEN}-upscope`;
 const REAUTH_TOKEN = `${EXPECTED_TOKEN}-reauth`;
 
-describe("MCP OAuth host auth", async () => {
+// Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race.
+describe.skip("MCP OAuth host auth", async () => {
     const { copilotClient: client } = await createSdkTestContext({
         copilotClientOptions: {
             env: {

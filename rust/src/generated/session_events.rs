@@ -964,9 +964,10 @@ pub struct SessionPlanChangedData {
 pub struct SessionTodosChangedData {}
 
 /// Session event "session.memory_changed". Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
+#[doc(hidden)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SessionMemoryChangedData {}
+pub struct SessionMemoryChangedData {}
 
 /// Session event "session.workspace_file_changed". Workspace file change details including path and operation type
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

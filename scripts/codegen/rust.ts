@@ -863,6 +863,7 @@ function emitRustStruct(
 	schema: JSONSchema7,
 	ctx: RustCodegenCtx,
 	description?: string,
+	forcePublicVisibility = false,
 ): void {
 	if (ctx.generatedNames.has(typeName)) return;
 	ctx.generatedNames.add(typeName);
@@ -879,7 +880,11 @@ function emitRustStruct(
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
 	}
-	const structVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
+	if (forcePublicVisibility && isSchemaInternal(schema)) {
+		lines.push("#[doc(hidden)]");
+	}
+	const structVis =
+		forcePublicVisibility || !isSchemaInternal(schema) ? "pub" : "pub(crate)";
 
 	// Resolve field types up-front so we can decide whether `Default` can be
 	// derived. A required field whose bare type is non-default-able (e.g. an
@@ -1132,6 +1137,7 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 			variant.dataSchema,
 			ctx,
 			variant.description,
+			true,
 		);
 	}
 

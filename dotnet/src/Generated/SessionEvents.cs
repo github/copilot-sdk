@@ -418,7 +418,7 @@ internal sealed partial class SessionMemoryChangedEvent : SessionEvent
 
     /// <summary>The <c>session.memory_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
-    internal required SessionMemoryChangedData Data { get; set; }
+    public required SessionMemoryChangedData Data { get; set; }
 }
 
 /// <summary>Workspace file change details including path and operation type.</summary>

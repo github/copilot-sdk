@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -45,6 +46,7 @@ import com.github.copilot.rpc.McpHttpServerConfig;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 
+@Disabled("Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race")
 public class McpOAuthE2ETest {
     private static final String EXPECTED_TOKEN = "sdk-host-token";
     private static final String REFRESH_TOKEN = EXPECTED_TOKEN + "-refresh";

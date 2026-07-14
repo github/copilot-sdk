@@ -24,6 +24,7 @@ const UPSCOPE_TOKEN: &str = "sdk-host-token-upscope";
 const REAUTH_TOKEN: &str = "sdk-host-token-reauth";
 
 #[tokio::test]
+#[ignore = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race"]
 async fn should_satisfy_mcp_oauth_using_host_provided_token() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
@@ -112,6 +113,7 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
 }
 
 #[tokio::test]
+#[ignore = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race"]
 async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
@@ -178,6 +180,7 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
 }
 
 #[tokio::test]
+#[ignore = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race"]
 async fn should_cancel_pending_mcp_oauth_request() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
@@ -226,6 +229,7 @@ async fn should_cancel_pending_mcp_oauth_request() {
 }
 
 #[tokio::test]
+#[ignore = "Blocked by the Copilot CLI 1.0.71-1 MCP OAuth interest-registration race"]
 async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {

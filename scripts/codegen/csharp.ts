@@ -1386,7 +1386,7 @@ namespace GitHub.Copilot;
         lines.push(`    /// <inheritdoc />`);
         lines.push(`    [JsonIgnore]`, `    public override string Type => "${variant.typeName}";`, "");
         lines.push(`    /// <summary>The <c>${escapeXml(variant.typeName)}</c> event payload.</summary>`);
-        lines.push(`    [JsonPropertyName("data")]`, `    ${variantVisibility} required ${variant.dataClassName} Data { get; set; }`, `}`, "");
+        lines.push(`    [JsonPropertyName("data")]`, `    public required ${variant.dataClassName} Data { get; set; }`, `}`, "");
     }
 
     // Data classes
