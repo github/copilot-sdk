@@ -189,6 +189,106 @@ class CopilotToolProcessorTest {
                 "Expected compile error for single-record wrapper metadata overrides, got: " + result.diagnostics);
     }
 
+    // ── Test: Blank @CopilotToolParam description validation ────────────────────
+
+    @Test
+    void emitsError_forBlankParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class BlankDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.BlankDescTools", source)));
+
+        assertTrue(hasErrorContaining(result, "blank value (description)"),
+                "Expected compile error for blank @CopilotToolParam description, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forWhitespaceOnlyParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class WhitespaceDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("   ") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.WhitespaceDescTools", source)));
+
+        assertTrue(hasErrorContaining(result, "blank value (description)"),
+                "Expected compile error for whitespace-only @CopilotToolParam description, got: " + result.diagnostics);
+    }
+
+    @Test
+    void compilesSuccessfully_forValidParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ValidDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("Search query") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ValidDescTools", source)));
+
+        assertNoErrors(result);
+    }
+
+    @Test
+    void compilesSuccessfully_forParamWithoutAnnotation() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class NoAnnotationTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.NoAnnotationTools", source)));
+
+        assertNoErrors(result);
+    }
+
+    @Test
+    void doesNotEmitBlankError_forSingleRecordWrapperWithDefaultAnnotation() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class RecordWrapperTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Search for items")
+                    public String search(@CopilotToolParam SearchArgs args) {
+                        return args.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordWrapperTools", source)));
+
+        assertFalse(hasErrorContaining(result, "blank value (description)"),
+                "Single-record wrapper should be exempt from blank description check, got: " + result.diagnostics);
+    }
+
     // ── Test: Return type handling ──────────────────────────────────────────────
 
     @Test
