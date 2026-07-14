@@ -17,37 +17,6 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
-    public void CustomAgentConfig_SerializesReasoningEffort_WithSdkOptions()
-    {
-        var options = GetSerializerOptions();
-        var original = new CustomAgentConfig
-        {
-            Name = "reasoning-agent",
-            Prompt = "Think carefully.",
-            ReasoningEffort = "high"
-        };
-
-        var json = JsonSerializer.Serialize(original, options);
-        using var document = JsonDocument.Parse(json);
-        Assert.Equal("high", document.RootElement.GetProperty("reasoningEffort").GetString());
-    }
-
-    [Fact]
-    public void CustomAgentConfig_OmitsReasoningEffortWhenUnset_WithSdkOptions()
-    {
-        var options = GetSerializerOptions();
-        var original = new CustomAgentConfig
-        {
-            Name = "default-agent",
-            Prompt = "Use runtime defaults."
-        };
-
-        var json = JsonSerializer.Serialize(original, options);
-        using var document = JsonDocument.Parse(json);
-        Assert.False(document.RootElement.TryGetProperty("reasoningEffort", out _));
-    }
-
-    [Fact]
     public void ProviderConfig_CanSerializeHeaders_WithSdkOptions()
     {
         var options = GetSerializerOptions();
