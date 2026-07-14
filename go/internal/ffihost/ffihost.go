@@ -229,6 +229,7 @@ func (h *Host) Start() error {
 		outboundTargets.Delete(callbackToken)
 		h.callbackToken = 0
 		h.lib.hostShutdown(h.serverID)
+		rearmForeignSignalHandlers(h.lib.handle)
 		h.serverID = 0
 		return fmt.Errorf("copilot_runtime_connection_open failed")
 	}
@@ -364,6 +365,10 @@ func (h *Host) Dispose() {
 	}
 	if serverID != 0 {
 		h.lib.hostShutdown(serverID)
+		// libuv may restore a previously saved SIGCHLD action while tearing down
+		// its final child watcher, so repair the process-wide handler again after
+		// shutdown before Go reaps another os/exec child.
+		rearmForeignSignalHandlers(h.lib.handle)
 	}
 	h.recv.Close()
 }
