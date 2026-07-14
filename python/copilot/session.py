@@ -1080,6 +1080,8 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
     # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
     model: NotRequired[str]
+    # Reasoning effort for this agent's model; omit to leave it unspecified
+    reasoning_effort: NotRequired[ReasoningEffort]
 
 
 class DefaultAgentConfig(TypedDict, total=False):

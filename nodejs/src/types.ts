@@ -1632,6 +1632,11 @@ export interface CustomAgentConfig {
      * falling back to the parent session model if unavailable.
      */
     model?: string;
+    /**
+     * Reasoning effort level for this agent's model.
+     * When omitted, the SDK does not send a per-agent reasoning effort.
+     */
+    reasoningEffort?: ReasoningEffort;
 }
 
 /**

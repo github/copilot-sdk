@@ -2657,6 +2657,13 @@ public sealed class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Reasoning effort level for this agent's model.
+    /// When omitted, no per-agent reasoning effort is sent to the runtime.
+    /// </summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>

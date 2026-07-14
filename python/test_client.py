@@ -2245,6 +2245,32 @@ class TestCustomAgentWireFormat:
         wire = client._convert_custom_agent_to_wire_format(agent)
         assert "model" not in wire
 
+    def test_reasoning_effort_is_forwarded_in_camel_case(self):
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "reasoning-agent",
+            "prompt": "Think carefully.",
+            "reasoning_effort": "high",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert wire["reasoningEffort"] == "high"
+        assert "reasoning_effort" not in wire
+
+    def test_reasoning_effort_is_omitted_when_absent(self):
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "default-agent",
+            "prompt": "Use runtime defaults.",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert "reasoningEffort" not in wire
+
 
 class TestPostToolUseFailureHookDispatch:
     """Unit tests for the postToolUseFailure handler dispatch."""
