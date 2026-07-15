@@ -433,6 +433,71 @@ describe("CopilotClient", () => {
         expect(resumePayload.contextTier).toBe("default");
     });
 
+    it("forwards tool metadata verbatim in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const metadata = {
+            "github.com/copilot:safeForTelemetry": { name: true, inputsNames: false },
+        };
+        const tool = {
+            name: "my_tool",
+            description: "a tool",
+            parameters: { type: "object", properties: {} },
+            metadata,
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [tool],
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            tools: [tool],
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.tools[0].metadata).toEqual(metadata);
+        expect(resumePayload.tools[0].metadata).toEqual(metadata);
+    });
+
+    it("omits tool metadata from session.create when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [{ name: "my_tool", description: "a tool" }],
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        expect(createPayload.tools[0].metadata).toBeUndefined();
+    });
+
     it("forwards new session options in session.create and session.resume", async () => {
         const client = new CopilotClient();
         await client.start();

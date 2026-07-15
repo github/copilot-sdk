@@ -39,7 +39,7 @@ public final class OptionalParamTools$$CopilotToolMeta implements CopilotToolMet
                     Object titleRaw = args.get("title");
                     Optional<String> title = titleRaw != null ? Optional.of((String) titleRaw) : Optional.empty();
                     return CompletableFuture.completedFuture(instance.greetWithTitle(name, title));
-                }, null, null, null),
+                }, null, null, null, null),
                 new ToolDefinition("multiply", "Multiply with optional factor",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -58,7 +58,7 @@ public final class OptionalParamTools$$CopilotToolMeta implements CopilotToolMet
                                     ? OptionalInt.of(((Number) factorRaw).intValue())
                                     : OptionalInt.empty();
                             return CompletableFuture.completedFuture(instance.multiply(base, factor));
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("scale", "Scale with optional ratio",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -77,7 +77,7 @@ public final class OptionalParamTools$$CopilotToolMeta implements CopilotToolMet
                                     ? OptionalDouble.of(((Number) ratioRaw).doubleValue())
                                     : OptionalDouble.empty();
                             return CompletableFuture.completedFuture(instance.scale(value, ratio));
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("offset", "Offset with optional delta",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -96,6 +96,6 @@ public final class OptionalParamTools$$CopilotToolMeta implements CopilotToolMet
                                     ? OptionalLong.of(((Number) deltaRaw).longValue())
                                     : OptionalLong.empty();
                             return CompletableFuture.completedFuture(instance.offset(base, delta));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

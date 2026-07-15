@@ -33,6 +33,6 @@ public final class DateTimeTools$$CopilotToolMeta implements CopilotToolMetadata
                     Map<String, Object> args = invocation.getArguments();
                     LocalDateTime when = mapper.convertValue(args.get("when"), LocalDateTime.class);
                     return CompletableFuture.completedFuture(instance.scheduleEvent(when));
-                }, null, null, null));
+                }, null, null, null, null));
     }
 }
