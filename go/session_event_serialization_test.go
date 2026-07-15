@@ -145,6 +145,26 @@ func TestSessionEventAgentIDRoundTripsUnknownEvent(t *testing.T) {
 	}
 }
 
+func TestInternalSessionEventUsesRawFallback(t *testing.T) {
+	var event SessionEvent
+	if err := json.Unmarshal([]byte(`{
+		"id": "00000000-0000-0000-0000-000000000003",
+		"timestamp": "2026-01-01T00:00:00Z",
+		"parentId": null,
+		"type": "session.memory_changed",
+		"data": {}
+	}`), &event); err != nil {
+		t.Fatalf("failed to unmarshal internal session event: %v", err)
+	}
+
+	if _, ok := event.Data.(*RawSessionEventData); !ok {
+		t.Fatalf("expected internal event to use raw session event data, got %T", event.Data)
+	}
+	if event.Type() != "session.memory_changed" {
+		t.Fatalf("expected internal event type to be preserved, got %q", event.Type())
+	}
+}
+
 func TestRawSessionEventDataWithNilRawMarshalsAsNull(t *testing.T) {
 	event := SessionEvent{
 		Data: &RawSessionEventData{EventType: "future.event"},

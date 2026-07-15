@@ -168,6 +168,7 @@ func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
 			InstanceID:    data.InstanceID,
 			Status:        data.Status,
 			Title:         data.Title,
+			Icon:          data.Icon,
 			URL:           data.URL,
 		})
 	case *SessionCanvasClosedData:

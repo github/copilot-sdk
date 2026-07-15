@@ -21,6 +21,12 @@ const REPO_ROOT = path.resolve(__dirname, "../..");
 /** Event types to exclude from generation (internal/legacy types) */
 const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
 
+function isSchemaInternal(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" &&
+        schema !== null &&
+        (schema as Record<string, unknown>).visibility === "internal";
+}
+
 const AUTO_GENERATED_HEADER = `// AUTO-GENERATED FILE - DO NOT EDIT`;
 const GENERATED_FROM_SESSION_EVENTS = `// Generated from: session-events.schema.json`;
 const GENERATED_FROM_API = `// Generated from: api.schema.json`;
@@ -725,7 +731,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 deprecated: (variant as unknown as Record<string, unknown>).deprecated === true,
             };
         })
-        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
+        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName) && !isSchemaInternal(v.dataSchema));
 }
 
 async function generateSessionEvents(schemaPath: string): Promise<void> {

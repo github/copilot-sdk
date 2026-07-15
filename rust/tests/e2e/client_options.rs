@@ -236,6 +236,7 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
                     canvas_id: "resume-canvas".to_string(),
                     extension_id: "github-app/rust-e2e-extension".to_string(),
                     extension_name: None,
+                    icon: None,
                     input: Some(json!({ "value": "from-resume" })),
                     instance_id: "resume-instance".to_string(),
                     status: None,

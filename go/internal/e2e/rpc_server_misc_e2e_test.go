@@ -159,6 +159,7 @@ func TestRpcServerMisc(t *testing.T) {
 		}
 		if users == nil {
 			t.Fatal("Expected non-nil users result")
+			return
 		}
 		for _, user := range *users {
 			userInfo, ok := user.AuthInfo.(*rpc.UserAuthInfo)
