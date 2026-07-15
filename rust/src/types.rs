@@ -356,8 +356,8 @@ pub struct Tool {
     /// Keys are namespaced and not part of the stable public API; values are
     /// not interpreted and may be recognized to inform host-specific behavior.
     /// Unknown keys are preserved and round-tripped untouched.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub metadata: HashMap<String, Value>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub metadata: IndexMap<String, Value>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -479,7 +479,7 @@ impl Tool {
 
     /// Set opaque, host-defined metadata for the tool. Keys are namespaced and
     /// not part of the stable public API. Replaces any previously-set metadata.
-    pub fn with_metadata(mut self, metadata: HashMap<String, Value>) -> Self {
+    pub fn with_metadata(mut self, metadata: IndexMap<String, Value>) -> Self {
         self.metadata = metadata;
         self
     }
@@ -5460,9 +5460,9 @@ mod tests {
 
     #[test]
     fn tool_metadata_serialization() {
-        use std::collections::HashMap;
+        use indexmap::IndexMap;
 
-        let mut metadata = HashMap::new();
+        let mut metadata = IndexMap::new();
         metadata.insert(
             "github.com/copilot:safeForTelemetry".to_string(),
             json!({ "name": true, "inputsNames": false }),
