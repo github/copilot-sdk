@@ -31,6 +31,7 @@ async fn should_install_and_list_plugin_from_local_marketplace() {
                     .marketplaces()
                     .add(PluginsMarketplacesAddRequest {
                         source: marketplace.source(),
+                        working_directory: None,
                     })
                     .await
                     .expect("add marketplace");
@@ -79,6 +80,7 @@ async fn should_enable_and_disable_marketplace_plugin() {
                     .marketplaces()
                     .add(PluginsMarketplacesAddRequest {
                         source: marketplace.source(),
+                        working_directory: None,
                     })
                     .await
                     .expect("add marketplace");
@@ -148,6 +150,7 @@ async fn should_update_single_marketplace_plugin() {
                     .marketplaces()
                     .add(PluginsMarketplacesAddRequest {
                         source: marketplace.source(),
+                        working_directory: None,
                     })
                     .await
                     .expect("add marketplace");
@@ -196,6 +199,7 @@ async fn should_update_all_installed_plugins() {
                     .marketplaces()
                     .add(PluginsMarketplacesAddRequest {
                         source: marketplace.source(),
+                        working_directory: None,
                     })
                     .await
                     .expect("add marketplace");
@@ -326,6 +330,7 @@ async fn should_list_browse_refresh_and_remove_local_marketplace() {
                     .marketplaces()
                     .add(PluginsMarketplacesAddRequest {
                         source: marketplace.source(),
+                        working_directory: None,
                     })
                     .await
                     .expect("add marketplace");

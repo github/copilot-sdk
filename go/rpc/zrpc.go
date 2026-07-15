@@ -1784,6 +1784,8 @@ type DiscoveredCanvas struct {
 	ExtensionID string `json:"extensionId"`
 	// Owning extension display name, when available
 	ExtensionName *string `json:"extensionName,omitempty"`
+	// Host-local PNG path for the canvas icon, when supplied
+	Icon *string `json:"icon,omitempty"`
 	// JSON Schema for canvas open input
 	InputSchema any `json:"inputSchema,omitempty"`
 }
@@ -3063,23 +3065,17 @@ type MCPAppsListToolsResult struct {
 	Tools []map[string]any `json:"tools"`
 }
 
-// Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
-// `session.mcp.resources.read` instead.
+// MCP server and resource URI to fetch.
 // Experimental: MCPAppsReadResourceRequest is part of an experimental API and may change or
 // be removed.
-// Deprecated: MCPAppsReadResourceRequest is deprecated and will be removed in a future
-// version.
 type MCPAppsReadResourceRequest struct {
 	// Name of the MCP server hosting the resource
 	ServerName string `json:"serverName"`
-	// Resource URI
+	// Resource URI (typically ui://...)
 	URI string `json:"uri"`
 }
 
-// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
-// `session.mcp.resources.read` instead.
-// Deprecated: MCPAppsReadResourceResult is deprecated and will be removed in a future
-// version.
+// Resource contents returned by the MCP server.
 // Experimental: MCPAppsReadResourceResult is part of an experimental API and may change or
 // be removed.
 type MCPAppsReadResourceResult struct {
@@ -3087,21 +3083,20 @@ type MCPAppsReadResourceResult struct {
 	Contents []MCPAppsResourceContent `json:"contents"`
 }
 
-// Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use
-// `session.mcp.resources.read` instead.
-// Deprecated: MCPAppsResourceContent is deprecated and will be removed in a future version.
+// MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
+// metadata.
 // Experimental: MCPAppsResourceContent is part of an experimental API and may change or be
 // removed.
 type MCPAppsResourceContent struct {
 	// Base64-encoded binary content
 	Blob *string `json:"blob,omitempty"`
-	// Resource-level metadata
+	// Resource-level metadata (CSP, permissions, etc.)
 	Meta map[string]any `json:"_meta,omitzero"`
 	// MIME type of the content
 	MIMEType *string `json:"mimeType,omitempty"`
 	// Text content (e.g. HTML)
 	Text *string `json:"text,omitempty"`
-	// The resource URI
+	// The resource URI (typically ui://...)
 	URI string `json:"uri"`
 }
 
@@ -4113,7 +4108,10 @@ type MetadataRecordContextChangeRequest struct {
 type MetadataRecordContextChangeResult struct {
 }
 
-// Absolute path to set as the session's new working directory.
+// Absolute path to set as the session's new working directory. For local sessions the path
+// must be absolute and exist on disk: it is validated before any session state changes, and
+// a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote
+// sessions record the path as-is.
 // Experimental: MetadataSetWorkingDirectoryRequest is part of an experimental API and may
 // change or be removed.
 type MetadataSetWorkingDirectoryRequest struct {
@@ -4124,9 +4122,13 @@ type MetadataSetWorkingDirectoryRequest struct {
 }
 
 // Update the session's working directory. Used by the host when the user explicitly changes
-// cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any
-// related side-effects (file index, etc.); this method only updates the session's own
-// recorded path.
+// cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects
+// (file index, etc.); it does NOT change the process working directory (a session's cwd is
+// per-session, not process-global). For local sessions the runtime validates the target
+// first (an absolute path that exists on disk) and re-bases the permission primary
+// directory; a rejected validation fails the call before anything is mutated, persisted, or
+// emitted. Location-scoped permission rules are then re-keyed to the new directory
+// (best-effort). Remote sessions only record the path.
 // Experimental: MetadataSetWorkingDirectoryResult is part of an experimental API and may
 // change or be removed.
 type MetadataSetWorkingDirectoryResult struct {
@@ -4538,6 +4540,8 @@ type OpenCanvasInstance struct {
 	ExtensionID string `json:"extensionId"`
 	// Owning extension display name, when available
 	ExtensionName *string `json:"extensionName,omitempty"`
+	// Host-local PNG path for the canvas icon, when supplied
+	Icon *string `json:"icon,omitempty"`
 	// Input supplied when the instance was opened
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
@@ -5872,7 +5876,7 @@ type PluginsInstallRequest struct {
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
-// Marketplace source to register.
+// Marketplace source and optional working directory for relative-path resolution.
 // Experimental: PluginsMarketplacesAddRequest is part of an experimental API and may change
 // or be removed.
 type PluginsMarketplacesAddRequest struct {
@@ -5881,6 +5885,9 @@ type PluginsMarketplacesAddRequest struct {
 	// (user@host:path), or a local path. The marketplace's own name (from its manifest) is used
 	// as the registration key.
 	Source string `json:"source"`
+	// Working directory used to resolve relative local paths in `source`. Defaults to the
+	// server's current working directory.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Name of the marketplace whose plugin catalog to fetch.
@@ -6609,16 +6616,18 @@ type RegisterEventInterestParams struct {
 	// The event type the consumer wants the runtime to treat as 'observed' for
 	// behavior-switching gating. Some runtime code paths inspect whether any consumer is
 	// interested in a specific event type and choose a different implementation accordingly
-	// (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token
-	// acquisition to the consumer; when no interest is registered OAuth-required servers become
-	// needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners
-	// to these gating checks — they must explicitly call `registerInterest` for each event type
-	// they want the runtime to count as having a consumer. Multiple registrations for the same
-	// event type from the same or different consumers are tracked independently and must each
-	// be released. See: `mcp.oauth_required`, `sampling.requested`,
-	// `auto_mode_switch.requested`, `session_limits_exhausted.requested`,
-	// `user_input.requested`, `elicitation.requested`, `command.queued`,
-	// `exit_plan_mode.requested`.
+	// (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates interactive
+	// OAuth token acquisition to the consumer via `mcp.oauth_required` events; when no interest
+	// is registered the runtime still attempts non-interactive reconnect from cached or
+	// refreshable tokens, and only marks the server `needs-auth` if usable credentials are
+	// unavailable — it does not open a browser or start interactive OAuth without a consumer).
+	// SDK clients that long-poll events do NOT automatically appear as listeners to these
+	// gating checks — they must explicitly call `registerInterest` for each event type they
+	// want the runtime to count as having a consumer. Multiple registrations for the same event
+	// type from the same or different consumers are tracked independently and must each be
+	// released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
+	// `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
+	// `command.queued`, `exit_plan_mode.requested`.
 	EventType string `json:"eventType"`
 }
 
@@ -8038,6 +8047,10 @@ type SessionOpenOptions struct {
 	ExpAssignments any `json:"expAssignments,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Built-in subagent names to include in this session. When specified, only these built-ins
+	// are available, subject to runtime availability and exclusions. Custom agents with the
+	// same name remain available.
+	IncludedBuiltinAgents []string `json:"includedBuiltinAgents,omitzero"`
 	// Installed plugins visible to the session.
 	InstalledPlugins []InstalledPlugin `json:"installedPlugins,omitzero"`
 	// Stable integration identifier for analytics.
@@ -8973,6 +8986,10 @@ type SessionUpdateOptionsParams struct {
 	ExcludedTools []string `json:"excludedTools,omitzero"`
 	// Map of feature-flag IDs to their boolean enabled state.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
+	// Built-in subagent names to include in this session. When specified, only these built-ins
+	// are available, subject to runtime availability and exclusions. Custom agents with the
+	// same name remain available. Set to null to remove the allowlist restriction.
+	IncludedBuiltinAgents []string `json:"includedBuiltinAgents,omitzero"`
 	// Full set of installed plugins for the session. Replaces the existing list; the runtime
 	// invalidates the skills cache only when the list materially changes.
 	InstalledPlugins []SessionInstalledPlugin `json:"installedPlugins,omitzero"`
@@ -9361,7 +9378,7 @@ func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResult
 }
 
 // Slash-command invocation result that submits an agent prompt, with display prompt,
-// optional mode, and settings-change flag.
+// optional mode, optional user-facing notice, and settings-change flag.
 // Experimental: SlashCommandAgentPromptResult is part of an experimental API and may change
 // or be removed.
 type SlashCommandAgentPromptResult struct {
@@ -9369,6 +9386,8 @@ type SlashCommandAgentPromptResult struct {
 	DisplayPrompt string `json:"displayPrompt"`
 	// Optional target session mode for the agent prompt
 	Mode *SessionMode `json:"mode,omitempty"`
+	// Optional user-facing notice to show before the prompt is submitted
+	Notice *string `json:"notice,omitempty"`
 	// Prompt to submit to the agent
 	Prompt string `json:"prompt"`
 	// True when the invocation mutated user runtime settings; consumers caching settings should
@@ -13508,7 +13527,8 @@ type ServerPluginsMarketplacesAPI serverAPI
 //
 // RPC method: plugins.marketplaces.add.
 //
-// Parameters: Marketplace source to register.
+// Parameters: Marketplace source and optional working directory for relative-path
+// resolution.
 //
 // Returns: Result of registering a new marketplace.
 func (a *ServerPluginsMarketplacesAPI) Add(ctx context.Context, params *PluginsMarketplacesAddRequest) (*MarketplaceAddResult, error) {
@@ -15906,17 +15926,14 @@ func (a *MCPAppsAPI) ListTools(ctx context.Context, params *MCPAppsListToolsRequ
 	return &result, nil
 }
 
-// ReadResource deprecated/obsolete alias for `session.mcp.resources.read`; retained for
-// backwards compatibility with earlier MCP Apps host integrations.
+// ReadResource fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865)
+// from a connected server. Requires the `mcp-apps` session capability.
 //
 // RPC method: session.mcp.apps.readResource.
 //
-// Parameters: Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
-// `session.mcp.resources.read` instead.
+// Parameters: MCP server and resource URI to fetch.
 //
-// Returns: Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
-// `session.mcp.resources.read` instead.
-// Deprecated: ReadResource is deprecated and will be removed in a future version.
+// Returns: Resource contents returned by the MCP server.
 func (a *MCPAppsAPI) ReadResource(ctx context.Context, params *MCPAppsReadResourceRequest) (*MCPAppsReadResourceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -16339,16 +16356,26 @@ func (a *MetadataAPI) RecordContextChange(ctx context.Context, params *MetadataR
 	return &result, nil
 }
 
-// SetWorkingDirectory updates the session's recorded working directory.
+// SetWorkingDirectory updates the session's working directory. For local sessions the
+// target is validated first (an absolute path that exists on disk) and the permission
+// primary directory is re-based; a rejected validation fails the call before any session
+// state changes.
 //
 // RPC method: session.metadata.setWorkingDirectory.
 //
-// Parameters: Absolute path to set as the session's new working directory.
+// Parameters: Absolute path to set as the session's new working directory. For local
+// sessions the path must be absolute and exist on disk: it is validated before any session
+// state changes, and a failing validation rejects the call with nothing mutated, persisted,
+// or emitted. Remote sessions record the path as-is.
 //
 // Returns: Update the session's working directory. Used by the host when the user
-// explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for
-// `process.chdir` and any related side-effects (file index, etc.); this method only updates
-// the session's own recorded path.
+// explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any
+// related side-effects (file index, etc.); it does NOT change the process working directory
+// (a session's cwd is per-session, not process-global). For local sessions the runtime
+// validates the target first (an absolute path that exists on disk) and re-bases the
+// permission primary directory; a rejected validation fails the call before anything is
+// mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the
+// new directory (best-effort). Remote sessions only record the path.
 func (a *MetadataAPI) SetWorkingDirectory(ctx context.Context, params *MetadataSetWorkingDirectoryRequest) (*MetadataSetWorkingDirectoryResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -16705,6 +16732,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.FeatureFlags != nil {
 			req["featureFlags"] = params.FeatureFlags
+		}
+		if params.IncludedBuiltinAgents != nil {
+			req["includedBuiltinAgents"] = params.IncludedBuiltinAgents
 		}
 		if params.InstalledPlugins != nil {
 			req["installedPlugins"] = params.InstalledPlugins

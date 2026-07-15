@@ -581,7 +581,8 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
                 eventExperimental: isSchemaExperimental(variant),
                 dataExperimental: isSchemaExperimental(dataSchema),
             };
-        });
+        })
+        .filter((variant) => !isSchemaInternal(variant.dataSchema));
 }
 
 function getGoSharedEventEnvelopeProperties(schema: JSONSchema7, ctx: GoCodegenCtx): GoEventEnvelopeProperty[] {

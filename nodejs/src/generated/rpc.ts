@@ -3370,6 +3370,10 @@ export interface DiscoveredCanvas {
    * Short, single-sentence description shown to the agent in canvas catalogs.
    */
   description: string;
+  /**
+   * Host-local PNG path for the canvas icon, when supplied
+   */
+  icon?: string;
   inputSchema?: CanvasJsonSchema;
   /**
    * Actions the agent or host may invoke on an open instance
@@ -3425,6 +3429,10 @@ export interface OpenCanvasInstance {
    * Provider-local canvas identifier
    */
   canvasId: string;
+  /**
+   * Host-local PNG path for the canvas icon, when supplied
+   */
+  icon?: string;
   /**
    * Rendered title
    */
@@ -6009,27 +6017,24 @@ export interface McpAppsListToolsResult {
   }[];
 }
 /**
- * @deprecated
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
+ * MCP server and resource URI to fetch.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsReadResourceRequest".
  */
 /** @experimental */
-/** @deprecated */
 export interface McpAppsReadResourceRequest {
   /**
    * Name of the MCP server hosting the resource
    */
   serverName: string;
   /**
-   * Resource URI
+   * Resource URI (typically ui://...)
    */
   uri: string;
 }
 /**
- * @deprecated
- * Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
+ * Resource contents returned by the MCP server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsReadResourceResult".
@@ -6042,8 +6047,7 @@ export interface McpAppsReadResourceResult {
   contents: McpAppsResourceContent[];
 }
 /**
- * @deprecated
- * Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.
+ * MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpAppsResourceContent".
@@ -6051,7 +6055,7 @@ export interface McpAppsReadResourceResult {
 /** @experimental */
 export interface McpAppsResourceContent {
   /**
-   * The resource URI
+   * The resource URI (typically ui://...)
    */
   uri: string;
   /**
@@ -6067,7 +6071,7 @@ export interface McpAppsResourceContent {
    */
   blob?: string;
   /**
-   * Resource-level metadata
+   * Resource-level metadata (CSP, permissions, etc.)
    */
   _meta?: {
     [k: string]: unknown | undefined;
@@ -7412,7 +7416,7 @@ export interface SessionWorkingDirectoryContext {
 /** @experimental */
 export interface MetadataRecordContextChangeResult {}
 /**
- * Absolute path to set as the session's new working directory.
+ * Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "MetadataSetWorkingDirectoryRequest".
@@ -7425,7 +7429,7 @@ export interface MetadataSetWorkingDirectoryRequest {
   workingDirectory: string;
 }
 /**
- * Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path.
+ * Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "MetadataSetWorkingDirectoryResult".
@@ -9600,7 +9604,7 @@ export interface PluginsInstallRequest {
   workingDirectory?: string;
 }
 /**
- * Marketplace source to register.
+ * Marketplace source and optional working directory for relative-path resolution.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PluginsMarketplacesAddRequest".
@@ -9611,6 +9615,10 @@ export interface PluginsMarketplacesAddRequest {
    * Marketplace source. Accepts the same forms as the CLI: "owner/repo" or "owner/repo#ref" (GitHub), an http/https/ssh URL (optionally with #ref), a git scp-style URL (user@host:path), or a local path. The marketplace's own name (from its manifest) is used as the registration key.
    */
   source: string;
+  /**
+   * Working directory used to resolve relative local paths in `source`. Defaults to the server's current working directory.
+   */
+  workingDirectory?: string;
 }
 /**
  * Name of the marketplace whose plugin catalog to fetch.
@@ -10514,7 +10522,7 @@ export interface QueueRemoveMostRecentResult {
 /** @experimental */
 export interface RegisterEventInterestParams {
   /**
-   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token acquisition to the consumer; when no interest is registered OAuth-required servers become needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
+   * The event type the consumer wants the runtime to treat as 'observed' for behavior-switching gating. Some runtime code paths inspect whether any consumer is interested in a specific event type and choose a different implementation accordingly (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates interactive OAuth token acquisition to the consumer via `mcp.oauth_required` events; when no interest is registered the runtime still attempts non-interactive reconnect from cached or refreshable tokens, and only marks the server `needs-auth` if usable credentials are unavailable — it does not open a browser or start interactive OAuth without a consumer). SDK clients that long-poll events do NOT automatically appear as listeners to these gating checks — they must explicitly call `registerInterest` for each event type they want the runtime to count as having a consumer. Multiple registrations for the same event type from the same or different consumers are tracked independently and must each be released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`, `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`, `command.queued`, `exit_plan_mode.requested`.
    */
   eventType: string;
 }
@@ -12248,6 +12256,10 @@ export interface SessionOpenOptions {
    */
   excludedTools?: string[];
   /**
+   * Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available.
+   */
+  includedBuiltinAgents?: string[];
+  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -13348,6 +13360,10 @@ export interface SessionUpdateOptionsParams {
    */
   excludedTools?: string[];
   /**
+   * Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction.
+   */
+  includedBuiltinAgents?: string[] | null;
+  /**
    * Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
    */
   excludedBuiltinAgents?: string[];
@@ -13835,7 +13851,7 @@ export interface SkillsLoadDiagnostics {
   errors: string[];
 }
 /**
- * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, and settings-change flag.
+ * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, optional user-facing notice, and settings-change flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandAgentPromptResult".
@@ -13855,6 +13871,10 @@ export interface SlashCommandAgentPromptResult {
    */
   displayPrompt: string;
   mode?: SessionMode;
+  /**
+   * Optional user-facing notice to show before the prompt is submitted
+   */
+  notice?: string;
   /**
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
@@ -15925,7 +15945,7 @@ export function createServerRpc(connection: MessageConnection) {
                 /**
                  * Registers a new marketplace from a source (owner/repo, URL, or local path).
                  *
-                 * @param params Marketplace source to register.
+                 * @param params Marketplace source and optional working directory for relative-path resolution.
                  *
                  * @returns Result of registering a new marketplace.
                  */
@@ -17068,13 +17088,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /** @experimental */
             apps: {
                 /**
-                 * Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.
+                 * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
                  *
-                 * @param params Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
+                 * @param params MCP server and resource URI to fetch.
                  *
-                 * @returns Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
-                 *
-                 * @deprecated
+                 * @returns Resource contents returned by the MCP server.
                  */
                 readResource: async (params: McpAppsReadResourceRequest): Promise<McpAppsReadResourceResult> =>
                     connection.sendRequest("session.mcp.apps.readResource", { sessionId, ...params }),
@@ -17712,11 +17730,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             recordContextChange: async (params: MetadataRecordContextChangeRequest): Promise<MetadataRecordContextChangeResult> =>
                 connection.sendRequest("session.metadata.recordContextChange", { sessionId, ...params }),
             /**
-             * Updates the session's recorded working directory.
+             * Updates the session's working directory. For local sessions the target is validated first (an absolute path that exists on disk) and the permission primary directory is re-based; a rejected validation fails the call before any session state changes.
              *
-             * @param params Absolute path to set as the session's new working directory.
+             * @param params Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
              *
-             * @returns Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path.
+             * @returns Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path.
              */
             setWorkingDirectory: async (params: MetadataSetWorkingDirectoryRequest): Promise<MetadataSetWorkingDirectoryResult> =>
                 connection.sendRequest("session.metadata.setWorkingDirectory", { sessionId, ...params }),

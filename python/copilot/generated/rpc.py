@@ -795,65 +795,6 @@ class CanvasCloseRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class OpenCanvasInstance:
-    """Open canvas instance snapshot."""
-
-    canvas_id: str
-    """Provider-local canvas identifier"""
-
-    extension_id: str
-    """Owning provider identifier"""
-
-    instance_id: str
-    """Stable caller-supplied canvas instance identifier"""
-
-    extension_name: str | None = None
-    """Owning extension display name, when available"""
-
-    input: Any = None
-    """Input supplied when the instance was opened"""
-
-    status: str | None = None
-    """Provider-supplied status text"""
-
-    title: str | None = None
-    """Rendered title"""
-
-    url: str | None = None
-    """URL for web-rendered canvases"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'OpenCanvasInstance':
-        assert isinstance(obj, dict)
-        canvas_id = from_str(obj.get("canvasId"))
-        extension_id = from_str(obj.get("extensionId"))
-        instance_id = from_str(obj.get("instanceId"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        input = obj.get("input")
-        status = from_union([from_str, from_none], obj.get("status"))
-        title = from_union([from_str, from_none], obj.get("title"))
-        url = from_union([from_str, from_none], obj.get("url"))
-        return OpenCanvasInstance(canvas_id, extension_id, instance_id, extension_name, input, status, title, url)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvasId"] = from_str(self.canvas_id)
-        result["extensionId"] = from_str(self.extension_id)
-        result["instanceId"] = from_str(self.instance_id)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        if self.input is not None:
-            result["input"] = self.input
-        if self.status is not None:
-            result["status"] = from_union([from_str, from_none], self.status)
-        if self.title is not None:
-            result["title"] = from_union([from_str, from_none], self.title)
-        if self.url is not None:
-            result["url"] = from_union([from_str, from_none], self.url)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class CanvasOpenRequest:
     """Canvas open parameters."""
 
@@ -3166,17 +3107,15 @@ class MCPAppsListToolsResult:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-# Deprecated: this type is part of a deprecated API and will be removed in a future version.
 @dataclass
 class MCPAppsReadResourceRequest:
-    """Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use
-    `session.mcp.resources.read` instead.
-    """
+    """MCP server and resource URI to fetch."""
+
     server_name: str
     """Name of the MCP server hosting the resource"""
 
     uri: str
-    """Resource URI"""
+    """Resource URI (typically ui://...)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPAppsReadResourceRequest':
@@ -3194,14 +3133,14 @@ class MCPAppsReadResourceRequest:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPAppsResourceContent:
-    """Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use
-    `session.mcp.resources.read` instead.
+    """MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource
+    metadata.
     """
     uri: str
-    """The resource URI"""
+    """The resource URI (typically ui://...)"""
 
     meta: dict[str, Any] | None = None
-    """Resource-level metadata"""
+    """Resource-level metadata (CSP, permissions, etc.)"""
 
     blob: str | None = None
     """Base64-encoded binary content"""
@@ -4181,8 +4120,11 @@ class MetadataRecordContextChangeResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MetadataSetWorkingDirectoryRequest:
-    """Absolute path to set as the session's new working directory."""
-
+    """Absolute path to set as the session's new working directory. For local sessions the path
+    must be absolute and exist on disk: it is validated before any session state changes, and
+    a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote
+    sessions record the path as-is.
+    """
     working_directory: str
     """Absolute path to set as the session's working directory. The runtime updates the
     session's recorded cwd so subsequent operations (shell tools, file lookups, telemetry)
@@ -4204,9 +4146,13 @@ class MetadataSetWorkingDirectoryRequest:
 @dataclass
 class MetadataSetWorkingDirectoryResult:
     """Update the session's working directory. Used by the host when the user explicitly changes
-    cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any
-    related side-effects (file index, etc.); this method only updates the session's own
-    recorded path.
+    cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects
+    (file index, etc.); it does NOT change the process working directory (a session's cwd is
+    per-session, not process-global). For local sessions the runtime validates the target
+    first (an absolute path that exists on disk) and re-bases the permission primary
+    directory; a rejected validation fails the call before anything is mutated, persisted, or
+    emitted. Location-scoped permission rules are then re-keyed to the new directory
+    (best-effort). Remote sessions only record the path.
     """
     working_directory: str
     """Working directory after the update"""
@@ -5754,7 +5700,7 @@ class PluginUpdateResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PluginsMarketplacesAddRequest:
-    """Marketplace source to register."""
+    """Marketplace source and optional working directory for relative-path resolution."""
 
     source: str
     """Marketplace source. Accepts the same forms as the CLI: "owner/repo" or "owner/repo#ref"
@@ -5762,16 +5708,23 @@ class PluginsMarketplacesAddRequest:
     (user@host:path), or a local path. The marketplace's own name (from its manifest) is used
     as the registration key.
     """
+    working_directory: str | None = None
+    """Working directory used to resolve relative local paths in `source`. Defaults to the
+    server's current working directory.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'PluginsMarketplacesAddRequest':
         assert isinstance(obj, dict)
         source = from_str(obj.get("source"))
-        return PluginsMarketplacesAddRequest(source)
+        working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
+        return PluginsMarketplacesAddRequest(source, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["source"] = from_str(self.source)
+        if self.working_directory is not None:
+            result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6234,16 +6187,18 @@ class RegisterEventInterestParams:
     """The event type the consumer wants the runtime to treat as 'observed' for
     behavior-switching gating. Some runtime code paths inspect whether any consumer is
     interested in a specific event type and choose a different implementation accordingly
-    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates OAuth token
-    acquisition to the consumer; when no interest is registered OAuth-required servers become
-    needs-auth). SDK clients that long-poll events do NOT automatically appear as listeners
-    to these gating checks — they must explicitly call `registerInterest` for each event type
-    they want the runtime to count as having a consumer. Multiple registrations for the same
-    event type from the same or different consumers are tracked independently and must each
-    be released. See: `mcp.oauth_required`, `sampling.requested`,
-    `auto_mode_switch.requested`, `session_limits_exhausted.requested`,
-    `user_input.requested`, `elicitation.requested`, `command.queued`,
-    `exit_plan_mode.requested`.
+    (e.g. `mcp.oauth_required`: when interest is registered the runtime delegates interactive
+    OAuth token acquisition to the consumer via `mcp.oauth_required` events; when no interest
+    is registered the runtime still attempts non-interactive reconnect from cached or
+    refreshable tokens, and only marks the server `needs-auth` if usable credentials are
+    unavailable — it does not open a browser or start interactive OAuth without a consumer).
+    SDK clients that long-poll events do NOT automatically appear as listeners to these
+    gating checks — they must explicitly call `registerInterest` for each event type they
+    want the runtime to count as having a consumer. Multiple registrations for the same event
+    type from the same or different consumers are tracked independently and must each be
+    released. See: `mcp.oauth_required`, `sampling.requested`, `auto_mode_switch.requested`,
+    `session_limits_exhausted.requested`, `user_input.requested`, `elicitation.requested`,
+    `command.queued`, `exit_plan_mode.requested`.
     """
 
     @staticmethod
@@ -10699,77 +10654,6 @@ class AllowAllPermissionState:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class DiscoveredCanvas:
-    """Canvas available in the current session."""
-
-    canvas_id: str
-    """Provider-local canvas identifier"""
-
-    description: str
-    """Short, single-sentence description shown to the agent in canvas catalogs."""
-
-    display_name: str
-    """Human-readable canvas name"""
-
-    extension_id: str
-    """Owning provider identifier"""
-
-    actions: list[CanvasAction] | None = None
-    """Actions the agent or host may invoke on an open instance"""
-
-    extension_name: str | None = None
-    """Owning extension display name, when available"""
-
-    input_schema: Any = None
-    """JSON Schema for canvas open input"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'DiscoveredCanvas':
-        assert isinstance(obj, dict)
-        canvas_id = from_str(obj.get("canvasId"))
-        description = from_str(obj.get("description"))
-        display_name = from_str(obj.get("displayName"))
-        extension_id = from_str(obj.get("extensionId"))
-        actions = from_union([lambda x: from_list(CanvasAction.from_dict, x), from_none], obj.get("actions"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        input_schema = obj.get("inputSchema")
-        return DiscoveredCanvas(canvas_id, description, display_name, extension_id, actions, extension_name, input_schema)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvasId"] = from_str(self.canvas_id)
-        result["description"] = from_str(self.description)
-        result["displayName"] = from_str(self.display_name)
-        result["extensionId"] = from_str(self.extension_id)
-        if self.actions is not None:
-            result["actions"] = from_union([lambda x: from_list(lambda x: to_class(CanvasAction, x), x), from_none], self.actions)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        if self.input_schema is not None:
-            result["inputSchema"] = self.input_schema
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class CanvasListOpenResult:
-    """Live open-canvas snapshot."""
-
-    open_canvases: list[OpenCanvasInstance]
-    """Currently open canvas instances"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CanvasListOpenResult':
-        assert isinstance(obj, dict)
-        open_canvases = from_list(OpenCanvasInstance.from_dict, obj.get("openCanvases"))
-        return CanvasListOpenResult(open_canvases)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["openCanvases"] = from_list(lambda x: to_class(OpenCanvasInstance, x), self.open_canvases)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SlashCommandInput:
     """Optional unstructured input hint"""
 
@@ -10962,6 +10846,129 @@ class CanvasHostContextCapabilities:
         result: dict = {}
         if self.canvases is not None:
             result["canvases"] = from_union([from_bool, from_none], self.canvases)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class DiscoveredCanvas:
+    """Canvas available in the current session."""
+
+    canvas_id: str
+    """Provider-local canvas identifier"""
+
+    description: str
+    """Short, single-sentence description shown to the agent in canvas catalogs."""
+
+    display_name: str
+    """Human-readable canvas name"""
+
+    extension_id: str
+    """Owning provider identifier"""
+
+    actions: list[CanvasAction] | None = None
+    """Actions the agent or host may invoke on an open instance"""
+
+    extension_name: str | None = None
+    """Owning extension display name, when available"""
+
+    icon: str | None = None
+    """Host-local PNG path for the canvas icon, when supplied"""
+
+    input_schema: Any = None
+    """JSON Schema for canvas open input"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'DiscoveredCanvas':
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        extension_id = from_str(obj.get("extensionId"))
+        actions = from_union([lambda x: from_list(CanvasAction.from_dict, x), from_none], obj.get("actions"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        icon = from_union([from_str, from_none], obj.get("icon"))
+        input_schema = obj.get("inputSchema")
+        return DiscoveredCanvas(canvas_id, description, display_name, extension_id, actions, extension_name, icon, input_schema)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["extensionId"] = from_str(self.extension_id)
+        if self.actions is not None:
+            result["actions"] = from_union([lambda x: from_list(lambda x: to_class(CanvasAction, x), x), from_none], self.actions)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        if self.icon is not None:
+            result["icon"] = from_union([from_str, from_none], self.icon)
+        if self.input_schema is not None:
+            result["inputSchema"] = self.input_schema
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class OpenCanvasInstance:
+    """Open canvas instance snapshot."""
+
+    canvas_id: str
+    """Provider-local canvas identifier"""
+
+    extension_id: str
+    """Owning provider identifier"""
+
+    instance_id: str
+    """Stable caller-supplied canvas instance identifier"""
+
+    extension_name: str | None = None
+    """Owning extension display name, when available"""
+
+    icon: str | None = None
+    """Host-local PNG path for the canvas icon, when supplied"""
+
+    input: Any = None
+    """Input supplied when the instance was opened"""
+
+    status: str | None = None
+    """Provider-supplied status text"""
+
+    title: str | None = None
+    """Rendered title"""
+
+    url: str | None = None
+    """URL for web-rendered canvases"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'OpenCanvasInstance':
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        icon = from_union([from_str, from_none], obj.get("icon"))
+        input = obj.get("input")
+        status = from_union([from_str, from_none], obj.get("status"))
+        title = from_union([from_str, from_none], obj.get("title"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return OpenCanvasInstance(canvas_id, extension_id, instance_id, extension_name, icon, input, status, title, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        if self.icon is not None:
+            result["icon"] = from_union([from_str, from_none], self.icon)
+        if self.input is not None:
+            result["input"] = self.input
+        if self.status is not None:
+            result["status"] = from_union([from_str, from_none], self.status)
+        if self.title is not None:
+            result["title"] = from_union([from_str, from_none], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -12514,9 +12521,8 @@ class MCPAppsSetHostContextDetails:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class MCPAppsReadResourceResult:
-    """Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use
-    `session.mcp.resources.read` instead.
-    """
+    """Resource contents returned by the MCP server."""
+
     contents: list[MCPAppsResourceContent]
     """Resource contents returned by the server"""
 
@@ -16801,7 +16807,7 @@ class SkillDiscoveryPath:
 @dataclass
 class SlashCommandAgentPromptResult:
     """Slash-command invocation result that submits an agent prompt, with display prompt,
-    optional mode, and settings-change flag.
+    optional mode, optional user-facing notice, and settings-change flag.
     """
     display_prompt: str
     """Prompt text to display to the user"""
@@ -16815,6 +16821,9 @@ class SlashCommandAgentPromptResult:
     mode: SessionMode | None = None
     """Optional target session mode for the agent prompt"""
 
+    notice: str | None = None
+    """Optional user-facing notice to show before the prompt is submitted"""
+
     runtime_settings_changed: bool | None = None
     """True when the invocation mutated user runtime settings; consumers caching settings should
     refresh
@@ -16826,8 +16835,9 @@ class SlashCommandAgentPromptResult:
         display_prompt = from_str(obj.get("displayPrompt"))
         prompt = from_str(obj.get("prompt"))
         mode = from_union([SessionMode, from_none], obj.get("mode"))
+        notice = from_union([from_str, from_none], obj.get("notice"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandAgentPromptResult(display_prompt, prompt, mode, runtime_settings_changed)
+        return SlashCommandAgentPromptResult(display_prompt, prompt, mode, notice, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -16836,6 +16846,8 @@ class SlashCommandAgentPromptResult:
         result["prompt"] = from_str(self.prompt)
         if self.mode is not None:
             result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
+        if self.notice is not None:
+            result["notice"] = from_union([from_str, from_none], self.notice)
         if self.runtime_settings_changed is not None:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
@@ -18051,25 +18063,6 @@ class AgentRegistrySpawnRegistryTimeout:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class CanvasList:
-    """Declared canvases available in this session."""
-
-    canvases: list[DiscoveredCanvas]
-    """Declared canvases available in this session"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CanvasList':
-        assert isinstance(obj, dict)
-        canvases = from_list(DiscoveredCanvas.from_dict, obj.get("canvases"))
-        return CanvasList(canvases)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["canvases"] = from_list(lambda x: to_class(DiscoveredCanvas, x), self.canvases)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SlashCommandInfo:
     """Slash-command metadata with name, aliases, description, kind, input hint, execution
     allowance, and schedulability.
@@ -18173,6 +18166,44 @@ class CanvasHostContext:
         result: dict = {}
         if self.capabilities is not None:
             result["capabilities"] = from_union([lambda x: to_class(CanvasHostContextCapabilities, x), from_none], self.capabilities)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CanvasList:
+    """Declared canvases available in this session."""
+
+    canvases: list[DiscoveredCanvas]
+    """Declared canvases available in this session"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CanvasList':
+        assert isinstance(obj, dict)
+        canvases = from_list(DiscoveredCanvas.from_dict, obj.get("canvases"))
+        return CanvasList(canvases)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvases"] = from_list(lambda x: to_class(DiscoveredCanvas, x), self.canvases)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CanvasListOpenResult:
+    """Live open-canvas snapshot."""
+
+    open_canvases: list[OpenCanvasInstance]
+    """Currently open canvas instances"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CanvasListOpenResult':
+        assert isinstance(obj, dict)
+        open_canvases = from_list(OpenCanvasInstance.from_dict, obj.get("openCanvases"))
+        return CanvasListOpenResult(open_canvases)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["openCanvases"] = from_list(lambda x: to_class(OpenCanvasInstance, x), self.open_canvases)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -21582,6 +21613,11 @@ class SessionOpenOptions:
     feature_flags: dict[str, bool] | None = None
     """Feature-flag values resolved by the host."""
 
+    included_builtin_agents: list[str] | None = None
+    """Built-in subagent names to include in this session. When specified, only these built-ins
+    are available, subject to runtime availability and exclusions. Custom agents with the
+    same name remain available.
+    """
     installed_plugins: list[InstalledPlugin] | None = None
     """Installed plugins visible to the session."""
 
@@ -21710,6 +21746,7 @@ class SessionOpenOptions:
         excluded_tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedTools"))
         exp_assignments = obj.get("expAssignments")
         feature_flags = from_union([lambda x: from_dict(from_bool, x), from_none], obj.get("featureFlags"))
+        included_builtin_agents = from_union([lambda x: from_list(from_str, x), from_none], obj.get("includedBuiltinAgents"))
         installed_plugins = from_union([lambda x: from_list(InstalledPlugin.from_dict, x), from_none], obj.get("installedPlugins"))
         integration_id = from_union([from_str, from_none], obj.get("integrationId"))
         is_experimental_mode = from_union([from_bool, from_none], obj.get("isExperimentalMode"))
@@ -21741,7 +21778,7 @@ class SessionOpenOptions:
         verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
         working_directory_context = from_union([SessionContext.from_dict, from_none], obj.get("workingDirectoryContext"))
-        return SessionOpenOptions(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_skills, enable_citations, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, session_capabilities, session_id, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
+        return SessionOpenOptions(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, auth_info, available_tools, capi, client_kind, client_name, coauthor_enabled, config_dir, continue_on_auto_mode, copilot_url, custom_agents_local_only, detached_from_spawning_parent_engagement_id, detached_from_spawning_parent_session_id, disabled_instruction_sources, disabled_skills, enable_citations, enable_managed_settings, enable_on_demand_instruction_discovery, enable_script_safety, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, exp_assignments, feature_flags, included_builtin_agents, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, max_inline_binary_bytes, memory, model, model_capabilities_overrides, models, name, provider, providers, reasoning_effort, reasoning_summary, remote_defaulted_on, remote_exporting, remote_steerable, running_in_interactive_mode, sandbox_config, session_capabilities, session_id, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, trajectory_file, verbosity, working_directory, working_directory_context)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -21803,6 +21840,8 @@ class SessionOpenOptions:
             result["expAssignments"] = self.exp_assignments
         if self.feature_flags is not None:
             result["featureFlags"] = from_union([lambda x: from_dict(from_bool, x), from_none], self.feature_flags)
+        if self.included_builtin_agents is not None:
+            result["includedBuiltinAgents"] = from_union([lambda x: from_list(from_str, x), from_none], self.included_builtin_agents)
         if self.installed_plugins is not None:
             result["installedPlugins"] = from_union([lambda x: from_list(lambda x: to_class(InstalledPlugin, x), x), from_none], self.installed_plugins)
         if self.integration_id is not None:
@@ -21965,6 +22004,11 @@ class SessionUpdateOptionsParams:
     feature_flags: dict[str, bool] | None = None
     """Map of feature-flag IDs to their boolean enabled state."""
 
+    included_builtin_agents: list[str] | None = None
+    """Built-in subagent names to include in this session. When specified, only these built-ins
+    are available, subject to runtime availability and exclusions. Custom agents with the
+    same name remain available. Set to null to remove the allowlist restriction.
+    """
     installed_plugins: list[SessionInstalledPlugin] | None = None
     """Full set of installed plugins for the session. Replaces the existing list; the runtime
     invalidates the skills cache only when the list materially changes.
@@ -22087,6 +22131,7 @@ class SessionUpdateOptionsParams:
         excluded_builtin_agents = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedBuiltinAgents"))
         excluded_tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("excludedTools"))
         feature_flags = from_union([lambda x: from_dict(from_bool, x), from_none], obj.get("featureFlags"))
+        included_builtin_agents = from_union([lambda x: from_list(from_str, x), from_none], obj.get("includedBuiltinAgents"))
         installed_plugins = from_union([lambda x: from_list(SessionInstalledPlugin.from_dict, x), from_none], obj.get("installedPlugins"))
         integration_id = from_union([from_str, from_none], obj.get("integrationId"))
         is_experimental_mode = from_union([from_bool, from_none], obj.get("isExperimentalMode"))
@@ -22114,7 +22159,7 @@ class SessionUpdateOptionsParams:
         trajectory_file = from_union([from_str, from_none], obj.get("trajectoryFile"))
         verbosity = from_union([Verbosity, from_none], obj.get("verbosity"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
-        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, available_tools, capi, client_name, coauthor_enabled, context_tier, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, max_inline_binary_bytes, model, model_capabilities_overrides, organization_custom_instructions, provider, reasoning_effort, reasoning_summary, running_in_interactive_mode, sandbox_config, session_capabilities, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, suppress_custom_agent_prompt, tool_filter_precedence, trajectory_file, verbosity, working_directory)
+        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, allow_all_mcp_server_instructions, ask_user_disabled, available_tools, capi, client_name, coauthor_enabled, context_tier, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_builtin_agents, excluded_tools, feature_flags, included_builtin_agents, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, max_inline_binary_bytes, model, model_capabilities_overrides, organization_custom_instructions, provider, reasoning_effort, reasoning_summary, running_in_interactive_mode, sandbox_config, session_capabilities, session_limits, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, suppress_custom_agent_prompt, tool_filter_precedence, trajectory_file, verbosity, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -22172,6 +22217,8 @@ class SessionUpdateOptionsParams:
             result["excludedTools"] = from_union([lambda x: from_list(from_str, x), from_none], self.excluded_tools)
         if self.feature_flags is not None:
             result["featureFlags"] = from_union([lambda x: from_dict(from_bool, x), from_none], self.feature_flags)
+        if self.included_builtin_agents is not None:
+            result["includedBuiltinAgents"] = from_union([lambda x: from_list(from_str, x), from_none], self.included_builtin_agents)
         if self.installed_plugins is not None:
             result["installedPlugins"] = from_union([lambda x: from_list(lambda x: to_class(SessionInstalledPlugin, x), x), from_none], self.installed_plugins)
         if self.integration_id is not None:
@@ -27121,7 +27168,7 @@ class ServerPluginsMarketplacesApi:
         return MarketplaceListResult.from_dict(await self._client.request("plugins.marketplaces.list", {}, **_timeout_kwargs(timeout)))
 
     async def add(self, params: PluginsMarketplacesAddRequest, *, timeout: float | None = None) -> MarketplaceAddResult:
-        "Registers a new marketplace from a source (owner/repo, URL, or local path).\n\nArgs:\n    params: Marketplace source to register.\n\nReturns:\n    Result of registering a new marketplace."
+        "Registers a new marketplace from a source (owner/repo, URL, or local path).\n\nArgs:\n    params: Marketplace source and optional working directory for relative-path resolution.\n\nReturns:\n    Result of registering a new marketplace."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MarketplaceAddResult.from_dict(await self._client.request("plugins.marketplaces.add", params_dict, **_timeout_kwargs(timeout)))
 
@@ -27943,7 +27990,7 @@ class McpAppsApi:
         self._session_id = session_id
 
     async def read_resource(self, params: MCPAppsReadResourceRequest, *, timeout: float | None = None) -> MCPAppsReadResourceResult:
-        "Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.\n\nArgs:\n    params: Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.\n\nReturns:\n    Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.\n\n.. deprecated:: This API is deprecated and will be removed in a future version."
+        "Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.\n\nArgs:\n    params: MCP server and resource URI to fetch.\n\nReturns:\n    Resource contents returned by the MCP server."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPAppsReadResourceResult.from_dict(await self._client.request("session.mcp.apps.readResource", params_dict, **_timeout_kwargs(timeout)))
@@ -28530,7 +28577,7 @@ class MetadataApi:
         return MetadataRecordContextChangeResult.from_dict(await self._client.request("session.metadata.recordContextChange", params_dict, **_timeout_kwargs(timeout)))
 
     async def set_working_directory(self, params: MetadataSetWorkingDirectoryRequest, *, timeout: float | None = None) -> MetadataSetWorkingDirectoryResult:
-        "Updates the session's recorded working directory.\n\nArgs:\n    params: Absolute path to set as the session's new working directory.\n\nReturns:\n    Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path."
+        "Updates the session's working directory. For local sessions the target is validated first (an absolute path that exists on disk) and the permission primary directory is re-based; a rejected validation fails the call before any session state changes.\n\nArgs:\n    params: Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.\n\nReturns:\n    Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataSetWorkingDirectoryResult.from_dict(await self._client.request("session.metadata.setWorkingDirectory", params_dict, **_timeout_kwargs(timeout)))

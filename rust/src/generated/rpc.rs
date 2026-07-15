@@ -1175,7 +1175,7 @@ impl<'a> ClientRpcPluginsMarketplaces<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Marketplace source to register.
+    /// * `params` - Marketplace source and optional working directory for relative-path resolution.
     ///
     /// # Returns
     ///
@@ -4831,19 +4831,17 @@ pub struct SessionRpcMcpApps<'a> {
 }
 
 impl<'a> SessionRpcMcpApps<'a> {
-    /// Deprecated/obsolete alias for `session.mcp.resources.read`; retained for backwards compatibility with earlier MCP Apps host integrations.
+    /// Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
     ///
     /// Wire method: `session.mcp.apps.readResource`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Deprecated/obsolete MCP Apps alias for `McpResourcesReadRequest`; use `session.mcp.resources.read` instead.
+    /// * `params` - MCP server and resource URI to fetch.
     ///
     /// # Returns
     ///
-    /// Deprecated/obsolete MCP Apps alias for `McpResourcesReadResult`; use `session.mcp.resources.read` instead.
-    #[doc(hidden)]
-    #[deprecated]
+    /// Resource contents returned by the MCP server.
     ///
     /// <div class="warning">
     ///
@@ -5475,17 +5473,17 @@ impl<'a> SessionRpcMetadata<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Updates the session's recorded working directory.
+    /// Updates the session's working directory. For local sessions the target is validated first (an absolute path that exists on disk) and the permission primary directory is re-based; a rejected validation fails the call before any session state changes.
     ///
     /// Wire method: `session.metadata.setWorkingDirectory`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Absolute path to set as the session's new working directory.
+    /// * `params` - Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
     ///
     /// # Returns
     ///
-    /// Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for `process.chdir` and any related side-effects (file index, etc.); this method only updates the session's own recorded path.
+    /// Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path.
     ///
     /// <div class="warning">
     ///

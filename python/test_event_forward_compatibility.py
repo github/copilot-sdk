@@ -49,6 +49,20 @@ class TestEventForwardCompatibility:
         event = session_event_from_dict(unknown_event)
         assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
 
+    def test_internal_event_type_maps_to_unknown(self):
+        """Internal events should use the forward-compatible raw event path."""
+        internal_event = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "parentId": None,
+            "type": "session.memory_changed",
+            "data": {},
+        }
+
+        event = session_event_from_dict(internal_event)
+        assert event.type == SessionEventType.UNKNOWN
+        assert session_event_to_dict(event)["type"] == "session.memory_changed"
+
     def test_known_event_preserves_top_level_agent_id(self):
         """Known events should preserve the top-level sub-agent envelope ID."""
         known_event = {
