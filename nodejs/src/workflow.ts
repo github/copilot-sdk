@@ -8,7 +8,12 @@ import type { WorkflowMeta } from "./types.js";
 
 declare const workflowHandleBrand: unique symbol;
 
-/** JSON Schema accepted for structured workflow agent output. */
+/**
+ * Conservative JSON shape language accepted for structured workflow agent output.
+ *
+ * Supports `type`, `required`, `enum`, `const`, recursive `properties`/`items`,
+ * and `anyOf`/`oneOf`/`allOf`. Other JSON Schema keywords are ignored.
+ */
 export type WorkflowJsonSchema = Record<string, unknown>;
 
 /** Options for one workflow-scoped subagent call. */
