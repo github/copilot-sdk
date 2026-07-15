@@ -16,6 +16,21 @@ import { formatError, retry } from "./sdkTestHelper";
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
 
+async function runDiagnosticPhase<T>(name: string, action: () => Promise<T>): Promise<T> {
+    if (process.env.COPILOT_SDK_TEST_DIAGNOSTICS !== "1") {
+        return action();
+    }
+    const startMs = Date.now();
+    console.error(`[sdk-test-diagnostic pid=${process.pid}] ${name} begin`);
+    try {
+        return await action();
+    } finally {
+        console.error(
+            `[sdk-test-diagnostic pid=${process.pid}] ${name} complete elapsed=${Date.now() - startMs}ms`
+        );
+    }
+}
+
 /**
  * True when the E2E suite is running over the in-process (FFI) transport
  * (COPILOT_SDK_DEFAULT_CONNECTION=inprocess). Use with `it.skipIf` / `describe.skipIf`
@@ -291,11 +306,13 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
-        await copilotClient.stop();
-        await openAiEndpoint.stop(anyTestFailed);
-        await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
-        await rmDir("remove e2e test homeDir", homeDir);
-        await rmDir("remove e2e test workDir", workDir);
+        await runDiagnosticPhase("client.stop", () => copilotClient.stop());
+        await runDiagnosticPhase("proxy.stop", () => openAiEndpoint.stop(anyTestFailed));
+        await runDiagnosticPhase("remove copilotHomeDir", () =>
+            rmDir("remove e2e test copilotHomeDir", copilotHomeDir)
+        );
+        await runDiagnosticPhase("remove homeDir", () => rmDir("remove e2e test homeDir", homeDir));
+        await runDiagnosticPhase("remove workDir", () => rmDir("remove e2e test workDir", workDir));
     });
 
     return harness;

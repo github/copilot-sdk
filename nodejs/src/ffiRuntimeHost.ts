@@ -28,6 +28,14 @@ const SYMBOL_PREFIX = "copilot_runtime_";
 // connection is open (see start()); the exact interval is irrelevant.
 const KEEP_ALIVE_INTERVAL_MS = 1 << 30;
 
+function logTestDiagnostic(message: string, startMs?: number): void {
+    if (process.env.COPILOT_SDK_TEST_DIAGNOSTICS !== "1") {
+        return;
+    }
+    const elapsed = startMs === undefined ? "" : ` elapsed=${Date.now() - startMs}ms`;
+    process.stderr.write(`[copilot-sdk-diagnostic pid=${process.pid}] ${message}${elapsed}\n`);
+}
+
 type KoffiFunction = ReturnType<ReturnType<typeof koffi.load>["func"]>;
 type KoffiType = ReturnType<typeof koffi.pointer>;
 type KoffiRegisteredCallback = ReturnType<typeof koffi.register>;
@@ -186,6 +194,8 @@ export class FfiRuntimeHost {
      * waits for readiness, and opens the FFI JSON-RPC connection.
      */
     async start(): Promise<void> {
+        const startMs = Date.now();
+        logTestDiagnostic("ffi.start begin");
         const argvJson = buildArgvJson(this.cliEntrypoint, this.args);
         const envJson = buildEnvJson(this.environment);
 
@@ -216,6 +226,7 @@ export class FfiRuntimeHost {
                 `copilot_runtime_host_start failed (library '${this.libraryPath}', entrypoint '${this.cliEntrypoint}').`
             );
         }
+        logTestDiagnostic("ffi.start hostStart complete", startMs);
 
         this.outboundCallback = koffi.register(
             (_userData: unknown, bytesPtr: unknown, bytesLen: number | bigint) =>
@@ -240,6 +251,7 @@ export class FfiRuntimeHost {
             this.serverId = 0;
             throw new Error("copilot_runtime_connection_open failed.");
         }
+        logTestDiagnostic("ffi.start connectionOpen complete", startMs);
 
         // The in-process transport has no socket/pipe handle to keep the Node event loop
         // alive while the SDK is idle awaiting a server→client frame. koffi delivers the
@@ -311,6 +323,10 @@ export class FfiRuntimeHost {
             return;
         }
         this.disposed = true;
+        const disposeMs = Date.now();
+        logTestDiagnostic(
+            `ffi.dispose begin server=${this.serverId !== 0} connection=${this.connectionId !== 0}`
+        );
 
         if (this.keepAliveTimer !== undefined) {
             clearInterval(this.keepAliveTimer);
@@ -319,8 +335,10 @@ export class FfiRuntimeHost {
 
         try {
             if (this.connectionId) {
+                logTestDiagnostic("ffi.dispose connectionClose begin", disposeMs);
                 this.lib.connectionClose(this.connectionId);
                 this.connectionId = 0;
+                logTestDiagnostic("ffi.dispose connectionClose complete", disposeMs);
             }
         } catch {
             // Ignore teardown failures.
@@ -328,8 +346,10 @@ export class FfiRuntimeHost {
 
         try {
             if (this.serverId) {
+                logTestDiagnostic("ffi.dispose hostShutdown begin", disposeMs);
                 this.lib.hostShutdown(this.serverId);
                 this.serverId = 0;
+                logTestDiagnostic("ffi.dispose hostShutdown complete", disposeMs);
             }
         } catch {
             // Ignore teardown failures.
@@ -337,5 +357,6 @@ export class FfiRuntimeHost {
 
         this.receiveStream.end();
         this.unregisterCallback();
+        logTestDiagnostic("ffi.dispose complete", disposeMs);
     }
 }
