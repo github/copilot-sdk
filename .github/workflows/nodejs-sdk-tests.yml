@@ -85,9 +85,16 @@ jobs:
       - name: Run Node.js SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: >-
-          npm test --
-          test/e2e/builtin_tools.e2e.test.ts
-          test/e2e/hooks.e2e.test.ts
-          test/e2e/agent_and_compact_rpc.e2e.test.ts
-          test/e2e/session.e2e.test.ts
+        run: |
+          pwsh.exe -NoProfile -Command '
+            while ($true) {
+              $cpu = [math]::Round((Get-Counter "\Processor(_Total)\% Processor Time").CounterSamples.CookedValue)
+              $memory = [math]::Round((Get-Counter "\Memory\Available MBytes").CounterSamples.CookedValue)
+              $nodeCount = @(Get-Process -Name node -ErrorAction SilentlyContinue).Count
+              Write-Host "[resource-diagnostic] $(Get-Date -Format o) cpu=$cpu availableMb=$memory nodeProcesses=$nodeCount"
+              Start-Sleep -Seconds 5
+            }
+          ' &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid"' EXIT
+          npm test
