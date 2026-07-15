@@ -510,81 +510,6 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
   | EmbeddedTextResourceContents
   | EmbeddedBlobResourceContents;
 /**
- * Kind of factory progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogLineKind".
- */
-/** @experimental */
-export type FactoryLogLineKind =
-  /** A narrator log line. */
-  | "log"
-  /** A named factory phase marker. */
-  | "phase";
-/**
- * Machine-readable factory run failure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunFailure".
- */
-/** @experimental */
-export type FactoryRunFailure =
-  | {
-      kind: FactoryRunFailureKind;
-      /**
-       * Approved effective ceiling that was reached.
-       */
-      value: number;
-      /**
-       * Factory run identifier.
-       */
-      runId: string;
-      type: "factory_limit_reached";
-    }
-  | {
-      /**
-       * Factory run identifier whose changed limits were declined.
-       */
-      runId: string;
-      /**
-       * Human-readable reason the resume did not proceed.
-       */
-      reason: string;
-      type: "factory_resume_declined";
-    };
-/**
- * Cumulative resource ceiling that stopped a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunFailureKind".
- */
-/** @experimental */
-export type FactoryRunFailureKind =
-  /** The run admitted the approved maximum total number of subagents. */
-  | "maxTotalSubagents"
-  /** The run reached the approved timeout deadline. */
-  | "timeout";
-/**
- * Current or terminal state of a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunStatus".
- */
-/** @experimental */
-export type FactoryRunStatus =
-  /** The run was minted and is awaiting approval. */
-  | "pending"
-  /** The run is executing. */
-  | "running"
-  /** The run completed successfully. */
-  | "completed"
-  /** The run was interrupted while resource budget remained. */
-  | "halted"
-  /** The run was cancelled before completion. */
-  | "cancelled"
-  /** The factory body failed or reached a cumulative resource ceiling. */
-  | "error";
-/**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2190,6 +2115,38 @@ export type UISessionLimitsExhaustedResponseAction =
   | "unset"
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
+/**
+ * Kind of workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLineKind".
+ */
+/** @experimental */
+export type WorkflowLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named workflow phase marker. */
+  | "phase";
+/**
+ * Current or terminal state of a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunStatus".
+ */
+/** @experimental */
+export type WorkflowRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run stopped after reaching a resource ceiling. */
+  | "halted"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The workflow body failed. */
+  | "error";
 /**
  * Type of change represented by this file diff.
  *
@@ -4909,339 +4866,6 @@ export interface ExternalToolTextResultForLlmContentResource {
   resource: ExternalToolTextResultForLlmContentResourceDetails;
 }
 /**
- * Parameters for cooperatively aborting a factory body.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAbortRequest".
- */
-/** @experimental */
-export interface FactoryAbortRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Acknowledgement that a factory request was accepted.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAckResult".
- */
-/** @experimental */
-export interface FactoryAckResult {}
-/**
- * Options for one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentOptions".
- */
-/** @experimental */
-export interface FactoryAgentOptions {
-  /**
-   * Optional label distinguishing otherwise identical memoized agent calls.
-   */
-  label?: string;
-  /**
-   * Optional JSON Schema for structured agent output.
-   */
-  schema?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Optional model identifier for the subagent.
-   */
-  model?: string;
-}
-/**
- * Parameters for one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentRequest".
- */
-/** @experimental */
-export interface FactoryAgentRequest {
-  /**
-   * Factory run identifier that owns the subagent.
-   */
-  factoryRunId: string;
-  /**
-   * Prompt to send to the subagent.
-   */
-  prompt: string;
-  opts: FactoryAgentOptions;
-}
-/**
- * Result of one factory-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryAgentResult".
- */
-/** @experimental */
-export interface FactoryAgentResult {
-  /**
-   * Agent result, omitted when the agent produced no result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for cancelling a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryCancelRequest".
- */
-/** @experimental */
-export interface FactoryCancelRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters sent to the owning extension to execute a factory closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryExecuteRequest".
- */
-/** @experimental */
-export interface FactoryExecuteRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Registered factory name.
-   */
-  name: string;
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Factory input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Result returned by an extension factory closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryExecuteResult".
- */
-/** @experimental */
-export interface FactoryExecuteResult {
-  /**
-   * Factory result value.
-   */
-  result: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for retrieving a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryGetRunRequest".
- */
-/** @experimental */
-export interface FactoryGetRunRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters for reading a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalGetRequest".
- */
-/** @experimental */
-export interface FactoryJournalGetRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-}
-/**
- * Result of reading a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalGetResult".
- */
-/** @experimental */
-export interface FactoryJournalGetResult {
-  /**
-   * Whether the journal contained the requested key.
-   */
-  hit: boolean;
-  /**
-   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-   */
-  resultJson?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for storing a factory journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryJournalPutRequest".
- */
-/** @experimental */
-export interface FactoryJournalPutRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-  /**
-   * JSON result to memoize.
-   */
-  resultJson: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * One ordered factory progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogLine".
- */
-/** @experimental */
-export interface FactoryLogLine {
-  /**
-   * Monotonic sequence number within the factory run.
-   */
-  seq: number;
-  kind: FactoryLogLineKind;
-  /**
-   * Progress text.
-   */
-  text: string;
-}
-/**
- * Parameters for recording factory progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogRequest".
- */
-/** @experimental */
-export interface FactoryLogRequest {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  /**
-   * Ordered progress lines to append.
-   */
-  lines: FactoryLogLine[];
-}
-/**
- * Wire-only per-invocation factory resource ceiling overrides.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunLimits".
- */
-/** @experimental */
-export interface FactoryRunLimits {
-  /**
-   * Maximum number of factory subagents that may run concurrently.
-   */
-  maxConcurrentSubagents?: number;
-  /**
-   * Maximum total number of factory subagents that may be admitted.
-   */
-  maxTotalSubagents?: number;
-  /**
-   * Factory active-run timeout in milliseconds.
-   */
-  timeout?: number;
-}
-/**
- * Parameters for invoking a registered factory.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunRequest".
- */
-/** @experimental */
-export interface FactoryRunRequest {
-  /**
-   * Registered factory name.
-   */
-  name: string;
-  /**
-   * Factory input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-  options?: RunOptions;
-}
-/**
- * Options controlling factory invocation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RunOptions".
- */
-/** @experimental */
-export interface RunOptions {
-  limits?: FactoryRunLimits;
-  /**
-   * Run identifier whose journal and progress should seed this resumed run.
-   */
-  resumeFromRunId?: string;
-}
-/**
- * Complete current or terminal factory run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunResult".
- */
-/** @experimental */
-export interface FactoryRunResult {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  status: FactoryRunStatus;
-  /**
-   * Completed factory result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Error message for an errored run.
-   */
-  error?: string;
-  failure?: FactoryRunFailure;
-  /**
-   * Reason for a halted or cancelled run.
-   */
-  reason?: string;
-  /**
-   * Partial journal and progress snapshot for a halted, cancelled, or errored run.
-   */
-  snapshot?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
  * Optional user prompt to combine with the fleet orchestration instructions.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -5930,17 +5554,13 @@ export interface LlmInferenceHttpRequestStartRequest {
   headers: LlmInferenceHeaders;
   transport?: LlmInferenceHttpRequestStartTransport;
   /**
-   * Stable identity of the agent trajectory that issued this request. Present when the request originates from an agent turn; absent for requests outside any agent context. This is the same identity used by lifecycle and bridged session events and remains constant across turns and retries.
+   * Stable per-agent-instance id attributing this request to a specific agent trajectory. Present when the request originates from an agent turn; absent for requests issued outside any agent context (e.g. some SDK callers). A request with an `agentId` but no `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced from the runtime's per-request agent context and surfaced on the envelope independently of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header from this same context. Consumers routing each provider call to a training trajectory should key on this rather than on lifecycle events, since it is available on the request path before sampling.
    */
   agentId?: string;
   /**
-   * Stable identity of the immediate parent trajectory. Present for child trajectories such as subagents and conversation-sampling requests; absent for root-agent and non-agent requests.
+   * Id of the parent agent that spawned the agent issuing this request. Present only for subagent requests; absent for root-agent requests and non-agent requests. Combined with `agentId`, this lets consumers attribute a call to a child trajectory versus the root. Like `agentId`, it comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id` header from this same context.
    */
   parentAgentId?: string;
-  /**
-   * Identity of the agent invocation (one agentic loop) that issued this request. It remains fixed across physical retries within the invocation and is distinct from the stable trajectory `agentId`. A caller-supplied invocation id always takes precedence (this covers auxiliary calls that have no model call id). Otherwise, first-party CAPI requests fall back to the runtime's agent task id — the same value the runtime emits as the `X-Agent-Task-Id` header — while custom-provider requests fall back to the model call id.
-   */
-  agentInvocationId?: string;
   /**
    * Coarse classification of the interaction that produced this request. Open string for forward-compatibility; known values include `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, and `conversation-user`. Absent when the runtime did not classify the request. Comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Interaction-Type` header from this same context.
    */
@@ -7917,7 +7537,7 @@ export interface SessionWorkingDirectoryContext {
   baseCommit?: string;
 }
 /**
- * Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode). For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event); move a local session's working directory via `metadata.setWorkingDirectory` instead.
+ * Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "MetadataRecordContextChangeResult".
@@ -11459,6 +11079,23 @@ export interface RemoteSessionRepository {
   branch?: string;
 }
 /**
+ * Options controlling workflow invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RunOptions".
+ */
+/** @experimental */
+export interface RunOptions {
+  /**
+   * Whether to return once the approved run starts instead of awaiting its terminal result.
+   */
+  background?: boolean;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
  * Resolved sandbox configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11475,14 +11112,6 @@ export interface SandboxConfig {
    * Whether to auto-add the current working directory to readwritePaths. Default: true.
    */
   addCurrentWorkingDirectory?: boolean;
-  /**
-   * Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).
-   */
-  gitAuth?: boolean;
-  /**
-   * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
-   */
-  ghAuth?: boolean;
 }
 /**
  * User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -11938,10 +11567,6 @@ export interface ServerSkillList {
    * All discovered skills across all sources
    */
   skills: ServerSkill[];
-  /**
-   * Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers.
-   */
-  errors?: string[];
 }
 /**
  * Current activity flags for the session.
@@ -15773,10 +15398,6 @@ export interface UsageMetricsModelMetric {
   requests: UsageMetricsModelMetricRequests;
   usage: UsageMetricsModelMetricUsage;
   /**
-   * Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
-   */
-  cacheExpiresAt?: string;
-  /**
    * Accumulated nano-AI units cost for this model
    */
   totalNanoAiu?: number;
@@ -15988,6 +15609,330 @@ export interface VisibilitySetResult {
    * Shareable GitHub URL for the session. Present when the session is synced and the URL can be resolved.
    */
   shareUrl?: string;
+}
+/**
+ * Parameters for cooperatively aborting a workflow body.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAbortRequest".
+ */
+/** @experimental */
+export interface WorkflowAbortRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Acknowledgement that a workflow request was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAckResult".
+ */
+/** @experimental */
+export interface WorkflowAckResult {}
+/**
+ * Options for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentOptions".
+ */
+/** @experimental */
+export interface WorkflowAgentOptions {
+  /**
+   * Optional label distinguishing otherwise identical memoized agent calls.
+   */
+  label?: string;
+  /**
+   * Optional JSON Schema for structured agent output.
+   */
+  schema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Optional model identifier for the subagent.
+   */
+  model?: string;
+}
+/**
+ * Parameters for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentRequest".
+ */
+/** @experimental */
+export interface WorkflowAgentRequest {
+  /**
+   * Workflow run identifier that owns the subagent.
+   */
+  workflowRunId: string;
+  /**
+   * Prompt to send to the subagent.
+   */
+  prompt: string;
+  opts: WorkflowAgentOptions;
+}
+/**
+ * Result of one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentResult".
+ */
+/** @experimental */
+export interface WorkflowAgentResult {
+  /**
+   * Agent result, omitted when the agent produced no result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for cancelling a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowCancelRequest".
+ */
+/** @experimental */
+export interface WorkflowCancelRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters sent to the owning extension to execute a workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteRequest".
+ */
+/** @experimental */
+export interface WorkflowExecuteRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Parent workflow run identifier for nested execution.
+   */
+  parentRunId?: string;
+}
+/**
+ * Result returned by an extension workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteResult".
+ */
+/** @experimental */
+export interface WorkflowExecuteResult {
+  /**
+   * Workflow result value.
+   */
+  result: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for retrieving a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowGetRunRequest".
+ */
+/** @experimental */
+export interface WorkflowGetRunRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters for reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalGetRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+}
+/**
+ * Result of reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetResult".
+ */
+/** @experimental */
+export interface WorkflowJournalGetResult {
+  /**
+   * Whether the journal contained the requested key.
+   */
+  hit: boolean;
+  /**
+   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+   */
+  resultJson?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for storing a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalPutRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalPutRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+  /**
+   * JSON result to memoize.
+   */
+  resultJson: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * One ordered workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLine".
+ */
+/** @experimental */
+export interface WorkflowLogLine {
+  /**
+   * Monotonic sequence number within the workflow run.
+   */
+  seq: number;
+  kind: WorkflowLogLineKind;
+  /**
+   * Progress text.
+   */
+  text: string;
+}
+/**
+ * Parameters for recording workflow progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogRequest".
+ */
+/** @experimental */
+export interface WorkflowLogRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Ordered progress lines to append.
+   */
+  lines: WorkflowLogLine[];
+}
+/**
+ * Parameters for invoking a nested workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunNestedRequest".
+ */
+/** @experimental */
+export interface WorkflowRunNestedRequest {
+  /**
+   * Parent workflow run identifier.
+   */
+  parentRunId: string;
+  /**
+   * Registered child workflow name.
+   */
+  name: string;
+  /**
+   * Child workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for invoking a registered workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunRequest".
+ */
+/** @experimental */
+export interface WorkflowRunRequest {
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  options?: RunOptions;
+}
+/**
+ * Complete current or terminal workflow run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunResult".
+ */
+/** @experimental */
+export interface WorkflowRunResult {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  status: WorkflowRunStatus;
+  /**
+   * Completed workflow result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  /**
+   * Partial journal and progress snapshot for a halted or cancelled run.
+   */
+  snapshot?: {
+    [k: string]: unknown | undefined;
+  };
 }
 /**
  * A single changed file and its unified diff.
@@ -17099,72 +17044,81 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             },
         },
         /** @experimental */
-        factory: {
+        workflow: {
             /**
-             * Runs a registered factory by name at the top level.
+             * Runs a registered workflow by name at the top level.
              *
-             * @param params Parameters for invoking a registered factory.
+             * @param params Parameters for invoking a registered workflow.
              *
-             * @returns Complete current or terminal factory run envelope.
+             * @returns Complete current or terminal workflow run envelope.
              */
-            run: async (params: FactoryRunRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.run", { sessionId, ...params }),
+            run: async (params: WorkflowRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.run", { sessionId, ...params }),
             /**
-             * Gets the current or settled envelope for a factory run.
+             * Runs a registered workflow as a child of an existing workflow run.
              *
-             * @param params Parameters for retrieving a factory run.
+             * @param params Parameters for invoking a nested workflow.
              *
-             * @returns Complete current or terminal factory run envelope.
+             * @returns Complete current or terminal workflow run envelope.
              */
-            getRun: async (params: FactoryGetRunRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.getRun", { sessionId, ...params }),
+            runNested: async (params: WorkflowRunNestedRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.runNested", { sessionId, ...params }),
             /**
-             * Requests cancellation of a factory run and returns its run envelope.
+             * Gets the current or settled envelope for a workflow run.
              *
-             * @param params Parameters for cancelling a factory run.
+             * @param params Parameters for retrieving a workflow run.
              *
-             * @returns Complete current or terminal factory run envelope.
+             * @returns Complete current or terminal workflow run envelope.
              */
-            cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
-                connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
+            getRun: async (params: WorkflowGetRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.getRun", { sessionId, ...params }),
             /**
-             * Records a batch of ordered factory progress lines.
+             * Requests cancellation of a workflow run and returns its run envelope.
              *
-             * @param params Parameters for recording factory progress.
+             * @param params Parameters for cancelling a workflow run.
              *
-             * @returns Acknowledgement that a factory request was accepted.
+             * @returns Complete current or terminal workflow run envelope.
              */
-            log: async (params: FactoryLogRequest): Promise<FactoryAckResult> =>
-                connection.sendRequest("session.factory.log", { sessionId, ...params }),
+            cancel: async (params: WorkflowCancelRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.cancel", { sessionId, ...params }),
             /**
-             * Runs one factory-scoped subagent and returns its result.
+             * Records a batch of ordered workflow progress lines.
              *
-             * @param params Parameters for one factory-scoped subagent call.
+             * @param params Parameters for recording workflow progress.
              *
-             * @returns Result of one factory-scoped subagent call.
+             * @returns Acknowledgement that a workflow request was accepted.
              */
-            agent: async (params: FactoryAgentRequest): Promise<FactoryAgentResult> =>
-                connection.sendRequest("session.factory.agent", { sessionId, ...params }),
+            log: async (params: WorkflowLogRequest): Promise<WorkflowAckResult> =>
+                connection.sendRequest("session.workflow.log", { sessionId, ...params }),
+            /**
+             * Runs one workflow-scoped subagent and returns its result.
+             *
+             * @param params Parameters for one workflow-scoped subagent call.
+             *
+             * @returns Result of one workflow-scoped subagent call.
+             */
+            agent: async (params: WorkflowAgentRequest): Promise<WorkflowAgentResult> =>
+                connection.sendRequest("session.workflow.agent", { sessionId, ...params }),
             /** @experimental */
             journal: {
                 /**
-                 * Reads a memoized factory journal entry.
+                 * Reads a memoized workflow journal entry.
                  *
-                 * @param params Parameters for reading a factory journal entry.
+                 * @param params Parameters for reading a workflow journal entry.
                  *
-                 * @returns Result of reading a factory journal entry.
+                 * @returns Result of reading a workflow journal entry.
                  */
-                get: async (params: FactoryJournalGetRequest): Promise<FactoryJournalGetResult> =>
-                    connection.sendRequest("session.factory.journal.get", { sessionId, ...params }),
+                get: async (params: WorkflowJournalGetRequest): Promise<WorkflowJournalGetResult> =>
+                    connection.sendRequest("session.workflow.journal.get", { sessionId, ...params }),
                 /**
-                 * Stores a memoized factory journal entry.
+                 * Stores a memoized workflow journal entry.
                  *
-                 * @param params Parameters for storing a factory journal entry.
+                 * @param params Parameters for storing a workflow journal entry.
                  *
-                 * @returns Acknowledgement that a factory request was accepted.
+                 * @returns Acknowledgement that a workflow request was accepted.
                  */
-                put: async (params: FactoryJournalPutRequest): Promise<FactoryAckResult> =>
-                    connection.sendRequest("session.factory.journal.put", { sessionId, ...params }),
+                put: async (params: WorkflowJournalPutRequest): Promise<WorkflowAckResult> =>
+                    connection.sendRequest("session.workflow.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -18334,11 +18288,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getContextHeaviestMessages: async (params: MetadataContextHeaviestMessagesRequest): Promise<MetadataContextHeaviestMessagesResult> =>
                 connection.sendRequest("session.metadata.getContextHeaviestMessages", { sessionId, ...params }),
             /**
-             * Records a working-directory/git context change and emits a `session.context_changed` event. For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event): a local session's working directory is authoritative and is moved via `metadata.setWorkingDirectory` (or an SDK `session.resume` that supplies a `workingDirectory`), not by this method.
+             * Records a working-directory/git context change and emits a `session.context_changed` event.
              *
              * @param params Updated working-directory/git context to record on the session.
              *
-             * @returns Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode). For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event); move a local session's working directory via `metadata.setWorkingDirectory` instead.
+             * @returns Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode).
              */
             recordContextChange: async (params: MetadataRecordContextChangeRequest): Promise<MetadataRecordContextChangeResult> =>
                 connection.sendRequest("session.metadata.recordContextChange", { sessionId, ...params }),
@@ -18655,25 +18609,25 @@ export interface ProviderTokenHandler {
     getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
 }
 
-/** Handler for `factory` client session API methods. */
+/** Handler for `workflow` client session API methods. */
 /** @experimental */
-export interface FactoryHandler {
+export interface WorkflowHandler {
     /**
-     * Asks the owning extension connection to execute a registered factory closure.
+     * Asks the owning extension connection to execute a registered workflow closure.
      *
-     * @param params Parameters sent to the owning extension to execute a factory closure.
+     * @param params Parameters sent to the owning extension to execute a workflow closure.
      *
-     * @returns Result returned by an extension factory closure.
+     * @returns Result returned by an extension workflow closure.
      */
-    execute(params: FactoryExecuteRequest): Promise<FactoryExecuteResult>;
+    execute(params: WorkflowExecuteRequest): Promise<WorkflowExecuteResult>;
     /**
-     * Asks the owning extension connection to abort a running factory cooperatively.
+     * Asks the owning extension connection to abort a running workflow cooperatively.
      *
-     * @param params Parameters for cooperatively aborting a factory body.
+     * @param params Parameters for cooperatively aborting a workflow body.
      *
-     * @returns Acknowledgement that a factory request was accepted.
+     * @returns Acknowledgement that a workflow request was accepted.
      */
-    abort(params: FactoryAbortRequest): Promise<FactoryAckResult>;
+    abort(params: WorkflowAbortRequest): Promise<WorkflowAckResult>;
 }
 
 /** Handler for `sessionFs` client session API methods. */
@@ -18807,7 +18761,7 @@ export interface CanvasHandler {
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
-    factory?: FactoryHandler;
+    workflow?: WorkflowHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -18827,14 +18781,14 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
         return handler.getToken(params);
     });
-    connection.onRequest("factory.execute", async (params: FactoryExecuteRequest) => {
-        const handler = getHandlers(params.sessionId).factory;
-        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
+    connection.onRequest("workflow.execute", async (params: WorkflowExecuteRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
         return handler.execute(params);
     });
-    connection.onRequest("factory.abort", async (params: FactoryAbortRequest) => {
-        const handler = getHandlers(params.sessionId).factory;
-        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
+    connection.onRequest("workflow.abort", async (params: WorkflowAbortRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
         return handler.abort(params);
     });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
