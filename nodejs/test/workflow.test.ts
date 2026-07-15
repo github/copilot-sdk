@@ -7,7 +7,12 @@ import { ResponseError } from "vscode-jsonrpc/node.js";
 import { CopilotClient } from "../src/client.js";
 import { joinSession } from "../src/extension.js";
 import { CopilotSession } from "../src/session.js";
-import { defineWorkflow, WorkflowRunError, type WorkflowDefinition } from "../src/workflow.js";
+import {
+    defineWorkflow,
+    WorkflowRunError,
+    type WorkflowAgentOptions,
+    type WorkflowDefinition,
+} from "../src/workflow.js";
 
 async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
@@ -233,6 +238,50 @@ describe("workflows", () => {
 
         body.resolve();
         await expect(execution).resolves.toEqual({ result: "done" });
+    });
+
+    it("calls workflow.agent with the current run id and returns its text", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.workflow.agent") {
+                return { result: "pong" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-agent", { sendRequest } as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "agent",
+                description: "Agent context test",
+                phases: [],
+            },
+            run: async ({ agent }) =>
+                agent("Reply with pong", {
+                    label: "Pong helper",
+                    model: "gpt-test",
+                    schema: { type: "string" },
+                    effort: "high",
+                } as WorkflowAgentOptions),
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "agent",
+                runId: "run-agent",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "pong" });
+        expect(sendRequest).toHaveBeenCalledWith("session.workflow.agent", {
+            sessionId: session.sessionId,
+            workflowRunId: "run-agent",
+            prompt: "Reply with pong",
+            opts: {
+                label: "Pong helper",
+                model: "gpt-test",
+                schema: { type: "string" },
+            },
+        });
     });
 
     it("flushes buffered progress in finally when the workflow body throws", async () => {
