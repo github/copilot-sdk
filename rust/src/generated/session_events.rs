@@ -47,6 +47,8 @@ pub enum SessionEventType {
     SessionPlanChanged,
     #[serde(rename = "session.todos_changed")]
     SessionTodosChanged,
+    #[serde(rename = "session.memory_changed")]
+    SessionMemoryChanged,
     #[serde(rename = "session.workspace_file_changed")]
     SessionWorkspaceFileChanged,
     #[serde(rename = "session.handoff")]
@@ -329,6 +331,8 @@ pub enum SessionEventData {
     SessionPlanChanged(SessionPlanChangedData),
     #[serde(rename = "session.todos_changed")]
     SessionTodosChanged(SessionTodosChangedData),
+    #[serde(rename = "session.memory_changed")]
+    SessionMemoryChanged(SessionMemoryChangedData),
     #[serde(rename = "session.workspace_file_changed")]
     SessionWorkspaceFileChanged(SessionWorkspaceFileChangedData),
     #[serde(rename = "session.handoff")]
@@ -958,6 +962,11 @@ pub struct SessionPlanChangedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTodosChangedData {}
+
+/// Session event "session.memory_changed". Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SessionMemoryChangedData {}
 
 /// Session event "session.workspace_file_changed". Workspace file change details including path and operation type
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -2416,6 +2425,16 @@ pub struct ToolExecutionCompleteResult {
     /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
+    /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
     /// Structured content (arbitrary JSON) returned verbatim by the MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<serde_json::Value>,
@@ -2472,6 +2491,16 @@ pub struct ToolExecutionCompleteData {
     /// Whether this tool call was explicitly requested by the user rather than the assistant
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_user_requested: Option<bool>,
+    /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
     /// Model identifier that generated this tool call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -4145,7 +4174,7 @@ pub struct SessionExtensionsLoadedData {
     pub extensions: Vec<ExtensionsLoadedExtension>,
 }
 
-/// Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+/// Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
 ///
 /// <div class="warning">
 ///
@@ -4163,6 +4192,9 @@ pub struct SessionCanvasOpenedData {
     /// Owning extension display name, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
+    /// Host-local PNG path for the canvas icon, when supplied
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// Input supplied when the instance was opened
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
@@ -4225,6 +4257,9 @@ pub struct CanvasRegistryChangedCanvas {
     /// Owning extension display name, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
+    /// Host-local PNG path for the canvas icon, when supplied
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// JSON Schema for canvas open input
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<serde_json::Value>,
