@@ -92,6 +92,21 @@ class ToolDefinitionFromObjectTest {
         assertEquals("Hello, Alice!", result);
     }
 
+    @Test
+    void fromObject_toolMetadata() {
+        var tools = ToolDefinition.fromObject(new SimpleTools());
+
+        var withMetadata = findTool(tools, "greet_user");
+        assertNotNull(withMetadata);
+        assertNotNull(withMetadata.metadata());
+        assertEquals(Map.of("github.com/copilot:safeForTelemetry", Map.of("name", true, "inputsNames", false)),
+                withMetadata.metadata());
+
+        var withoutMetadata = findTool(tools, "add_numbers");
+        assertNotNull(withoutMetadata);
+        assertNull(withoutMetadata.metadata());
+    }
+
     // ── Test 2: Handler return type patterns ────────────────────────────────────
 
     @Test

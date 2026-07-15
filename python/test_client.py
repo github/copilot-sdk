@@ -40,6 +40,7 @@ from copilot.session_events import (
     SessionEvent,
     SessionEventType,
 )
+from copilot.tools import Tool
 from e2e.testharness import CLI_PATH
 
 
@@ -564,6 +565,46 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["contextTier"] == "long_context"
             assert captured["session.resume"]["contextTier"] == "default"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_tool_metadata(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            metadata = {"github.com/copilot:safeForTelemetry": {"name": True, "inputsNames": False}}
+            tool = Tool(name="my_tool", description="a tool", metadata=metadata)
+            plain_tool = Tool(name="plain_tool", description="a tool")
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool, plain_tool],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool],
+            )
+
+            create_tools = captured["session.create"]["tools"]
+            assert create_tools[0]["metadata"] == metadata
+            # Omitted when unset.
+            assert "metadata" not in create_tools[1]
+            assert captured["session.resume"]["tools"][0]["metadata"] == metadata
         finally:
             await client.force_stop()
 
