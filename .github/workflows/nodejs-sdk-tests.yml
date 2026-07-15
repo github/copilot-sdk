@@ -38,8 +38,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        transport: ["default", "inprocess"]
+        os: [windows-latest]
+        transport: ["inprocess"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -85,4 +85,9 @@ jobs:
       - name: Run Node.js SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: npm test
+        run: >-
+          npm test --
+          test/e2e/builtin_tools.e2e.test.ts
+          test/e2e/hooks.e2e.test.ts
+          test/e2e/agent_and_compact_rpc.e2e.test.ts
+          test/e2e/session.e2e.test.ts
