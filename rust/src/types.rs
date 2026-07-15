@@ -1582,6 +1582,38 @@ impl ProviderModelConfig {
     }
 }
 
+/// Runtime settings applied when creating or resuming a session.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct RuntimeSettings {
+    /// Restricts model selection to this model identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_lock: Option<String>,
+    /// Restricts context tier selection to this tier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tier_lock: Option<String>,
+}
+
+impl RuntimeSettings {
+    /// Construct runtime settings with all fields unset.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Restrict model selection to the given model identifier.
+    pub fn with_model_lock(mut self, model_lock: impl Into<String>) -> Self {
+        self.model_lock = Some(model_lock.into());
+        self
+    }
+
+    /// Restrict context tier selection to the given tier.
+    pub fn with_context_tier_lock(mut self, context_tier_lock: impl Into<String>) -> Self {
+        self.context_tier_lock = Some(context_tier_lock.into());
+        self
+    }
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1640,6 +1672,8 @@ pub struct SessionConfig {
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
+    /// Runtime settings applied to this session.
+    pub runtime_settings: Option<RuntimeSettings>,
     /// Application name sent as `User-Agent` context.
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
@@ -1921,6 +1955,7 @@ impl std::fmt::Debug for SessionConfig {
         f.debug_struct("SessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("runtime_settings", &self.runtime_settings)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -2048,6 +2083,7 @@ impl Default for SessionConfig {
         Self {
             session_id: None,
             model: None,
+            runtime_settings: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -2200,6 +2236,7 @@ impl SessionConfig {
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
+            runtime_settings: self.runtime_settings,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -2403,6 +2440,12 @@ impl SessionConfig {
     /// Set the model identifier (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set runtime settings for this session.
+    pub fn with_runtime_settings(mut self, runtime_settings: RuntimeSettings) -> Self {
+        self.runtime_settings = Some(runtime_settings);
         self
     }
 
@@ -2870,6 +2913,8 @@ pub struct ResumeSessionConfig {
     /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
+    /// Runtime settings applied to the resumed session.
+    pub runtime_settings: Option<RuntimeSettings>,
     /// Application name sent as User-Agent context.
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
@@ -3089,6 +3134,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
         f.debug_struct("ResumeSessionConfig")
             .field("session_id", &self.session_id)
             .field("model", &self.model)
+            .field("runtime_settings", &self.runtime_settings)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
@@ -3253,6 +3299,7 @@ impl ResumeSessionConfig {
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
             model: self.model,
+            runtime_settings: self.runtime_settings,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
@@ -3350,6 +3397,7 @@ impl ResumeSessionConfig {
         Self {
             session_id,
             model: None,
+            runtime_settings: None,
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
@@ -3524,6 +3572,12 @@ impl ResumeSessionConfig {
     /// Set the model identifier to switch to on resume (e.g. `"claude-sonnet-4"`).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set runtime settings for the resumed session.
+    pub fn with_runtime_settings(mut self, runtime_settings: RuntimeSettings) -> Self {
+        self.runtime_settings = Some(runtime_settings);
         self
     }
 
@@ -5404,9 +5458,9 @@ mod tests {
         CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
         LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
         NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
-        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
-        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
-        ensure_attachment_display_names,
+        ResumeSessionConfig, RuntimeSettings, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -5789,6 +5843,83 @@ mod tests {
         let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["expAssignments"], assignments);
+    }
+
+    #[test]
+    fn runtime_settings_serializes_locks() {
+        let settings = RuntimeSettings::new()
+            .with_model_lock("gpt-5.6-sol")
+            .with_context_tier_lock("long_context");
+        assert_eq!(
+            serde_json::to_value(settings).unwrap(),
+            json!({
+                "modelLock": "gpt-5.6-sol",
+                "contextTierLock": "long_context"
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(RuntimeSettings::default()).unwrap(),
+            json!({})
+        );
+    }
+
+    #[test]
+    fn session_config_into_wire_serializes_runtime_settings() {
+        let config = SessionConfig::default().with_runtime_settings(
+            RuntimeSettings::new()
+                .with_model_lock("gpt-5.6-sol")
+                .with_context_tier_lock("long_context"),
+        );
+        let (wire, _) = config
+            .into_wire(Some(SessionId::from("runtime-settings")))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(wire).unwrap();
+        assert_eq!(
+            json["runtimeSettings"],
+            json!({
+                "modelLock": "gpt-5.6-sol",
+                "contextTierLock": "long_context"
+            })
+        );
+
+        let (wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("no-runtime-settings")))
+            .expect("no duplicate handlers");
+        assert!(
+            serde_json::to_value(wire)
+                .unwrap()
+                .get("runtimeSettings")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn resume_session_config_into_wire_serializes_runtime_settings() {
+        let config = ResumeSessionConfig::new(SessionId::from("runtime-settings"))
+            .with_runtime_settings(
+                RuntimeSettings::new()
+                    .with_model_lock("gpt-5.6-sol")
+                    .with_context_tier_lock("long_context"),
+            );
+        let (wire, _) = config.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(wire).unwrap();
+        assert_eq!(
+            json["runtimeSettings"],
+            json!({
+                "modelLock": "gpt-5.6-sol",
+                "contextTierLock": "long_context"
+            })
+        );
+
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("no-runtime-settings"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        assert!(
+            serde_json::to_value(wire)
+                .unwrap()
+                .get("runtimeSettings")
+                .is_none()
+        );
     }
 
     #[test]
