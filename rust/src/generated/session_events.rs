@@ -47,8 +47,6 @@ pub enum SessionEventType {
     SessionPlanChanged,
     #[serde(rename = "session.todos_changed")]
     SessionTodosChanged,
-    #[serde(rename = "session.memory_changed")]
-    SessionMemoryChanged,
     #[serde(rename = "session.workspace_file_changed")]
     SessionWorkspaceFileChanged,
     #[serde(rename = "session.handoff")]
@@ -331,8 +329,6 @@ pub enum SessionEventData {
     SessionPlanChanged(SessionPlanChangedData),
     #[serde(rename = "session.todos_changed")]
     SessionTodosChanged(SessionTodosChangedData),
-    #[serde(rename = "session.memory_changed")]
-    SessionMemoryChanged(SessionMemoryChangedData),
     #[serde(rename = "session.workspace_file_changed")]
     SessionWorkspaceFileChanged(SessionWorkspaceFileChangedData),
     #[serde(rename = "session.handoff")]
@@ -962,11 +958,6 @@ pub struct SessionPlanChangedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTodosChangedData {}
-
-/// Session event "session.memory_changed". Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct SessionMemoryChangedData {}
 
 /// Session event "session.workspace_file_changed". Workspace file change details including path and operation type
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

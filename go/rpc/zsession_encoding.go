@@ -443,12 +443,6 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
-	case SessionEventTypeSessionMemoryChanged:
-		var d SessionMemoryChangedData
-		if err := json.Unmarshal(raw.Data, &d); err != nil {
-			return err
-		}
-		e.Data = &d
 	case SessionEventTypeSessionModeChanged:
 		var d SessionModeChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

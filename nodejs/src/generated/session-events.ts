@@ -25,7 +25,6 @@ export type SessionEvent =
   | PermissionsChangedEvent
   | PlanChangedEvent
   | TodosChangedEvent
-  | MemoryChangedEvent
   | WorkspaceFileChangedEvent
   | HandoffEvent
   | TruncationEvent
@@ -1693,47 +1692,6 @@ export interface TodosChangedEvent {
  * Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
  */
 export interface TodosChangedData {}
-/**
- * Session event "session.memory_changed". Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
- */
-/** @internal */
-export interface MemoryChangedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
-   *
-   * @internal
-   */
-  data: MemoryChangedData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "session.memory_changed".
-   */
-  type: "session.memory_changed";
-}
-/**
- * Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
- */
-/** @internal */
-export interface MemoryChangedData {}
 /**
  * Session event "session.workspace_file_changed". Workspace file change details including path and operation type
  */

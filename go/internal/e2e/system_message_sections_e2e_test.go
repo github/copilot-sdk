@@ -43,6 +43,7 @@ func TestSystemMessageSectionsE2E(t *testing.T) {
 		}
 		if response == nil {
 			t.Fatal("Expected a response from the assistant")
+			return
 		}
 
 		ad, ok := response.Data.(*copilot.AssistantMessageData)
@@ -82,6 +83,7 @@ func TestSystemMessageSectionsE2E(t *testing.T) {
 		}
 		if response == nil {
 			t.Fatal("Expected a response from the assistant")
+			return
 		}
 
 		ad, ok := response.Data.(*copilot.AssistantMessageData)

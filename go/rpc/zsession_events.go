@@ -137,7 +137,6 @@ const (
 	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
 	SessionEventTypeSessionMCPServersLoaded            SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionMCPServerStatusChanged      SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionMemoryChanged               SessionEventType = "session.memory_changed"
 	SessionEventTypeSessionModeChanged                 SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange                 SessionEventType = "session.model_change"
 	SessionEventTypeSessionPermissionsChanged          SessionEventType = "session.permissions_changed"
@@ -1541,13 +1540,6 @@ type SessionTitleChangedData struct {
 
 func (*SessionTitleChangedData) sessionEventData()      {}
 func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTypeSessionTitleChanged }
-
-// Signal-only event: the agent successfully stored a memory (store_memory) or voted on one (vote_memory). No payload — consumers should re-fetch memories to pick up the change. Used to refresh memory context (e.g. re-running the context sidekick) so newly written memories surface in subsequent turns.
-type SessionMemoryChangedData struct {
-}
-
-func (*SessionMemoryChangedData) sessionEventData()      {}
-func (*SessionMemoryChangedData) Type() SessionEventType { return SessionEventTypeSessionMemoryChanged }
 
 // Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
 type SessionTodosChangedData struct {

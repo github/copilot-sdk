@@ -233,7 +233,6 @@ type (
 	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
-	SessionMemoryChangedData                                       = rpc.SessionMemoryChangedData
 	SessionMode                                                    = rpc.SessionMode
 	SessionModeChangedData                                         = rpc.SessionModeChangedData
 	SessionModelChangeData                                         = rpc.SessionModelChangeData
@@ -577,7 +576,6 @@ const (
 	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
-	SessionEventTypeSessionMemoryChanged                               = rpc.SessionEventTypeSessionMemoryChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
 	SessionEventTypeSessionModelChange                                 = rpc.SessionEventTypeSessionModelChange
 	SessionEventTypeSessionPermissionsChanged                          = rpc.SessionEventTypeSessionPermissionsChanged
