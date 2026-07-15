@@ -937,6 +937,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools
+                null, // includedBuiltinAgents
                 null, // excludedBuiltinAgents
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety

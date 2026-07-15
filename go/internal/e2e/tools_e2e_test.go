@@ -140,23 +140,23 @@ func TestToolsE2E(t *testing.T) {
 
 		if answer == nil {
 			t.Fatalf("Expected non-nil assistant message")
-		} else {
-			ad, ok := answer.Data.(*copilot.AssistantMessageData)
-			if !ok {
-				t.Fatalf("Expected AssistantMessageData")
-			}
+			return
+		}
+		ad, ok := answer.Data.(*copilot.AssistantMessageData)
+		if !ok {
+			t.Fatalf("Expected AssistantMessageData")
+		}
 
-			content := ad.Content
-			if content == "" {
-				t.Fatalf("Expected non-empty response")
-			}
-			lower := strings.ToLower(content)
-			if !strings.Contains(lower, "analyzing") {
-				t.Errorf("Expected response to contain 'analyzing', got %q", content)
-			}
-			if !strings.Contains(lower, "item_alpha") && !strings.Contains(lower, "item_beta") {
-				t.Errorf("Expected response to contain 'item_alpha' or 'item_beta', got %q", content)
-			}
+		content := ad.Content
+		if content == "" {
+			t.Fatalf("Expected non-empty response")
+		}
+		lower := strings.ToLower(content)
+		if !strings.Contains(lower, "analyzing") {
+			t.Errorf("Expected response to contain 'analyzing', got %q", content)
+		}
+		if !strings.Contains(lower, "item_alpha") && !strings.Contains(lower, "item_beta") {
+			t.Errorf("Expected response to contain 'item_alpha' or 'item_beta', got %q", content)
 		}
 		mu.Lock()
 		gotPhase := currentPhase

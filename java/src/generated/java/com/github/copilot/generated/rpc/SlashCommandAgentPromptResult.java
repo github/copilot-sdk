@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, and settings-change flag.
+ * Slash-command invocation result that submits an agent prompt, with display prompt, optional mode, optional user-facing notice, and settings-change flag.
  *
  * @since 1.0.0
  */
@@ -40,6 +40,10 @@ public final class SlashCommandAgentPromptResult extends SlashCommandInvocationR
     @JsonProperty("mode")
     private SessionMode mode;
 
+    /** Optional user-facing notice to show before the prompt is submitted */
+    @JsonProperty("notice")
+    private String notice;
+
     /** True when the invocation mutated user runtime settings; consumers caching settings should refresh */
     @JsonProperty("runtimeSettingsChanged")
     private Boolean runtimeSettingsChanged;
@@ -52,6 +56,9 @@ public final class SlashCommandAgentPromptResult extends SlashCommandInvocationR
 
     public SessionMode getMode() { return mode; }
     public void setMode(SessionMode mode) { this.mode = mode; }
+
+    public String getNotice() { return notice; }
+    public void setNotice(String notice) { this.notice = notice; }
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }

@@ -118,7 +118,7 @@ public class SessionCanvasSnapshotTest {
 
         var canvases = session.getOpenCanvases();
         assertThrows(UnsupportedOperationException.class,
-                () -> canvases.add(new OpenCanvasInstance("x", "ext", null, "c", null, null, null, null)));
+                () -> canvases.add(new OpenCanvasInstance("x", "ext", null, "c", null, null, null, null, null)));
 
         // The returned list is a point-in-time snapshot, not a live view: a
         // subsequent event must not change the previously-returned list.
@@ -133,9 +133,9 @@ public class SessionCanvasSnapshotTest {
     @Test
     void setOpenCanvasesSeedsAndFiltersNulls() {
         var seed = new java.util.ArrayList<OpenCanvasInstance>();
-        seed.add(new OpenCanvasInstance("inst-1", "ext", null, "canvas-a", null, null, null, null));
+        seed.add(new OpenCanvasInstance("inst-1", "ext", null, "canvas-a", null, null, null, null, null));
         seed.add(null);
-        seed.add(new OpenCanvasInstance("inst-2", "ext", null, "canvas-b", null, null, null, null));
+        seed.add(new OpenCanvasInstance("inst-2", "ext", null, "canvas-b", null, null, null, null, null));
 
         session.setOpenCanvases(seed);
 
@@ -195,8 +195,8 @@ public class SessionCanvasSnapshotTest {
 
     private static SessionCanvasOpenedEvent openedEvent(String instanceId, String canvasId) {
         var event = new SessionCanvasOpenedEvent();
-        event.setData(new SessionCanvasOpenedEventData(instanceId, "ext-id", "Ext Name", canvasId, "Title", "ok", null,
-                null));
+        event.setData(new SessionCanvasOpenedEventData(instanceId, "ext-id", "Ext Name", canvasId, null, "Title", "ok",
+                null, null));
         return event;
     }
 
