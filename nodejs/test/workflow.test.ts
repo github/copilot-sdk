@@ -142,9 +142,170 @@ describe("workflows", () => {
         );
     });
 
+    it("builds the workflow context with args, progress, signal, and the joined session identity", async () => {
+        process.env.SESSION_ID = "session-context";
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.workflow.log") {
+                return {};
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const joinedSession = new CopilotSession("session-context", { sendRequest } as never);
+        const contextSeen = Promise.withResolvers<{
+            args: unknown;
+            session: CopilotSession;
+            signal: AbortSignal;
+        }>();
+        const workflow = defineWorkflow({
+            meta: {
+                name: "context",
+                description: "Context test",
+                phases: [],
+            },
+            run: async (context) => {
+                contextSeen.resolve(context);
+                context.phase("A");
+                context.log("hi");
+                return { ok: true };
+            },
+        });
+        vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockImplementation(
+            async (_sessionId, _config, workflows) => {
+                joinedSession.registerWorkflows(workflows);
+                return joinedSession;
+            }
+        );
+
+        const joinSessionResult = await joinSession({ workflows: [workflow] });
+        const executeResult = await joinSessionResult.clientSessionApis.workflow!.execute({
+            sessionId: joinSessionResult.sessionId,
+            name: "context",
+            runId: "run-context",
+            args: { value: 42 },
+        });
+        const context = await contextSeen.promise;
+
+        expect(context.args).toEqual({ value: 42 });
+        expect(context.session).toBe(joinSessionResult);
+        expect(context.signal).toBeInstanceOf(AbortSignal);
+        expect(executeResult).toEqual({ result: { ok: true } });
+        expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+            sessionId: joinSessionResult.sessionId,
+            runId: "run-context",
+            lines: [
+                { seq: 0, kind: "phase", text: "A" },
+                { seq: 1, kind: "log", text: "hi" },
+            ],
+        });
+    });
+
+    it("flushes progress incrementally while a workflow body is awaiting", async () => {
+        const sendRequest = vi.fn(async () => ({}));
+        const session = new CopilotSession("session-live-progress", { sendRequest } as never);
+        const body = Promise.withResolvers<void>();
+        const workflow = defineWorkflow({
+            meta: {
+                name: "live-progress",
+                description: "Incremental progress test",
+                phases: [],
+            },
+            run: async ({ log }) => {
+                log("before await");
+                await body.promise;
+                return "done";
+            },
+        });
+        session.registerWorkflows([workflow]);
+
+        const execution = session.clientSessionApis.workflow!.execute({
+            sessionId: session.sessionId,
+            name: "live-progress",
+            runId: "run-live-progress",
+            args: {},
+        });
+        await vi.waitFor(() => {
+            expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+                sessionId: session.sessionId,
+                runId: "run-live-progress",
+                lines: [{ seq: 0, kind: "log", text: "before await" }],
+            });
+        });
+
+        body.resolve();
+        await expect(execution).resolves.toEqual({ result: "done" });
+    });
+
+    it("flushes buffered progress in finally when the workflow body throws", async () => {
+        const sendRequest = vi.fn(async () => ({}));
+        const session = new CopilotSession("session-throw-progress", { sendRequest } as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "throw-progress",
+                description: "Throwing progress test",
+                phases: [],
+            },
+            run: async ({ log }) => {
+                log("before throw");
+                throw new Error("body failed");
+            },
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "throw-progress",
+                runId: "run-throw-progress",
+                args: {},
+            })
+        ).rejects.toThrow("body failed");
+        expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+            sessionId: session.sessionId,
+            runId: "run-throw-progress",
+            lines: [{ seq: 0, kind: "log", text: "before throw" }],
+        });
+    });
+
+    it("surfaces the per-run abort signal on the workflow context", async () => {
+        const session = new CopilotSession("session-abort-signal", {} as never);
+        const signalSeen = Promise.withResolvers<AbortSignal>();
+        const workflow = defineWorkflow({
+            meta: {
+                name: "abort-signal",
+                description: "Abort signal test",
+                phases: [],
+            },
+            run: async ({ signal }) => {
+                signalSeen.resolve(signal);
+                await new Promise<void>((resolve) =>
+                    signal.addEventListener("abort", () => resolve(), { once: true })
+                );
+                return signal.aborted;
+            },
+        });
+        session.registerWorkflows([workflow]);
+
+        const execution = session.clientSessionApis.workflow!.execute({
+            sessionId: session.sessionId,
+            name: "abort-signal",
+            runId: "run-abort-signal",
+            args: {},
+        });
+        const signal = await signalSeen.promise;
+        expect(signal.aborted).toBe(false);
+
+        await session.clientSessionApis.workflow!.abort({
+            sessionId: session.sessionId,
+            runId: "run-abort-signal",
+        });
+
+        expect(signal.aborted).toBe(true);
+        await expect(execution).resolves.toEqual({ result: true });
+    });
+
     it("dispatches workflow.execute by name and returns a structured unknown-name error", async () => {
         const run = vi.fn(async ({ args, log }) => {
-            log("ignored in phase 2");
+            log("executing");
             return { echoed: args };
         });
         const workflow = defineWorkflow({
@@ -155,7 +316,9 @@ describe("workflows", () => {
             },
             run,
         });
-        const session = new CopilotSession("session-execute", {} as never);
+        const session = new CopilotSession("session-execute", {
+            sendRequest: vi.fn(async () => ({})),
+        } as never);
         session.registerWorkflows([workflow]);
 
         await expect(

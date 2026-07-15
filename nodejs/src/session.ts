@@ -16,6 +16,7 @@ import type {
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
     WorkflowExecuteResult,
+    WorkflowLogLine,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -101,6 +102,72 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
         typeof instance.canvasId === "string" &&
         instance.canvasId.length > 0
     );
+}
+
+const WORKFLOW_LOG_FLUSH_DELAY_MS = 10;
+
+class WorkflowProgressBuffer {
+    private nextSeq = 0;
+    private pending: WorkflowLogLine[] = [];
+    private flushTimer?: ReturnType<typeof setTimeout>;
+    private flushTail: Promise<void> = Promise.resolve();
+    private flushError: unknown;
+    private flushFailed = false;
+    private closed = false;
+
+    constructor(private readonly send: (lines: WorkflowLogLine[]) => Promise<void>) {}
+
+    enqueue(kind: WorkflowLogLine["kind"], text: string): void {
+        if (this.closed) {
+            throw new Error("Cannot log after the workflow run has settled");
+        }
+        this.pending.push({ seq: this.nextSeq++, kind, text });
+        this.scheduleFlush();
+    }
+
+    async flush(): Promise<void> {
+        this.clearFlushTimer();
+        const lines = this.pending.splice(0);
+        if (lines.length > 0) {
+            this.flushTail = this.flushTail.then(async () => {
+                try {
+                    await this.send(lines);
+                } catch (error) {
+                    if (!this.flushFailed) {
+                        this.flushFailed = true;
+                        this.flushError = error;
+                    }
+                }
+            });
+        }
+        await this.flushTail;
+        if (this.flushFailed) {
+            throw this.flushError;
+        }
+    }
+
+    async close(): Promise<void> {
+        this.closed = true;
+        await this.flush();
+    }
+
+    private scheduleFlush(): void {
+        if (this.flushTimer !== undefined) {
+            return;
+        }
+        this.flushTimer = setTimeout(() => {
+            this.flushTimer = undefined;
+            void this.flush().catch(() => {});
+        }, WORKFLOW_LOG_FLUSH_DELAY_MS);
+        this.flushTimer.unref?.();
+    }
+
+    private clearFlushTimer(): void {
+        if (this.flushTimer !== undefined) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = undefined;
+        }
+    }
 }
 
 /** Assistant message event - the final response from the assistant. */
@@ -950,15 +1017,35 @@ export class CopilotSession {
 
                 const controller = new AbortController();
                 self.workflowAbortControllers.set(params.runId, controller);
+                const progress = new WorkflowProgressBuffer(async (lines) => {
+                    await self.rpc.workflow.log({ runId: params.runId, lines });
+                });
                 try {
-                    const result = await definition.run({
+                    const unsupported = async (method: string): Promise<never> => {
+                        await progress.flush();
+                        throw new Error(`${method} is not yet supported`);
+                    };
+                    const context: WorkflowContext = {
                         args: params.args,
-                        log: (_message: string) => {},
-                    } as WorkflowContext);
+                        session: self,
+                        signal: controller.signal,
+                        phase: (title: string) => progress.enqueue("phase", title),
+                        log: (message: string) => progress.enqueue("log", message),
+                        agent: async () => unsupported("workflow.agent"),
+                        step: async () => unsupported("workflow.step"),
+                        parallel: async () => unsupported("workflow.parallel"),
+                        pipeline: async () => unsupported("workflow.pipeline"),
+                        workflow: async () => unsupported("workflow.runNested"),
+                    };
+                    const result = await definition.run(context);
                     return { result } as WorkflowExecuteResult;
                 } finally {
-                    if (self.workflowAbortControllers.get(params.runId) === controller) {
-                        self.workflowAbortControllers.delete(params.runId);
+                    try {
+                        await progress.close();
+                    } finally {
+                        if (self.workflowAbortControllers.get(params.runId) === controller) {
+                            self.workflowAbortControllers.delete(params.runId);
+                        }
                     }
                 }
             },
