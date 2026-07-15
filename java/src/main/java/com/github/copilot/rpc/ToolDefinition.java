@@ -90,12 +90,10 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         @JsonProperty("metadata") Map<String, Object> metadata) {
 
     /**
-     * Backward-compatible constructor without the {@code metadata} component.
+     * Creates a tool definition without a {@code metadata} bag.
      * <p>
-     * Delegates to the canonical constructor with {@code metadata} set to
-     * {@code null}. Retained so existing direct constructor call sites (including
-     * previously-generated {@code $$CopilotToolMeta} classes) keep compiling after
-     * {@code metadata} was added.
+     * Convenience overload equivalent to the canonical constructor with
+     * {@code metadata} set to {@code null}.
      *
      * @param name
      *            the unique name of the tool
