@@ -3326,6 +3326,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                     extension_id: "github-app:counter-provider".to_string(),
                     extension_name: Some("Counter Provider".to_string()),
                     canvas_id: "counter".to_string(),
+                    icon: None,
                     title: Some("Counter".to_string()),
                     status: Some("ready".to_string()),
                     url: Some("https://example.test/counter".to_string()),

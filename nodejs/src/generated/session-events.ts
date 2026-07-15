@@ -4470,6 +4470,14 @@ export interface ToolExecutionCompleteData {
    */
   isUserRequested?: boolean;
   /**
+   * FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental.
+   *
+   * @experimental
+   */
+  mcpMeta?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
    * Model identifier that generated this tool call
    */
   model?: string;
@@ -4544,6 +4552,14 @@ export interface ToolExecutionCompleteResult {
    * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
    */
   detailedContent?: string;
+  /**
+   * FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
+   *
+   * @experimental
+   */
+  mcpMeta?: {
+    [k: string]: unknown | undefined;
+  };
   /**
    * Structured content (arbitrary JSON) returned verbatim by the MCP tool
    */
@@ -8563,7 +8579,7 @@ export interface ExtensionsLoadedExtension {
   status: ExtensionsLoadedExtensionStatus;
 }
 /**
- * Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+ * Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
  */
 /** @experimental */
 export interface CanvasOpenedEvent {
@@ -8594,7 +8610,7 @@ export interface CanvasOpenedEvent {
   type: "session.canvas.opened";
 }
 /**
- * Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+ * Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
  */
 /** @experimental */
 export interface CanvasOpenedData {
@@ -8610,6 +8626,10 @@ export interface CanvasOpenedData {
    * Owning extension display name, when available
    */
   extensionName?: string;
+  /**
+   * Host-local PNG path for the canvas icon, when supplied
+   */
+  icon?: string;
   /**
    * Input supplied when the instance was opened
    */
@@ -8703,6 +8723,10 @@ export interface CanvasRegistryChangedCanvas {
    * Owning extension display name, when available
    */
   extensionName?: string;
+  /**
+   * Host-local PNG path for the canvas icon, when supplied
+   */
+  icon?: string;
   /**
    * JSON Schema for canvas open input
    */

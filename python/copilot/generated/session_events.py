@@ -451,6 +451,7 @@ class CanvasRegistryChangedCanvas:
     extension_id: str
     actions: list[CanvasRegistryChangedCanvasAction] | None = None
     extension_name: str | None = None
+    icon: str | None = None
     input_schema: Any = None
 
     @staticmethod
@@ -462,6 +463,7 @@ class CanvasRegistryChangedCanvas:
         extension_id = from_str(obj.get("extensionId"))
         actions = from_union([from_none, lambda x: from_list(CanvasRegistryChangedCanvasAction.from_dict, x)], obj.get("actions"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        icon = from_union([from_none, from_str], obj.get("icon"))
         input_schema = obj.get("inputSchema")
         return CanvasRegistryChangedCanvas(
             canvas_id=canvas_id,
@@ -470,6 +472,7 @@ class CanvasRegistryChangedCanvas:
             extension_id=extension_id,
             actions=actions,
             extension_name=extension_name,
+            icon=icon,
             input_schema=input_schema,
         )
 
@@ -483,6 +486,8 @@ class CanvasRegistryChangedCanvas:
             result["actions"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CanvasRegistryChangedCanvasAction, x), x)], self.actions)
         if self.extension_name is not None:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.icon is not None:
+            result["icon"] = from_union([from_none, from_str], self.icon)
         if self.input_schema is not None:
             result["inputSchema"] = self.input_schema
         return result
@@ -904,11 +909,12 @@ class SessionCanvasClosedData:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionCanvasOpenedData:
-    "Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input."
+    "Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input."
     canvas_id: str
     extension_id: str
     instance_id: str
     extension_name: str | None = None
+    icon: str | None = None
     input: Any = None
     status: str | None = None
     title: str | None = None
@@ -921,6 +927,7 @@ class SessionCanvasOpenedData:
         extension_id = from_str(obj.get("extensionId"))
         instance_id = from_str(obj.get("instanceId"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        icon = from_union([from_none, from_str], obj.get("icon"))
         input = obj.get("input")
         status = from_union([from_none, from_str], obj.get("status"))
         title = from_union([from_none, from_str], obj.get("title"))
@@ -930,6 +937,7 @@ class SessionCanvasOpenedData:
             extension_id=extension_id,
             instance_id=instance_id,
             extension_name=extension_name,
+            icon=icon,
             input=input,
             status=status,
             title=title,
@@ -943,6 +951,8 @@ class SessionCanvasOpenedData:
         result["instanceId"] = from_str(self.instance_id)
         if self.extension_name is not None:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.icon is not None:
+            result["icon"] = from_union([from_none, from_str], self.icon)
         if self.input is not None:
             result["input"] = self.input
         if self.status is not None:
@@ -7613,6 +7623,8 @@ class ToolExecutionCompleteData:
     error: ToolExecutionCompleteError | None = None
     interaction_id: str | None = None
     is_user_requested: bool | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mcp_meta: Any = None
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -7630,6 +7642,7 @@ class ToolExecutionCompleteData:
         error = from_union([from_none, ToolExecutionCompleteError.from_dict], obj.get("error"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_user_requested = from_union([from_none, from_bool], obj.get("isUserRequested"))
+        mcp_meta = obj.get("mcpMeta")
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
@@ -7643,6 +7656,7 @@ class ToolExecutionCompleteData:
             error=error,
             interaction_id=interaction_id,
             is_user_requested=is_user_requested,
+            mcp_meta=mcp_meta,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
             result=result,
@@ -7662,6 +7676,8 @@ class ToolExecutionCompleteData:
             result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
         if self.is_user_requested is not None:
             result["isUserRequested"] = from_union([from_none, from_bool], self.is_user_requested)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
@@ -7713,6 +7729,8 @@ class ToolExecutionCompleteResult:
     citable_sources: list[CitableSource] | None = None
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    mcp_meta: Any = None
     structured_content: Any = None
     ui_resource: ToolExecutionCompleteUIResource | None = None
 
@@ -7724,6 +7742,7 @@ class ToolExecutionCompleteResult:
         citable_sources = from_union([from_none, lambda x: from_list(CitableSource.from_dict, x)], obj.get("citableSources"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
+        mcp_meta = obj.get("mcpMeta")
         structured_content = obj.get("structuredContent")
         ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
@@ -7732,6 +7751,7 @@ class ToolExecutionCompleteResult:
             citable_sources=citable_sources,
             contents=contents,
             detailed_content=detailed_content,
+            mcp_meta=mcp_meta,
             structured_content=structured_content,
             ui_resource=ui_resource,
         )
@@ -7747,6 +7767,8 @@ class ToolExecutionCompleteResult:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
+        if self.mcp_meta is not None:
+            result["mcpMeta"] = self.mcp_meta
         if self.structured_content is not None:
             result["structuredContent"] = self.structured_content
         if self.ui_resource is not None:

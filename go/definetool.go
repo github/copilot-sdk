@@ -207,7 +207,7 @@ func generateSchemaForType(t reflect.Type) map[string]any {
 	}
 
 	// Handle pointer types
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 

@@ -1109,7 +1109,11 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 				dataExperimental: isSchemaExperimental(dataSchema),
 			};
 		})
-		.filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
+		.filter(
+			(v) =>
+				!EXCLUDED_EVENT_TYPES.has(v.typeName) &&
+				!isSchemaInternal(v.dataSchema),
+		);
 }
 
 export function generateSessionEventsCode(schema: JSONSchema7): string {

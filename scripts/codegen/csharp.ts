@@ -1322,7 +1322,7 @@ function emitSessionEventEnvelopeProperty(
 export function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
     sessionDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
-    const variants = extractEventVariants(schema);
+    const variants = extractEventVariants(schema).filter((variant) => !isSchemaInternal(variant.dataSchema));
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
@@ -1381,12 +1381,16 @@ namespace GitHub.Copilot;
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
         }
-        const variantVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
-        lines.push(`${variantVisibility} sealed partial class ${variant.className} : SessionEvent`, `{`);
+        lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
         lines.push(`    [JsonIgnore]`, `    public override string Type => "${variant.typeName}";`, "");
         lines.push(`    /// <summary>The <c>${escapeXml(variant.typeName)}</c> event payload.</summary>`);
-        lines.push(`    [JsonPropertyName("data")]`, `    ${variantVisibility} required ${variant.dataClassName} Data { get; set; }`, `}`, "");
+        lines.push(
+            `    [JsonPropertyName("data")]`,
+            `    public required ${variant.dataClassName} Data { get; set; }`,
+            `}`,
+            ""
+        );
     }
 
     // Data classes
