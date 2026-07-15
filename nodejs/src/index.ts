@@ -86,6 +86,8 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
+    WorkflowLimits,
+    WorkflowMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
