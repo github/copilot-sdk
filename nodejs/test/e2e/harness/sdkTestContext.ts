@@ -230,7 +230,8 @@ export async function createSdkTestContext({
             // beforeEach below), so the worker inherits it; passing a per-client env here
             // would have no effect (and is rejected by the in-process transport).
             env: effectiveInProcess ? undefined : mergedEnv,
-            logLevel: logLevel || "error",
+            logLevel:
+                process.env.COPILOT_SDK_TEST_DIAGNOSTICS === "1" ? "debug" : (logLevel ?? "error"),
             connection: effectiveConnection,
             gitHubToken: authTokenToUse,
             ...rest,
