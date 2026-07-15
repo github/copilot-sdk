@@ -95,14 +95,14 @@ npm install @github/copilot-sdk @azure/identity
 
 ### Provide an access token you manage
 
-Get a token using your language's Azure Identity SDK credential and pass it as the bearer token in your provider configuration. Entra tokens for Managed Identities are valid for 24 hours. As a recommendation, proactively refresh these tokens after 12 hours. To only refresh when necessary, see the language-specific guidance in each code sample's comments below.
+Get a token using your language's Azure Identity SDK credential and pass it as the bearer token in your provider configuration. Track the token's expiration or refresh metadata so you know when to acquire a fresh token. Because a static bearer token is captured when the session is created, create a new session when you need to use the refreshed token. See the language-specific guidance in each code sample's comments below.
 
 Using Python as an example, the flow is:
 
 1. Configure `DefaultAzureCredential` for your environment.
 1. Invoke `DefaultAzureCredential`'s `get_token_info` method to obtain a token for the `https://ai.azure.com/.default` scope.
 1. Pass the token string in `bearer_token` of the BYOK provider configuration.
-1. Refresh the token before it expires (not shown; your application implements the refresh mechanism).
+1. Acquire a fresh token and create a new session before the current token expires (not shown; your application implements the refresh mechanism).
 
 ```mermaid
 sequenceDiagram
