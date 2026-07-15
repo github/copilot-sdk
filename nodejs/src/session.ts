@@ -1031,7 +1031,19 @@ export class CopilotSession {
                         signal: controller.signal,
                         phase: (title: string) => progress.enqueue("phase", title),
                         log: (message: string) => progress.enqueue("log", message),
-                        agent: async () => unsupported("workflow.agent"),
+                        agent: async (prompt, options = {}) => {
+                            await progress.flush();
+                            const response = await self.rpc.workflow.agent({
+                                workflowRunId: params.runId,
+                                prompt,
+                                opts: {
+                                    label: options.label,
+                                    schema: options.schema,
+                                    model: options.model,
+                                },
+                            });
+                            return response.result ?? null;
+                        },
                         step: async () => unsupported("workflow.step"),
                         parallel: async () => unsupported("workflow.parallel"),
                         pipeline: async () => unsupported("workflow.pipeline"),
