@@ -121,14 +121,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
     }
 }
 
-function logTestDiagnostic(message: string, startMs?: number): void {
-    if (process.env.COPILOT_SDK_TEST_DIAGNOSTICS !== "1") {
-        return;
-    }
-    const elapsed = startMs === undefined ? "" : ` elapsed=${Date.now() - startMs}ms`;
-    process.stderr.write(`[copilot-sdk-diagnostic pid=${process.pid}] ${message}${elapsed}\n`);
-}
-
 async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
     if (child.exitCode != null || child.signalCode != null) {
         return true;
@@ -885,26 +877,21 @@ export class CopilotClient {
             return;
         }
 
-        const startMs = Date.now();
-        logTestDiagnostic(`client.start begin transport=${this.connectionConfig.kind}`);
         this.state = "connecting";
 
         try {
             // Only start CLI server process if not connecting to external server
             if (this.connectionConfig.kind === "inprocess") {
                 await this.startInProcessFfi();
-                logTestDiagnostic("client.start FFI host ready", startMs);
             } else if (!this.isExternalServer) {
                 await this.startCLIServer();
             }
 
             // Connect to the server
             await this.connectToServer();
-            logTestDiagnostic("client.start JSON-RPC connected", startMs);
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
-            logTestDiagnostic("client.start protocol verified", startMs);
 
             // If a session filesystem provider was configured, register it
             if (this.sessionFsConfig) {
@@ -924,10 +911,8 @@ export class CopilotClient {
             }
 
             this.state = "connected";
-            logTestDiagnostic("client.start complete", startMs);
         } catch (error) {
             this.state = "error";
-            logTestDiagnostic("client.start failed", startMs);
             throw error;
         }
     }
@@ -957,12 +942,10 @@ export class CopilotClient {
      * ```
      */
     async stop(): Promise<Error[]> {
-        const stopMs = Date.now();
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
         const activeSessions = [...this.sessions.values()];
-        logTestDiagnostic(`client.stop begin sessions=${activeSessions.length}`);
         // TEMPORARY: over the in-process (FFI) transport the runtime shares this
         // process, so a turn still running when the runtime disposes the session
         // can leave that session's SQLite session.db handle open — it isn't
@@ -976,7 +959,6 @@ export class CopilotClient {
         // may still resume. Remove once the runtime cleans up fully on shutdown.
         if (this.connectionConfig.kind === "inprocess") {
             await Promise.allSettled(activeSessions.map((session) => session.abort()));
-            logTestDiagnostic("client.stop session aborts settled", stopMs);
         }
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
@@ -1007,7 +989,6 @@ export class CopilotClient {
                 );
             }
         }
-        logTestDiagnostic("client.stop session disconnects complete", stopMs);
         for (const session of activeSessions) {
             session._markDisconnected();
         }
@@ -1042,7 +1023,6 @@ export class CopilotClient {
                 );
             }
         }
-        logTestDiagnostic("client.stop runtime shutdown stage complete", stopMs);
 
         // Close connection. Suppress writer failures first: tearing down the
         // transport can reject an in-flight server→client response write with
@@ -1066,7 +1046,6 @@ export class CopilotClient {
             this._rpc = null;
             this._internalRpc = null;
         }
-        logTestDiagnostic("client.stop JSON-RPC disposed", stopMs);
 
         // Clear models cache
         this.modelsCache = null;
@@ -1125,9 +1104,7 @@ export class CopilotClient {
             const host = this.ffiHost;
             this.ffiHost = null;
             try {
-                logTestDiagnostic("client.stop FFI host dispose begin", stopMs);
                 host.dispose();
-                logTestDiagnostic("client.stop FFI host dispose complete", stopMs);
             } catch (error) {
                 errors.push(
                     new Error(
@@ -1145,7 +1122,6 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
-        logTestDiagnostic(`client.stop complete errors=${errors.length}`, stopMs);
 
         return errors;
     }
@@ -1440,11 +1416,8 @@ export class CopilotClient {
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
-        const createMs = Date.now();
-        logTestDiagnostic(`client.createSession begin connected=${this.connection !== null}`);
         if (!this.connection) {
             await this.start();
-            logTestDiagnostic("client.createSession client started", createMs);
         }
 
         config = { ...this.configDefaultsForMode(), ...config };
@@ -1615,7 +1588,6 @@ export class CopilotClient {
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
             });
-            logTestDiagnostic("client.createSession RPC complete", createMs);
 
             const {
                 sessionId: returnedSessionId,
@@ -1657,7 +1629,6 @@ export class CopilotClient {
             throw e;
         }
 
-        logTestDiagnostic("client.createSession complete", createMs);
         return session;
     }
 
@@ -2589,8 +2560,6 @@ export class CopilotClient {
 
     /** Starts the in-process FFI runtime with SDK-managed typed options. */
     private async startInProcessFfi(): Promise<void> {
-        const startMs = Date.now();
-        logTestDiagnostic("client.startInProcessFfi begin");
         const entrypoint = this.resolveCliPathForFfi();
         // Load the FFI host lazily so the native `koffi` addon (and its
         // platform-specific `koffi.node`) is only loaded on the in-process path;
@@ -2634,7 +2603,6 @@ export class CopilotClient {
         );
         this.ffiHost = host;
         await host.start();
-        logTestDiagnostic("client.startInProcessFfi complete", startMs);
     }
 
     /**

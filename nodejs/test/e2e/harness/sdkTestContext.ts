@@ -6,7 +6,6 @@ import fs, { realpathSync } from "fs";
 import { rm } from "fs/promises";
 import os from "os";
 import { basename, dirname, join, resolve } from "path";
-import { execFileSync } from "node:child_process";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
@@ -16,21 +15,6 @@ import { formatError, retry } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
-
-async function runDiagnosticPhase<T>(name: string, action: () => Promise<T>): Promise<T> {
-    if (process.env.COPILOT_SDK_TEST_DIAGNOSTICS !== "1") {
-        return action();
-    }
-    const startMs = Date.now();
-    console.error(`[sdk-test-diagnostic pid=${process.pid}] ${name} begin`);
-    try {
-        return await action();
-    } finally {
-        console.error(
-            `[sdk-test-diagnostic pid=${process.pid}] ${name} complete elapsed=${Date.now() - startMs}ms`
-        );
-    }
-}
 
 /**
  * True when the E2E suite is running over the in-process (FFI) transport
@@ -231,7 +215,7 @@ export async function createSdkTestContext({
             // beforeEach below), so the worker inherits it; passing a per-client env here
             // would have no effect (and is rejected by the in-process transport).
             env: effectiveInProcess ? undefined : mergedEnv,
-            logLevel: logLevel ?? "error",
+            logLevel: logLevel || "error",
             connection: effectiveConnection,
             gitHubToken: authTokenToUse,
             ...rest,
@@ -307,17 +291,17 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
-        await runDiagnosticPhase("client.stop", () => copilotClient.stop());
-        await runDiagnosticPhase("proxy.stop", () => openAiEndpoint.stop(anyTestFailed));
-        if (anyTestFailed && process.env.COPILOT_SDK_PRESERVE_TEST_HOME === "1") {
-            console.error(`[sdk-test-diagnostic pid=${process.pid}] preserved ${copilotHomeDir}`);
-        } else {
-            await runDiagnosticPhase("remove copilotHomeDir", () =>
-                rmDir("remove e2e test copilotHomeDir", copilotHomeDir)
-            );
-        }
-        await runDiagnosticPhase("remove homeDir", () => rmDir("remove e2e test homeDir", homeDir));
-        await runDiagnosticPhase("remove workDir", () => rmDir("remove e2e test workDir", workDir));
+        await copilotClient.stop();
+        await openAiEndpoint.stop(anyTestFailed);
+        // On Windows, the in-process runtime can keep session.db locked until this
+        // Vitest worker exits. Retrying here prevents that exit and deadlocks teardown.
+        await rmDir(
+            "remove e2e test copilotHomeDir",
+            copilotHomeDir,
+            isInProcess && process.platform === "win32" ? 1 : 30
+        );
+        await rmDir("remove e2e test homeDir", homeDir);
+        await rmDir("remove e2e test workDir", workDir);
     });
 
     return harness;
@@ -342,45 +326,14 @@ function getTrafficCapturePath(testContext: TestContext): string {
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
 
-async function rmDir(message: string, path: string): Promise<void> {
+async function rmDir(message: string, path: string, maxTries = 30): Promise<void> {
     // Use longer retries to tolerate Windows holding SQLite session-store.db
     // open briefly after the CLI subprocess exits. If the temp dir still can't
     // be removed (e.g. CLI background writer racing with cleanup), warn and
     // continue rather than failing the whole test run — the OS / CI runner
     // will reclaim the temp dir on shutdown.
-    let reportedLock = false;
     try {
-        await retry(
-            message,
-            async () => {
-                try {
-                    await rm(path, { recursive: true, force: true });
-                } catch (error) {
-                    if (
-                        !reportedLock &&
-                        process.platform === "win32" &&
-                        process.env.COPILOT_SDK_TEST_DIAGNOSTICS === "1"
-                    ) {
-                        reportedLock = true;
-                        const processes = execFileSync(
-                            "powershell.exe",
-                            [
-                                "-NoProfile",
-                                "-Command",
-                                "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('node.exe', 'cmd.exe', 'copilot.exe') } | Select-Object ProcessId, ParentProcessId, CreationDate, Name, CommandLine | ConvertTo-Json -Compress",
-                            ],
-                            { encoding: "utf8" }
-                        );
-                        console.error(
-                            `[sdk-test-diagnostic pid=${process.pid}] remove failed path=${path} error=${formatError(error)} processes=${processes.trim()}`
-                        );
-                    }
-                    throw error;
-                }
-            },
-            30,
-            1000
-        );
+        await retry(message, () => rm(path, { recursive: true, force: true }), maxTries, 1000);
     } catch (error) {
         console.warn(
             `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`

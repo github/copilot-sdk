@@ -32,13 +32,6 @@ export class CapturingHttpProxy {
       req.on("end", () => {
         const body = Buffer.concat(chunks).toString("utf8");
         const startTime = Date.now();
-        const diagnosticsEnabled =
-          process.env.COPILOT_SDK_TEST_DIAGNOSTICS === "1";
-        if (diagnosticsEnabled) {
-          console.error(
-            `[proxy-diagnostic pid=${process.pid}] request begin ${req.method || "GET"} ${req.url || "/"}`,
-          );
-        }
 
         const capturedRequest: CapturedRequest = {
           method: req.method || "GET",
@@ -93,11 +86,6 @@ export class CapturingHttpProxy {
             };
 
             exchange.durationMs = endTime - startTime;
-            if (diagnosticsEnabled) {
-              console.error(
-                `[proxy-diagnostic pid=${process.pid}] request complete ${capturedRequest.method} ${capturedRequest.url} status=${responseStatusCode || 500} elapsed=${exchange.durationMs}ms`,
-              );
-            }
 
             res.end();
           },
@@ -117,11 +105,6 @@ export class CapturingHttpProxy {
             };
 
             exchange.durationMs = endTime - startTime;
-            if (diagnosticsEnabled) {
-              console.error(
-                `[proxy-diagnostic pid=${process.pid}] request error ${capturedRequest.method} ${capturedRequest.url} elapsed=${exchange.durationMs}ms`,
-              );
-            }
 
             res.writeHead(exchange.response.statusCode, errorHeaders);
             res.end("Proxy error");

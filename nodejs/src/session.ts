@@ -61,14 +61,6 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
-function logTestDiagnostic(message: string, startMs?: number): void {
-    if (process.env.COPILOT_SDK_TEST_DIAGNOSTICS !== "1") {
-        return;
-    }
-    const elapsed = startMs === undefined ? "" : ` elapsed=${Date.now() - startMs}ms`;
-    process.stderr.write(`[copilot-sdk-diagnostic pid=${process.pid}] ${message}${elapsed}\n`);
-}
-
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
  * This deserializes the numeric Unix-ms `timestamp` field on BaseHookInput
@@ -300,8 +292,6 @@ export class CopilotSession {
         optionsOrPrompt: MessageOptions | string,
         timeout?: number
     ): Promise<AssistantMessageEvent | undefined> {
-        const sendMs = Date.now();
-        logTestDiagnostic(`session.sendAndWait begin session=${this.sessionId}`);
         const options: MessageOptions =
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
@@ -332,10 +322,6 @@ export class CopilotSession {
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
             await this.send(options);
-            logTestDiagnostic(
-                `session.sendAndWait send complete session=${this.sessionId}`,
-                sendMs
-            );
 
             const timeoutPromise = new Promise<never>((_, reject) => {
                 timeoutId = setTimeout(
@@ -349,7 +335,6 @@ export class CopilotSession {
                 );
             });
             await Promise.race([idlePromise, timeoutPromise]);
-            logTestDiagnostic(`session.sendAndWait idle session=${this.sessionId}`, sendMs);
 
             return lastAssistantMessage;
         } finally {
@@ -357,7 +342,6 @@ export class CopilotSession {
                 clearTimeout(timeoutId);
             }
             unsubscribe();
-            logTestDiagnostic(`session.sendAndWait complete session=${this.sessionId}`, sendMs);
         }
     }
 

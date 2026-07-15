@@ -10,19 +10,19 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - "nodejs/**"
-      - "test/**"
-      - ".github/workflows/nodejs-sdk-tests.yml"
-      - "!nodejs/scripts/**"
-      - "!**/*.md"
-      - "!**/LICENSE*"
-      - "!**/.gitignore"
-      - "!**/.editorconfig"
-      - "!**/*.png"
-      - "!**/*.jpg"
-      - "!**/*.jpeg"
-      - "!**/*.gif"
-      - "!**/*.svg"
+      - 'nodejs/**'
+      - 'test/**'
+      - '.github/workflows/nodejs-sdk-tests.yml'
+      - '!nodejs/scripts/**'
+      - '!**/*.md'
+      - '!**/LICENSE*'
+      - '!**/.gitignore'
+      - '!**/.editorconfig'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - '!**/*.jpeg'
+      - '!**/*.gif'
+      - '!**/*.svg'
   workflow_dispatch:
   merge_group:
 
@@ -38,8 +38,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
-        transport: ["inprocess"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        transport: ["default", "inprocess"]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -80,38 +80,8 @@ jobs:
         if: matrix.transport == 'inprocess'
         run: |
           echo "COPILOT_SDK_DEFAULT_CONNECTION=inprocess" >> "$GITHUB_ENV"
-          echo "COPILOT_SDK_TEST_DIAGNOSTICS=1" >> "$GITHUB_ENV"
 
       - name: Run Node.js SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_SDK_PRESERVE_TEST_HOME: "1"
-        run: |
-          pwsh.exe -NoProfile -Command '
-            while ($true) {
-              $cpu = [math]::Round((Get-Counter "\Processor(_Total)\% Processor Time").CounterSamples.CookedValue)
-              $memory = [math]::Round((Get-Counter "\Memory\Available MBytes").CounterSamples.CookedValue)
-              $nodeCount = @(Get-Process -Name node -ErrorAction SilentlyContinue).Count
-              Write-Host "[resource-diagnostic] $(Get-Date -Format o) cpu=$cpu availableMb=$memory nodeProcesses=$nodeCount"
-              Start-Sleep -Seconds 5
-            }
-          ' &
-          monitor_pid=$!
-          trap 'kill "$monitor_pid"' EXIT
-          npm test
-
-      - name: Collect runtime diagnostics
-        if: failure()
-        shell: pwsh
-        run: |
-          $paths = Get-ChildItem $env:TEMP -Directory -Filter "copilot-test-home-*"
-          if ($paths) {
-            Compress-Archive -Path $paths.FullName -DestinationPath runtime-diagnostics.zip
-          }
-
-      - name: Upload runtime diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nodejs-runtime-diagnostics
-          path: nodejs/runtime-diagnostics.zip
+        run: npm test
