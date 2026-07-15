@@ -6,6 +6,7 @@ import fs, { realpathSync } from "fs";
 import { rm } from "fs/promises";
 import os from "os";
 import { basename, dirname, join, resolve } from "path";
+import { execFileSync } from "node:child_process";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
@@ -349,8 +350,39 @@ async function rmDir(message: string, path: string): Promise<void> {
     // be removed (e.g. CLI background writer racing with cleanup), warn and
     // continue rather than failing the whole test run — the OS / CI runner
     // will reclaim the temp dir on shutdown.
+    let reportedLock = false;
     try {
-        await retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
+        await retry(
+            message,
+            async () => {
+                try {
+                    await rm(path, { recursive: true, force: true });
+                } catch (error) {
+                    if (
+                        !reportedLock &&
+                        process.platform === "win32" &&
+                        process.env.COPILOT_SDK_TEST_DIAGNOSTICS === "1"
+                    ) {
+                        reportedLock = true;
+                        const processes = execFileSync(
+                            "powershell.exe",
+                            [
+                                "-NoProfile",
+                                "-Command",
+                                "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('node.exe', 'cmd.exe', 'copilot.exe') } | Select-Object ProcessId, ParentProcessId, CreationDate, Name, CommandLine | ConvertTo-Json -Compress",
+                            ],
+                            { encoding: "utf8" }
+                        );
+                        console.error(
+                            `[sdk-test-diagnostic pid=${process.pid}] remove failed path=${path} error=${formatError(error)} processes=${processes.trim()}`
+                        );
+                    }
+                    throw error;
+                }
+            },
+            30,
+            1000
+        );
     } catch (error) {
         console.warn(
             `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`
