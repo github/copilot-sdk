@@ -15,6 +15,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -2768,17 +2769,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonElement Parameters, /* JSON schema */
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null,
-        CopilotToolDefer? Defer = null)
+        CopilotToolDefer? Defer = null,
+        IDictionary<string, JsonNode?>? Metadata = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
             var overrides = function.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var val) && val is true;
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
             var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
+            var metadata = function.AdditionalProperties.TryGetValue(CopilotTool.MetadataKey, out var metaVal) && metaVal is IDictionary<string, JsonNode?> m ? m : null;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null,
-                defer);
+                defer,
+                metadata);
         }
     }
 

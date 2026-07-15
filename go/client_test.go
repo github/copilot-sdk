@@ -1428,6 +1428,53 @@ func TestToolDefer(t *testing.T) {
 	})
 }
 
+func TestToolMetadata(t *testing.T) {
+	t.Run("Metadata is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "my_tool",
+			Description: "A custom tool",
+			Metadata: map[string]any{
+				"github.com/copilot:safeForTelemetry": map[string]any{"name": true, "inputsNames": false},
+			},
+			Handler: func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		meta, ok := m["metadata"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected metadata object, got %v", m)
+		}
+		if _, ok := meta["github.com/copilot:safeForTelemetry"]; !ok {
+			t.Errorf("expected namespaced key preserved, got %v", meta)
+		}
+	})
+
+	t.Run("Metadata omitted when unset", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["metadata"]; ok {
+			t.Errorf("expected metadata to be omitted, got %v", m)
+		}
+	})
+}
+
 func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
 	t.Run("accepts nil config before connection validation", func(t *testing.T) {
 		client := NewClient(&ClientOptions{Connection: StdioConnection{Path: "/__nonexistent_copilot_binary__"}})

@@ -213,6 +213,88 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void generatesMetadata_withNestedFlags() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class MetaTools {
+                    @CopilotTool(value = "Reports phase", metadata = {
+                        @CopilotTool.MetadataEntry(
+                            key = "github.com/copilot:safeForTelemetry",
+                            value = @CopilotTool.MetadataValue(flags = {
+                                @CopilotTool.MetadataFlag(name = "name", value = true),
+                                @CopilotTool.MetadataFlag(name = "inputsNames", value = false)
+                            }))
+                    })
+                    public String reportPhase(@CopilotToolParam("Phase") String phase) {
+                        return phase;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.MetaTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.MetaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Map.<String, Object>of(\"github.com/copilot:safeForTelemetry\""),
+                "Expected typed metadata map, got:\n" + generated);
+        assertTrue(generated.contains("Map.of(\"name\", true, \"inputsNames\", false)"),
+                "Expected nested flag map, got:\n" + generated);
+    }
+
+    @Test
+    void generatesNullMetadata_whenAbsent() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class PlainTools {
+                    @CopilotTool("Plain tool")
+                    public String doSomething(@CopilotToolParam("Input") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.PlainTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.PlainTools$$CopilotToolMeta");
+        assertFalse(generated.contains("Map.<String, Object>of("),
+                "Expected no metadata map for a tool without metadata, got:\n" + generated);
+        assertTrue(generated.contains("                null\n            )"),
+                "Expected metadata constructor argument to be null when metadata is absent, got:\n" + generated);
+    }
+
+    @Test
+    void generatesMetadata_alongsideOtherFlags() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.rpc.ToolDefer;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ComboTools {
+                    @CopilotTool(value = "Combo", name = "combo", overridesBuiltInTool = true,
+                        skipPermission = true, defer = ToolDefer.NEVER,
+                        metadata = {
+                            @CopilotTool.MetadataEntry(key = "k",
+                                value = @CopilotTool.MetadataValue(bool = true))
+                        })
+                    public String doSomething(@CopilotToolParam("Input") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ComboTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.ComboTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Boolean.TRUE"), "Expected overrides/skip flags, got:\n" + generated);
+        assertTrue(generated.contains("ToolDefer.NEVER"), "Expected defer, got:\n" + generated);
+        assertTrue(generated.contains("Map.<String, Object>of(\"k\", true)"),
+                "Expected scalar bool metadata, got:\n" + generated);
+    }
+
+    @Test
     void generatesCorrectCode_forVoidReturnType() {
         String source = """
                 package test;
