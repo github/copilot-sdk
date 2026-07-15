@@ -540,6 +540,8 @@ export type HookType =
   | "postToolUseFailure"
   /** Runs after the user submits a prompt. */
   | "userPromptSubmitted"
+  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
+  | "userPromptTransformed"
   /** Runs when a session starts. */
   | "sessionStart"
   /** Runs when a session ends. */
@@ -2113,6 +2115,38 @@ export type UISessionLimitsExhaustedResponseAction =
   | "unset"
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
+/**
+ * Kind of workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLineKind".
+ */
+/** @experimental */
+export type WorkflowLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named workflow phase marker. */
+  | "phase";
+/**
+ * Current or terminal state of a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunStatus".
+ */
+/** @experimental */
+export type WorkflowRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run stopped after reaching a resource ceiling. */
+  | "halted"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The workflow body failed. */
+  | "error";
 /**
  * Type of change represented by this file diff.
  *
@@ -11045,6 +11079,23 @@ export interface RemoteSessionRepository {
   branch?: string;
 }
 /**
+ * Options controlling workflow invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RunOptions".
+ */
+/** @experimental */
+export interface RunOptions {
+  /**
+   * Whether to return once the approved run starts instead of awaiting its terminal result.
+   */
+  background?: boolean;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
  * Resolved sandbox configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -15560,6 +15611,330 @@ export interface VisibilitySetResult {
   shareUrl?: string;
 }
 /**
+ * Parameters for cooperatively aborting a workflow body.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAbortRequest".
+ */
+/** @experimental */
+export interface WorkflowAbortRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Acknowledgement that a workflow request was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAckResult".
+ */
+/** @experimental */
+export interface WorkflowAckResult {}
+/**
+ * Options for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentOptions".
+ */
+/** @experimental */
+export interface WorkflowAgentOptions {
+  /**
+   * Optional label distinguishing otherwise identical memoized agent calls.
+   */
+  label?: string;
+  /**
+   * Optional JSON Schema for structured agent output.
+   */
+  schema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Optional model identifier for the subagent.
+   */
+  model?: string;
+}
+/**
+ * Parameters for one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentRequest".
+ */
+/** @experimental */
+export interface WorkflowAgentRequest {
+  /**
+   * Workflow run identifier that owns the subagent.
+   */
+  workflowRunId: string;
+  /**
+   * Prompt to send to the subagent.
+   */
+  prompt: string;
+  opts: WorkflowAgentOptions;
+}
+/**
+ * Result of one workflow-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowAgentResult".
+ */
+/** @experimental */
+export interface WorkflowAgentResult {
+  /**
+   * Agent result, omitted when the agent produced no result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for cancelling a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowCancelRequest".
+ */
+/** @experimental */
+export interface WorkflowCancelRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters sent to the owning extension to execute a workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteRequest".
+ */
+/** @experimental */
+export interface WorkflowExecuteRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Parent workflow run identifier for nested execution.
+   */
+  parentRunId?: string;
+}
+/**
+ * Result returned by an extension workflow closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowExecuteResult".
+ */
+/** @experimental */
+export interface WorkflowExecuteResult {
+  /**
+   * Workflow result value.
+   */
+  result: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for retrieving a workflow run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowGetRunRequest".
+ */
+/** @experimental */
+export interface WorkflowGetRunRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters for reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalGetRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+}
+/**
+ * Result of reading a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalGetResult".
+ */
+/** @experimental */
+export interface WorkflowJournalGetResult {
+  /**
+   * Whether the journal contained the requested key.
+   */
+  hit: boolean;
+  /**
+   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+   */
+  resultJson?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for storing a workflow journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowJournalPutRequest".
+ */
+/** @experimental */
+export interface WorkflowJournalPutRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+  /**
+   * JSON result to memoize.
+   */
+  resultJson: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * One ordered workflow progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogLine".
+ */
+/** @experimental */
+export interface WorkflowLogLine {
+  /**
+   * Monotonic sequence number within the workflow run.
+   */
+  seq: number;
+  kind: WorkflowLogLineKind;
+  /**
+   * Progress text.
+   */
+  text: string;
+}
+/**
+ * Parameters for recording workflow progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowLogRequest".
+ */
+/** @experimental */
+export interface WorkflowLogRequest {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  /**
+   * Ordered progress lines to append.
+   */
+  lines: WorkflowLogLine[];
+}
+/**
+ * Parameters for invoking a nested workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunNestedRequest".
+ */
+/** @experimental */
+export interface WorkflowRunNestedRequest {
+  /**
+   * Parent workflow run identifier.
+   */
+  parentRunId: string;
+  /**
+   * Registered child workflow name.
+   */
+  name: string;
+  /**
+   * Child workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for invoking a registered workflow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunRequest".
+ */
+/** @experimental */
+export interface WorkflowRunRequest {
+  /**
+   * Registered workflow name.
+   */
+  name: string;
+  /**
+   * Workflow input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  options?: RunOptions;
+}
+/**
+ * Complete current or terminal workflow run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkflowRunResult".
+ */
+/** @experimental */
+export interface WorkflowRunResult {
+  /**
+   * Workflow run identifier.
+   */
+  runId: string;
+  status: WorkflowRunStatus;
+  /**
+   * Completed workflow result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  /**
+   * Partial journal and progress snapshot for a halted or cancelled run.
+   */
+  snapshot?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -16666,6 +17041,84 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 invoke: async (params: CanvasActionInvokeRequest): Promise<CanvasActionInvokeResult> =>
                     connection.sendRequest("session.canvas.action.invoke", { sessionId, ...params }),
+            },
+        },
+        /** @experimental */
+        workflow: {
+            /**
+             * Runs a registered workflow by name at the top level.
+             *
+             * @param params Parameters for invoking a registered workflow.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            run: async (params: WorkflowRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.run", { sessionId, ...params }),
+            /**
+             * Runs a registered workflow as a child of an existing workflow run.
+             *
+             * @param params Parameters for invoking a nested workflow.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            runNested: async (params: WorkflowRunNestedRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.runNested", { sessionId, ...params }),
+            /**
+             * Gets the current or settled envelope for a workflow run.
+             *
+             * @param params Parameters for retrieving a workflow run.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            getRun: async (params: WorkflowGetRunRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.getRun", { sessionId, ...params }),
+            /**
+             * Requests cancellation of a workflow run and returns its run envelope.
+             *
+             * @param params Parameters for cancelling a workflow run.
+             *
+             * @returns Complete current or terminal workflow run envelope.
+             */
+            cancel: async (params: WorkflowCancelRequest): Promise<WorkflowRunResult> =>
+                connection.sendRequest("session.workflow.cancel", { sessionId, ...params }),
+            /**
+             * Records a batch of ordered workflow progress lines.
+             *
+             * @param params Parameters for recording workflow progress.
+             *
+             * @returns Acknowledgement that a workflow request was accepted.
+             */
+            log: async (params: WorkflowLogRequest): Promise<WorkflowAckResult> =>
+                connection.sendRequest("session.workflow.log", { sessionId, ...params }),
+            /**
+             * Runs one workflow-scoped subagent and returns its result.
+             *
+             * @param params Parameters for one workflow-scoped subagent call.
+             *
+             * @returns Result of one workflow-scoped subagent call.
+             */
+            agent: async (params: WorkflowAgentRequest): Promise<WorkflowAgentResult> =>
+                connection.sendRequest("session.workflow.agent", { sessionId, ...params }),
+            /** @experimental */
+            journal: {
+                /**
+                 * Reads a memoized workflow journal entry.
+                 *
+                 * @param params Parameters for reading a workflow journal entry.
+                 *
+                 * @returns Result of reading a workflow journal entry.
+                 */
+                get: async (params: WorkflowJournalGetRequest): Promise<WorkflowJournalGetResult> =>
+                    connection.sendRequest("session.workflow.journal.get", { sessionId, ...params }),
+                /**
+                 * Stores a memoized workflow journal entry.
+                 *
+                 * @param params Parameters for storing a workflow journal entry.
+                 *
+                 * @returns Acknowledgement that a workflow request was accepted.
+                 */
+                put: async (params: WorkflowJournalPutRequest): Promise<WorkflowAckResult> =>
+                    connection.sendRequest("session.workflow.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -18156,6 +18609,27 @@ export interface ProviderTokenHandler {
     getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
 }
 
+/** Handler for `workflow` client session API methods. */
+/** @experimental */
+export interface WorkflowHandler {
+    /**
+     * Asks the owning extension connection to execute a registered workflow closure.
+     *
+     * @param params Parameters sent to the owning extension to execute a workflow closure.
+     *
+     * @returns Result returned by an extension workflow closure.
+     */
+    execute(params: WorkflowExecuteRequest): Promise<WorkflowExecuteResult>;
+    /**
+     * Asks the owning extension connection to abort a running workflow cooperatively.
+     *
+     * @param params Parameters for cooperatively aborting a workflow body.
+     *
+     * @returns Acknowledgement that a workflow request was accepted.
+     */
+    abort(params: WorkflowAbortRequest): Promise<WorkflowAckResult>;
+}
+
 /** Handler for `sessionFs` client session API methods. */
 /** @experimental */
 export interface SessionFsHandler {
@@ -18287,6 +18761,7 @@ export interface CanvasHandler {
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
+    workflow?: WorkflowHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -18305,6 +18780,16 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).providerToken;
         if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
         return handler.getToken(params);
+    });
+    connection.onRequest("workflow.execute", async (params: WorkflowExecuteRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
+        return handler.execute(params);
+    });
+    connection.onRequest("workflow.abort", async (params: WorkflowAbortRequest) => {
+        const handler = getHandlers(params.sessionId).workflow;
+        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
+        return handler.abort(params);
     });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;

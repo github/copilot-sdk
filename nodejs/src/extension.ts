@@ -6,7 +6,6 @@ import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
 import {
     defaultJoinSessionPermissionHandler,
-    type ExtensionInfo,
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
@@ -29,7 +28,7 @@ export type JoinSessionConfig = Omit<
     onPermissionRequest?: PermissionHandler;
 };
 
-export type { ExtensionInfo };
+export type { ExtensionInfo, WorkflowLimits, WorkflowMeta } from "./types.js";
 
 /**
  * Joins the current foreground session.

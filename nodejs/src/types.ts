@@ -1836,6 +1836,28 @@ export interface CanvasProviderIdentity {
     name?: string;
 }
 
+/** Static resource ceilings declared by a workflow before it runs. */
+export interface WorkflowLimits {
+    /** Maximum number of workflow subagents that may run concurrently. Must be positive when present. */
+    maxConcurrentSubagents?: number;
+    /** Maximum total number of workflow subagents that may be spawned. Must be positive when present. */
+    maxTotalSubagents?: number;
+    /** Wall-clock timeout for the workflow run, in milliseconds. Must be positive when present. */
+    timeout?: number;
+}
+
+/** Registration metadata for an extension-authored workflow. */
+export interface WorkflowMeta {
+    /** Stable workflow name used for invocation. */
+    name: string;
+    /** Human-readable workflow description. */
+    description: string;
+    /** Display metadata for the progress phases the workflow may report. */
+    phases: Array<{ title: string; detail?: string }>;
+    /** Optional resource ceilings presented to the user before execution. */
+    limits?: WorkflowLimits;
+}
+
 /**
  * Provider-scoped options for the Copilot API (CAPI).
  *
