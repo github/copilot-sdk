@@ -12,6 +12,7 @@ export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
+export { defineWorkflow, WorkflowRunError } from "./workflow.js";
 export {
     Canvas,
     CanvasError,
@@ -160,3 +161,14 @@ export type {
     TypedSessionLifecycleHandler,
     ZodSchema,
 } from "./types.js";
+export type {
+    RunOptions,
+    SessionWorkflowApi,
+    WorkflowAgentOptions,
+    WorkflowContext,
+    WorkflowDefinition,
+    WorkflowHandle,
+    WorkflowJsonSchema,
+    WorkflowPipelineStage,
+    WorkflowStepOptions,
+} from "./workflow.js";
