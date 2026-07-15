@@ -230,7 +230,9 @@ export async function createSdkTestContext({
             // beforeEach below), so the worker inherits it; passing a per-client env here
             // would have no effect (and is rejected by the in-process transport).
             env: effectiveInProcess ? undefined : mergedEnv,
-            logLevel: logLevel ?? "error",
+            logLevel:
+                logLevel ??
+                (process.env.COPILOT_SDK_PRESERVE_TEST_HOME === "1" ? "debug" : "error"),
             connection: effectiveConnection,
             gitHubToken: authTokenToUse,
             ...rest,
@@ -308,9 +310,13 @@ export async function createSdkTestContext({
     afterAll(async () => {
         await runDiagnosticPhase("client.stop", () => copilotClient.stop());
         await runDiagnosticPhase("proxy.stop", () => openAiEndpoint.stop(anyTestFailed));
-        await runDiagnosticPhase("remove copilotHomeDir", () =>
-            rmDir("remove e2e test copilotHomeDir", copilotHomeDir)
-        );
+        if (anyTestFailed && process.env.COPILOT_SDK_PRESERVE_TEST_HOME === "1") {
+            console.error(`[sdk-test-diagnostic pid=${process.pid}] preserved ${copilotHomeDir}`);
+        } else {
+            await runDiagnosticPhase("remove copilotHomeDir", () =>
+                rmDir("remove e2e test copilotHomeDir", copilotHomeDir)
+            );
+        }
         await runDiagnosticPhase("remove homeDir", () => rmDir("remove e2e test homeDir", homeDir));
         await runDiagnosticPhase("remove workDir", () => rmDir("remove e2e test workDir", workDir));
     });
