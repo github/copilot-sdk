@@ -1,37 +1,23 @@
-# Azure managed identity with BYOK
+# Azure Managed Identity with BYOK
 
-The Copilot SDK's [BYOK mode](../auth/byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Microsoft Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Microsoft Entra authentication, you can use a short-lived bearer token via the `bearer_token` provider config field.
+The GitHub Copilot SDK's [BYOK mode](../auth/byok.md) supports static API keys, but Azure deployments often use **Managed Identity** (Microsoft Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Microsoft Entra authentication, supply either a bearer token you already acquired or a bearer token provider that can fetch fresh tokens on demand.
 
-This guide shows how to use the Azure Identity SDK's `DefaultAzureCredential` API to authenticate with Microsoft Foundry models through the Copilot SDK.
+This guide shows how to use Azure Identity SDK APIs to authenticate with Microsoft Foundry models through the GitHub Copilot SDK. Most languages use `DefaultAzureCredential`; Rust uses `DeveloperToolsCredential` locally and `ManagedIdentityCredential` in Azure.
 
 ## How it works
 
-Microsoft Foundry's OpenAI-compatible endpoint accepts bearer tokens from Microsoft Entra ID in place of static API keys. The pattern is:
+Microsoft Foundry's OpenAI-compatible endpoint (`https://<resource-name>.openai.azure.com/openai/v1/`) accepts bearer tokens from Microsoft Entra ID in place of static API keys. You can authenticate in either of these ways:
 
-1. Use `DefaultAzureCredential` to obtain a token for the `https://ai.azure.com/.default` scope
-1. Pass the token as the `bearer_token` in the BYOK provider config
-1. Refresh the token before it expires (tokens are typically valid for ~1 hour)
+* [Provide an access token that your application refreshes.](#provide-an-access-token-you-manage)
+* [Specify a token provider callback so the runtime can acquire tokens on demand.](#specify-a-token-provider-for-automatic-token-acquisition)
 
-```mermaid
-sequenceDiagram
-    participant App as Your Application
-    participant MEID as Microsoft Entra ID
-    participant SDK as Copilot SDK
-    participant Foundry as Microsoft Foundry
-
-    App->>MEID: DefaultAzureCredential.get_token()
-    MEID-->>App: Bearer token (~1hr)
-    App->>SDK: create_session(provider={bearer_token: token})
-    SDK->>Foundry: Request with Authorization: Bearer <token>
-    Foundry-->>SDK: Model response
-    SDK-->>App: Session events
-```
+With a supplied token, your application manages token acquisition and refresh. With a token provider, the GitHub Copilot SDK runtime invokes your callback when it needs a token.
 
 ## Code samples
 
 ### Prerequisites
 
-Install the Azure Identity and Copilot SDK packages for your language:
+Install the Azure Identity and GitHub Copilot SDK packages for your language:
 
 <details open>
 <summary><strong>.NET</strong></summary>
@@ -41,6 +27,37 @@ Install the Azure Identity and Copilot SDK packages for your language:
 ```bash
 dotnet add package GitHub.Copilot.SDK
 dotnet add package Azure.Core
+```
+
+</details>
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+go get github.com/github/copilot-sdk/go
+go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
+```
+
+</details>
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```xml
+<dependency>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>${copilot.sdk.version}</version>
+</dependency>
+
+<dependency>
+    <groupId>com.azure</groupId>
+    <artifactId>azure-identity</artifactId>
+    <version>${azure.identity.version}</version>
+</dependency>
 ```
 
 </details>
@@ -55,6 +72,17 @@ pip install github-copilot-sdk azure-identity
 
 </details>
 <details>
+<summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```bash
+cargo add github-copilot-sdk azure_identity azure_core
+cargo add tokio --features macros,rt-multi-thread
+```
+
+</details>
+<details>
 <summary><strong>TypeScript</strong></summary>
 
 <!-- docs-validate: skip -->
@@ -65,9 +93,33 @@ npm install @github/copilot-sdk @azure/identity
 
 </details>
 
-### Basic usage
+### Provide an access token you manage
 
-Get a token using `DefaultAzureCredential` and pass it as the bearer token in your provider configuration:
+Get a token using your language's Azure Identity SDK credential and pass it as the bearer token in your provider configuration. Entra tokens for Managed Identities are valid for 24 hours. As a recommendation, proactively refresh these tokens after 12 hours. To only refresh when necessary, see the language-specific guidance in each code sample's comments below.
+
+Using Python as an example, the flow is:
+
+1. Configure `DefaultAzureCredential` for your environment.
+1. Invoke `DefaultAzureCredential`'s `get_token_info` method to obtain a token for the `https://ai.azure.com/.default` scope.
+1. Pass the token string in `bearer_token` of the BYOK provider configuration.
+1. Refresh the token before it expires (not shown; your application implements the refresh mechanism).
+
+```mermaid
+sequenceDiagram
+    participant App as Your Application
+    participant MEID as Microsoft Entra ID
+    participant SDK as GitHub Copilot SDK
+    participant Foundry as Microsoft Foundry
+
+    App->>MEID: DefaultAzureCredential.get_token_info()
+    MEID-->>App: Access token
+    App->>SDK: create_session(provider={bearer_token: token})
+    SDK->>Foundry: Request with Authorization: Bearer <token>
+    Foundry-->>SDK: Model response
+    SDK-->>App: Session events
+```
+
+Here are language-specific implementations:
 
 <details open>
 <summary><strong>.NET</strong></summary>
@@ -82,18 +134,21 @@ using GitHub.Copilot;
 DefaultAzureCredential credential = new(
     DefaultAzureCredential.DefaultEnvironmentVariableName);
 AccessToken token = await credential.GetTokenAsync(
-    new TokenRequestContext(new[] { "https://ai.azure.com/.default" }));
+    new TokenRequestContext(["https://ai.azure.com/.default"]));
+// To refresh only when needed, use token.RefreshOn as guidance:
+// https://learn.microsoft.com/dotnet/api/azure.core.accesstoken.refreshon
 
 await using CopilotClient client = new();
-string? foundryUrl = Environment.GetEnvironmentVariable("FOUNDRY_RESOURCE_URL");
+string foundryUrl = Environment.GetEnvironmentVariable("FOUNDRY_RESOURCE_URL")!;
 
-await using CopilotSession session = await client.CreateSessionAsync(new SessionConfig
+await using CopilotSession session = await client.CreateSessionAsync(
+    new SessionConfig
 {
     Model = "gpt-5.5",
     Provider = new ProviderConfig
     {
         Type = "openai",
-        BaseUrl = $"{foundryUrl!.TrimEnd('/')}/openai/v1/",
+        BaseUrl = $"{foundryUrl}/openai/v1/",
         BearerToken = token.Token,
         WireApi = "responses",
     },
@@ -106,6 +161,134 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 <details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	copilot "github.com/github/copilot-sdk/go"
+)
+func main() {
+	opts := azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true}
+	credential, err := azidentity.NewDefaultAzureCredential(&opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	token, err := credential.GetToken(context.Background(), policy.TokenRequestOptions{
+		Scopes: []string{"https://ai.azure.com/.default"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// To refresh only when needed, read token.RefreshOn:
+	// https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azcore#AccessToken
+
+	client := copilot.NewClient(nil)
+	if err := client.Start(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	foundryURL := os.Getenv("FOUNDRY_RESOURCE_URL")
+
+	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5.5",
+		Provider: &copilot.ProviderConfig{
+			Type:        "openai",
+			BaseURL:     fmt.Sprintf("%s/openai/v1/", foundryURL),
+			BearerToken: token.Token,
+			WireAPI:     "responses",
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer session.Disconnect()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
+		Prompt: "Hello from Managed Identity!",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if response != nil {
+		if data, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(data.Content)
+		}
+	}
+}
+```
+
+</details>
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```java
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.AzureIdentityEnvVars;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.ProviderConfig;
+import com.github.copilot.rpc.SessionConfig;
+
+public class ManagedIdentityExample {
+    public static void main(String[] args) throws Exception {
+        var credential = new DefaultAzureCredentialBuilder()
+                .requireEnvVars(AzureIdentityEnvVars.AZURE_TOKEN_CREDENTIALS)
+                .build();
+        var token = credential
+                .getToken(new TokenRequestContext().addScopes("https://ai.azure.com/.default"))
+                .block();
+        // To refresh only when needed, use token.getRefreshAt() as guidance:
+        // https://learn.microsoft.com/java/api/com.azure.core.credential.accesstoken#com-azure-core-credential-accesstoken-getrefreshat()
+
+        String foundryUrl = System.getenv("FOUNDRY_RESOURCE_URL");
+
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(new SessionConfig()
+                    .setModel("gpt-5.5")
+                    .setProvider(new ProviderConfig()
+                            .setType("openai")
+                            .setBaseUrl(foundryUrl + "/openai/v1/")
+                            .setBearerToken(token.getToken())
+                            .setWireApi("responses")))
+                .get();
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Hello from Managed Identity!"))
+                    .get();
+            System.out.println(response.getData().content());
+
+            session.disconnect().get();
+        }
+    }
+}
+```
+
+</details>
+<details>
 <summary><strong>Python</strong></summary>
 
 <!-- docs-validate: skip -->
@@ -114,17 +297,17 @@ Console.WriteLine(response?.Data.Content);
 import asyncio
 import os
 
-from azure.identity import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential
 from copilot import CopilotClient
 from copilot.session import PermissionHandler, ProviderConfig
-
-SCOPE = "https://ai.azure.com/.default"
-
 
 async def main():
     # Get a token using Managed Identity, Azure CLI, or other credential chain
     credential = DefaultAzureCredential(require_envvar=True)
-    token = credential.get_token(SCOPE).token
+    token_info = await credential.get_token_info("https://ai.azure.com/.default")
+    token = token_info.token
+    # To refresh only when needed, use token_info.refresh_on as guidance:
+    # https://learn.microsoft.com/python/api/azure-core/azure.core.credentials.accesstokeninfo#azure-core-credentials-accesstokeninfo-refresh-on
 
     foundry_url = os.environ["FOUNDRY_RESOURCE_URL"]
 
@@ -146,9 +329,66 @@ async def main():
     print(response.data.content)
 
     await client.stop()
+    await credential.close()
 
 
 asyncio.run(main())
+```
+
+</details>
+<details>
+<summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```rust
+use std::sync::Arc;
+
+use azure_core::credentials::TokenCredential;
+use azure_identity::{DeveloperToolsCredential, ManagedIdentityCredential};
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions};
+use github_copilot_sdk::types::{ProviderConfig, SessionConfig};
+
+fn credential_for_environment() -> azure_core::Result<Arc<dyn TokenCredential>> {
+    match std::env::var("AZURE_TOKEN_CREDENTIALS").as_deref() {
+        Ok("ManagedIdentityCredential") => Ok(ManagedIdentityCredential::new(None)?),
+        _ => Ok(DeveloperToolsCredential::new(None)?),
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let credential = credential_for_environment()?;
+    let token = credential
+        .get_token(&["https://ai.azure.com/.default"], None)
+        .await?;
+    // To refresh only when needed, use token.expires_on with an
+    // application-defined safety margin:
+    // https://docs.rs/azure_core/1.0.0/azure_core/credentials/struct.AccessToken.html#structfield.expires_on
+
+    let foundry_url = std::env::var("FOUNDRY_RESOURCE_URL")?;
+
+    let mut provider = ProviderConfig::default();
+    provider.provider_type = Some("openai".to_string());
+    provider.base_url = format!("{}/openai/v1/", foundry_url.trim_end_matches('/'));
+    provider.bearer_token = Some(token.token.secret().to_string());
+    provider.wire_api = Some("responses".to_string());
+
+    let mut config = SessionConfig::default();
+    config.model = Some("gpt-5.5".to_string());
+    config.provider = Some(provider);
+
+    let client = Client::start(ClientOptions::default()).await?;
+    let session = client.create_session(config).await?;
+
+    session
+        .send_and_wait(MessageOptions::new("Hello from Managed Identity!"))
+        .await?;
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
 ```
 
 </details>
@@ -167,6 +407,8 @@ const credential = new DefaultAzureCredential({
 const tokenResponse = await credential.getToken(
   "https://ai.azure.com/.default"
 );
+// To refresh only when needed, use tokenResponse.refreshAfterTimestamp as guidance:
+// https://learn.microsoft.com/javascript/api/@azure/identity/accesstoken#@azure-identity-accesstoken-refreshaftertimestamp
 
 const client = new CopilotClient();
 
@@ -180,7 +422,7 @@ const session = await client.createSession({
   },
 });
 
-const response = await session.sendAndWait({ prompt: "Hello!" });
+const response = await session.sendAndWait({ prompt: "Hello from Managed Identity!" });
 console.log(response?.data.content);
 
 await client.stop();
@@ -188,53 +430,348 @@ await client.stop();
 
 </details>
 
-### Token refresh for long-running applications
+### Specify a token provider for automatic token acquisition
 
-Bearer tokens expire (typically after ~1 hour). For servers or long-running agents, refresh the token before creating each session. The following Python example demonstrates this pattern:
+Use this approach when you want the GitHub Copilot SDK runtime to request fresh tokens on demand through a callback that you provide.
+
+Using Python as an example, the flow is:
+
+1. Configure `DefaultAzureCredential` for your environment.
+1. Pass a callback, in `bearer_token_provider` of the BYOK provider configuration, that uses `DefaultAzureCredential` to obtain a token for the `https://ai.azure.com/.default` scope.
+1. Let the GitHub Copilot SDK request fresh tokens on demand through that callback.
+
+```mermaid
+sequenceDiagram
+    participant App as Your Application
+    participant SDK as GitHub Copilot SDK
+    participant Foundry as Microsoft Foundry
+    participant MEID as Microsoft Entra ID
+
+    App->>SDK: create_session(provider={bearer_token_provider: callback})
+    App->>SDK: send message
+    SDK->>App: Request token from callback
+    App->>MEID: DefaultAzureCredential.get_token()
+    MEID-->>App: Access token
+    App-->>SDK: token
+    SDK->>Foundry: Request with Authorization: Bearer <token>
+    Foundry-->>SDK: Model response
+    SDK-->>App: Session events
+```
+
+Here are language-specific implementations:
+
+<details open>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```csharp
+using Azure.Core;
+using Azure.Identity;
+using GitHub.Copilot;
+
+DefaultAzureCredential credential = new(
+    DefaultAzureCredential.DefaultEnvironmentVariableName);
+await using CopilotClient client = new();
+string foundryUrl = Environment.GetEnvironmentVariable("FOUNDRY_RESOURCE_URL")!;
+
+await using CopilotSession session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5.5",
+    Provider = new ProviderConfig
+    {
+        Type = "openai",
+        BaseUrl = $"{foundryUrl}/openai/v1/",
+        BearerTokenProvider = async _ =>
+        {
+            AccessToken token = await credential.GetTokenAsync(
+                new TokenRequestContext(["https://ai.azure.com/.default"]));
+            return token.Token;
+        },
+        WireApi = "responses",
+    },
+});
+
+AssistantMessageEvent? response = await session.SendAndWaitAsync(
+    new MessageOptions { Prompt = "Hello from Managed Identity!" });
+Console.WriteLine(response?.Data.Content);
+```
+
+</details>
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	copilot "github.com/github/copilot-sdk/go"
+)
+func main() {
+	opts := azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true}
+	credential, err := azidentity.NewDefaultAzureCredential(&opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	getBearerToken := func(args copilot.ProviderTokenArgs) (string, error) {
+		token, err := credential.GetToken(context.Background(), policy.TokenRequestOptions{
+			Scopes: []string{"https://ai.azure.com/.default"},
+		})
+		if err != nil {
+			return "", err
+		}
+		return token.Token, nil
+	}
+
+	client := copilot.NewClient(nil)
+	if err := client.Start(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	foundryURL := os.Getenv("FOUNDRY_RESOURCE_URL")
+
+	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5.5",
+		Provider: &copilot.ProviderConfig{
+			Type:                "openai",
+			BaseURL:             fmt.Sprintf("%s/openai/v1/", foundryURL),
+			BearerTokenProvider: getBearerToken,
+			WireAPI:             "responses",
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer session.Disconnect()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
+		Prompt: "Hello from Managed Identity!",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if response != nil {
+		if data, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(data.Content)
+		}
+	}
+}
+```
+
+</details>
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```java
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.AzureIdentityEnvVars;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.rpc.BearerTokenProvider;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.ProviderConfig;
+import com.github.copilot.rpc.SessionConfig;
+
+public class ManagedIdentityExample {
+    public static void main(String[] args) throws Exception {
+        var credential = new DefaultAzureCredentialBuilder()
+                .requireEnvVars(AzureIdentityEnvVars.AZURE_TOKEN_CREDENTIALS)
+                .build();
+        BearerTokenProvider tokenProvider = providerArgs ->
+            credential
+                .getToken(new TokenRequestContext().addScopes("https://ai.azure.com/.default"))
+                .map(accessToken -> accessToken.getToken())
+                .toFuture();
+        String foundryUrl = System.getenv("FOUNDRY_RESOURCE_URL");
+
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(new SessionConfig()
+                    .setModel("gpt-5.5")
+                    .setProvider(new ProviderConfig()
+                            .setType("openai")
+                            .setBaseUrl(foundryUrl + "/openai/v1/")
+                            .setBearerTokenProvider(tokenProvider)
+                            .setWireApi("responses")))
+                .get();
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Hello from Managed Identity!"))
+                    .get();
+            System.out.println(response.getData().content());
+
+            session.disconnect().get();
+        }
+    }
+}
+```
+
+</details>
+<details>
+<summary><strong>Python</strong></summary>
 
 <!-- docs-validate: skip -->
 
 ```python
-from azure.identity import DefaultAzureCredential
+import asyncio
+import os
+
+from azure.identity.aio import DefaultAzureCredential
 from copilot import CopilotClient
 from copilot.session import PermissionHandler, ProviderConfig
 
-SCOPE = "https://ai.azure.com/.default"
+async def main():
+    credential = DefaultAzureCredential(require_envvar=True)
+    async def get_bearer_token(_args) -> str:
+        token = await credential.get_token("https://ai.azure.com/.default")
+        return token.token
 
+    foundry_url = os.environ["FOUNDRY_RESOURCE_URL"]
 
-class ManagedIdentityCopilotAgent:
-    """Copilot agent that refreshes Microsoft Entra tokens for Microsoft Foundry."""
+    client = CopilotClient()
+    await client.start()
 
-    def __init__(self, foundry_url: str, model: str = "gpt-5.5"):
-        self.foundry_url = foundry_url.rstrip("/")
-        self.model = model
-        self.credential = DefaultAzureCredential(require_envvar=True)
-        self.client = CopilotClient()
-
-    def _get_provider_config(self) -> ProviderConfig:
-        """Build a ProviderConfig with a fresh bearer token."""
-        token = self.credential.get_token(SCOPE).token
-        return ProviderConfig(
+    session = await client.create_session(
+        on_permission_request=PermissionHandler.approve_all,
+        model="gpt-5.5",
+        provider=ProviderConfig(
             type="openai",
-            base_url=f"{self.foundry_url}/openai/v1/",
-            bearer_token=token,
+            base_url=f"{foundry_url.rstrip('/')}/openai/v1/",
+            bearer_token_provider=get_bearer_token,
             wire_api="responses",
-        )
+        ),
+    )
 
-    async def chat(self, prompt: str) -> str:
-        """Send a prompt and return the response text."""
-        # Fresh token for each session
-        session = await self.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model=self.model,
-            provider=self._get_provider_config(),
-        )
+    response = await session.send_and_wait("Hello from Managed Identity!")
+    print(response.data.content)
 
-        response = await session.send_and_wait(prompt)
-        await session.disconnect()
+    await client.stop()
+    await credential.close()
 
-        return response.data.content if response else ""
+
+asyncio.run(main())
 ```
+
+</details>
+<details>
+<summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```rust
+use std::sync::Arc;
+
+use azure_core::credentials::TokenCredential;
+use azure_identity::{DeveloperToolsCredential, ManagedIdentityCredential};
+use github_copilot_sdk::{BearerTokenError, Client, ClientOptions, MessageOptions, ProviderTokenArgs};
+use github_copilot_sdk::types::{ProviderConfig, SessionConfig};
+
+fn credential_for_environment() -> azure_core::Result<Arc<dyn TokenCredential>> {
+    match std::env::var("AZURE_TOKEN_CREDENTIALS").as_deref() {
+        Ok("ManagedIdentityCredential") => Ok(ManagedIdentityCredential::new(None)?),
+        _ => Ok(DeveloperToolsCredential::new(None)?),
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let credential = credential_for_environment()?;
+    let foundry_url = std::env::var("FOUNDRY_RESOURCE_URL")?;
+
+    let get_bearer_token = {
+        let credential = credential.clone();
+        move |_args: ProviderTokenArgs| {
+            let credential = credential.clone();
+            async move {
+                let token = credential
+                    .get_token(&["https://ai.azure.com/.default"], None)
+                    .await
+                    .map_err(|err| BearerTokenError::message(err.to_string()))?;
+                Ok(token.token.secret().to_string())
+            }
+        }
+    };
+
+    let mut provider = ProviderConfig::default();
+    provider.provider_type = Some("openai".to_string());
+    provider.base_url = format!("{}/openai/v1/", foundry_url.trim_end_matches('/'));
+    provider.bearer_token_provider = Some(Arc::new(get_bearer_token));
+    provider.wire_api = Some("responses".to_string());
+
+    let mut config = SessionConfig::default();
+    config.model = Some("gpt-5.5".to_string());
+    config.provider = Some(provider);
+
+    let client = Client::start(ClientOptions::default()).await?;
+    let session = client.create_session(config).await?;
+
+    session
+        .send_and_wait(MessageOptions::new("Hello from Managed Identity!"))
+        .await?;
+
+    session.disconnect().await?;
+    client.stop().await?;
+    Ok(())
+}
+```
+
+</details>
+<details>
+<summary><strong>TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+
+```typescript
+import { DefaultAzureCredential } from "@azure/identity";
+import { CopilotClient } from "@github/copilot-sdk";
+
+const credential = new DefaultAzureCredential({
+  requiredEnvVars: ["AZURE_TOKEN_CREDENTIALS"],
+});
+const getBearerToken = async () => {
+  const tokenResponse = await credential.getToken("https://ai.azure.com/.default");
+  return tokenResponse.token;
+};
+
+const client = new CopilotClient();
+
+const session = await client.createSession({
+  model: "gpt-5.5",
+  provider: {
+    type: "openai",
+    baseUrl: `${process.env.FOUNDRY_RESOURCE_URL}/openai/v1/`,
+    bearerTokenProvider: getBearerToken,
+    wireApi: "responses",
+  },
+});
+
+const response = await session.sendAndWait({ prompt: "Hello from Managed Identity!" });
+console.log(response?.data.content);
+
+await client.stop();
+```
+
+</details>
 
 ## Environment configuration
 
@@ -243,16 +780,18 @@ class ManagedIdentityCopilotAgent:
 | `AZURE_TOKEN_CREDENTIALS` | When running in **Azure**, set it to `ManagedIdentityCredential`. When running **locally**, set it to either `dev` or a developer tool credential name, such as `AzureCliCredential`. | `ManagedIdentityCredential` |
 | `FOUNDRY_RESOURCE_URL` | Your Microsoft Foundry resource URL | `https://<my-resource>.openai.azure.com` |
 
-No API key environment variable is needed—authentication is handled by `DefaultAzureCredential`, which automatically supports:
+No API key environment variable is needed—authentication is handled by Azure Identity credentials. In .NET, Go, Java, Python, and TypeScript, `DefaultAzureCredential` automatically supports:
 
 * **Managed Identity** (system-assigned or user-assigned): for Azure-hosted apps
 * **Azure CLI** (`az login`): for local development
 * **Environment variables** (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`): for service principals
 * **Workload Identity**: for Kubernetes
 
-See the `DefaultAzureCredential` documentation for the full credential chain:
+In Rust, use `DeveloperToolsCredential` for local development and `ManagedIdentityCredential` when running in Azure. For other languages, see the `DefaultAzureCredential` documentation for the full credential chain:
 
 * [.NET](https://aka.ms/azsdk/net/identity/credential-chains#defaultazurecredential-overview)
+* [Go](https://aka.ms/azsdk/go/identity/credential-chains#defaultazurecredential-overview)
+* [Java](https://aka.ms/azsdk/java/identity/credential-chains#defaultazurecredential-overview)
 * [Python](https://aka.ms/azsdk/python/identity/credential-chains#defaultazurecredential-overview)
 * [TypeScript](https://aka.ms/azsdk/js/identity/credential-chains#defaultazurecredential-overview)
 
@@ -270,4 +809,3 @@ See the `DefaultAzureCredential` documentation for the full credential chain:
 
 * [BYOK Setup Guide](../auth/byok.md): Static API key configuration
 * [Backend Services](./backend-services.md): Server-side deployment
-* [Azure Identity documentation](https://learn.microsoft.com/python/api/overview/azure/identity-readme)

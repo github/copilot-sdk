@@ -205,6 +205,7 @@ client.stop().get();
 | `baseUrl` / `base_url` | string | **Required.** API endpoint URL |
 | `apiKey` / `api_key` | string | API key (optional for local providers like Ollama) |
 | `bearerToken` / `bearer_token` | string | Bearer token auth (takes precedence over apiKey) |
+| `bearerTokenProvider` / `bearer_token_provider` | callback | Returns a bearer token on demand (takes precedence over `apiKey` and `bearerToken`) |
 | `wireApi` / `wire_api` | `"completions"` \| `"responses"` | Select `"completions"` for broad model compatibility (the Chat Completions API); select `"responses"` for multi-turn state management, tool namespacing, and reasoning support (the Responses API). Anthropic models always use the Messages API regardless of this setting. |
 | `azure.apiVersion` / `azure.api_version` | string | Azure API version (default: `"2024-10-21"`) |
 
@@ -326,7 +327,9 @@ provider: {
 
 ### Bearer token authentication
 
-Some providers require bearer token authentication instead of API keys:
+Some providers require bearer token authentication instead of API keys. Supply a static token with `bearerToken`, or supply a `bearerTokenProvider` callback that the GitHub Copilot SDK runtime invokes before outbound provider requests. The callback or identity library it wraps manages token caching and refresh.
+
+Use `bearerToken` when your application already has a token:
 
 ```typescript
 provider: {
@@ -338,6 +341,22 @@ provider: {
 
 > [!NOTE]
 > The `bearerToken` option accepts a **static token string** only. The SDK does not refresh this token automatically. If your token expires, requests will fail and you'll need to create a new session with a fresh token.
+
+Use `bearerTokenProvider` to acquire tokens on demand:
+
+<!-- docs-validate: skip -->
+
+```typescript
+provider: {
+    type: "openai",
+    baseUrl: "https://my-custom-endpoint.example.com/v1",
+    bearerTokenProvider: async () => {
+        return await acquireBearerToken();
+    },
+}
+```
+
+For more details about acquiring and refreshing Microsoft Entra bearer tokens, see [Azure Managed Identity with BYOK](../setup/azure-managed-identity.md).
 
 ## Custom model listing
 
