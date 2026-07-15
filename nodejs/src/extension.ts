@@ -9,6 +9,7 @@ import {
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
+import type { WorkflowHandle } from "./workflow.js";
 
 export {
     Canvas,
@@ -26,9 +27,23 @@ export type JoinSessionConfig = Omit<
     "onPermissionRequest" | "extensionSdkPath"
 > & {
     onPermissionRequest?: PermissionHandler;
+    workflows?: WorkflowHandle[];
 };
 
 export type { ExtensionInfo, WorkflowLimits, WorkflowMeta } from "./types.js";
+export {
+    defineWorkflow,
+    WorkflowRunError,
+    type RunOptions,
+    type SessionWorkflowApi,
+    type WorkflowAgentOptions,
+    type WorkflowContext,
+    type WorkflowDefinition,
+    type WorkflowHandle,
+    type WorkflowJsonSchema,
+    type WorkflowPipelineStage,
+    type WorkflowStepOptions,
+} from "./workflow.js";
 
 /**
  * Joins the current foreground session.
@@ -57,14 +72,22 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // at the type level — untyped (JS) callers can still slip it through, and
     // honoring it here would be misleading since the extension subprocess has
     // already been forked by the host with the SDK the host chose.
-    const { extensionSdkPath: _stripped, ...rest } = config as JoinSessionConfig & {
+    const {
+        extensionSdkPath: _stripped,
+        workflows,
+        ...rest
+    } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
     };
     void _stripped;
 
-    return client.resumeSession(sessionId, {
-        ...rest,
-        onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-        suppressResumeEvent: config.suppressResumeEvent ?? true,
-    });
+    return client.resumeSessionForExtension(
+        sessionId,
+        {
+            ...rest,
+            onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
+            suppressResumeEvent: config.suppressResumeEvent ?? true,
+        },
+        workflows
+    );
 }

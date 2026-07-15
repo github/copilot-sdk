@@ -85,6 +85,7 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
+import type { WorkflowHandle } from "./workflow.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -1663,6 +1664,23 @@ export class CopilotClient {
      * ```
      */
     async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config);
+    }
+
+    /** @internal */
+    async resumeSessionForExtension(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        workflows?: WorkflowHandle[]
+    ): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config, workflows);
+    }
+
+    private async resumeSessionInternal(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        workflows?: WorkflowHandle[]
+    ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
         }
@@ -1679,6 +1697,7 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
+        session.registerWorkflows(workflows);
         const {
             wireProvider: bearerWireProvider,
             wireProviders: bearerWireProviders,
@@ -1750,6 +1769,7 @@ export class CopilotClient {
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
+                workflows: workflows?.map((workflow) => workflow.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,

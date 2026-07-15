@@ -15,6 +15,7 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
+    WorkflowExecuteResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -60,6 +61,14 @@ import type {
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
+import {
+    getWorkflowDefinition,
+    WorkflowRunError,
+    type RunOptions,
+    type SessionWorkflowApi,
+    type WorkflowContext,
+    type WorkflowHandle,
+} from "./workflow.js";
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
@@ -138,6 +147,8 @@ export class CopilotSession {
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
+    private workflows = new Map<string, ReturnType<typeof getWorkflowDefinition>>();
+    private workflowAbortControllers = new Map<string, AbortController>();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
@@ -154,6 +165,36 @@ export class CopilotSession {
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
+
+    readonly workflow: SessionWorkflowApi = {
+        run: (async (
+            nameOrHandle: string | WorkflowHandle,
+            options?: RunOptions
+        ): Promise<unknown> => {
+            const name =
+                typeof nameOrHandle === "string"
+                    ? nameOrHandle
+                    : getWorkflowDefinition(nameOrHandle).meta.name;
+            const envelope = await this.rpc.workflow.run({
+                name,
+                args: (options?.args === undefined ? {} : options.args) as Parameters<
+                    typeof this.rpc.workflow.run
+                >[0]["args"],
+                options: {
+                    background: options?.background,
+                    resumeFromRunId: options?.resumeFromRunId,
+                },
+            });
+
+            if (options?.background) {
+                return envelope;
+            }
+            if (envelope.status !== "completed") {
+                throw new WorkflowRunError(envelope);
+            }
+            return envelope.result;
+        }) as SessionWorkflowApi["run"],
+    };
 
     /**
      * Creates a new CopilotSession instance.
@@ -358,6 +399,11 @@ export class CopilotSession {
         this.autoModeSwitchHandler = undefined;
         this.commandHandlers.clear();
         this.canvases.clear();
+        this.workflows.clear();
+        for (const controller of this.workflowAbortControllers.values()) {
+            controller.abort();
+        }
+        this.workflowAbortControllers.clear();
         this.transformCallbacks?.clear();
     }
 
@@ -868,6 +914,57 @@ export class CopilotSession {
                 } catch (error) {
                     throw toCanvasRpcError(error);
                 }
+            },
+        };
+    }
+
+    /**
+     * Registers workflow closures and reverse-RPC handlers for this session.
+     *
+     * @param workflows - Workflow handles declared by the joining extension.
+     * @internal Called by the SDK when an extension joins a session.
+     */
+    registerWorkflows(workflows?: WorkflowHandle[]): void {
+        this.workflows.clear();
+        if (!workflows || workflows.length === 0) {
+            delete this.clientSessionApis.workflow;
+            return;
+        }
+
+        for (const handle of workflows) {
+            const definition = getWorkflowDefinition(handle);
+            this.workflows.set(definition.meta.name, definition);
+        }
+
+        const self = this;
+        this.clientSessionApis.workflow = {
+            async execute(params) {
+                const definition = self.workflows.get(params.name);
+                if (!definition) {
+                    const message = `No workflow registered with name "${params.name}"`;
+                    throw new ResponseError(ErrorCodes.InvalidParams, message, {
+                        code: "workflow_not_found",
+                        name: params.name,
+                    });
+                }
+
+                const controller = new AbortController();
+                self.workflowAbortControllers.set(params.runId, controller);
+                try {
+                    const result = await definition.run({
+                        args: params.args,
+                        log: (_message: string) => {},
+                    } as WorkflowContext);
+                    return { result } as WorkflowExecuteResult;
+                } finally {
+                    if (self.workflowAbortControllers.get(params.runId) === controller) {
+                        self.workflowAbortControllers.delete(params.runId);
+                    }
+                }
+            },
+            async abort(params) {
+                self.workflowAbortControllers.get(params.runId)?.abort();
+                return {};
             },
         };
     }
