@@ -56,7 +56,7 @@ export interface WorkflowContext<TArgs = unknown> {
     phase(title: string): void;
     /** Emit a workflow progress line. */
     log(message: string): void;
-    /** Invoke another registered workflow as a child run. */
+    /** Reject because nested workflows are not supported. */
     workflow(name: string, args?: unknown): Promise<unknown>;
     /** Caller-supplied input, forwarded verbatim. */
     args: TArgs;
