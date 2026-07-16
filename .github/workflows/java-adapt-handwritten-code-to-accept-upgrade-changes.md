@@ -20,6 +20,7 @@ permissions:
   contents: read
   actions: read
 
+  copilot-requests: write
 timeout-minutes: 60
 
 network:
