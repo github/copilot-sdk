@@ -13,30 +13,53 @@ declare const workflowHandleBrand: unique symbol;
  *
  * Supports `type`, `required`, `enum`, `const`, recursive `properties`/`items`,
  * and `anyOf`/`oneOf`/`allOf`. Other JSON Schema keywords are ignored.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
  */
 export type WorkflowJsonSchema = Record<string, unknown>;
 
-/** Options for one workflow-scoped subagent call. */
+/**
+ * Options for one workflow-scoped subagent call.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowAgentOptions {
     label?: string;
     schema?: WorkflowJsonSchema;
     model?: string;
 }
 
-/** Options for a durable workflow step. */
+/**
+ * Options for a durable workflow step.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowStepOptions {
     /** Skip the journal and always invoke the producer. */
     volatile?: boolean;
 }
 
-/** One stage in a per-item workflow pipeline. */
+/**
+ * One stage in a per-item workflow pipeline.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export type WorkflowPipelineStage<TInput = unknown, TResult = unknown> = (
     previous: TInput,
     item: unknown,
     index: number
 ) => Promise<TResult> | TResult;
 
-/** Context passed to an extension-authored workflow body. */
+/**
+ * Context passed to an extension-authored workflow body.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowContext<TArgs = unknown> {
     /** Spawn and await one workflow-scoped subagent. */
     agent(prompt: string, options?: WorkflowAgentOptions): Promise<unknown>;
@@ -66,13 +89,23 @@ export interface WorkflowContext<TArgs = unknown> {
     signal: AbortSignal;
 }
 
-/** Definition accepted by {@link defineWorkflow}. */
+/**
+ * Definition accepted by {@link defineWorkflow}.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowDefinition<TArgs = unknown, TResult = unknown> {
     meta: WorkflowMeta;
     run(context: WorkflowContext<TArgs>): Promise<TResult>;
 }
 
-/** Opaque reusable reference to a defined workflow. */
+/**
+ * Opaque reusable reference to a defined workflow.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowHandle<TArgs = unknown, TResult = unknown> {
     readonly meta: WorkflowMeta;
     readonly [workflowHandleBrand]: {
@@ -81,7 +114,12 @@ export interface WorkflowHandle<TArgs = unknown, TResult = unknown> {
     };
 }
 
-/** Options for invoking a workflow. */
+/**
+ * Options for invoking a workflow.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface RunOptions<TArgs = unknown> {
     /** Input surfaced as `context.args`. */
     args?: TArgs;
@@ -91,7 +129,12 @@ export interface RunOptions<TArgs = unknown> {
     resumeFromRunId?: string;
 }
 
-/** Friendly workflow API exposed on a session. */
+/**
+ * Friendly workflow API exposed on a session.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface SessionWorkflowApi {
     run(name: string, options: RunOptions & { background: true }): Promise<WorkflowRunResult>;
     run<TResult = unknown>(
@@ -120,7 +163,12 @@ export interface SessionWorkflowApi {
     cancel(runId: string): Promise<WorkflowRunResult>;
 }
 
-/** Error thrown when a foreground workflow run does not complete successfully. */
+/**
+ * Error thrown when a foreground workflow run does not complete successfully.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export class WorkflowRunError extends Error {
     constructor(public readonly envelope: WorkflowRunResult) {
         super(
@@ -159,6 +207,9 @@ function validateLimits(meta: WorkflowMeta): void {
 
 /**
  * Defines an extension-authored workflow and returns an opaque registration handle.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
  */
 export function defineWorkflow<TArgs = unknown, TResult = unknown>(
     definition: WorkflowDefinition<TArgs, TResult>

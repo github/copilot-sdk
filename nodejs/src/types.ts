@@ -1836,7 +1836,12 @@ export interface CanvasProviderIdentity {
     name?: string;
 }
 
-/** Static resource ceilings declared by a workflow before it runs. */
+/**
+ * Static resource ceilings declared by a workflow before it runs.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowLimits {
     /** Maximum number of workflow subagents that may run concurrently. Must be positive when present. */
     maxConcurrentSubagents?: number;
@@ -1846,7 +1851,12 @@ export interface WorkflowLimits {
     timeout?: number;
 }
 
-/** Registration metadata for an extension-authored workflow. */
+/**
+ * Registration metadata for an extension-authored workflow.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface WorkflowMeta {
     /** Stable workflow name used for invocation. */
     name: string;
