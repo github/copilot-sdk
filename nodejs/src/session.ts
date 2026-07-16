@@ -69,6 +69,7 @@ import {
     type SessionWorkflowApi,
     type WorkflowContext,
     type WorkflowHandle,
+    type WorkflowStepOptions,
 } from "./workflow.js";
 
 /**
@@ -318,6 +319,7 @@ export class CopilotSession {
             }
             return envelope.result;
         }) as SessionWorkflowApi["run"],
+        getRun: (runId) => this.rpc.workflow.getRun({ runId }),
     };
 
     /**
@@ -1101,7 +1103,41 @@ export class CopilotSession {
                             });
                             return response.result ?? null;
                         },
-                        step: async () => unsupported("workflow.step"),
+                        step: async <TResult>(
+                            key: string,
+                            producer: () => Promise<TResult> | TResult,
+                            options: WorkflowStepOptions = {}
+                        ): Promise<TResult> => {
+                            await progress.flush();
+                            if (options.volatile) {
+                                return producer();
+                            }
+                            const cached = await self.rpc.workflow.journal.get({
+                                runId: params.runId,
+                                key,
+                            });
+                            if (cached.hit) {
+                                return cached.resultJson as TResult;
+                            }
+
+                            // Producers are best-effort at-least-once across crashes or
+                            // concurrent callers, so authors must make side effects idempotent.
+                            const result = await producer();
+                            const resultJson = JSON.stringify(result);
+                            if (resultJson === undefined) {
+                                throw new Error(
+                                    `step("${key}") returned a value that is not JSON-serializable`
+                                );
+                            }
+                            await self.rpc.workflow.journal.put({
+                                runId: params.runId,
+                                key,
+                                resultJson: result as Parameters<
+                                    typeof self.rpc.workflow.journal.put
+                                >[0]["resultJson"],
+                            });
+                            return result;
+                        },
                         parallel: runWorkflowParallel,
                         pipeline: runWorkflowPipeline,
                         workflow: async () => unsupported("workflow.runNested"),
