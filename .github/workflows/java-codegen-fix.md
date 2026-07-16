@@ -37,13 +37,14 @@ tools:
 safe-outputs:
   push-to-pull-request-branch:
     target: "*"
-    labels: [dependencies]
+    required-labels: [dependencies]
   add-comment:
     target: "*"
     max: 5
   noop:
     report-as-issue: false
 ---
+
 # Java Codegen Agentic Fix
 
 You are an automation agent that fixes Java compilation and test failures caused by code generation changes in the `copilot-sdk` monorepo.

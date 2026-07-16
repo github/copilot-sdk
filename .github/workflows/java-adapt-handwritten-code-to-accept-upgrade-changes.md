@@ -34,7 +34,7 @@ tools:
 safe-outputs:
   push-to-pull-request-branch:
     target: "*"
-    labels: [dependencies, sdk/java]
+    required-labels: [dependencies, sdk/java]
   add-comment:
     target: "*"
     max: 10
