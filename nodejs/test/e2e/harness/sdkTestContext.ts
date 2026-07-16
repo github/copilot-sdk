@@ -293,8 +293,10 @@ export async function createSdkTestContext({
     afterAll(async () => {
         await copilotClient.stop();
         await openAiEndpoint.stop(anyTestFailed);
-        // On Windows, the in-process runtime can keep session.db locked until this
-        // Vitest worker exits. Retrying here prevents that exit and deadlocks teardown.
+        // On Windows, this Vitest worker can retain the in-process runtime's session.db
+        // lock until the worker exits. Retrying from its afterAll hook cannot succeed:
+        // the hook waits for the lock, while the lock cannot clear until the hook returns
+        // and lets the worker exit.
         await rmDir(
             "remove e2e test copilotHomeDir",
             copilotHomeDir,
