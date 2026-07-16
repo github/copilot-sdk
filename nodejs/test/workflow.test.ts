@@ -284,6 +284,220 @@ describe("workflows", () => {
         });
     });
 
+    it("runs parallel as a barrier and maps a throwing thunk to null", async () => {
+        const first = Promise.withResolvers<string>();
+        const second = Promise.withResolvers<string>();
+        const started: string[] = [];
+        const session = new CopilotSession("session-parallel", {} as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "parallel",
+                description: "Parallel combinator test",
+                phases: [],
+            },
+            run: async ({ parallel }) =>
+                parallel([
+                    async () => {
+                        started.push("first");
+                        return first.promise;
+                    },
+                    async () => {
+                        started.push("second");
+                        return second.promise;
+                    },
+                    async () => {
+                        started.push("throwing");
+                        throw new Error("expected");
+                    },
+                ]),
+        });
+        session.registerWorkflows([workflow]);
+
+        let settled = false;
+        const execution = session.clientSessionApis
+            .workflow!.execute({
+                sessionId: session.sessionId,
+                name: "parallel",
+                runId: "run-parallel",
+                args: {},
+            })
+            .finally(() => {
+                settled = true;
+            });
+        await vi.waitFor(() => expect(started).toEqual(["first", "second", "throwing"]));
+
+        second.resolve("second");
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        first.resolve("first");
+        await expect(execution).resolves.toEqual({ result: ["first", "second", null] });
+    });
+
+    it("rejects already-invoked promises passed to parallel with a clear diagnostic", async () => {
+        const session = new CopilotSession("session-parallel-promises", {} as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "parallel-promises",
+                description: "Parallel misuse diagnostic",
+                phases: [],
+            },
+            run: async ({ parallel }) =>
+                parallel([Promise.resolve("already running")] as unknown as Array<
+                    () => Promise<string>
+                >),
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "parallel-promises",
+                runId: "run-parallel-promises",
+                args: {},
+            })
+        ).rejects.toThrow(
+            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
+        );
+    });
+
+    it("flows pipeline items independently and drops only the item whose stage throws", async () => {
+        const releaseFirstItem = Promise.withResolvers<void>();
+        const secondStageStarted = Promise.withResolvers<void>();
+        const finalStageItems: string[] = [];
+        const session = new CopilotSession("session-pipeline", {} as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "pipeline",
+                description: "Pipeline combinator test",
+                phases: [],
+            },
+            run: async ({ pipeline }) =>
+                pipeline(
+                    ["slow", "fast", "throw"],
+                    async (_previous, item) => {
+                        if (item === "slow") {
+                            await releaseFirstItem.promise;
+                        }
+                        if (item === "throw") {
+                            throw new Error("expected");
+                        }
+                        return `${item}-stage-1`;
+                    },
+                    async (previous, item) => {
+                        if (item === "fast") {
+                            secondStageStarted.resolve();
+                        }
+                        finalStageItems.push(item as string);
+                        return `${previous}-stage-2`;
+                    }
+                ),
+        });
+        session.registerWorkflows([workflow]);
+
+        const execution = session.clientSessionApis.workflow!.execute({
+            sessionId: session.sessionId,
+            name: "pipeline",
+            runId: "run-pipeline",
+            args: {},
+        });
+        await secondStageStarted.promise;
+        expect(finalStageItems).toEqual(["fast"]);
+
+        releaseFirstItem.resolve();
+        await expect(execution).resolves.toEqual({
+            result: ["slow-stage-1-stage-2", "fast-stage-1-stage-2", null],
+        });
+        expect(finalStageItems).toEqual(["fast", "slow"]);
+    });
+
+    it("enforces the 4096-item cap for parallel and pipeline", async () => {
+        const session = new CopilotSession("session-fanout-cap", {} as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "fanout-cap",
+                description: "Fan-out cap test",
+                phases: [],
+            },
+            run: async ({ parallel, pipeline }) => {
+                const tooManyItems = Array.from({ length: 4097 }, () => null);
+                const parallelError = await parallel(
+                    tooManyItems.map(() => async () => null)
+                ).catch((error: unknown) => error);
+                const pipelineError = await pipeline(tooManyItems).catch((error: unknown) => error);
+                return {
+                    parallel: (parallelError as Error).message,
+                    pipeline: (pipelineError as Error).message,
+                };
+            },
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "fanout-cap",
+                runId: "run-fanout-cap",
+                args: {},
+            })
+        ).resolves.toEqual({
+            result: {
+                parallel: "parallel() accepts at most 4096 items; got 4097.",
+                pipeline: "pipeline() accepts at most 4096 items; got 4097.",
+            },
+        });
+    });
+
+    it("does not deadlock nested combinators when only leaf agents use a one-slot limiter", async () => {
+        let active = 0;
+        let maxActive = 0;
+        let tail = Promise.resolve();
+        const sendRequest = vi.fn(
+            async (method: string, params: { prompt: string }): Promise<{ result: string }> => {
+                if (method !== "session.workflow.agent") {
+                    throw new Error(`Unexpected method: ${method}`);
+                }
+                const previous = tail;
+                const done = Promise.withResolvers<void>();
+                tail = done.promise;
+                await previous;
+                active++;
+                maxActive = Math.max(maxActive, active);
+                await Promise.resolve();
+                active--;
+                done.resolve();
+                return { result: params.prompt };
+            }
+        );
+        const session = new CopilotSession("session-nested-combinators", {
+            sendRequest,
+        } as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "nested-combinators",
+                description: "Nested combinator deadlock regression",
+                phases: [],
+            },
+            run: async ({ agent, parallel, pipeline }) =>
+                parallel([
+                    () => parallel([() => agent("a"), () => agent("b")]),
+                    () => pipeline(["c"], (_previous, item) => agent(item as string)),
+                ]),
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "nested-combinators",
+                runId: "run-nested-combinators",
+                args: {},
+            })
+        ).resolves.toEqual({ result: [["a", "b"], ["c"]] });
+        expect(maxActive).toBe(1);
+        expect(sendRequest).toHaveBeenCalledTimes(3);
+    });
+
     it("flushes buffered progress in finally when the workflow body throws", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-throw-progress", { sendRequest } as never);
