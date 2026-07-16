@@ -2616,12 +2616,33 @@ class TestGitHubTelemetry:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_event_handler_not_registered_without_option(self):
+    async def test_event_not_forwarded_without_option(self):
+        # Client-global handlers are always registered (so that hooks.invoke works),
+        # but without the on_github_telemetry option the telemetry adapter is inert:
+        # incoming events must not be forwarded to any callback.
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
-            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
-            assert "gitHubTelemetry.event" not in client._client.request_handlers
+            assert client._on_github_telemetry is None
+
+            # Dispatching a telemetry event is a harmless no-op when not opted in.
+            client._client._handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-no-telemetry",
+                        "restricted": False,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 1.0},
+                            "properties": {"tool": "shell"},
+                            "session_id": "sess-no-telemetry",
+                        },
+                    },
+                }
+            )
+            await asyncio.sleep(0)
         finally:
             await client.force_stop()
