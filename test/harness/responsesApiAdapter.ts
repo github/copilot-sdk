@@ -4,24 +4,17 @@
 
 import { randomUUID } from "node:crypto";
 import type { ChatCompletion } from "openai/resources/chat/completions";
-import { parseSseEvents } from "./sseParser";
+import type { Response as OpenAIResponse } from "openai/resources/responses/responses";
+import {
+  CanonicalMessage,
+  CanonicalToolCall,
+  formatSseEvent,
+  functionToolCalls,
+  isObject,
+  JsonObject,
+} from "./modelProtocolAdapterShared";
 
 export const responsesEndpoint = "/responses";
-
-type JsonObject = Record<string, unknown>;
-
-type CanonicalToolCall = {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-};
-
-type CanonicalMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content?: string | unknown[] | null;
-  tool_call_id?: string;
-  tool_calls?: CanonicalToolCall[];
-};
 
 type ResponsesRequest = {
   model: string;
@@ -35,31 +28,7 @@ type ResponsesRequest = {
   parallel_tool_calls?: boolean | null;
 };
 
-export type ResponsesApiResponse = {
-  id: string;
-  object: "response";
-  created_at: number;
-  model: string;
-  status: "completed";
-  output: JsonObject[];
-  output_text: string;
-  incomplete_details: JsonObject | null;
-  error: null;
-  instructions: null;
-  metadata: null;
-  parallel_tool_calls: boolean;
-  temperature: null;
-  tool_choice: "auto";
-  tools: [];
-  top_p: null;
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    input_tokens_details: { cached_tokens: number };
-    output_tokens_details: { reasoning_tokens: number };
-  };
-};
+export type ResponsesApiResponse = OpenAIResponse;
 
 export function responsesApiRequestToChatCompletion(
   requestBody: string,
@@ -276,7 +245,7 @@ function convertResponsesToolChoice(toolChoice: unknown): unknown {
 export function chatCompletionResponseToResponsesApiMessage(
   response: ChatCompletion,
 ): ResponsesApiResponse {
-  const output: JsonObject[] = [];
+  const output: ResponsesApiResponse["output"] = [];
   const outputText: string[] = [];
 
   for (const choice of response.choices) {
@@ -456,113 +425,4 @@ export function chatCompletionResponseToResponsesApiSseChunks(
 
   chunks.push(event("response.completed", { response: fullResponse }));
   return chunks;
-}
-
-export function responsesApiResponseToChatCompletion(
-  requestBody: string,
-  responseBody: string,
-): ChatCompletion {
-  const request = JSON.parse(requestBody) as ResponsesRequest;
-  const response = JSON.parse(responseBody) as ResponsesApiResponse;
-  const text: string[] = [];
-  const toolCalls: CanonicalToolCall[] = [];
-
-  for (const item of response.output) {
-    if (item.type === "message" && Array.isArray(item.content)) {
-      for (const part of item.content) {
-        if (
-          isObject(part) &&
-          part.type === "output_text" &&
-          typeof part.text === "string"
-        ) {
-          text.push(part.text);
-        }
-      }
-    } else if (
-      item.type === "function_call" &&
-      typeof item.call_id === "string"
-    ) {
-      toolCalls.push({
-        id: item.call_id,
-        type: "function",
-        function: {
-          name: typeof item.name === "string" ? item.name : "",
-          arguments: typeof item.arguments === "string" ? item.arguments : "{}",
-        },
-      });
-    }
-  }
-
-  const incompleteReason = response.incomplete_details?.reason;
-  return {
-    id: response.id,
-    object: "chat.completion",
-    created: response.created_at,
-    model: request.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: text.length ? text.join("") : null,
-          refusal: null,
-          ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
-        },
-        logprobs: null,
-        finish_reason:
-          incompleteReason === "max_output_tokens"
-            ? "length"
-            : incompleteReason === "content_filter"
-              ? "content_filter"
-              : toolCalls.length
-                ? "tool_calls"
-                : "stop",
-      },
-    ],
-    usage: {
-      prompt_tokens: response.usage?.input_tokens ?? 0,
-      completion_tokens: response.usage?.output_tokens ?? 0,
-      total_tokens: response.usage?.total_tokens ?? 0,
-    },
-  } as ChatCompletion;
-}
-
-export function aggregateResponsesApiSseToResponse(
-  body: string,
-): ResponsesApiResponse | null {
-  let snapshot: ResponsesApiResponse | null = null;
-  const output: JsonObject[] = [];
-  for (const event of parseSseEvents(body)) {
-    if (event.type === "response.completed" && isObject(event.response)) {
-      return event.response as ResponsesApiResponse;
-    }
-    if (event.type === "response.created" && isObject(event.response)) {
-      snapshot = event.response as ResponsesApiResponse;
-    }
-    if (event.type === "response.output_item.done" && isObject(event.item)) {
-      output.push(event.item);
-    }
-  }
-  return snapshot ? { ...snapshot, output } : null;
-}
-
-function functionToolCalls(message: unknown): CanonicalToolCall[] {
-  if (!isObject(message) || !Array.isArray(message.tool_calls)) return [];
-  return message.tool_calls.filter(
-    (toolCall): toolCall is CanonicalToolCall =>
-      isObject(toolCall) &&
-      typeof toolCall.id === "string" &&
-      toolCall.type === "function" &&
-      isObject(toolCall.function) &&
-      typeof toolCall.function.name === "string" &&
-      typeof toolCall.function.arguments === "string",
-  );
-}
-
-function formatSseEvent(type: string, data: unknown): string {
-  return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
-function isObject(value: unknown): value is JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

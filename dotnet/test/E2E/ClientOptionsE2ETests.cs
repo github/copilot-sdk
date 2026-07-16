@@ -220,7 +220,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Advanced_Session_Options_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -368,7 +368,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Singular_Provider_Options_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();

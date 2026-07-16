@@ -27,7 +27,7 @@ public class ProviderEndpointE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task ShouldReturnByokProviderEndpointWhenCustomProviderIsConfigured()
     {
         var client = CreateProviderEndpointClient();

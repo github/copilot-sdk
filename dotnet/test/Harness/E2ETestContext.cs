@@ -20,13 +20,13 @@ public sealed class E2ETestContext : IAsyncDisposable
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
     public ILogger? Logger { get; set; }
 
-    private readonly CapiProxy _proxy;
+    private readonly ReplayProxy _proxy;
     private readonly string _repoRoot;
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
 
-    private E2ETestContext(string homeDir, string workDir, string proxyUrl, CapiProxy proxy, string repoRoot)
+    private E2ETestContext(string homeDir, string workDir, string proxyUrl, ReplayProxy proxy, string repoRoot)
     {
         HomeDir = homeDir;
         WorkDir = workDir;
@@ -50,7 +50,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         homeDir = ResolveSymlinks(homeDir);
         workDir = ResolveSymlinks(workDir);
 
-        var proxy = new CapiProxy();
+        var proxy = new ReplayProxy();
         var proxyUrl = await proxy.StartAsync();
         await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
             Login: "e2e-test-user",

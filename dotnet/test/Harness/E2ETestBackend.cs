@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Diagnostics;
+
 namespace GitHub.Copilot.Test.Harness;
 
 internal enum E2ETestBackend
@@ -15,7 +17,8 @@ internal enum E2ETestBackend
 internal static class E2ETestBackendConfiguration
 {
     internal const string EnvironmentVariable = "COPILOT_SDK_E2E_BACKEND";
-    private const string DefaultModel = "claude-sonnet-4.5";
+    private const string AnthropicDefaultModel = "claude-sonnet-4.5";
+    private const string OpenAIDefaultModel = "gpt-4.1";
     private const string FakeCredential = "fake-byok-credential-for-e2e-tests";
 
     internal static E2ETestBackend Current
@@ -28,7 +31,7 @@ internal static class E2ETestBackendConfiguration
             "anthropic-messages" => E2ETestBackend.AnthropicMessages,
             "openai-responses" => E2ETestBackend.OpenAIResponses,
             "openai-completions" => E2ETestBackend.OpenAICompletions,
-            _ => throw new InvalidOperationException(
+            _ => throw new UnreachableException(
                 $"Unsupported {EnvironmentVariable} value '{value}'. Expected capi, anthropic-messages, openai-responses, or openai-completions."),
         };
 
@@ -39,7 +42,7 @@ internal static class E2ETestBackendConfiguration
             E2ETestBackend.AnthropicMessages => "anthropic-messages",
             E2ETestBackend.OpenAIResponses => "openai-responses",
             E2ETestBackend.OpenAICompletions => "openai-completions",
-            _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null),
+            _ => throw new UnreachableException(),
         };
 
     internal static void ApplyProvider(
@@ -54,8 +57,8 @@ internal static class E2ETestBackendConfiguration
             return;
         }
 
-        config.Model ??= DefaultModel;
-        config.Provider = CreateProvider(backend, proxyUrl);
+        var model = config.Model ??= backend.GetDefaultModel();
+        config.Provider = CreateProvider(backend, proxyUrl, model);
     }
 
     internal static void ApplyProvider(
@@ -68,30 +71,52 @@ internal static class E2ETestBackendConfiguration
             return;
         }
 
-        config.Model ??= DefaultModel;
-        config.Provider = CreateProvider(backend, proxyUrl);
+        var model = config.Model ??= backend.GetDefaultModel();
+        config.Provider = CreateProvider(backend, proxyUrl, model);
     }
 
-    private static ProviderConfig CreateProvider(E2ETestBackend backend, string proxyUrl)
+    private static string GetDefaultModel(this E2ETestBackend backend)
+        => backend switch
+        {
+            E2ETestBackend.AnthropicMessages => AnthropicDefaultModel,
+            E2ETestBackend.OpenAIResponses or E2ETestBackend.OpenAICompletions => OpenAIDefaultModel,
+            _ => throw new UnreachableException(),
+        };
+
+    private static ProviderConfig CreateProvider(
+        E2ETestBackend backend,
+        string proxyUrl,
+        string model)
         => new()
         {
             BaseUrl = proxyUrl,
-            Type = backend == E2ETestBackend.AnthropicMessages ? "anthropic" : "openai",
+            Type = backend switch
+            {
+                E2ETestBackend.AnthropicMessages => "anthropic",
+                E2ETestBackend.OpenAIResponses or E2ETestBackend.OpenAICompletions => "openai",
+                _ => throw new UnreachableException(),
+            },
             WireApi = backend switch
             {
+                E2ETestBackend.AnthropicMessages => null,
                 E2ETestBackend.OpenAIResponses => "responses",
                 E2ETestBackend.OpenAICompletions => "completions",
-                _ => null,
+                _ => throw new UnreachableException(),
             },
             BearerToken = FakeCredential,
-            ModelId = DefaultModel,
-            WireModel = DefaultModel,
+            ModelId = model,
+            WireModel = model,
         };
 }
 
 internal static class E2ETestTraits
 {
+    // Trait key used by workflow filters to classify backend compatibility.
     internal const string Backend = "E2EBackend";
+
+    // Requires the default CAPI backend and is excluded from BYOK legs.
     internal const string CapiOnly = "CapiOnly";
-    internal const string SelfConfiguredProvider = "SelfConfiguredProvider";
+
+    // Owns its backend setup and must not inherit the backend selected by the test matrix.
+    internal const string SelfConfiguredBackend = "SelfConfiguredBackend";
 }

@@ -45,7 +45,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Add_Byok_Provider_And_Model_At_Runtime()
     {
         await using var session = await CreateSessionAsync();

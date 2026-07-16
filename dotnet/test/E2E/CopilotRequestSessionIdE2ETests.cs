@@ -65,7 +65,7 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Threads_The_Session_Id_Into_A_Byok_Session_Inference_Request()
     {
         var provider = new RecordingRequestHandler();

@@ -3,11 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatCompletion } from "openai/resources/chat/completions";
-import { parseSseEvents } from "./sseParser";
+import {
+  CanonicalMessage,
+  CanonicalToolCall,
+  formatSseEvent,
+  functionToolCalls,
+  isObject,
+  JsonObject,
+} from "./modelProtocolAdapterShared";
 
 export const anthropicMessagesEndpoint = "/v1/messages";
-
-type JsonObject = Record<string, unknown>;
 
 type CanonicalContentPart =
   | { type: "text"; text: string }
@@ -16,19 +21,6 @@ type CanonicalContentPart =
       type: "file";
       file: { file_data: string; filename?: string };
     };
-
-type CanonicalMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content?: string | CanonicalContentPart[] | null;
-  tool_call_id?: string;
-  tool_calls?: CanonicalToolCall[];
-};
-
-type CanonicalToolCall = {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-};
 
 type AnthropicContentBlock =
   | { type: "text"; text: string; citations?: null }
@@ -98,14 +90,6 @@ const finishReasonToStopReason: Record<string, AnthropicStopReason> = {
   tool_calls: "tool_use",
   function_call: "tool_use",
   content_filter: "refusal",
-};
-
-const stopReasonToFinishReason: Record<string, string> = {
-  end_turn: "stop",
-  stop_sequence: "stop",
-  max_tokens: "length",
-  tool_use: "tool_calls",
-  refusal: "content_filter",
 };
 
 export function anthropicMessagesRequestToChatCompletion(
@@ -403,177 +387,10 @@ export function chatCompletionResponseToAnthropicSseChunks(
   return chunks;
 }
 
-export function anthropicMessageResponseToChatCompletion(
-  requestBody: string,
-  responseBody: string,
-): ChatCompletion {
-  const request = JSON.parse(requestBody) as AnthropicRequest;
-  const message = JSON.parse(responseBody) as AnthropicMessage;
-  const text: string[] = [];
-  const toolCalls: CanonicalToolCall[] = [];
-  for (const block of message.content) {
-    if (block.type === "text") {
-      text.push(block.text);
-    } else {
-      toolCalls.push({
-        id: block.id,
-        type: "function",
-        function: {
-          name: block.name,
-          arguments: JSON.stringify(block.input ?? {}),
-        },
-      });
-    }
-  }
-
-  return {
-    id: message.id,
-    object: "chat.completion",
-    created: Math.floor(Date.now() / 1000),
-    model: request.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: text.length ? text.join("") : null,
-          refusal: null,
-          ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
-        },
-        logprobs: null,
-        finish_reason:
-          (message.stop_reason &&
-            stopReasonToFinishReason[message.stop_reason]) ||
-          "stop",
-      },
-    ],
-    usage: {
-      prompt_tokens:
-        message.usage.input_tokens +
-        (message.usage.cache_read_input_tokens ?? 0),
-      completion_tokens: message.usage.output_tokens,
-      total_tokens:
-        message.usage.input_tokens +
-        (message.usage.cache_read_input_tokens ?? 0) +
-        message.usage.output_tokens,
-    },
-  } as ChatCompletion;
-}
-
-export function aggregateAnthropicSseToMessage(
-  body: string,
-): AnthropicMessage | null {
-  let message: AnthropicMessage | null = null;
-  const blocks: AnthropicMessage["content"] = [];
-  const toolInputs: string[] = [];
-
-  for (const event of parseSseEvents(body)) {
-    if (event.type === "message_start" && isObject(event.message)) {
-      message = {
-        ...(event.message as AnthropicMessage),
-        content: [],
-      };
-    } else if (
-      event.type === "content_block_start" &&
-      typeof event.index === "number" &&
-      isObject(event.content_block)
-    ) {
-      const block = event.content_block;
-      if (block.type === "text") {
-        blocks[event.index] = {
-          type: "text",
-          text: typeof block.text === "string" ? block.text : "",
-          citations: null,
-        };
-      } else if (
-        block.type === "tool_use" &&
-        typeof block.id === "string" &&
-        typeof block.name === "string"
-      ) {
-        blocks[event.index] = {
-          type: "tool_use",
-          id: block.id,
-          name: block.name,
-          input: {},
-        };
-        toolInputs[event.index] = "";
-      }
-    } else if (
-      event.type === "content_block_delta" &&
-      typeof event.index === "number" &&
-      isObject(event.delta)
-    ) {
-      const block = blocks[event.index];
-      if (
-        block?.type === "text" &&
-        event.delta.type === "text_delta" &&
-        typeof event.delta.text === "string"
-      ) {
-        block.text += event.delta.text;
-      } else if (
-        block?.type === "tool_use" &&
-        event.delta.type === "input_json_delta" &&
-        typeof event.delta.partial_json === "string"
-      ) {
-        toolInputs[event.index] += event.delta.partial_json;
-      }
-    } else if (
-      event.type === "content_block_stop" &&
-      typeof event.index === "number"
-    ) {
-      const block = blocks[event.index];
-      if (block?.type === "tool_use") {
-        block.input = safeParseJson(toolInputs[event.index] || "{}");
-      }
-    } else if (
-      event.type === "message_delta" &&
-      message &&
-      isObject(event.delta)
-    ) {
-      if (typeof event.delta.stop_reason === "string") {
-        message.stop_reason = event.delta.stop_reason as AnthropicStopReason;
-      }
-      if (
-        isObject(event.usage) &&
-        typeof event.usage.output_tokens === "number"
-      ) {
-        message.usage.output_tokens = event.usage.output_tokens;
-      }
-    }
-  }
-
-  if (!message) return null;
-  message.content = blocks.filter(
-    (block): block is AnthropicMessage["content"][number] => Boolean(block),
-  );
-  return message;
-}
-
-function functionToolCalls(message: unknown): CanonicalToolCall[] {
-  if (!isObject(message) || !Array.isArray(message.tool_calls)) return [];
-  return message.tool_calls.filter(
-    (toolCall): toolCall is CanonicalToolCall =>
-      isObject(toolCall) &&
-      typeof toolCall.id === "string" &&
-      toolCall.type === "function" &&
-      isObject(toolCall.function) &&
-      typeof toolCall.function.name === "string" &&
-      typeof toolCall.function.arguments === "string",
-  );
-}
-
-function formatSseEvent(event: string, data: unknown): string {
-  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
 function safeParseJson(value: string): unknown {
   try {
     return JSON.parse(value);
   } catch {
     return {};
   }
-}
-
-function isObject(value: unknown): value is JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

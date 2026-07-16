@@ -925,7 +925,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Create_Session_With_Custom_Provider()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -951,7 +951,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Create_Session_With_Azure_Provider()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -981,7 +981,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredProvider)]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Resume_Session_With_Custom_Provider()
     {
         var session = await CreateSessionAsync();

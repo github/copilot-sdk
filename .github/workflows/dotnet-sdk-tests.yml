@@ -48,15 +48,15 @@ jobs:
           - os: ubuntu-latest
             transport: inprocess
             backend: anthropic-messages
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
           - os: ubuntu-latest
             transport: inprocess
             backend: openai-responses
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
           - os: ubuntu-latest
             transport: inprocess
             backend: openai-completions
-            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredProvider&E2EBackend!=CapiOnly"
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
     runs-on: ${{ matrix.os }}
     defaults:
       run:
