@@ -9,7 +9,7 @@ import {
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
-import type { WorkflowHandle } from "./workflow.js";
+import type { OrchestrationHandle } from "./orchestration.js";
 
 export {
     Canvas,
@@ -28,28 +28,28 @@ export type JoinSessionConfig = Omit<
 > & {
     onPermissionRequest?: PermissionHandler;
     /**
-     * Workflow handles to register when the extension joins the session.
+     * Orchestration handles to register when the extension joins the session.
      *
-     * @experimental Part of the experimental Dynamic Workflows surface and may
+     * @experimental Part of the experimental Agent Orchestrations surface and may
      * change or be removed in future SDK or CLI releases.
      */
-    workflows?: WorkflowHandle[];
+    orchestrations?: OrchestrationHandle[];
 };
 
-export type { ExtensionInfo, WorkflowLimits, WorkflowMeta } from "./types.js";
+export type { ExtensionInfo, OrchestrationLimits, OrchestrationMeta } from "./types.js";
 export {
-    defineWorkflow,
-    WorkflowRunError,
+    defineOrchestration,
+    OrchestrationRunError,
     type RunOptions,
-    type SessionWorkflowApi,
-    type WorkflowAgentOptions,
-    type WorkflowContext,
-    type WorkflowDefinition,
-    type WorkflowHandle,
-    type WorkflowJsonSchema,
-    type WorkflowPipelineStage,
-    type WorkflowStepOptions,
-} from "./workflow.js";
+    type SessionOrchestrationApi,
+    type OrchestrationAgentOptions,
+    type OrchestrationContext,
+    type OrchestrationDefinition,
+    type OrchestrationHandle,
+    type OrchestrationJsonSchema,
+    type OrchestrationPipelineStage,
+    type OrchestrationStepOptions,
+} from "./orchestration.js";
 
 /**
  * Joins the current foreground session.
@@ -80,7 +80,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // already been forked by the host with the SDK the host chose.
     const {
         extensionSdkPath: _stripped,
-        workflows,
+        orchestrations,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
@@ -94,6 +94,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
-        workflows
+        orchestrations
     );
 }

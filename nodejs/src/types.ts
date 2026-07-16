@@ -1837,35 +1837,35 @@ export interface CanvasProviderIdentity {
 }
 
 /**
- * Static resource ceilings declared by a workflow before it runs.
+ * Static resource ceilings declared by a orchestration before it runs.
  *
- * @experimental Part of the experimental Dynamic Workflows surface and may
+ * @experimental Part of the experimental Agent Orchestrations surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface WorkflowLimits {
-    /** Maximum number of workflow subagents that may run concurrently. Must be positive when present. */
+export interface OrchestrationLimits {
+    /** Maximum number of orchestration subagents that may run concurrently. Must be positive when present. */
     maxConcurrentSubagents?: number;
-    /** Maximum total number of workflow subagents that may be spawned. Must be positive when present. */
+    /** Maximum total number of orchestration subagents that may be spawned. Must be positive when present. */
     maxTotalSubagents?: number;
-    /** Wall-clock timeout for the workflow run, in milliseconds. Must be positive when present. */
+    /** Wall-clock timeout for the orchestration run, in milliseconds. Must be positive when present. */
     timeout?: number;
 }
 
 /**
- * Registration metadata for an extension-authored workflow.
+ * Registration metadata for an extension-authored orchestration.
  *
- * @experimental Part of the experimental Dynamic Workflows surface and may
+ * @experimental Part of the experimental Agent Orchestrations surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface WorkflowMeta {
-    /** Stable workflow name used for invocation. */
+export interface OrchestrationMeta {
+    /** Stable orchestration name used for invocation. */
     name: string;
-    /** Human-readable workflow description. */
+    /** Human-readable orchestration description. */
     description: string;
-    /** Display metadata for the progress phases the workflow may report. */
+    /** Display metadata for the progress phases the orchestration may report. */
     phases: Array<{ title: string; detail?: string }>;
     /** Optional resource ceilings presented to the user before execution. */
-    limits?: WorkflowLimits;
+    limits?: OrchestrationLimits;
 }
 
 /**

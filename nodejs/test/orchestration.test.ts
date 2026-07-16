@@ -8,17 +8,17 @@ import { CopilotClient } from "../src/client.js";
 import { joinSession } from "../src/extension.js";
 import { CopilotSession } from "../src/session.js";
 import {
-    defineWorkflow,
-    WorkflowRunError,
-    type WorkflowAgentOptions,
-    type WorkflowDefinition,
-} from "../src/workflow.js";
+    defineOrchestration,
+    OrchestrationRunError,
+    type OrchestrationAgentOptions,
+    type OrchestrationDefinition,
+} from "../src/orchestration.js";
 
 async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
 
-describe("workflows", () => {
+describe("orchestrations", () => {
     const originalSessionId = process.env.SESSION_ID;
 
     afterEach(() => {
@@ -33,18 +33,18 @@ describe("workflows", () => {
     it("defines a stable handle and accepts omitted limits", async () => {
         const meta = {
             name: "no-limits",
-            description: "A workflow without resource limits",
+            description: "A orchestration without resource limits",
             phases: [],
         };
         const run = vi.fn(async ({ args }: { args: unknown }) => args);
-        const handle = defineWorkflow({ meta, run });
+        const handle = defineOrchestration({ meta, run });
 
         expect(handle.meta).toBe(meta);
         expect(Object.isFrozen(handle)).toBe(true);
 
         const session = new CopilotSession("session-1", {} as never);
-        session.registerWorkflows([handle]);
-        const result = await session.clientSessionApis.workflow!.execute({
+        session.registerOrchestrations([handle]);
+        const result = await session.clientSessionApis.orchestration!.execute({
             sessionId: session.sessionId,
             name: meta.name,
             runId: "run-1",
@@ -66,23 +66,23 @@ describe("workflows", () => {
         const definition = {
             meta: {
                 name: `invalid-${field}-${String(value)}`,
-                description: "Invalid workflow",
+                description: "Invalid orchestration",
                 phases: [],
                 limits: { [field]: value },
             },
             run: async () => null,
-        } as WorkflowDefinition;
+        } as OrchestrationDefinition;
 
-        expect(() => defineWorkflow(definition)).toThrow(/must be a positive/);
+        expect(() => defineOrchestration(definition)).toThrow(/must be a positive/);
     });
 
-    it("serializes only workflow metadata in the extension resume payload", async () => {
+    it("serializes only orchestration metadata in the extension resume payload", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
 
         const run = vi.fn(async () => ({ ok: true }));
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "registered",
                 description: "Registration test",
@@ -101,7 +101,7 @@ describe("workflows", () => {
                     const sessions = (client as never as { sessions: Map<string, CopilotSession> })
                         .sessions;
                     expect(
-                        sessions.get(params.sessionId as string)?.clientSessionApis.workflow
+                        sessions.get(params.sessionId as string)?.clientSessionApis.orchestration
                     ).toBeDefined();
                     return { sessionId: params.sessionId };
                 }
@@ -111,22 +111,22 @@ describe("workflows", () => {
         await client.resumeSessionForExtension(
             "session-registration",
             { onPermissionRequest: () => ({ kind: "approved" }) },
-            [workflow]
+            [orchestration]
         );
 
         const payload = sendRequest.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as {
-            workflows: unknown[];
+            orchestrations: unknown[];
         };
-        expect(payload.workflows).toEqual([workflow.meta]);
-        expect(payload.workflows[0]).not.toHaveProperty("run");
-        expect(JSON.stringify(payload.workflows)).not.toContain("async");
+        expect(payload.orchestrations).toEqual([orchestration.meta]);
+        expect(payload.orchestrations[0]).not.toHaveProperty("run");
+        expect(JSON.stringify(payload.orchestrations)).not.toContain("async");
     });
 
-    it("passes workflows only through the extension join path", async () => {
+    it("passes orchestrations only through the extension join path", async () => {
         process.env.SESSION_ID = "session-extension";
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "extension-only",
                 description: "Extension-only registration",
@@ -138,19 +138,19 @@ describe("workflows", () => {
             .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as CopilotSession);
 
-        await joinSession({ workflows: [workflow] });
+        await joinSession({ orchestrations: [orchestration] });
 
         expect(resumeSessionForExtension).toHaveBeenCalledWith(
             "session-extension",
             expect.objectContaining({ suppressResumeEvent: true }),
-            [workflow]
+            [orchestration]
         );
     });
 
-    it("builds the workflow context with the unrestricted joined session identity", async () => {
+    it("builds the orchestration context with the unrestricted joined session identity", async () => {
         process.env.SESSION_ID = "session-context";
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.workflow.log") {
+            if (method === "session.orchestration.log") {
                 return {};
             }
             if (method === "session.tasks.list") {
@@ -164,7 +164,7 @@ describe("workflows", () => {
             session: CopilotSession;
             signal: AbortSignal;
         }>();
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "context",
                 description: "Context test",
@@ -179,14 +179,14 @@ describe("workflows", () => {
             },
         });
         vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockImplementation(
-            async (_sessionId, _config, workflows) => {
-                joinedSession.registerWorkflows(workflows);
+            async (_sessionId, _config, orchestrations) => {
+                joinedSession.registerOrchestrations(orchestrations);
                 return joinedSession;
             }
         );
 
-        const joinSessionResult = await joinSession({ workflows: [workflow] });
-        const executeResult = await joinSessionResult.clientSessionApis.workflow!.execute({
+        const joinSessionResult = await joinSession({ orchestrations: [orchestration] });
+        const executeResult = await joinSessionResult.clientSessionApis.orchestration!.execute({
             sessionId: joinSessionResult.sessionId,
             name: "context",
             runId: "run-context",
@@ -202,7 +202,7 @@ describe("workflows", () => {
         expect(sendRequest).toHaveBeenCalledWith("session.tasks.list", {
             sessionId: joinSessionResult.sessionId,
         });
-        expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
             sessionId: joinSessionResult.sessionId,
             runId: "run-context",
             lines: [
@@ -212,37 +212,37 @@ describe("workflows", () => {
         });
     });
 
-    it("rejects nested workflows without forwarding a runNested request", async () => {
+    it("rejects nested orchestrations without forwarding a runNested request", async () => {
         const sendRequest = vi.fn(async () => {
             throw new Error("Unexpected forward request");
         });
         const session = new CopilotSession("session-no-nesting", { sendRequest } as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "no-nesting",
-                description: "Nested workflow rejection test",
+                description: "Nested orchestration rejection test",
                 phases: [],
             },
-            run: async (context) => context.workflow("nested", { value: 42 }),
+            run: async (context) => context.orchestration("nested", { value: 42 }),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "no-nesting",
                 runId: "run-no-nesting",
                 args: {},
             })
-        ).rejects.toThrow("nested workflows are not supported");
+        ).rejects.toThrow("nested orchestrations are not supported");
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
-    it("flushes progress incrementally while a workflow body is awaiting", async () => {
+    it("flushes progress incrementally while a orchestration body is awaiting", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-live-progress", { sendRequest } as never);
         const body = Promise.withResolvers<void>();
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "live-progress",
                 description: "Incremental progress test",
@@ -254,16 +254,16 @@ describe("workflows", () => {
                 return "done";
             },
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
-        const execution = session.clientSessionApis.workflow!.execute({
+        const execution = session.clientSessionApis.orchestration!.execute({
             sessionId: session.sessionId,
             name: "live-progress",
             runId: "run-live-progress",
             args: {},
         });
         await vi.waitFor(() => {
-            expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+            expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
                 sessionId: session.sessionId,
                 runId: "run-live-progress",
                 lines: [{ seq: 0, kind: "log", text: "before await" }],
@@ -274,15 +274,15 @@ describe("workflows", () => {
         await expect(execution).resolves.toEqual({ result: "done" });
     });
 
-    it("calls workflow.agent with the current run id and returns its text", async () => {
+    it("calls orchestration.agent with the current run id and returns its text", async () => {
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.workflow.agent") {
+            if (method === "session.orchestration.agent") {
                 return { result: "pong" };
             }
             throw new Error(`Unexpected method: ${method}`);
         });
         const session = new CopilotSession("session-agent", { sendRequest } as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "agent",
                 description: "Agent context test",
@@ -294,21 +294,21 @@ describe("workflows", () => {
                     model: "gpt-test",
                     schema: { type: "string" },
                     effort: "high",
-                } as WorkflowAgentOptions),
+                } as OrchestrationAgentOptions),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "agent",
                 runId: "run-agent",
                 args: {},
             })
         ).resolves.toEqual({ result: "pong" });
-        expect(sendRequest).toHaveBeenCalledWith("session.workflow.agent", {
+        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.agent", {
             sessionId: session.sessionId,
-            workflowRunId: "run-agent",
+            orchestrationRunId: "run-agent",
             prompt: "Reply with pong",
             opts: {
                 label: "Pong helper",
@@ -322,12 +322,12 @@ describe("workflows", () => {
         const journal = new Map<string, unknown>();
         const sendRequest = vi.fn(
             async (method: string, params: { key?: string; resultJson?: unknown }) => {
-                if (method === "session.workflow.journal.get") {
+                if (method === "session.orchestration.journal.get") {
                     return journal.has(params.key!)
                         ? { hit: true, resultJson: journal.get(params.key!) }
                         : { hit: false };
                 }
-                if (method === "session.workflow.journal.put") {
+                if (method === "session.orchestration.journal.put") {
                     journal.set(params.key!, params.resultJson);
                     return {};
                 }
@@ -337,7 +337,7 @@ describe("workflows", () => {
         const session = new CopilotSession("session-step", { sendRequest } as never);
         let cachedProducerCalls = 0;
         let failingProducerCalls = 0;
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "step",
                 description: "Durable step context test",
@@ -363,10 +363,10 @@ describe("workflows", () => {
                 return { first, second, failed, retried };
             },
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "step",
                 runId: "run-step",
@@ -378,29 +378,31 @@ describe("workflows", () => {
         expect(cachedProducerCalls).toBe(1);
         expect(failingProducerCalls).toBe(2);
         expect(
-            sendRequest.mock.calls.filter(([method]) => method === "session.workflow.journal.put")
+            sendRequest.mock.calls.filter(
+                ([method]) => method === "session.orchestration.journal.put"
+            )
         ).toHaveLength(2);
     });
 
-    it("exposes workflow getRun and forwards the run id", async () => {
+    it("exposes orchestration getRun and forwards the run id", async () => {
         const envelope = { runId: "run-read", status: "error", error: "failed" };
         const sendRequest = vi.fn(async () => envelope);
         const session = new CopilotSession("session-read", { sendRequest } as never);
 
-        await expect(session.workflow.getRun("run-read")).resolves.toEqual(envelope);
-        expect(sendRequest).toHaveBeenCalledWith("session.workflow.getRun", {
+        await expect(session.orchestration.getRun("run-read")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.getRun", {
             sessionId: session.sessionId,
             runId: "run-read",
         });
     });
 
-    it("exposes workflow cancel and forwards the run id", async () => {
+    it("exposes orchestration cancel and forwards the run id", async () => {
         const envelope = { runId: "run-cancel", status: "cancelled", reason: "cancelled" };
         const sendRequest = vi.fn(async () => envelope);
         const session = new CopilotSession("session-cancel", { sendRequest } as never);
 
-        await expect(session.workflow.cancel("run-cancel")).resolves.toEqual(envelope);
-        expect(sendRequest).toHaveBeenCalledWith("session.workflow.cancel", {
+        await expect(session.orchestration.cancel("run-cancel")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.cancel", {
             sessionId: session.sessionId,
             runId: "run-cancel",
         });
@@ -411,7 +413,7 @@ describe("workflows", () => {
         const second = Promise.withResolvers<string>();
         const started: string[] = [];
         const session = new CopilotSession("session-parallel", {} as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "parallel",
                 description: "Parallel combinator test",
@@ -433,11 +435,11 @@ describe("workflows", () => {
                     },
                 ]),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         let settled = false;
         const execution = session.clientSessionApis
-            .workflow!.execute({
+            .orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "parallel",
                 runId: "run-parallel",
@@ -458,7 +460,7 @@ describe("workflows", () => {
 
     it("rejects already-invoked promises passed to parallel with a clear diagnostic", async () => {
         const session = new CopilotSession("session-parallel-promises", {} as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "parallel-promises",
                 description: "Parallel misuse diagnostic",
@@ -469,10 +471,10 @@ describe("workflows", () => {
                     () => Promise<string>
                 >),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "parallel-promises",
                 runId: "run-parallel-promises",
@@ -488,7 +490,7 @@ describe("workflows", () => {
         const secondStageStarted = Promise.withResolvers<void>();
         const finalStageItems: string[] = [];
         const session = new CopilotSession("session-pipeline", {} as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "pipeline",
                 description: "Pipeline combinator test",
@@ -515,9 +517,9 @@ describe("workflows", () => {
                     }
                 ),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
-        const execution = session.clientSessionApis.workflow!.execute({
+        const execution = session.clientSessionApis.orchestration!.execute({
             sessionId: session.sessionId,
             name: "pipeline",
             runId: "run-pipeline",
@@ -535,7 +537,7 @@ describe("workflows", () => {
 
     it("enforces the 4096-item cap for parallel and pipeline", async () => {
         const session = new CopilotSession("session-fanout-cap", {} as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "fanout-cap",
                 description: "Fan-out cap test",
@@ -553,10 +555,10 @@ describe("workflows", () => {
                 };
             },
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "fanout-cap",
                 runId: "run-fanout-cap",
@@ -576,7 +578,7 @@ describe("workflows", () => {
         let tail = Promise.resolve();
         const sendRequest = vi.fn(
             async (method: string, params: { prompt: string }): Promise<{ result: string }> => {
-                if (method !== "session.workflow.agent") {
+                if (method !== "session.orchestration.agent") {
                     throw new Error(`Unexpected method: ${method}`);
                 }
                 const previous = tail;
@@ -594,7 +596,7 @@ describe("workflows", () => {
         const session = new CopilotSession("session-nested-combinators", {
             sendRequest,
         } as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "nested-combinators",
                 description: "Nested combinator deadlock regression",
@@ -606,10 +608,10 @@ describe("workflows", () => {
                     () => pipeline(["c"], (_previous, item) => agent(item as string)),
                 ]),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "nested-combinators",
                 runId: "run-nested-combinators",
@@ -620,10 +622,10 @@ describe("workflows", () => {
         expect(sendRequest).toHaveBeenCalledTimes(3);
     });
 
-    it("flushes buffered progress in finally when the workflow body throws", async () => {
+    it("flushes buffered progress in finally when the orchestration body throws", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-throw-progress", { sendRequest } as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "throw-progress",
                 description: "Throwing progress test",
@@ -634,27 +636,27 @@ describe("workflows", () => {
                 throw new Error("body failed");
             },
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "throw-progress",
                 runId: "run-throw-progress",
                 args: {},
             })
         ).rejects.toThrow("body failed");
-        expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
+        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
             sessionId: session.sessionId,
             runId: "run-throw-progress",
             lines: [{ seq: 0, kind: "log", text: "before throw" }],
         });
     });
 
-    it("surfaces the per-run abort signal on the workflow context", async () => {
+    it("surfaces the per-run abort signal on the orchestration context", async () => {
         const session = new CopilotSession("session-abort-signal", {} as never);
         const signalSeen = Promise.withResolvers<AbortSignal>();
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "abort-signal",
                 description: "Abort signal test",
@@ -668,9 +670,9 @@ describe("workflows", () => {
                 return signal.aborted;
             },
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
-        const execution = session.clientSessionApis.workflow!.execute({
+        const execution = session.clientSessionApis.orchestration!.execute({
             sessionId: session.sessionId,
             name: "abort-signal",
             runId: "run-abort-signal",
@@ -679,7 +681,7 @@ describe("workflows", () => {
         const signal = await signalSeen.promise;
         expect(signal.aborted).toBe(false);
 
-        await session.clientSessionApis.workflow!.abort({
+        await session.clientSessionApis.orchestration!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-signal",
         });
@@ -688,34 +690,39 @@ describe("workflows", () => {
         await expect(execution).resolves.toEqual({ result: true });
     });
 
-    it("rejects an in-flight runtime-backed await when workflow.abort trips the signal", async () => {
+    it("rejects an in-flight runtime-backed await when orchestration.abort trips the signal", async () => {
         const agentResponse = Promise.withResolvers<{ result: string }>();
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.workflow.agent") {
+            if (method === "session.orchestration.agent") {
                 return agentResponse.promise;
             }
             return {};
         });
         const session = new CopilotSession("session-abort-await", { sendRequest } as never);
-        const workflow = defineWorkflow({
+        const orchestration = defineOrchestration({
             meta: {
                 name: "abort-await",
-                description: "Abort an in-flight workflow await",
+                description: "Abort an in-flight orchestration await",
                 phases: [],
             },
             run: async ({ agent }) => agent("wait forever"),
         });
-        session.registerWorkflows([workflow]);
+        session.registerOrchestrations([orchestration]);
 
-        const execution = session.clientSessionApis.workflow!.execute({
+        const execution = session.clientSessionApis.orchestration!.execute({
             sessionId: session.sessionId,
             name: "abort-await",
             runId: "run-abort-await",
             args: {},
         });
-        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledWith("session.workflow.agent", expect.anything()));
+        await vi.waitFor(() =>
+            expect(sendRequest).toHaveBeenCalledWith(
+                "session.orchestration.agent",
+                expect.anything()
+            )
+        );
 
-        await session.clientSessionApis.workflow!.abort({
+        await session.clientSessionApis.orchestration!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-await",
         });
@@ -724,24 +731,24 @@ describe("workflows", () => {
         agentResponse.resolve({ result: "late" });
     });
 
-    it("dispatches workflow.execute to the registered workflow selected by name", async () => {
+    it("dispatches orchestration.execute to the registered orchestration selected by name", async () => {
         const firstRun = vi.fn(async () => ({ selected: "first" }));
         const secondRun = vi.fn(async ({ args, log }) => {
             log("executing");
             return { selected: "second", echoed: args };
         });
-        const firstWorkflow = defineWorkflow({
+        const firstOrchestration = defineOrchestration({
             meta: {
                 name: "first",
-                description: "First workflow",
+                description: "First orchestration",
                 phases: [],
             },
             run: firstRun,
         });
-        const secondWorkflow = defineWorkflow({
+        const secondOrchestration = defineOrchestration({
             meta: {
                 name: "second",
-                description: "Second workflow",
+                description: "Second orchestration",
                 phases: [],
             },
             run: secondRun,
@@ -749,10 +756,10 @@ describe("workflows", () => {
         const session = new CopilotSession("session-execute", {
             sendRequest: vi.fn(async () => ({})),
         } as never);
-        session.registerWorkflows([firstWorkflow, secondWorkflow]);
+        session.registerOrchestrations([firstOrchestration, secondOrchestration]);
 
         await expect(
-            session.clientSessionApis.workflow!.execute({
+            session.clientSessionApis.orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "second",
                 runId: "run-echo",
@@ -765,7 +772,7 @@ describe("workflows", () => {
         expect(secondRun).toHaveBeenCalledOnce();
 
         const error = await session.clientSessionApis
-            .workflow!.execute({
+            .orchestration!.execute({
                 sessionId: session.sessionId,
                 name: "missing",
                 runId: "run-missing",
@@ -774,13 +781,13 @@ describe("workflows", () => {
             .catch((caught: unknown) => caught);
         expect(error).toBeInstanceOf(ResponseError);
         expect((error as ResponseError<{ code: string; name: string }>).data).toEqual({
-            code: "workflow_not_found",
+            code: "orchestration_not_found",
             name: "missing",
         });
     });
 
-    it("runs workflows by name or handle and unwraps only foreground results", async () => {
-        const workflow = defineWorkflow({
+    it("runs orchestrations by name or handle and unwraps only foreground results", async () => {
+        const orchestration = defineOrchestration({
             meta: {
                 name: "friendly-run",
                 description: "Friendly run wrapper",
@@ -803,22 +810,28 @@ describe("workflows", () => {
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
-        await expect(session.workflow.run("by-name", { args: { value: 1 } })).resolves.toEqual({
-            name: "by-name",
+        await expect(session.orchestration.run("by-name", { args: { value: 1 } })).resolves.toEqual(
+            {
+                name: "by-name",
+            }
+        );
+        await expect(session.orchestration.run(orchestration)).resolves.toEqual({
+            name: "friendly-run",
         });
-        await expect(session.workflow.run(workflow)).resolves.toEqual({ name: "friendly-run" });
-        await expect(session.workflow.run("background", { background: true })).resolves.toEqual({
+        await expect(
+            session.orchestration.run("background", { background: true })
+        ).resolves.toEqual({
             runId: "run-background",
             status: "running",
         });
 
-        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.workflow.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.orchestration.run", {
             sessionId: session.sessionId,
             name: "by-name",
             args: { value: 1 },
             options: { background: undefined, resumeFromRunId: undefined },
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.workflow.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.orchestration.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
@@ -826,19 +839,19 @@ describe("workflows", () => {
         });
     });
 
-    it("throws WorkflowRunError with the full foreground envelope", async () => {
+    it("throws OrchestrationRunError with the full foreground envelope", async () => {
         const envelope = {
             runId: "run-error",
             status: "error" as const,
-            error: "workflow failed",
+            error: "orchestration failed",
             snapshot: { completed: 1 },
         };
         const session = new CopilotSession("session-error", {
             sendRequest: vi.fn(async () => envelope),
         } as never);
 
-        const error = await session.workflow.run("failing").catch((caught: unknown) => caught);
-        expect(error).toBeInstanceOf(WorkflowRunError);
-        expect((error as WorkflowRunError).envelope).toBe(envelope);
+        const error = await session.orchestration.run("failing").catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(OrchestrationRunError);
+        expect((error as OrchestrationRunError).envelope).toBe(envelope);
     });
 });

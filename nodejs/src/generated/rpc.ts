@@ -1221,6 +1221,38 @@ export type OptionsUpdateToolFilterPrecedence =
   /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
   | "excluded";
 /**
+ * Kind of orchestration progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationLogLineKind".
+ */
+/** @experimental */
+export type OrchestrationLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named orchestration phase marker. */
+  | "phase";
+/**
+ * Current or terminal state of a orchestration run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationRunStatus".
+ */
+/** @experimental */
+export type OrchestrationRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run stopped after reaching a resource ceiling. */
+  | "halted"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The orchestration body failed. */
+  | "error";
+/**
  * The client's response to the pending permission prompt
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2115,38 +2147,6 @@ export type UISessionLimitsExhaustedResponseAction =
   | "unset"
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
-/**
- * Kind of workflow progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowLogLineKind".
- */
-/** @experimental */
-export type WorkflowLogLineKind =
-  /** A narrator log line. */
-  | "log"
-  /** A named workflow phase marker. */
-  | "phase";
-/**
- * Current or terminal state of a workflow run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowRunStatus".
- */
-/** @experimental */
-export type WorkflowRunStatus =
-  /** The run was minted and is awaiting approval. */
-  | "pending"
-  /** The run is executing. */
-  | "running"
-  /** The run completed successfully. */
-  | "completed"
-  /** The run stopped after reaching a resource ceiling. */
-  | "halted"
-  /** The run was cancelled before completion. */
-  | "cancelled"
-  /** The workflow body failed. */
-  | "error";
 /**
  * Type of change represented by this file diff.
  *
@@ -8170,6 +8170,347 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRuleSource {
   type: string;
 }
 /**
+ * Parameters for cooperatively aborting a orchestration body.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationAbortRequest".
+ */
+/** @experimental */
+export interface OrchestrationAbortRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+}
+/**
+ * Acknowledgement that a orchestration request was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationAckResult".
+ */
+/** @experimental */
+export interface OrchestrationAckResult {}
+/**
+ * Options for one orchestration-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationAgentOptions".
+ */
+/** @experimental */
+export interface OrchestrationAgentOptions {
+  /**
+   * Optional label distinguishing otherwise identical memoized agent calls.
+   */
+  label?: string;
+  /**
+   * Optional JSON Schema for structured agent output.
+   */
+  schema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Optional model identifier for the subagent.
+   */
+  model?: string;
+}
+/**
+ * Parameters for one orchestration-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationAgentRequest".
+ */
+/** @experimental */
+export interface OrchestrationAgentRequest {
+  /**
+   * Orchestration run identifier that owns the subagent.
+   */
+  orchestrationRunId: string;
+  /**
+   * Prompt to send to the subagent.
+   */
+  prompt: string;
+  opts: OrchestrationAgentOptions;
+}
+/**
+ * Result of one orchestration-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationAgentResult".
+ */
+/** @experimental */
+export interface OrchestrationAgentResult {
+  /**
+   * Agent result, omitted when the agent produced no result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for cancelling a orchestration run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationCancelRequest".
+ */
+/** @experimental */
+export interface OrchestrationCancelRequest {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters sent to the owning extension to execute a orchestration closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationExecuteRequest".
+ */
+/** @experimental */
+export interface OrchestrationExecuteRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Registered orchestration name.
+   */
+  name: string;
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+  /**
+   * Orchestration input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Parent orchestration run identifier for nested execution.
+   */
+  parentRunId?: string;
+}
+/**
+ * Result returned by an extension orchestration closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationExecuteResult".
+ */
+/** @experimental */
+export interface OrchestrationExecuteResult {
+  /**
+   * Orchestration result value.
+   */
+  result: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for retrieving a orchestration run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationGetRunRequest".
+ */
+/** @experimental */
+export interface OrchestrationGetRunRequest {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters for reading a orchestration journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationJournalGetRequest".
+ */
+/** @experimental */
+export interface OrchestrationJournalGetRequest {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+}
+/**
+ * Result of reading a orchestration journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationJournalGetResult".
+ */
+/** @experimental */
+export interface OrchestrationJournalGetResult {
+  /**
+   * Whether the journal contained the requested key.
+   */
+  hit: boolean;
+  /**
+   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+   */
+  resultJson?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for storing a orchestration journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationJournalPutRequest".
+ */
+/** @experimental */
+export interface OrchestrationJournalPutRequest {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+  /**
+   * JSON result to memoize.
+   */
+  resultJson: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * One ordered orchestration progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationLogLine".
+ */
+/** @experimental */
+export interface OrchestrationLogLine {
+  /**
+   * Monotonic sequence number within the orchestration run.
+   */
+  seq: number;
+  kind: OrchestrationLogLineKind;
+  /**
+   * Progress text.
+   */
+  text: string;
+}
+/**
+ * Parameters for recording orchestration progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationLogRequest".
+ */
+/** @experimental */
+export interface OrchestrationLogRequest {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+  /**
+   * Ordered progress lines to append.
+   */
+  lines: OrchestrationLogLine[];
+}
+/**
+ * Parameters for invoking a nested orchestration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationRunNestedRequest".
+ */
+/** @experimental */
+export interface OrchestrationRunNestedRequest {
+  /**
+   * Parent orchestration run identifier.
+   */
+  parentRunId: string;
+  /**
+   * Registered child orchestration name.
+   */
+  name: string;
+  /**
+   * Child orchestration input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for invoking a registered orchestration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationRunRequest".
+ */
+/** @experimental */
+export interface OrchestrationRunRequest {
+  /**
+   * Registered orchestration name.
+   */
+  name: string;
+  /**
+   * Orchestration input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  options?: RunOptions;
+}
+/**
+ * Options controlling orchestration invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RunOptions".
+ */
+/** @experimental */
+export interface RunOptions {
+  /**
+   * Whether to return once the approved run starts instead of awaiting its terminal result.
+   */
+  background?: boolean;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Complete current or terminal orchestration run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OrchestrationRunResult".
+ */
+/** @experimental */
+export interface OrchestrationRunResult {
+  /**
+   * Orchestration run identifier.
+   */
+  runId: string;
+  status: OrchestrationRunStatus;
+  /**
+   * Completed orchestration result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  /**
+   * Partial journal and progress snapshot for a halted or cancelled run.
+   */
+  snapshot?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
  * Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10387,7 +10728,7 @@ export interface PushAttachmentGitHubActionsJob {
   type: "github_actions_job";
   repo: PushGitHubRepoRef;
   /**
-   * Job id within the workflow run
+   * Job id within the orchestration run
    */
   jobId: number;
   /**
@@ -10395,7 +10736,7 @@ export interface PushAttachmentGitHubActionsJob {
    */
   jobName: string;
   /**
-   * Display name of the workflow the job ran in
+   * Display name of the orchestration the job ran in
    */
   workflowName: string;
   /**
@@ -11077,23 +11418,6 @@ export interface RemoteSessionRepository {
    * Optional branch associated with the remote session.
    */
   branch?: string;
-}
-/**
- * Options controlling workflow invocation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RunOptions".
- */
-/** @experimental */
-export interface RunOptions {
-  /**
-   * Whether to return once the approved run starts instead of awaiting its terminal result.
-   */
-  background?: boolean;
-  /**
-   * Run identifier whose journal and progress should seed this resumed run.
-   */
-  resumeFromRunId?: string;
 }
 /**
  * Resolved sandbox configuration.
@@ -15611,330 +15935,6 @@ export interface VisibilitySetResult {
   shareUrl?: string;
 }
 /**
- * Parameters for cooperatively aborting a workflow body.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowAbortRequest".
- */
-/** @experimental */
-export interface WorkflowAbortRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-}
-/**
- * Acknowledgement that a workflow request was accepted.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowAckResult".
- */
-/** @experimental */
-export interface WorkflowAckResult {}
-/**
- * Options for one workflow-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowAgentOptions".
- */
-/** @experimental */
-export interface WorkflowAgentOptions {
-  /**
-   * Optional label distinguishing otherwise identical memoized agent calls.
-   */
-  label?: string;
-  /**
-   * Optional JSON Schema for structured agent output.
-   */
-  schema?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Optional model identifier for the subagent.
-   */
-  model?: string;
-}
-/**
- * Parameters for one workflow-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowAgentRequest".
- */
-/** @experimental */
-export interface WorkflowAgentRequest {
-  /**
-   * Workflow run identifier that owns the subagent.
-   */
-  workflowRunId: string;
-  /**
-   * Prompt to send to the subagent.
-   */
-  prompt: string;
-  opts: WorkflowAgentOptions;
-}
-/**
- * Result of one workflow-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowAgentResult".
- */
-/** @experimental */
-export interface WorkflowAgentResult {
-  /**
-   * Agent result, omitted when the agent produced no result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for cancelling a workflow run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowCancelRequest".
- */
-/** @experimental */
-export interface WorkflowCancelRequest {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters sent to the owning extension to execute a workflow closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowExecuteRequest".
- */
-/** @experimental */
-export interface WorkflowExecuteRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Registered workflow name.
-   */
-  name: string;
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-  /**
-   * Workflow input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Parent workflow run identifier for nested execution.
-   */
-  parentRunId?: string;
-}
-/**
- * Result returned by an extension workflow closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowExecuteResult".
- */
-/** @experimental */
-export interface WorkflowExecuteResult {
-  /**
-   * Workflow result value.
-   */
-  result: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for retrieving a workflow run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowGetRunRequest".
- */
-/** @experimental */
-export interface WorkflowGetRunRequest {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters for reading a workflow journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowJournalGetRequest".
- */
-/** @experimental */
-export interface WorkflowJournalGetRequest {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-}
-/**
- * Result of reading a workflow journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowJournalGetResult".
- */
-/** @experimental */
-export interface WorkflowJournalGetResult {
-  /**
-   * Whether the journal contained the requested key.
-   */
-  hit: boolean;
-  /**
-   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-   */
-  resultJson?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for storing a workflow journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowJournalPutRequest".
- */
-/** @experimental */
-export interface WorkflowJournalPutRequest {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-  /**
-   * JSON result to memoize.
-   */
-  resultJson: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * One ordered workflow progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowLogLine".
- */
-/** @experimental */
-export interface WorkflowLogLine {
-  /**
-   * Monotonic sequence number within the workflow run.
-   */
-  seq: number;
-  kind: WorkflowLogLineKind;
-  /**
-   * Progress text.
-   */
-  text: string;
-}
-/**
- * Parameters for recording workflow progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowLogRequest".
- */
-/** @experimental */
-export interface WorkflowLogRequest {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-  /**
-   * Ordered progress lines to append.
-   */
-  lines: WorkflowLogLine[];
-}
-/**
- * Parameters for invoking a nested workflow.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowRunNestedRequest".
- */
-/** @experimental */
-export interface WorkflowRunNestedRequest {
-  /**
-   * Parent workflow run identifier.
-   */
-  parentRunId: string;
-  /**
-   * Registered child workflow name.
-   */
-  name: string;
-  /**
-   * Child workflow input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for invoking a registered workflow.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowRunRequest".
- */
-/** @experimental */
-export interface WorkflowRunRequest {
-  /**
-   * Registered workflow name.
-   */
-  name: string;
-  /**
-   * Workflow input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-  options?: RunOptions;
-}
-/**
- * Complete current or terminal workflow run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "WorkflowRunResult".
- */
-/** @experimental */
-export interface WorkflowRunResult {
-  /**
-   * Workflow run identifier.
-   */
-  runId: string;
-  status: WorkflowRunStatus;
-  /**
-   * Completed workflow result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Error message for an errored run.
-   */
-  error?: string;
-  /**
-   * Reason for a halted or cancelled run.
-   */
-  reason?: string;
-  /**
-   * Partial journal and progress snapshot for a halted or cancelled run.
-   */
-  snapshot?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
  * A single changed file and its unified diff.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17044,81 +17044,81 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             },
         },
         /** @experimental */
-        workflow: {
+        orchestration: {
             /**
-             * Runs a registered workflow by name at the top level.
+             * Runs a registered orchestration by name at the top level.
              *
-             * @param params Parameters for invoking a registered workflow.
+             * @param params Parameters for invoking a registered orchestration.
              *
-             * @returns Complete current or terminal workflow run envelope.
+             * @returns Complete current or terminal orchestration run envelope.
              */
-            run: async (params: WorkflowRunRequest): Promise<WorkflowRunResult> =>
-                connection.sendRequest("session.workflow.run", { sessionId, ...params }),
+            run: async (params: OrchestrationRunRequest): Promise<OrchestrationRunResult> =>
+                connection.sendRequest("session.orchestration.run", { sessionId, ...params }),
             /**
-             * Runs a registered workflow as a child of an existing workflow run.
+             * Runs a registered orchestration as a child of an existing orchestration run.
              *
-             * @param params Parameters for invoking a nested workflow.
+             * @param params Parameters for invoking a nested orchestration.
              *
-             * @returns Complete current or terminal workflow run envelope.
+             * @returns Complete current or terminal orchestration run envelope.
              */
-            runNested: async (params: WorkflowRunNestedRequest): Promise<WorkflowRunResult> =>
-                connection.sendRequest("session.workflow.runNested", { sessionId, ...params }),
+            runNested: async (params: OrchestrationRunNestedRequest): Promise<OrchestrationRunResult> =>
+                connection.sendRequest("session.orchestration.runNested", { sessionId, ...params }),
             /**
-             * Gets the current or settled envelope for a workflow run.
+             * Gets the current or settled envelope for a orchestration run.
              *
-             * @param params Parameters for retrieving a workflow run.
+             * @param params Parameters for retrieving a orchestration run.
              *
-             * @returns Complete current or terminal workflow run envelope.
+             * @returns Complete current or terminal orchestration run envelope.
              */
-            getRun: async (params: WorkflowGetRunRequest): Promise<WorkflowRunResult> =>
-                connection.sendRequest("session.workflow.getRun", { sessionId, ...params }),
+            getRun: async (params: OrchestrationGetRunRequest): Promise<OrchestrationRunResult> =>
+                connection.sendRequest("session.orchestration.getRun", { sessionId, ...params }),
             /**
-             * Requests cancellation of a workflow run and returns its run envelope.
+             * Requests cancellation of a orchestration run and returns its run envelope.
              *
-             * @param params Parameters for cancelling a workflow run.
+             * @param params Parameters for cancelling a orchestration run.
              *
-             * @returns Complete current or terminal workflow run envelope.
+             * @returns Complete current or terminal orchestration run envelope.
              */
-            cancel: async (params: WorkflowCancelRequest): Promise<WorkflowRunResult> =>
-                connection.sendRequest("session.workflow.cancel", { sessionId, ...params }),
+            cancel: async (params: OrchestrationCancelRequest): Promise<OrchestrationRunResult> =>
+                connection.sendRequest("session.orchestration.cancel", { sessionId, ...params }),
             /**
-             * Records a batch of ordered workflow progress lines.
+             * Records a batch of ordered orchestration progress lines.
              *
-             * @param params Parameters for recording workflow progress.
+             * @param params Parameters for recording orchestration progress.
              *
-             * @returns Acknowledgement that a workflow request was accepted.
+             * @returns Acknowledgement that a orchestration request was accepted.
              */
-            log: async (params: WorkflowLogRequest): Promise<WorkflowAckResult> =>
-                connection.sendRequest("session.workflow.log", { sessionId, ...params }),
+            log: async (params: OrchestrationLogRequest): Promise<OrchestrationAckResult> =>
+                connection.sendRequest("session.orchestration.log", { sessionId, ...params }),
             /**
-             * Runs one workflow-scoped subagent and returns its result.
+             * Runs one orchestration-scoped subagent and returns its result.
              *
-             * @param params Parameters for one workflow-scoped subagent call.
+             * @param params Parameters for one orchestration-scoped subagent call.
              *
-             * @returns Result of one workflow-scoped subagent call.
+             * @returns Result of one orchestration-scoped subagent call.
              */
-            agent: async (params: WorkflowAgentRequest): Promise<WorkflowAgentResult> =>
-                connection.sendRequest("session.workflow.agent", { sessionId, ...params }),
+            agent: async (params: OrchestrationAgentRequest): Promise<OrchestrationAgentResult> =>
+                connection.sendRequest("session.orchestration.agent", { sessionId, ...params }),
             /** @experimental */
             journal: {
                 /**
-                 * Reads a memoized workflow journal entry.
+                 * Reads a memoized orchestration journal entry.
                  *
-                 * @param params Parameters for reading a workflow journal entry.
+                 * @param params Parameters for reading a orchestration journal entry.
                  *
-                 * @returns Result of reading a workflow journal entry.
+                 * @returns Result of reading a orchestration journal entry.
                  */
-                get: async (params: WorkflowJournalGetRequest): Promise<WorkflowJournalGetResult> =>
-                    connection.sendRequest("session.workflow.journal.get", { sessionId, ...params }),
+                get: async (params: OrchestrationJournalGetRequest): Promise<OrchestrationJournalGetResult> =>
+                    connection.sendRequest("session.orchestration.journal.get", { sessionId, ...params }),
                 /**
-                 * Stores a memoized workflow journal entry.
+                 * Stores a memoized orchestration journal entry.
                  *
-                 * @param params Parameters for storing a workflow journal entry.
+                 * @param params Parameters for storing a orchestration journal entry.
                  *
-                 * @returns Acknowledgement that a workflow request was accepted.
+                 * @returns Acknowledgement that a orchestration request was accepted.
                  */
-                put: async (params: WorkflowJournalPutRequest): Promise<WorkflowAckResult> =>
-                    connection.sendRequest("session.workflow.journal.put", { sessionId, ...params }),
+                put: async (params: OrchestrationJournalPutRequest): Promise<OrchestrationAckResult> =>
+                    connection.sendRequest("session.orchestration.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -18609,25 +18609,25 @@ export interface ProviderTokenHandler {
     getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
 }
 
-/** Handler for `workflow` client session API methods. */
+/** Handler for `orchestration` client session API methods. */
 /** @experimental */
-export interface WorkflowHandler {
+export interface OrchestrationHandler {
     /**
-     * Asks the owning extension connection to execute a registered workflow closure.
+     * Asks the owning extension connection to execute a registered orchestration closure.
      *
-     * @param params Parameters sent to the owning extension to execute a workflow closure.
+     * @param params Parameters sent to the owning extension to execute a orchestration closure.
      *
-     * @returns Result returned by an extension workflow closure.
+     * @returns Result returned by an extension orchestration closure.
      */
-    execute(params: WorkflowExecuteRequest): Promise<WorkflowExecuteResult>;
+    execute(params: OrchestrationExecuteRequest): Promise<OrchestrationExecuteResult>;
     /**
-     * Asks the owning extension connection to abort a running workflow cooperatively.
+     * Asks the owning extension connection to abort a running orchestration cooperatively.
      *
-     * @param params Parameters for cooperatively aborting a workflow body.
+     * @param params Parameters for cooperatively aborting a orchestration body.
      *
-     * @returns Acknowledgement that a workflow request was accepted.
+     * @returns Acknowledgement that a orchestration request was accepted.
      */
-    abort(params: WorkflowAbortRequest): Promise<WorkflowAckResult>;
+    abort(params: OrchestrationAbortRequest): Promise<OrchestrationAckResult>;
 }
 
 /** Handler for `sessionFs` client session API methods. */
@@ -18761,7 +18761,7 @@ export interface CanvasHandler {
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
-    workflow?: WorkflowHandler;
+    orchestration?: OrchestrationHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -18781,14 +18781,14 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
         return handler.getToken(params);
     });
-    connection.onRequest("workflow.execute", async (params: WorkflowExecuteRequest) => {
-        const handler = getHandlers(params.sessionId).workflow;
-        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
+    connection.onRequest("orchestration.execute", async (params: OrchestrationExecuteRequest) => {
+        const handler = getHandlers(params.sessionId).orchestration;
+        if (!handler) throw new Error(`No orchestration handler registered for session: ${params.sessionId}`);
         return handler.execute(params);
     });
-    connection.onRequest("workflow.abort", async (params: WorkflowAbortRequest) => {
-        const handler = getHandlers(params.sessionId).workflow;
-        if (!handler) throw new Error(`No workflow handler registered for session: ${params.sessionId}`);
+    connection.onRequest("orchestration.abort", async (params: OrchestrationAbortRequest) => {
+        const handler = getHandlers(params.sessionId).orchestration;
+        if (!handler) throw new Error(`No orchestration handler registered for session: ${params.sessionId}`);
         return handler.abort(params);
     });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {

@@ -15,8 +15,8 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
-    WorkflowExecuteResult,
-    WorkflowLogLine,
+    OrchestrationExecuteResult,
+    OrchestrationLogLine,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -63,14 +63,14 @@ import type {
     UserInputResponse,
 } from "./types.js";
 import {
-    getWorkflowDefinition,
-    WorkflowRunError,
+    getOrchestrationDefinition,
+    OrchestrationRunError,
     type RunOptions,
-    type SessionWorkflowApi,
-    type WorkflowContext,
-    type WorkflowHandle,
-    type WorkflowStepOptions,
-} from "./workflow.js";
+    type SessionOrchestrationApi,
+    type OrchestrationContext,
+    type OrchestrationHandle,
+    type OrchestrationStepOptions,
+} from "./orchestration.js";
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
@@ -105,18 +105,18 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     );
 }
 
-const WORKFLOW_LOG_FLUSH_DELAY_MS = 10;
-const MAX_WORKFLOW_FANOUT_ITEMS = 4096;
+const ORCHESTRATION_LOG_FLUSH_DELAY_MS = 10;
+const MAX_ORCHESTRATION_FANOUT_ITEMS = 4096;
 
-function assertWorkflowFanoutSize(kind: "parallel" | "pipeline", size: number): void {
-    if (size > MAX_WORKFLOW_FANOUT_ITEMS) {
+function assertOrchestrationFanoutSize(kind: "parallel" | "pipeline", size: number): void {
+    if (size > MAX_ORCHESTRATION_FANOUT_ITEMS) {
         throw new Error(
-            `${kind}() accepts at most ${MAX_WORKFLOW_FANOUT_ITEMS} items; got ${size}.`
+            `${kind}() accepts at most ${MAX_ORCHESTRATION_FANOUT_ITEMS} items; got ${size}.`
         );
     }
 }
 
-async function runWorkflowParallel<TResult>(
+async function runOrchestrationParallel<TResult>(
     thunks: Array<() => Promise<TResult> | TResult>
 ): Promise<Array<TResult | null>> {
     if (!Array.isArray(thunks)) {
@@ -124,7 +124,7 @@ async function runWorkflowParallel<TResult>(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
         );
     }
-    assertWorkflowFanoutSize("parallel", thunks.length);
+    assertOrchestrationFanoutSize("parallel", thunks.length);
     if (thunks.some((thunk) => typeof thunk !== "function")) {
         throw new Error(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
@@ -139,7 +139,7 @@ async function runWorkflowParallel<TResult>(
     );
 }
 
-async function runWorkflowPipeline(
+async function runOrchestrationPipeline(
     items: unknown[],
     ...stages: Array<
         (previous: unknown, item: unknown, index: number) => Promise<unknown> | unknown
@@ -148,7 +148,7 @@ async function runWorkflowPipeline(
     if (!Array.isArray(items)) {
         throw new Error("pipeline(items, ...stages): items must be an array");
     }
-    assertWorkflowFanoutSize("pipeline", items.length);
+    assertOrchestrationFanoutSize("pipeline", items.length);
     return Promise.all(
         items.map(async (item, index) => {
             let previous = item;
@@ -164,20 +164,20 @@ async function runWorkflowPipeline(
     );
 }
 
-class WorkflowProgressBuffer {
+class OrchestrationProgressBuffer {
     private nextSeq = 0;
-    private pending: WorkflowLogLine[] = [];
+    private pending: OrchestrationLogLine[] = [];
     private flushTimer?: ReturnType<typeof setTimeout>;
     private flushTail: Promise<void> = Promise.resolve();
     private flushError: unknown;
     private flushFailed = false;
     private closed = false;
 
-    constructor(private readonly send: (lines: WorkflowLogLine[]) => Promise<void>) {}
+    constructor(private readonly send: (lines: OrchestrationLogLine[]) => Promise<void>) {}
 
-    enqueue(kind: WorkflowLogLine["kind"], text: string): void {
+    enqueue(kind: OrchestrationLogLine["kind"], text: string): void {
         if (this.closed) {
-            throw new Error("Cannot log after the workflow run has settled");
+            throw new Error("Cannot log after the orchestration run has settled");
         }
 
         this.pending.push({ seq: this.nextSeq++, kind, text });
@@ -217,7 +217,7 @@ class WorkflowProgressBuffer {
         this.flushTimer = setTimeout(() => {
             this.flushTimer = undefined;
             void this.flush().catch(() => {});
-        }, WORKFLOW_LOG_FLUSH_DELAY_MS);
+        }, ORCHESTRATION_LOG_FLUSH_DELAY_MS);
         this.flushTimer.unref?.();
     }
 
@@ -229,14 +229,16 @@ class WorkflowProgressBuffer {
     }
 }
 
-async function awaitWorkflowOperation<TResult>(
+async function awaitOrchestrationOperation<TResult>(
     operation: Promise<TResult>,
     signal: AbortSignal
 ): Promise<TResult> {
-    throwIfWorkflowAborted(signal);
+    throwIfOrchestrationAborted(signal);
     let rejectAbort: ((reason?: unknown) => void) | undefined;
     const onAbort = () =>
-        rejectAbort?.(signal.reason ?? new DOMException("Workflow run was aborted", "AbortError"));
+        rejectAbort?.(
+            signal.reason ?? new DOMException("Orchestration run was aborted", "AbortError")
+        );
     try {
         return await Promise.race([
             operation,
@@ -250,9 +252,9 @@ async function awaitWorkflowOperation<TResult>(
     }
 }
 
-function throwIfWorkflowAborted(signal: AbortSignal): void {
+function throwIfOrchestrationAborted(signal: AbortSignal): void {
     if (signal.aborted) {
-        throw signal.reason ?? new DOMException("Workflow run was aborted", "AbortError");
+        throw signal.reason ?? new DOMException("Orchestration run was aborted", "AbortError");
     }
 }
 
@@ -300,8 +302,8 @@ export class CopilotSession {
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
-    private workflows = new Map<string, ReturnType<typeof getWorkflowDefinition>>();
-    private workflowAbortControllers = new Map<string, AbortController>();
+    private orchestrations = new Map<string, ReturnType<typeof getOrchestrationDefinition>>();
+    private orchestrationAbortControllers = new Map<string, AbortController>();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
@@ -320,24 +322,24 @@ export class CopilotSession {
     clientSessionApis: ClientSessionApiHandlers = {};
 
     /**
-     * Friendly workflow API for running registered workflows by name or handle.
+     * Friendly orchestration API for running registered orchestrations by name or handle.
      *
-     * @experimental Part of the experimental Dynamic Workflows surface and may
+     * @experimental Part of the experimental Agent Orchestrations surface and may
      * change or be removed in future SDK or CLI releases.
      */
-    readonly workflow: SessionWorkflowApi = {
+    readonly orchestration: SessionOrchestrationApi = {
         run: (async (
-            nameOrHandle: string | WorkflowHandle,
+            nameOrHandle: string | OrchestrationHandle,
             options?: RunOptions
         ): Promise<unknown> => {
             const name =
                 typeof nameOrHandle === "string"
                     ? nameOrHandle
-                    : getWorkflowDefinition(nameOrHandle).meta.name;
-            const envelope = await this.rpc.workflow.run({
+                    : getOrchestrationDefinition(nameOrHandle).meta.name;
+            const envelope = await this.rpc.orchestration.run({
                 name,
                 args: (options?.args === undefined ? {} : options.args) as Parameters<
-                    typeof this.rpc.workflow.run
+                    typeof this.rpc.orchestration.run
                 >[0]["args"],
                 options: {
                     background: options?.background,
@@ -349,12 +351,12 @@ export class CopilotSession {
                 return envelope;
             }
             if (envelope.status !== "completed") {
-                throw new WorkflowRunError(envelope);
+                throw new OrchestrationRunError(envelope);
             }
             return envelope.result;
-        }) as SessionWorkflowApi["run"],
-        getRun: (runId) => this.rpc.workflow.getRun({ runId }),
-        cancel: (runId) => this.rpc.workflow.cancel({ runId }),
+        }) as SessionOrchestrationApi["run"],
+        getRun: (runId) => this.rpc.orchestration.getRun({ runId }),
+        cancel: (runId) => this.rpc.orchestration.cancel({ runId }),
     };
 
     /**
@@ -560,11 +562,11 @@ export class CopilotSession {
         this.autoModeSwitchHandler = undefined;
         this.commandHandlers.clear();
         this.canvases.clear();
-        this.workflows.clear();
-        for (const controller of this.workflowAbortControllers.values()) {
+        this.orchestrations.clear();
+        for (const controller of this.orchestrationAbortControllers.values()) {
             controller.abort();
         }
-        this.workflowAbortControllers.clear();
+        this.orchestrationAbortControllers.clear();
         this.transformCallbacks?.clear();
     }
 
@@ -1080,58 +1082,58 @@ export class CopilotSession {
     }
 
     /**
-     * Registers workflow closures and reverse-RPC handlers for this session.
+     * Registers orchestration closures and reverse-RPC handlers for this session.
      *
-     * @param workflows - Workflow handles declared by the joining extension.
+     * @param orchestrations - Orchestration handles declared by the joining extension.
      * @internal Called by the SDK when an extension joins a session.
      */
-    registerWorkflows(workflows?: WorkflowHandle[]): void {
-        this.workflows.clear();
-        if (!workflows || workflows.length === 0) {
-            delete this.clientSessionApis.workflow;
+    registerOrchestrations(orchestrations?: OrchestrationHandle[]): void {
+        this.orchestrations.clear();
+        if (!orchestrations || orchestrations.length === 0) {
+            delete this.clientSessionApis.orchestration;
             return;
         }
 
-        for (const handle of workflows) {
-            const definition = getWorkflowDefinition(handle);
-            this.workflows.set(definition.meta.name, definition);
+        for (const handle of orchestrations) {
+            const definition = getOrchestrationDefinition(handle);
+            this.orchestrations.set(definition.meta.name, definition);
         }
 
         const self = this;
-        this.clientSessionApis.workflow = {
+        this.clientSessionApis.orchestration = {
             async execute(params) {
-                const definition = self.workflows.get(params.name);
+                const definition = self.orchestrations.get(params.name);
                 if (!definition) {
-                    const message = `No workflow registered with name "${params.name}"`;
+                    const message = `No orchestration registered with name "${params.name}"`;
                     throw new ResponseError(ErrorCodes.InvalidParams, message, {
-                        code: "workflow_not_found",
+                        code: "orchestration_not_found",
                         name: params.name,
                     });
                 }
 
                 const controller = new AbortController();
-                self.workflowAbortControllers.set(params.runId, controller);
-                const progress = new WorkflowProgressBuffer(async (lines) => {
-                    await self.rpc.workflow.log({ runId: params.runId, lines });
+                self.orchestrationAbortControllers.set(params.runId, controller);
+                const progress = new OrchestrationProgressBuffer(async (lines) => {
+                    await self.rpc.orchestration.log({ runId: params.runId, lines });
                 });
                 try {
-                    const context: WorkflowContext = {
+                    const context: OrchestrationContext = {
                         args: params.args,
                         session: self,
                         signal: controller.signal,
                         phase: (title: string) => {
-                            throwIfWorkflowAborted(controller.signal);
+                            throwIfOrchestrationAborted(controller.signal);
                             progress.enqueue("phase", title);
                         },
                         log: (message: string) => {
-                            throwIfWorkflowAborted(controller.signal);
+                            throwIfOrchestrationAborted(controller.signal);
                             progress.enqueue("log", message);
                         },
                         agent: async (prompt, options = {}) => {
                             await progress.flush();
-                            const response = await awaitWorkflowOperation(
-                                self.rpc.workflow.agent({
-                                    workflowRunId: params.runId,
+                            const response = await awaitOrchestrationOperation(
+                                self.rpc.orchestration.agent({
+                                    orchestrationRunId: params.runId,
                                     prompt,
                                     opts: {
                                         label: options.label,
@@ -1146,14 +1148,14 @@ export class CopilotSession {
                         step: async <TResult>(
                             key: string,
                             producer: () => Promise<TResult> | TResult,
-                            options: WorkflowStepOptions = {}
+                            options: OrchestrationStepOptions = {}
                         ): Promise<TResult> => {
                             await progress.flush();
                             if (options.volatile) {
                                 return producer();
                             }
-                            const cached = await awaitWorkflowOperation(
-                                self.rpc.workflow.journal.get({
+                            const cached = await awaitOrchestrationOperation(
+                                self.rpc.orchestration.journal.get({
                                     runId: params.runId,
                                     key,
                                 }),
@@ -1172,40 +1174,40 @@ export class CopilotSession {
                                     `step("${key}") returned a value that is not JSON-serializable`
                                 );
                             }
-                            await awaitWorkflowOperation(
-                                self.rpc.workflow.journal.put({
+                            await awaitOrchestrationOperation(
+                                self.rpc.orchestration.journal.put({
                                     runId: params.runId,
                                     key,
                                     resultJson: result as Parameters<
-                                        typeof self.rpc.workflow.journal.put
+                                        typeof self.rpc.orchestration.journal.put
                                     >[0]["resultJson"],
                                 }),
                                 controller.signal
                             );
                             return result;
                         },
-                        parallel: runWorkflowParallel,
-                        pipeline: runWorkflowPipeline,
-                        workflow: async () => {
-                            throw new Error("nested workflows are not supported");
+                        parallel: runOrchestrationParallel,
+                        pipeline: runOrchestrationPipeline,
+                        orchestration: async () => {
+                            throw new Error("nested orchestrations are not supported");
                         },
                     };
                     const result = await definition.run(context);
-                    return { result } as WorkflowExecuteResult;
+                    return { result } as OrchestrationExecuteResult;
                 } finally {
                     try {
                         await progress.close();
                     } finally {
-                        if (self.workflowAbortControllers.get(params.runId) === controller) {
-                            self.workflowAbortControllers.delete(params.runId);
+                        if (self.orchestrationAbortControllers.get(params.runId) === controller) {
+                            self.orchestrationAbortControllers.delete(params.runId);
                         }
                     }
                 }
             },
             async abort(params) {
-                self.workflowAbortControllers
+                self.orchestrationAbortControllers
                     .get(params.runId)
-                    ?.abort(new DOMException("Workflow run was aborted", "AbortError"));
+                    ?.abort(new DOMException("Orchestration run was aborted", "AbortError"));
                 return {};
             },
         };
