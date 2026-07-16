@@ -319,6 +319,12 @@ export class CopilotSession {
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
 
+    /**
+     * Friendly workflow API for running registered workflows by name or handle.
+     *
+     * @experimental Part of the experimental Dynamic Workflows surface and may
+     * change or be removed in future SDK or CLI releases.
+     */
     readonly workflow: SessionWorkflowApi = {
         run: (async (
             nameOrHandle: string | WorkflowHandle,
