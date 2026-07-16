@@ -27,6 +27,12 @@ export type JoinSessionConfig = Omit<
     "onPermissionRequest" | "extensionSdkPath"
 > & {
     onPermissionRequest?: PermissionHandler;
+    /**
+     * Workflow handles to register when the extension joins the session.
+     *
+     * @experimental Part of the experimental Dynamic Workflows surface and may
+     * change or be removed in future SDK or CLI releases.
+     */
     workflows?: WorkflowHandle[];
 };
 
