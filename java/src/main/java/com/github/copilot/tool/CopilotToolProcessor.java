@@ -132,6 +132,11 @@ public class CopilotToolProcessor extends AbstractProcessor {
                                     "@CopilotToolParam(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
                                     singleParam);
                         }
+                        if (!paramAnnotation.schema().isEmpty()) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                    "@CopilotToolParam(schema=...) is not supported on single-record tool parameters; annotate record components instead",
+                                    singleParam);
+                        }
                         if (!paramAnnotation.name().isEmpty() || !paramAnnotation.value().isEmpty()
                                 || !paramAnnotation.required()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -886,7 +891,14 @@ public class CopilotToolProcessor extends AbstractProcessor {
      * Supports nested objects, arrays, strings, numbers, booleans, and null.
      */
     static String jsonToMapOfSource(String json) {
-        return new JsonToSourceConverter(json).parseObject();
+        JsonToSourceConverter converter = new JsonToSourceConverter(json);
+        String result = converter.parseObject();
+        converter.skipWhitespace();
+        if (converter.pos < json.length()) {
+            throw new IllegalArgumentException("Unexpected trailing content at position " + converter.pos + ": '"
+                    + json.substring(converter.pos) + "'");
+        }
+        return result;
     }
 
     /**
