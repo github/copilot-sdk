@@ -20,6 +20,7 @@ permissions:
   contents: read
   actions: read
 
+  copilot-requests: write
 timeout-minutes: 60
 
 network:
@@ -34,7 +35,7 @@ tools:
 safe-outputs:
   push-to-pull-request-branch:
     target: "*"
-    labels: [dependencies, sdk/java]
+    required-labels: [dependencies, sdk/java]
   add-comment:
     target: "*"
     max: 10
