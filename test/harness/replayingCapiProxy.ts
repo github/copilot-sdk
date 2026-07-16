@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync } from "fs";
+import { appendFileSync, existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
   ChatCompletion,
@@ -41,10 +41,57 @@ export type ReplayBackend =
   | "openai-responses"
   | "openai-completions";
 
-type ModelProtocol =
-  | "anthropic-messages"
-  | "openai-responses"
-  | "openai-completions";
+type ReplayProtocol = {
+  endpoint: string;
+  normalizeRequest?: (body: string) => string;
+  responseBody?: (response: ChatCompletion) => unknown;
+  responseChunks: (response: ChatCompletion) => string[];
+  responseEndChunk?: string;
+  errorBody?: (code: string | undefined, message: string) => unknown;
+  canonicalResponse?: boolean;
+};
+
+const chatCompletionsProtocol = {
+  endpoint: chatCompletionEndpoint,
+  responseChunks: (response) =>
+    convertToStreamingResponseChunks(response).map(
+      (chunk) => `data: ${JSON.stringify(chunk)}\n\n`,
+    ),
+  responseEndChunk: "data: [DONE]\n\n",
+  canonicalResponse: true,
+} satisfies ReplayProtocol;
+
+const replayProtocols: Record<ReplayBackend, ReplayProtocol> = {
+  capi: chatCompletionsProtocol,
+  "openai-completions": {
+    ...chatCompletionsProtocol,
+    normalizeRequest: coalesceAdjacentUserMessages,
+  },
+  "anthropic-messages": {
+    endpoint: anthropicMessagesEndpoint,
+    normalizeRequest: (body) =>
+      coalesceAdjacentUserMessages(
+        anthropicMessagesRequestToChatCompletion(body),
+      ),
+    responseBody: chatCompletionResponseToAnthropicMessage,
+    responseChunks: chatCompletionResponseToAnthropicSseChunks,
+    errorBody: (code, message) => {
+      const type = code ?? "rate_limited";
+      return { type: "error", error: { type, message } };
+    },
+  },
+  "openai-responses": {
+    endpoint: responsesEndpoint,
+    normalizeRequest: (body) =>
+      coalesceAdjacentUserMessages(responsesApiRequestToChatCompletion(body)),
+    responseBody: chatCompletionResponseToResponsesApiMessage,
+    responseChunks: chatCompletionResponseToResponsesApiSseChunks,
+  },
+};
+
+const modelEndpoints = new Set(
+  Object.values(replayProtocols).map((protocol) => protocol.endpoint),
+);
 
 const shellConfig =
   process.platform === "win32" ? ShellConfig.powerShell : ShellConfig.bash;
@@ -256,37 +303,21 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path === "/exchanges" &&
           options.requestOptions.method === "GET"
         ) {
-          const modelExchanges = this.exchanges.flatMap((exchange) => {
-            const protocol = protocolForEndpoint(exchange.request.url);
-            if (!protocol) return [];
-
-            try {
-              return [
-                {
-                  requestBody: normalizeModelRequest(
-                    protocol,
-                    exchange.request.body,
-                    this.state?.backend,
-                  ),
-                  responseBody:
-                    protocol === "openai-completions"
-                      ? exchange.response?.body
-                      : undefined,
-                  requestHeaders: exchange.request.headers,
-                },
-              ];
-            } catch {
-              return [];
-            }
-          });
+          const protocol =
+            replayProtocols[this.state?.backend ?? "capi"];
           const parsedExchanges = await Promise.all(
-            modelExchanges.map((exchange) =>
-              parseHttpExchange(
-                exchange.requestBody,
-                exchange.responseBody,
-                exchange.requestHeaders,
+            this.exchanges
+              .filter((exchange) => exchange.request.url === protocol.endpoint)
+              .map((exchange) =>
+                parseHttpExchange(
+                  protocol.normalizeRequest?.(exchange.request.body) ??
+                    exchange.request.body,
+                  protocol.canonicalResponse
+                    ? exchange.response?.body
+                    : undefined,
+                  exchange.request.headers,
+                ),
               ),
-            ),
           );
           options.onResponseStart(200, {});
           options.onData(Buffer.from(JSON.stringify(parsedExchanges)));
@@ -388,16 +419,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onResponseEnd();
           return;
         }
-
         const requestPath = options.requestOptions.path ?? "";
-        const protocol = protocolForEndpoint(requestPath);
-        const expectedEndpoint = endpointForBackend(state.backend);
+        const protocol = replayProtocols[state.backend];
         if (
-          protocol &&
+          modelEndpoints.has(requestPath) &&
           state.backend !== "capi" &&
-          requestPath !== expectedEndpoint
+          requestPath !== protocol.endpoint
         ) {
-          const message = `Expected ${expectedEndpoint} for backend ${state.backend}, received ${requestPath}`;
+          const message = `Expected ${protocol.endpoint} for backend ${state.backend}, received ${requestPath}`;
           options.onResponseStart(400, {
             "content-type": "application/json",
             ...commonResponseHeaders,
@@ -413,53 +442,15 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
-        // Handle model inference endpoints. Foreign wire formats are converted
-        // to the canonical Chat Completions shape used by the snapshot matcher.
-        if (state.storedData && protocol && options.body) {
-          const normalizedBody = normalizeModelRequest(
-            protocol,
-            options.body,
-            state.backend,
-          );
-          const compactionResponse =
-            state.backend === "capi"
-              ? undefined
-              : createCompactionResponse(normalizedBody);
-          if (compactionResponse) {
-            const streamingIsRequested =
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-              true;
-            await this.respondWithProtocol(
-              options,
-              protocol,
-              compactionResponse,
-              streamingIsRequested,
-              commonResponseHeaders,
-            );
-            return;
-          }
-
-          const postCompactionResponse =
-            state.backend === "capi"
-              ? undefined
-              : createPostCompactionResponse(
-                  state.storedData,
-                  normalizedBody,
-                  state.workDir,
-                );
-          if (postCompactionResponse) {
-            const streamingIsRequested =
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-              true;
-            await this.respondWithProtocol(
-              options,
-              protocol,
-              postCompactionResponse,
-              streamingIsRequested,
-              commonResponseHeaders,
-            );
-            return;
-          }
+        const isModelRequest = requestPath === protocol.endpoint;
+        // Every protocol enters the existing Chat Completions snapshot matcher.
+        const normalizedBody =
+          isModelRequest && options.body
+            ? (protocol.normalizeRequest?.(options.body) ?? options.body)
+            : options.body;
+        if (state.storedData && isModelRequest && normalizedBody) {
+          const streamingIsRequested =
+            (JSON.parse(normalizedBody) as { stream?: boolean }).stream === true;
 
           const savedError = await findSavedChatCompletionError(
             state.storedData,
@@ -480,8 +471,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             options.onData(
               Buffer.from(
                 JSON.stringify(
-                  createProtocolError(
-                    protocol,
+                  (protocol.errorBody ?? openAIErrorBody)(
                     savedError.code,
                     savedError.message ?? "Rate limited by test snapshot",
                   ),
@@ -500,10 +490,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           );
 
           if (savedResponse) {
-            const streamingIsRequested =
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-              true;
-
             await this.respondWithProtocol(
               options,
               protocol,
@@ -525,9 +511,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
               state.toolResultNormalizers,
             )
           ) {
-            const streamingIsRequested =
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-              true;
             const headers = {
               "content-type": streamingIsRequested
                 ? "text/event-stream"
@@ -544,7 +527,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Beyond this point, we're only going to be able to supply responses in CI if we have a snapshot,
         // and we only store snapshots for chat completion. For anything else (e.g., custom-agents fetches),
         // return 404 so the CLI treats them as unavailable instead of erroring.
-        if (!protocol) {
+        if (!isModelRequest) {
           const headers = {
             "content-type": "application/json",
             "x-github-request-id": "proxy-not-found",
@@ -567,9 +550,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             state.workDir,
             state.toolResultNormalizers,
             state.storedData,
-            options.body
-              ? normalizeModelRequest(protocol, options.body, state.backend)
-              : options.body,
+            normalizedBody,
           );
           return;
         }
@@ -582,47 +563,37 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
   private async respondWithProtocol(
     options: PerformRequestOptions,
-    protocol: ModelProtocol,
+    protocol: ReplayProtocol,
     response: ChatCompletion,
     streaming: boolean,
     commonHeaders: Record<string, string>,
   ): Promise<void> {
     if (!streaming) {
-      const body =
-        protocol === "anthropic-messages"
-          ? chatCompletionResponseToAnthropicMessage(response)
-          : protocol === "openai-responses"
-            ? chatCompletionResponseToResponsesApiMessage(response)
-            : response;
       options.onResponseStart(200, {
         "content-type": "application/json",
         ...commonHeaders,
       });
-      options.onData(Buffer.from(JSON.stringify(body)));
+      options.onData(
+        Buffer.from(
+          JSON.stringify(protocol.responseBody?.(response) ?? response),
+        ),
+      );
       options.onResponseEnd();
       return;
     }
 
-    const chunks =
-      protocol === "anthropic-messages"
-        ? chatCompletionResponseToAnthropicSseChunks(response)
-        : protocol === "openai-responses"
-          ? chatCompletionResponseToResponsesApiSseChunks(response)
-          : convertToStreamingResponseChunks(response).map(
-              (chunk) => `data: ${JSON.stringify(chunk)}\n\n`,
-            );
     options.onResponseStart(200, {
       "content-type": "text/event-stream",
       ...commonHeaders,
     });
-    for (const chunk of chunks) {
+    for (const chunk of protocol.responseChunks(response)) {
       options.onData(Buffer.from(chunk));
       if (this.slowStreaming) {
         await sleep(100);
       }
     }
-    if (protocol === "openai-completions") {
-      options.onData(Buffer.from("data: [DONE]\n\n"));
+    if (protocol.responseEndChunk) {
+      options.onData(Buffer.from(protocol.responseEndChunk));
     }
     options.onResponseEnd();
   }
@@ -687,9 +658,18 @@ function diagnoseMatchFailure(
   for (let c = 0; c < storedData.conversations.length; c++) {
     const saved = storedData.conversations[c].messages;
 
+    // Same check as findAssistantIndexAfterPrefix: request must be a strict prefix
+    if (requestMessages.length >= saved.length) {
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): ` +
+          `skipped — request has ${requestMessages.length} messages, need fewer than ${saved.length}.`,
+      );
+      continue;
+    }
+
     // Find the first message that doesn't match
     let mismatchIndex = -1;
-    for (let i = 0; i < Math.min(requestMessages.length, saved.length); i++) {
+    for (let i = 0; i < requestMessages.length; i++) {
       if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
         mismatchIndex = i;
         break;
@@ -703,19 +683,9 @@ function diagnoseMatchFailure(
           : "(no raw message)";
       lines.push(
         `Conversation ${c} (${saved.length} messages): mismatch at message ${mismatchIndex}:`,
-        `  request:    ${JSON.stringify(requestMessages[mismatchIndex]).slice(0, 1000)}`,
-        `  saved:      ${JSON.stringify(saved[mismatchIndex]).slice(0, 1000)}`,
+        `  request:    ${JSON.stringify(requestMessages[mismatchIndex]).slice(0, 200)}`,
+        `  saved:      ${JSON.stringify(saved[mismatchIndex]).slice(0, 200)}`,
         `  raw (pre-normalization): ${raw}`,
-      );
-    } else if (requestMessages.length >= saved.length) {
-      const extraMessage = requestMessages[saved.length];
-      lines.push(
-        `Conversation ${c} (${saved.length} messages): matched the stored conversation, but the request needs a later response.`,
-        ...(extraMessage
-          ? [
-              `  first extra request message: ${JSON.stringify(extraMessage).slice(0, 200)}`,
-            ]
-          : []),
       );
     } else {
       // Prefix matched, but the next saved message isn't an assistant turn
@@ -798,14 +768,11 @@ async function findSavedChatCompletionResponse(
     toolResultNormalizers,
   );
   const requestMessages = normalized.conversations[0]?.messages ?? [];
-  const responseModel = normalized.models[0];
-  if (!responseModel) {
+  const requestModel = normalized.models[0];
+  if (!requestModel) {
     throw new Error("Unable to determine model from request");
   }
 
-  // Snapshot model IDs are capture metadata, not match criteria. Render the
-  // canonical response using the active request's model so one transcript can
-  // replay against different provider/model profiles.
   // Now find a matching cached conversation (i.e., one for which this request is a prefix)
   for (const conversation of storedData.conversations) {
     const replyIndex = findAssistantIndexAfterPrefix(
@@ -814,7 +781,7 @@ async function findSavedChatCompletionResponse(
     );
     if (replyIndex !== undefined) {
       return createOpenAIResponse(
-        responseModel,
+        requestModel,
         conversation.messages,
         replyIndex,
         workDir,
@@ -929,69 +896,13 @@ async function transformHttpExchanges(
 
 function parseReplayBackend(value: unknown): ReplayBackend {
   if (value === undefined || value === null || value === "") return "capi";
-  if (
-    value === "capi" ||
-    value === "anthropic-messages" ||
-    value === "openai-responses" ||
-    value === "openai-completions"
-  ) {
-    return value;
+  if (typeof value === "string" && Object.hasOwn(replayProtocols, value)) {
+    return value as ReplayBackend;
   }
   throw new Error(`Unsupported replay backend: ${String(value)}`);
 }
 
-function endpointForBackend(backend: ReplayBackend): string {
-  switch (backend) {
-    case "anthropic-messages":
-      return anthropicMessagesEndpoint;
-    case "openai-responses":
-      return responsesEndpoint;
-    case "capi":
-    case "openai-completions":
-      return chatCompletionEndpoint;
-  }
-}
-
-function protocolForEndpoint(path: string): ModelProtocol | undefined {
-  switch (path) {
-    case anthropicMessagesEndpoint:
-      return "anthropic-messages";
-    case responsesEndpoint:
-      return "openai-responses";
-    case chatCompletionEndpoint:
-      return "openai-completions";
-    default:
-      return undefined;
-  }
-}
-
-function normalizeModelRequest(
-  protocol: ModelProtocol,
-  requestBody: string,
-  backend?: ReplayBackend,
-): string {
-  switch (protocol) {
-    case "anthropic-messages":
-      return coalesceAdjacentUserMessages(
-        anthropicMessagesRequestToChatCompletion(requestBody),
-        true,
-      );
-    case "openai-responses":
-      return coalesceAdjacentUserMessages(
-        responsesApiRequestToChatCompletion(requestBody),
-        true,
-      );
-    case "openai-completions":
-      return backend === "openai-completions"
-        ? coalesceAdjacentUserMessages(requestBody, true)
-        : requestBody;
-  }
-}
-
-function coalesceAdjacentUserMessages(
-  requestBody: string,
-  normalizeByokSpacing: boolean,
-): string {
+function coalesceAdjacentUserMessages(requestBody: string): string {
   const request = JSON.parse(requestBody) as {
     messages?: Array<{
       role?: string;
@@ -1016,14 +927,12 @@ function coalesceAdjacentUserMessages(
     }
   }
 
-  if (normalizeByokSpacing) {
-    for (const message of messages) {
-      if (message.role === "user" && typeof message.content === "string") {
-        message.content = normalizeUserMessage(message.content).replace(
-          /\n{5,}/g,
-          "\n\n\n",
-        );
-      }
+  for (const message of messages) {
+    if (message.role === "user" && typeof message.content === "string") {
+      message.content = normalizeUserMessage(message.content).replace(
+        /\n{5,}/g,
+        "\n\n\n",
+      );
     }
   }
 
@@ -1031,121 +940,12 @@ function coalesceAdjacentUserMessages(
   return JSON.stringify(request);
 }
 
-function createCompactionResponse(
-  requestBody: string,
-): ChatCompletion | undefined {
-  const request = JSON.parse(requestBody) as {
-    model?: string;
-    messages?: Array<{ role?: string; content?: unknown }>;
-  };
-  const messages = (request.messages ?? []).map((message) => ({
-    ...message,
-    content:
-      message.role === "user" && typeof message.content === "string"
-        ? normalizeUserMessage(message.content)
-        : message.content,
-  }));
-  if (
-    !messages.some(
-      (message) =>
-        message.role === "user" &&
-        typeof message.content === "string" &&
-        message.content.includes("${compaction_prompt}"),
-    )
-  ) {
-    return undefined;
-  }
-
-  const history = messages
-    .filter((message) => message.role !== "system")
-    .map((message) => {
-      const content =
-        typeof message.content === "string"
-          ? message.content.replace("${compaction_prompt}", "").trim()
-          : "";
-      return `${message.role ?? "unknown"}: ${content}`;
-    })
-    .filter((line) => !line.endsWith(": "))
-    .join("\n\n");
-  const content = [
-    "<overview>Conversation compacted by the E2E replay proxy.</overview>",
-    `<history>${history}</history>`,
-    "<checkpoint_title>Compacted E2E conversation</checkpoint_title>",
-  ].join("\n");
-
-  return {
-    id: "compaction-e2e-response",
-    object: "chat.completion",
-    created: 0,
-    model: request.model ?? "test-model",
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content,
-          refusal: null,
-        },
-        finish_reason: "stop",
-        logprobs: null,
-      },
-    ],
-    usage: {
-      prompt_tokens: 100,
-      completion_tokens: 50,
-      total_tokens: 150,
-    },
-  };
-}
-
-function createPostCompactionResponse(
-  storedData: NormalizedData,
-  requestBody: string,
-  workDir: string,
-): ChatCompletion | undefined {
-  const request = JSON.parse(requestBody) as {
-    model?: string;
-    messages?: Array<{ role?: string; content?: unknown }>;
-  };
-  const hasCompactedHistory = (request.messages ?? []).some(
-    (message) =>
-      message.role === "user" &&
-      typeof message.content === "string" &&
-      message.content.startsWith(
-        "Some of the conversation history has been summarized to free up context.",
-      ),
-  );
-  if (!hasCompactedHistory) return undefined;
-
-  for (const conversation of storedData.conversations) {
-    let replyIndex = conversation.messages.length - 1;
-    while (
-      replyIndex >= 0 &&
-      conversation.messages[replyIndex].role !== "assistant"
-    ) {
-      replyIndex--;
-    }
-    if (replyIndex >= 0) {
-      return createOpenAIResponse(
-        request.model ?? storedData.models[0] ?? "test-model",
-        conversation.messages,
-        replyIndex,
-        workDir,
-      );
-    }
-  }
-  return undefined;
-}
-
-function createProtocolError(
-  protocol: ModelProtocol,
+function openAIErrorBody(
   code: string | undefined,
   message: string,
 ): unknown {
   const type = code ?? "rate_limited";
-  return protocol === "anthropic-messages"
-    ? { type: "error", error: { type, message } }
-    : { error: { message, type, code: type } };
+  return { error: { message, type, code: type } };
 }
 
 function normalizeFilenames(
@@ -1422,10 +1222,7 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
-    .replace(
-      taskCompletionNotificationPattern,
-      taskCompletionNotificationReplacement,
-    )
+    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1466,7 +1263,6 @@ function normalizeStoredMessagesForBackend(
     conversation.messages = coalesceMessages(
       conversation.messages,
       backend !== "openai-completions",
-      true,
     );
   }
 }
@@ -1474,7 +1270,6 @@ function normalizeStoredMessagesForBackend(
 function coalesceMessages(
   messages: NormalizedMessage[],
   coalesceAssistantMessages: boolean,
-  coalesceUserMessages: boolean,
 ): NormalizedMessage[] {
   const result: NormalizedMessage[] = [];
   for (const message of messages) {
@@ -1482,7 +1277,7 @@ function coalesceMessages(
     const shouldCoalesce =
       previous?.role === message.role &&
       ((coalesceAssistantMessages && message.role === "assistant") ||
-        (coalesceUserMessages && message.role === "user"));
+        message.role === "user");
     if (!shouldCoalesce) {
       result.push(message);
       continue;
@@ -1718,14 +1513,21 @@ function findAssistantIndexAfterPrefix(
   requestMessages: NormalizedMessage[],
   savedMessages: NormalizedMessage[],
 ): number | undefined {
+  const logFile = process.env.PROXY_DEBUG_LOG;
+  const log = (msg: string) => { if (logFile) try { appendFileSync(logFile, msg + "\n"); } catch {} };
+
   if (requestMessages.length >= savedMessages.length) {
+    log(`prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`);
     return undefined;
   }
 
   for (let i = 0; i < requestMessages.length; i++) {
-    if (
-      JSON.stringify(requestMessages[i]) !== JSON.stringify(savedMessages[i])
-    ) {
+    const reqMsg = JSON.stringify(requestMessages[i]);
+    const savedMsg = JSON.stringify(savedMessages[i]);
+    if (reqMsg !== savedMsg) {
+      log(`mismatch at index ${i}:`);
+      log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
+      log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
       return undefined;
     }
   }
@@ -1736,9 +1538,11 @@ function findAssistantIndexAfterPrefix(
     nextIndex < savedMessages.length &&
     savedMessages[nextIndex].role === "assistant"
   ) {
+    log(`MATCH found at index ${nextIndex}`);
     return nextIndex;
   }
 
+  log(`no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`);
   return undefined;
 }
 
@@ -1997,7 +1801,6 @@ interface NormalizedErrorResponse {
 }
 
 export interface NormalizedData {
-  /** Captured model IDs used to replay /models; conversations are model-agnostic. */
   models: string[];
   errors?: NormalizedErrorResponse[];
   conversations: NormalizedConversation[];

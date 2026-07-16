@@ -26,19 +26,22 @@ import {
 
 type ByokBackend = Exclude<ReplayBackend, "capi">;
 
-const backends: ByokBackend[] = [
+const backends: ReplayBackend[] = [
+  "capi",
   "anthropic-messages",
   "openai-responses",
   "openai-completions",
 ];
 
-const endpoints: Record<ByokBackend, string> = {
+const endpoints: Record<ReplayBackend, string> = {
+  capi: "/chat/completions",
   "anthropic-messages": "/v1/messages",
   "openai-responses": "/responses",
   "openai-completions": "/chat/completions",
 };
 
-const models: Record<ByokBackend, string> = {
+const models: Record<ReplayBackend, string> = {
+  capi: "gpt-4.1",
   "anthropic-messages": "claude-sonnet-4.5",
   "openai-responses": "gpt-4.1",
   "openai-completions": "gpt-4.1",
@@ -76,7 +79,7 @@ const completionWithTool: ChatCompletion = {
 };
 
 function requestFor(
-  backend: ByokBackend,
+  backend: ReplayBackend,
   prompt: string,
 ): Record<string, unknown> {
   const model = models[backend];
@@ -100,6 +103,7 @@ function requestFor(
           },
         ],
       };
+    case "capi":
     case "openai-completions":
       return {
         model,
@@ -372,7 +376,7 @@ describe("protocol-aware replay", () => {
   }
 
   async function withProxy(
-    backend: ByokBackend,
+    backend: ReplayBackend,
     action: (proxyUrl: string) => Promise<void>,
   ): Promise<void> {
     const proxy = new ReplayingCapiProxy(
@@ -432,7 +436,10 @@ describe("protocol-aware replay", () => {
           role: "user",
           content: "Hello",
         });
-        if (backend !== "openai-completions") {
+        if (
+          backend === "anthropic-messages" ||
+          backend === "openai-responses"
+        ) {
           expect(exchanges[0].response).toBeUndefined();
         }
       });
@@ -526,8 +533,17 @@ describe("protocol-aware replay", () => {
   });
 
   test.each(backends)(
-    "synthesizes compaction responses through %s",
+    "replays compaction responses through %s",
     async (backend) => {
+      await writeSnapshot([
+        { role: "system", content: "${system}" },
+        { role: "user", content: "${compaction_prompt}" },
+        {
+          role: "assistant",
+          content:
+            "<overview>Compacted</overview><history>History</history><checkpoint_title>Checkpoint</checkpoint_title>",
+        },
+      ]);
       await withProxy(backend, async (proxyUrl) => {
         const response = await postJson(
           proxyUrl,
@@ -552,6 +568,17 @@ describe("protocol-aware replay", () => {
       );
       expect(response.status).toBe(400);
       await expect(response.text()).resolves.toContain("protocol_mismatch");
+    });
+  });
+
+  test("keeps foreign model endpoints unavailable in CAPI mode", async () => {
+    await withProxy("capi", async (proxyUrl) => {
+      const response = await postJson(
+        proxyUrl,
+        endpoints["openai-responses"],
+        requestFor("openai-responses", "Hello"),
+      );
+      expect(response.status).toBe(404);
     });
   });
 });
