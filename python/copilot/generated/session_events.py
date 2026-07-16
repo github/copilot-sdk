@@ -155,6 +155,7 @@ class SessionEventType(Enum):
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
     ASSISTANT_TURN_START = "assistant.turn_start"
     ASSISTANT_INTENT = "assistant.intent"
+    ASSISTANT_SERVER_TOOL_PROGRESS = "assistant.server_tool_progress"
     ASSISTANT_REASONING = "assistant.reasoning"
     ASSISTANT_REASONING_DELTA = "assistant.reasoning_delta"
     ASSISTANT_TOOL_CALL_DELTA = "assistant.tool_call_delta"
@@ -209,6 +210,8 @@ class SessionEventType(Enum):
     SESSION_LIMITS_EXHAUSTED_COMPLETED = "session_limits_exhausted.completed"
     # Experimental: this event is part of an experimental API and may change or be removed.
     SESSION_AUTO_MODE_RESOLVED = "session.auto_mode_resolved"
+    # Experimental: this event is part of an experimental API and may change or be removed.
+    SESSION_MANAGED_SETTINGS_RESOLVED = "session.managed_settings_resolved"
     COMMANDS_CHANGED = "commands.changed"
     CAPABILITIES_CHANGED = "capabilities.changed"
     EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
@@ -1078,6 +1081,51 @@ class SessionCanvasUnavailableData:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionManagedSettingsResolvedData:
+    "Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes."
+    bypass_permissions_disabled: bool
+    device_managed: bool
+    fail_closed: bool
+    managed_keys: list[str]
+    server_managed: bool
+    source: ManagedSettingsResolvedSource
+    settings: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionManagedSettingsResolvedData":
+        assert isinstance(obj, dict)
+        bypass_permissions_disabled = from_bool(obj.get("bypassPermissionsDisabled"))
+        device_managed = from_bool(obj.get("deviceManaged"))
+        fail_closed = from_bool(obj.get("failClosed"))
+        managed_keys = from_list(from_str, obj.get("managedKeys"))
+        server_managed = from_bool(obj.get("serverManaged"))
+        source = parse_enum(ManagedSettingsResolvedSource, obj.get("source"))
+        settings = obj.get("settings")
+        return SessionManagedSettingsResolvedData(
+            bypass_permissions_disabled=bypass_permissions_disabled,
+            device_managed=device_managed,
+            fail_closed=fail_closed,
+            managed_keys=managed_keys,
+            server_managed=server_managed,
+            source=source,
+            settings=settings,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["bypassPermissionsDisabled"] = from_bool(self.bypass_permissions_disabled)
+        result["deviceManaged"] = from_bool(self.device_managed)
+        result["failClosed"] = from_bool(self.fail_closed)
+        result["managedKeys"] = from_list(from_str, self.managed_keys)
+        result["serverManaged"] = from_bool(self.server_managed)
+        result["source"] = to_enum(ManagedSettingsResolvedSource, self.source)
+        if self.settings is not None:
+            result["settings"] = self.settings
+        return result
+
+
 @dataclass
 class AbortData:
     "Turn abort information including the reason for termination"
@@ -1395,6 +1443,33 @@ class AssistantReasoningDeltaData:
         result: dict = {}
         result["deltaContent"] = from_str(self.delta_content)
         result["reasoningId"] = from_str(self.reasoning_id)
+        return result
+
+
+@dataclass
+class AssistantServerToolProgressData:
+    "Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message"
+    kind: str
+    output_index: int
+    status: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AssistantServerToolProgressData":
+        assert isinstance(obj, dict)
+        kind = from_str(obj.get("kind"))
+        output_index = from_int(obj.get("outputIndex"))
+        status = from_str(obj.get("status"))
+        return AssistantServerToolProgressData(
+            kind=kind,
+            output_index=output_index,
+            status=status,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = from_str(self.kind)
+        result["outputIndex"] = to_int(self.output_index)
+        result["status"] = from_str(self.status)
         return result
 
 
@@ -3202,6 +3277,29 @@ class HandoffRepository:
 
 
 @dataclass
+class HeaderEntry:
+    "Single HTTP header entry as a name/value pair."
+    name: str
+    value: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "HeaderEntry":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        value = from_str(obj.get("value"))
+        return HeaderEntry(
+            name=name,
+            value=value,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["value"] = from_str(self.value)
+        return result
+
+
+@dataclass
 class HookEndData:
     "Hook invocation completion details including output, success status, and error information"
     hook_invocation_id: str
@@ -3512,12 +3610,41 @@ class McpOauthCompletedData:
 
 
 @dataclass
+class McpOauthHttpResponse:
+    "Raw HTTP response details from the OAuth auth challenge, as observed by the runtime."
+    headers: list[HeaderEntry]
+    status_code: int
+    body: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpOauthHttpResponse":
+        assert isinstance(obj, dict)
+        headers = from_list(HeaderEntry.from_dict, obj.get("headers"))
+        status_code = from_int(obj.get("statusCode"))
+        body = from_union([from_none, from_str], obj.get("body"))
+        return McpOauthHttpResponse(
+            headers=headers,
+            status_code=status_code,
+            body=body,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["headers"] = from_list(lambda x: to_class(HeaderEntry, x), self.headers)
+        result["statusCode"] = to_int(self.status_code)
+        if self.body is not None:
+            result["body"] = from_union([from_none, from_str], self.body)
+        return result
+
+
+@dataclass
 class McpOauthRequiredData:
     "OAuth authentication request for an MCP server"
     reason: McpOauthRequestReason
     request_id: str
     server_name: str
     server_url: str
+    http_response: McpOauthHttpResponse | None = None
     resource_metadata: str | None = None
     static_client_config: McpOauthRequiredStaticClientConfig | None = None
     www_authenticate_params: McpOauthWWWAuthenticateParams | None = None
@@ -3529,6 +3656,7 @@ class McpOauthRequiredData:
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
         server_url = from_str(obj.get("serverUrl"))
+        http_response = from_union([from_none, McpOauthHttpResponse.from_dict], obj.get("httpResponse"))
         resource_metadata = from_union([from_none, from_str], obj.get("resourceMetadata"))
         static_client_config = from_union([from_none, McpOauthRequiredStaticClientConfig.from_dict], obj.get("staticClientConfig"))
         www_authenticate_params = from_union([from_none, McpOauthWWWAuthenticateParams.from_dict], obj.get("wwwAuthenticateParams"))
@@ -3537,6 +3665,7 @@ class McpOauthRequiredData:
             request_id=request_id,
             server_name=server_name,
             server_url=server_url,
+            http_response=http_response,
             resource_metadata=resource_metadata,
             static_client_config=static_client_config,
             www_authenticate_params=www_authenticate_params,
@@ -3548,6 +3677,8 @@ class McpOauthRequiredData:
         result["requestId"] = from_str(self.request_id)
         result["serverName"] = from_str(self.server_name)
         result["serverUrl"] = from_str(self.server_url)
+        if self.http_response is not None:
+            result["httpResponse"] = from_union([from_none, lambda x: to_class(McpOauthHttpResponse, x)], self.http_response)
         if self.resource_metadata is not None:
             result["resourceMetadata"] = from_union([from_none, from_str], self.resource_metadata)
         if self.static_client_config is not None:
@@ -3623,7 +3754,7 @@ class McpOauthWWWAuthenticateParams:
 
 @dataclass
 class McpPromptsListChangedData:
-    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    "Payload identifying the MCP server associated with a list change."
     server_name: str
 
     @staticmethod
@@ -3642,7 +3773,7 @@ class McpPromptsListChangedData:
 
 @dataclass
 class McpResourcesListChangedData:
-    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    "Payload identifying the MCP server associated with a list change."
     server_name: str
 
     @staticmethod
@@ -3709,7 +3840,7 @@ class McpServersLoadedServer:
 
 @dataclass
 class McpToolsListChangedData:
-    "Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed."
+    "Payload identifying the MCP server associated with a list change."
     server_name: str
 
     @staticmethod
@@ -9020,6 +9151,16 @@ class HandoffSourceType(Enum):
     LOCAL = "local"
 
 
+class ManagedSettingsResolvedSource(Enum):
+    "Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)"
+    # Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+    SERVER = "server"
+    # Device-level MDM policy discovered from plist/registry/file (lower authority).
+    DEVICE = "device"
+    # No managed policy is in force (no layer contributed).
+    NONE = "none"
+
+
 class McpHeadersRefreshCompletedOutcome(Enum):
     "How the pending MCP headers refresh request resolved."
     # The host supplied dynamic headers.
@@ -9334,7 +9475,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedSettingsResolvedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -9393,6 +9534,7 @@ class SessionEvent:
             case SessionEventType.PENDING_MESSAGES_MODIFIED: data = PendingMessagesModifiedData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TURN_START: data = AssistantTurnStartData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_INTENT: data = AssistantIntentData.from_dict(data_obj)
+            case SessionEventType.ASSISTANT_SERVER_TOOL_PROGRESS: data = AssistantServerToolProgressData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_REASONING: data = AssistantReasoningData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_REASONING_DELTA: data = AssistantReasoningDeltaData.from_dict(data_obj)
             case SessionEventType.ASSISTANT_TOOL_CALL_DELTA: data = AssistantToolCallDeltaData.from_dict(data_obj)
@@ -9445,6 +9587,7 @@ class SessionEvent:
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_REQUESTED: data = SessionLimitsExhaustedRequestedData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_COMPLETED: data = SessionLimitsExhaustedCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_MODE_RESOLVED: data = SessionAutoModeResolvedData.from_dict(data_obj)
+            case SessionEventType.SESSION_MANAGED_SETTINGS_RESOLVED: data = SessionManagedSettingsResolvedData.from_dict(data_obj)
             case SessionEventType.COMMANDS_CHANGED: data = CommandsChangedData.from_dict(data_obj)
             case SessionEventType.CAPABILITIES_CHANGED: data = CapabilitiesChangedData.from_dict(data_obj)
             case SessionEventType.EXIT_PLAN_MODE_REQUESTED: data = ExitPlanModeRequestedData.from_dict(data_obj)
@@ -9513,6 +9656,7 @@ __all__ = [
     "AssistantMessageToolRequestType",
     "AssistantReasoningData",
     "AssistantReasoningDeltaData",
+    "AssistantServerToolProgressData",
     "AssistantStreamingDeltaData",
     "AssistantToolCallDeltaData",
     "AssistantTurnEndData",
@@ -9596,10 +9740,12 @@ __all__ = [
     "GitHubRepoRef",
     "HandoffRepository",
     "HandoffSourceType",
+    "HeaderEntry",
     "HookEndData",
     "HookEndError",
     "HookProgressData",
     "HookStartData",
+    "ManagedSettingsResolvedSource",
     "McpAppToolCallCompleteData",
     "McpAppToolCallCompleteError",
     "McpAppToolCallCompleteToolMeta",
@@ -9610,6 +9756,7 @@ __all__ = [
     "McpHeadersRefreshRequiredReason",
     "McpOauthCompletedData",
     "McpOauthCompletionOutcome",
+    "McpOauthHttpResponse",
     "McpOauthRequestReason",
     "McpOauthRequiredData",
     "McpOauthRequiredStaticClientConfig",
@@ -9709,6 +9856,7 @@ __all__ = [
     "SessionLimitsExhaustedRequestedData",
     "SessionLimitsExhaustedResponse",
     "SessionLimitsExhaustedResponseAction",
+    "SessionManagedSettingsResolvedData",
     "SessionMcpServerStatusChangedData",
     "SessionMcpServersLoadedData",
     "SessionMode",

@@ -40,6 +40,7 @@ export type SessionEvent =
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
   | AssistantIntentEvent
+  | AssistantServerToolProgressEvent
   | AssistantReasoningEvent
   | AssistantReasoningDeltaEvent
   | AssistantToolCallDeltaEvent
@@ -92,6 +93,7 @@ export type SessionEvent =
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
   | AutoModeResolvedEvent
+  | ManagedSettingsResolvedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -645,6 +647,16 @@ export type AutoModeResolvedReasoningBucket =
   | "medium"
   /** The request looks high-reasoning; a stronger model is appropriate. */
   | "high";
+/**
+ * Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+ */
+export type ManagedSettingsResolvedSource =
+  /** Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority). */
+  | "server"
+  /** Device-level MDM policy discovered from plist/registry/file (lower authority). */
+  | "device"
+  /** No managed policy is in force (no layer contributed). */
+  | "none";
 /**
  * Exit plan mode action
  */
@@ -3149,6 +3161,53 @@ export interface AssistantIntentData {
    * Short description of what the agent is currently doing or planning to do
    */
   intent: string;
+}
+/**
+ * Session event "assistant.server_tool_progress". Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
+ */
+export interface AssistantServerToolProgressEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantServerToolProgressData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.server_tool_progress".
+   */
+  type: "assistant.server_tool_progress";
+}
+/**
+ * Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
+ */
+export interface AssistantServerToolProgressData {
+  /**
+   * Kind of hosted server tool that is running. Only `web_search` is emitted today.
+   */
+  kind: string;
+  /**
+   * Position of the hosted tool call in the response output. Stable across the call's lifecycle events (unlike the provider's per-event item id, which CAPI rotates), so the host keys the live in-progress row on it.
+   */
+  outputIndex: number;
+  /**
+   * Lifecycle status of the hosted call: `in_progress`, `searching`, or `completed`.
+   */
+  status: string;
 }
 /**
  * Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
@@ -7147,6 +7206,7 @@ export interface McpOauthRequiredEvent {
  * OAuth authentication request for an MCP server
  */
 export interface McpOauthRequiredData {
+  httpResponse?: McpOauthHttpResponse;
   reason: McpOauthRequestReason;
   /**
    * Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
@@ -7166,6 +7226,36 @@ export interface McpOauthRequiredData {
   serverUrl: string;
   staticClientConfig?: McpOauthRequiredStaticClientConfig;
   wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
+}
+/**
+ * Raw HTTP response details from the OAuth auth challenge, as observed by the runtime.
+ */
+export interface McpOauthHttpResponse {
+  /**
+   * Complete UTF-8 response body for host-specific challenge handling, including an empty string for an empty body. Omitted when the complete body is not valid UTF-8; body read failures fail the HTTP operation rather than exposing a partial response.
+   */
+  body?: string;
+  /**
+   * HTTP response headers as observed by the runtime. Order and casing are transport-dependent, and duplicate header names may appear multiple times.
+   */
+  headers: HeaderEntry[];
+  /**
+   * HTTP status code returned with the auth challenge.
+   */
+  statusCode: number;
+}
+/**
+ * Single HTTP header entry as a name/value pair.
+ */
+export interface HeaderEntry {
+  /**
+   * HTTP response header name as observed by the runtime.
+   */
+  name: string;
+  /**
+   * HTTP response header value as observed by the runtime.
+   */
+  value: string;
 }
 /**
  * Static OAuth client configuration, if the server specifies one
@@ -7884,6 +7974,70 @@ export interface AutoModeResolvedData {
   reasoningBucket?: AutoModeResolvedReasoningBucket;
 }
 /**
+ * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ */
+/** @experimental */
+export interface ManagedSettingsResolvedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ManagedSettingsResolvedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.managed_settings_resolved".
+   */
+  type: "session.managed_settings_resolved";
+}
+/**
+ * Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ */
+/** @experimental */
+export interface ManagedSettingsResolvedData {
+  /**
+   * Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+   */
+  bypassPermissionsDisabled: boolean;
+  /**
+   * Whether the device (MDM/plist/registry/file) managed-settings layer was present
+   */
+  deviceManaged: boolean;
+  /**
+   * Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+   */
+  failClosed: boolean;
+  /**
+   * The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
+   */
+  managedKeys: string[];
+  /**
+   * Whether the server (account/org) managed-settings layer was present
+   */
+  serverManaged: boolean;
+  /**
+   * The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
+   */
+  settings?: {
+    [k: string]: unknown | undefined;
+  };
+  source: ManagedSettingsResolvedSource;
+}
+/**
  * Session event "commands.changed". SDK command registration change notification
  */
 export interface CommandsChangedEvent {
@@ -8426,7 +8580,7 @@ export interface McpServerStatusChangedData {
   status: McpServerStatus;
 }
 /**
- * Session event "mcp.tools.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+ * Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.
  */
 export interface McpToolsListChangedEvent {
   /**
@@ -8456,7 +8610,7 @@ export interface McpToolsListChangedEvent {
   type: "mcp.tools.list_changed";
 }
 /**
- * Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+ * Payload identifying the MCP server associated with a list change.
  */
 export interface McpListChangedData {
   /**
@@ -8465,7 +8619,7 @@ export interface McpListChangedData {
   serverName: string;
 }
 /**
- * Session event "mcp.resources.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+ * Session event "mcp.resources.list_changed". Payload identifying the MCP server associated with a list change.
  */
 export interface McpResourcesListChangedEvent {
   /**
@@ -8495,7 +8649,7 @@ export interface McpResourcesListChangedEvent {
   type: "mcp.resources.list_changed";
 }
 /**
- * Session event "mcp.prompts.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+ * Session event "mcp.prompts.list_changed". Payload identifying the MCP server associated with a list change.
  */
 export interface McpPromptsListChangedEvent {
   /**

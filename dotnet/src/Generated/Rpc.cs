@@ -4241,6 +4241,19 @@ internal sealed class ModelSetReasoningEffortRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Cost-category metadata for a CAPI model.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionModelPriceCategory
+{
+    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>priceCategory</c> value.</summary>
+    [JsonPropertyName("priceCategory")]
+    public ModelPickerPriceCategory PriceCategory { get; set; }
+}
+
 /// <summary>The list of models available to this session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionModelList
@@ -4248,6 +4261,10 @@ public sealed class SessionModelList
     /// <summary>Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).</summary>
     [JsonPropertyName("list")]
     public IList<JsonElement> List { get => field ??= []; set; }
+
+    /// <summary>Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.</summary>
+    [JsonPropertyName("modelPriceCategories")]
+    public IList<SessionModelPriceCategory>? ModelPriceCategories { get; set; }
 
     /// <summary>Per-quota snapshots returned alongside the model list, keyed by quota type.</summary>
     [JsonPropertyName("quotaSnapshots")]
@@ -5725,7 +5742,20 @@ internal sealed class SessionMcpListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>MCP tool metadata with tool name and optional description.</summary>
+/// <summary>Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpToolUi
+{
+    /// <summary>URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use `session.mcp.resources.read` to fetch its HTML and resource metadata.</summary>
+    [JsonPropertyName("resourceUri")]
+    public string? ResourceUri { get; set; }
+
+    /// <summary>Tool visibility advertised by the server. When absent, MCP Apps defaults apply.</summary>
+    [JsonPropertyName("visibility")]
+    public IList<McpToolUiVisibility>? Visibility { get; set; }
+}
+
+/// <summary>MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpTools
 {
@@ -5736,6 +5766,10 @@ public sealed class McpTools
     /// <summary>Tool name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields.</summary>
+    [JsonPropertyName("ui")]
+    public McpToolUi? Ui { get; set; }
 }
 
 /// <summary>Tools exposed by the connected MCP server. Throws when the server is not connected.</summary>
@@ -7136,6 +7170,10 @@ internal sealed class ProviderAddRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionUpdateOptionsResult
 {
+    /// <summary>Number of hooks loaded from installed plugins, returned when installedPlugins is updated.</summary>
+    [JsonPropertyName("pluginHookCount")]
+    public long? PluginHookCount { get; set; }
+
     /// <summary>Whether the operation succeeded.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
@@ -15544,6 +15582,69 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
 }
 
 
+/// <summary>Consumer allowed to call an MCP tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpToolUiVisibility : IEquatable<McpToolUiVisibility>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpToolUiVisibility"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpToolUiVisibility"/>.</param>
+    [JsonConstructor]
+    public McpToolUiVisibility(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpToolUiVisibility"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The model may call the tool.</summary>
+    public static McpToolUiVisibility Model { get; } = new("model");
+
+    /// <summary>An MCP App view may call the tool.</summary>
+    public static McpToolUiVisibility App { get; } = new("app");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpToolUiVisibility"/> instances are equivalent.</summary>
+    public static bool operator ==(McpToolUiVisibility left, McpToolUiVisibility right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpToolUiVisibility"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpToolUiVisibility left, McpToolUiVisibility right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpToolUiVisibility other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpToolUiVisibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpToolUiVisibility}"/> for serializing <see cref="McpToolUiVisibility"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpToolUiVisibility>
+    {
+        /// <inheritdoc />
+        public override McpToolUiVisibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpToolUiVisibility value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpToolUiVisibility));
+        }
+    }
+}
+
+
 /// <summary>Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -21428,7 +21529,7 @@ public sealed class McpApi
         return await CopilotClient.InvokeRpcAsync<McpServerList>(_session.Rpc, "session.mcp.list", [request], cancellationToken);
     }
 
-    /// <summary>Lists the tools exposed by a connected MCP server on this session's host.</summary>
+    /// <summary>Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.</summary>
     /// <param name="serverName">Name of the connected MCP server whose tools to list.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Tools exposed by the connected MCP server. Throws when the server is not connected.</returns>
@@ -23693,6 +23794,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantServerToolProgressData), TypeInfoPropertyName = "SessionEventsAssistantServerToolProgressData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantServerToolProgressEvent), TypeInfoPropertyName = "SessionEventsAssistantServerToolProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantToolCallDeltaData), TypeInfoPropertyName = "SessionEventsAssistantToolCallDeltaData")]
@@ -23793,6 +23896,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.GitHubRepoRef), TypeInfoPropertyName = "SessionEventsGitHubRepoRef")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
+[JsonSerializable(typeof(GitHub.Copilot.HeaderEntry), TypeInfoPropertyName = "SessionEventsHeaderEntry")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
@@ -23800,6 +23904,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.HookProgressEvent), TypeInfoPropertyName = "SessionEventsHookProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsResolvedSource), TypeInfoPropertyName = "SessionEventsManagedSettingsResolvedSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteData), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteError), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteError")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteEvent), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteEvent")]
@@ -23814,6 +23919,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletionOutcome), TypeInfoPropertyName = "SessionEventsMcpOauthCompletionOutcome")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthHttpResponse), TypeInfoPropertyName = "SessionEventsMcpOauthHttpResponse")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequestReason), TypeInfoPropertyName = "SessionEventsMcpOauthRequestReason")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
@@ -24201,6 +24307,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpStartServerRequest))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]
+[JsonSerializable(typeof(McpToolUi))]
 [JsonSerializable(typeof(McpTools))]
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
 [JsonSerializable(typeof(MetadataContextAttributionResult))]
@@ -24454,6 +24561,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionModelList))]
+[JsonSerializable(typeof(SessionModelPriceCategory))]
 [JsonSerializable(typeof(SessionNameGetRequest))]
 [JsonSerializable(typeof(SessionOpenResult))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]

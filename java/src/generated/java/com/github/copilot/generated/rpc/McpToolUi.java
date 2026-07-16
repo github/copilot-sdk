@@ -10,22 +10,21 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
+ * Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpTools(
-    /** Tool name. */
-    @JsonProperty("name") String name,
-    /** Tool description, when provided. */
-    @JsonProperty("description") String description,
-    /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
-    @JsonProperty("ui") McpToolUi ui
+public record McpToolUi(
+    /** URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use `session.mcp.resources.read` to fetch its HTML and resource metadata. */
+    @JsonProperty("resourceUri") String resourceUri,
+    /** Tool visibility advertised by the server. When absent, MCP Apps defaults apply. */
+    @JsonProperty("visibility") List<McpToolUiVisibility> visibility
 ) {
 }
