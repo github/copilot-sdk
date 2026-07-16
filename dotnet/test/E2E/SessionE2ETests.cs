@@ -732,6 +732,8 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
+    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
     [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {

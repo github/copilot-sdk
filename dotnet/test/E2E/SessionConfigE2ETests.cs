@@ -22,6 +22,8 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
+    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
     [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Disabled_Then_Enabled_Via_SetModel()
     {
@@ -63,6 +65,8 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages history diverged after disabling vision via SetModel. Verify
+    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
     [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Enabled_Then_Disabled_Via_SetModel()
     {
@@ -187,6 +191,8 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): The Anthropic user-agent omitted ClientName and contained only its provider SDK
+    // identifier. Determine the expected propagation for custom providers before keeping this CAPI-only.
     [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Forward_ClientName_In_UserAgent()
     {
@@ -682,6 +688,8 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
+    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
     [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {
