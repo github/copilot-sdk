@@ -99,6 +99,20 @@ public class CopilotToolProcessor extends AbstractProcessor {
                             "@CopilotToolParam(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
                             param);
                 }
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()
+                        && !paramAnnotation.defaultValue().isEmpty()) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@CopilotToolParam cannot have both schema and defaultValue — express defaults inside the schema if needed",
+                            param);
+                }
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
+                    String schemaJson = paramAnnotation.schema().trim();
+                    if (!schemaJson.startsWith("{") || !schemaJson.endsWith("}")) {
+                        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                "@CopilotToolParam schema must be a valid JSON object string (must start with '{' and end with '}')",
+                                param);
+                    }
+                }
             }
             if (toolInvocationParamCount > 1) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -338,8 +352,19 @@ public class CopilotToolProcessor extends AbstractProcessor {
             CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
 
             // Generate the type schema for this parameter
-            String typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
-                    processingEnv.getElementUtils());
+            String typeSchema;
+            if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
+                try {
+                    typeSchema = jsonToMapOfSource(paramAnnotation.schema().trim());
+                } catch (IllegalArgumentException e) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@CopilotToolParam schema is not valid JSON: " + e.getMessage(), param);
+                    continue;
+                }
+            } else {
+                typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
+            }
 
             // Build property schema with description and default if present
             String propertySchema = buildPropertySchema(typeSchema, paramAnnotation, paramType);
@@ -850,6 +875,179 @@ public class CopilotToolProcessor extends AbstractProcessor {
             }
         }
         return sb.toString();
+    }
+
+    // ------------------------------------------------------------------
+    // JSON-to-Map.of() source code conversion
+    // ------------------------------------------------------------------
+
+    /**
+     * Converts a JSON object string to a {@code Map.of(...)} Java source literal.
+     * Supports nested objects, arrays, strings, numbers, booleans, and null.
+     */
+    static String jsonToMapOfSource(String json) {
+        return new JsonToSourceConverter(json).parseObject();
+    }
+
+    /**
+     * Minimal recursive-descent JSON parser that produces {@code Map.of(...)},
+     * {@code List.of(...)}, and literal Java source expressions from a JSON string.
+     * Only used at compile time by the annotation processor.
+     */
+    private static final class JsonToSourceConverter {
+
+        private final String input;
+        private int pos;
+
+        JsonToSourceConverter(String input) {
+            this.input = input;
+            this.pos = 0;
+        }
+
+        String parseObject() {
+            skipWhitespace();
+            expect('{');
+            skipWhitespace();
+            List<String> entries = new ArrayList<>();
+            if (peek() != '}') {
+                do {
+                    skipWhitespace();
+                    String key = parseString();
+                    skipWhitespace();
+                    expect(':');
+                    skipWhitespace();
+                    String value = parseValue();
+                    entries.add("\"" + escapeJava(key) + "\", " + value);
+                    skipWhitespace();
+                } while (tryConsume(','));
+            }
+            expect('}');
+            if (entries.isEmpty()) {
+                return "Map.of()";
+            }
+            return "Map.of(" + String.join(", ", entries) + ")";
+        }
+
+        private String parseArray() {
+            expect('[');
+            skipWhitespace();
+            List<String> items = new ArrayList<>();
+            if (peek() != ']') {
+                do {
+                    skipWhitespace();
+                    items.add(parseValue());
+                    skipWhitespace();
+                } while (tryConsume(','));
+            }
+            expect(']');
+            if (items.isEmpty()) {
+                return "List.of()";
+            }
+            return "List.of(" + String.join(", ", items) + ")";
+        }
+
+        private String parseValue() {
+            skipWhitespace();
+            char c = peek();
+            if (c == '{') {
+                return parseObject();
+            }
+            if (c == '[') {
+                return parseArray();
+            }
+            if (c == '"') {
+                return "\"" + escapeJava(parseString()) + "\"";
+            }
+            if (c == 't' || c == 'f') {
+                return parseBoolean();
+            }
+            if (c == 'n') {
+                return parseNull();
+            }
+            return parseNumber();
+        }
+
+        private String parseString() {
+            expect('"');
+            StringBuilder sb = new StringBuilder();
+            while (pos < input.length() && input.charAt(pos) != '"') {
+                if (input.charAt(pos) == '\\') {
+                    pos++;
+                    if (pos >= input.length()) {
+                        throw new IllegalArgumentException("Unterminated string escape at position " + pos);
+                    }
+                }
+                sb.append(input.charAt(pos));
+                pos++;
+            }
+            expect('"');
+            return sb.toString();
+        }
+
+        private String parseBoolean() {
+            if (input.startsWith("true", pos)) {
+                pos += 4;
+                return "true";
+            }
+            if (input.startsWith("false", pos)) {
+                pos += 5;
+                return "false";
+            }
+            throw new IllegalArgumentException("Expected boolean at position " + pos);
+        }
+
+        private String parseNull() {
+            if (input.startsWith("null", pos)) {
+                pos += 4;
+                return "null";
+            }
+            throw new IllegalArgumentException("Expected null at position " + pos);
+        }
+
+        private String parseNumber() {
+            int start = pos;
+            if (pos < input.length() && input.charAt(pos) == '-') {
+                pos++;
+            }
+            while (pos < input.length()
+                    && (Character.isDigit(input.charAt(pos)) || input.charAt(pos) == '.' || input.charAt(pos) == 'e'
+                            || input.charAt(pos) == 'E' || input.charAt(pos) == '+' || input.charAt(pos) == '-')) {
+                pos++;
+            }
+            if (pos == start) {
+                throw new IllegalArgumentException("Expected number at position " + pos);
+            }
+            return input.substring(start, pos);
+        }
+
+        private void skipWhitespace() {
+            while (pos < input.length() && Character.isWhitespace(input.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        private char peek() {
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Unexpected end of JSON");
+            }
+            return input.charAt(pos);
+        }
+
+        private void expect(char c) {
+            if (pos >= input.length() || input.charAt(pos) != c) {
+                throw new IllegalArgumentException("Expected '" + c + "' at position " + pos + " but got '"
+                        + (pos < input.length() ? input.charAt(pos) : "EOF") + "'");
+            }
+            pos++;
+        }
+
+        private boolean tryConsume(char c) {
+            if (pos < input.length() && input.charAt(pos) == c) {
+                pos++;
+                return true;
+            }
+            return false;
+        }
     }
 
     private static String escapeJava(String s) {

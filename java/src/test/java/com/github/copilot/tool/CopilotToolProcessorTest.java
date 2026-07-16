@@ -189,6 +189,94 @@ class CopilotToolProcessorTest {
                 "Expected compile error for single-record wrapper metadata overrides, got: " + result.diagnostics);
     }
 
+    // ── Test: @CopilotToolParam schema override ─────────────────────────────────
+
+    @Test
+    void generatesCorrectSchema_forExplicitSchemaOverride() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SchemaOverrideTools {
+                    @CopilotTool("Schedule meeting")
+                    public String schedule(
+                            @CopilotToolParam(value = "When to meet",
+                                schema = "{\\"type\\":\\"string\\",\\"format\\":\\"date-time\\"}") String when) {
+                        return "scheduled " + when;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SchemaOverrideTools", source)));
+
+        assertNoErrors(result);
+        assertTrue(result.generatedSources.stream().anyMatch(s -> s.contains("date-time")),
+                "Expected generated code to contain the custom schema format, got: " + result.generatedSources);
+    }
+
+    @Test
+    void emitsError_forSchemaWithDefaultValue() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SchemaDefaultConflict {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input",
+                                schema = "{\\"type\\":\\"string\\"}",
+                                defaultValue = "hello") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SchemaDefaultConflict", source)));
+
+        assertTrue(hasErrorContaining(result, "schema and defaultValue"),
+                "Expected compile error for schema + defaultValue conflict, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forInvalidSchemaJson() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class InvalidSchemaTools {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input", schema = "not json") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvalidSchemaTools", source)));
+
+        assertTrue(hasErrorContaining(result, "valid JSON object string"),
+                "Expected compile error for invalid schema JSON, got: " + result.diagnostics);
+    }
+
+    @Test
+    void compilesSuccessfully_forEmptySchemaFallsThrough() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class EmptySchemaTools {
+                    @CopilotTool("Search")
+                    public String search(@CopilotToolParam(value = "Query", schema = "") String query) {
+                        return query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.EmptySchemaTools", source)));
+
+        assertNoErrors(result);
+    }
+
     // ── Test: Return type handling ──────────────────────────────────────────────
 
     @Test
