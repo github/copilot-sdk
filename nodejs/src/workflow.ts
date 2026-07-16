@@ -116,6 +116,8 @@ export interface SessionWorkflowApi {
     ): Promise<TResult | WorkflowRunResult>;
     /** Read the latest durable envelope for a workflow run. */
     getRun(runId: string): Promise<WorkflowRunResult>;
+    /** Cancel a workflow run and return its terminal envelope. */
+    cancel(runId: string): Promise<WorkflowRunResult>;
 }
 
 /** Error thrown when a foreground workflow run does not complete successfully. */
