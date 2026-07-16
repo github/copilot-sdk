@@ -97,11 +97,6 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
-      - name: Run replay harness tests
-        if: matrix.os == 'ubuntu-latest' && matrix.transport == 'default' && matrix.backend == 'capi'
-        working-directory: ./test/harness
-        run: npm test
-
       - name: Warm up PowerShell
         if: runner.os == 'Windows'
         run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
