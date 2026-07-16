@@ -21,6 +21,7 @@ on:
         required: true
         type: string
 permissions:
+  copilot-requests: write
   contents: read
   pull-requests: read
   issues: read

@@ -8,6 +8,7 @@ on:
         required: true
         type: string
 permissions:
+  copilot-requests: write
   contents: read
   actions: read
   issues: read
