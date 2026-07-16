@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: api.schema.json
+// Generated from: session-events.schema.json
 
-package com.github.copilot.generated.rpc;
+package com.github.copilot.generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -13,19 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
+ * Single HTTP header entry as a name/value pair.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpTools(
-    /** Tool name. */
+public record HeaderEntry(
+    /** HTTP response header name as observed by the runtime. */
     @JsonProperty("name") String name,
-    /** Tool description, when provided. */
-    @JsonProperty("description") String description,
-    /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
-    @JsonProperty("ui") McpToolUi ui
+    /** HTTP response header value as observed by the runtime. */
+    @JsonProperty("value") String value
 ) {
 }

@@ -4055,6 +4055,24 @@ pub struct HMACAuthInfo {
     pub r#type: HMACAuthInfoType,
 }
 
+/// Runtime-owned wire payload for a server-to-client hook callback invocation.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HookInvokeRequest {
+    #[doc(hidden)]
+    pub(crate) hook_type: HookType,
+    pub input: serde_json::Value,
+    pub session_id: SessionId,
+}
+
+/// Optional output returned by an SDK callback hook.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HookInvokeResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<serde_json::Value>,
+}
+
 /// Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
 ///
 /// <div class="warning">
@@ -5458,7 +5476,26 @@ pub struct McpListToolsRequest {
     pub server_name: String,
 }
 
-/// MCP tool metadata with tool name and optional description.
+/// Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolUi {
+    /// URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use `session.mcp.resources.read` to fetch its HTML and resource metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_uri: Option<String>,
+    /// Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Vec<McpToolUiVisibility>>,
+}
+
+/// MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
 ///
 /// <div class="warning">
 ///
@@ -5474,6 +5511,9 @@ pub struct McpTools {
     pub description: Option<String>,
     /// Tool name.
     pub name: String,
+    /// Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<McpToolUi>,
 }
 
 /// Tools exposed by the connected MCP server. Throws when the server is not connected.
@@ -11657,6 +11697,21 @@ pub struct SessionMetadataSnapshot {
     pub workspace_path: Option<String>,
 }
 
+/// Cost-category metadata for a CAPI model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelPriceCategory {
+    pub id: String,
+    pub price_category: ModelPickerPriceCategory,
+}
+
 /// The list of models available to this session.
 ///
 /// <div class="warning">
@@ -11670,6 +11725,9 @@ pub struct SessionMetadataSnapshot {
 pub struct SessionModelList {
     /// Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
     pub list: Vec<serde_json::Value>,
+    /// Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_price_categories: Option<Vec<SessionModelPriceCategory>>,
     /// Per-quota snapshots returned alongside the model list, keyed by quota type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
@@ -13222,6 +13280,9 @@ pub struct SessionUpdateOptionsParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdateOptionsResult {
+    /// Number of hooks loaded from installed plugins, returned when installedPlugins is updated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_hook_count: Option<i64>,
     /// Whether the operation succeeded
     pub success: bool,
 }
@@ -16514,6 +16575,9 @@ pub struct SessionModelSetReasoningEffortResult {
 pub struct SessionModelListResult {
     /// Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).
     pub list: Vec<serde_json::Value>,
+    /// Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_price_categories: Option<Vec<SessionModelPriceCategory>>,
     /// Per-quota snapshots returned alongside the model list, keyed by quota type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
@@ -17914,6 +17978,9 @@ pub struct SessionProviderAddResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionOptionsUpdateResult {
+    /// Number of hooks loaded from installed plugins, returned when installedPlugins is updated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_hook_count: Option<i64>,
     /// Whether the operation succeeded
     pub success: bool,
 }
@@ -20781,6 +20848,63 @@ pub enum HMACAuthInfoType {
     Hmac,
 }
 
+/// Hook event name dispatched through the SDK callback transport.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HookType {
+    /// Runs before a tool is invoked.
+    #[serde(rename = "preToolUse")]
+    PreToolUse,
+    /// Runs before an MCP tool is invoked.
+    #[serde(rename = "preMcpToolCall")]
+    PreMcpToolCall,
+    /// Runs after a tool completes successfully.
+    #[serde(rename = "postToolUse")]
+    PostToolUse,
+    /// Runs after a tool fails.
+    #[serde(rename = "postToolUseFailure")]
+    PostToolUseFailure,
+    /// Runs after the user submits a prompt.
+    #[serde(rename = "userPromptSubmitted")]
+    UserPromptSubmitted,
+    /// Runs when a session starts.
+    #[serde(rename = "sessionStart")]
+    SessionStart,
+    /// Runs when a session ends.
+    #[serde(rename = "sessionEnd")]
+    SessionEnd,
+    /// Runs after an agent result is produced.
+    #[serde(rename = "postResult")]
+    PostResult,
+    /// Runs before a pull request description is generated.
+    #[serde(rename = "prePRDescription")]
+    PrePRDescription,
+    /// Runs when the agent encounters an error.
+    #[serde(rename = "errorOccurred")]
+    ErrorOccurred,
+    /// Runs when the agent stops.
+    #[serde(rename = "agentStop")]
+    AgentStop,
+    /// Runs when a subagent starts.
+    #[serde(rename = "subagentStart")]
+    SubagentStart,
+    /// Runs when a subagent stops.
+    #[serde(rename = "subagentStop")]
+    SubagentStop,
+    /// Runs before conversation context is compacted.
+    #[serde(rename = "preCompact")]
+    PreCompact,
+    /// Runs when the agent requests permission.
+    #[serde(rename = "permissionRequest")]
+    PermissionRequest,
+    /// Runs when the agent emits a notification.
+    #[serde(rename = "notification")]
+    Notification,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Constant value. Always "github".
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstalledPluginSourceGitHubSource {
@@ -21203,6 +21327,28 @@ pub enum McpHeadersHandlePendingHeadersRefreshRequestNoneKind {
 pub enum McpHeadersHandlePendingHeadersRefreshRequest {
     Headers(McpHeadersHandlePendingHeadersRefreshRequestHeaders),
     None(McpHeadersHandlePendingHeadersRefreshRequestNone),
+}
+
+/// Consumer allowed to call an MCP tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpToolUiVisibility {
+    /// The model may call the tool.
+    #[serde(rename = "model")]
+    Model,
+    /// An MCP App view may call the tool.
+    #[serde(rename = "app")]
+    App,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

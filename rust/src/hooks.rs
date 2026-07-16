@@ -27,8 +27,8 @@ pub struct HookContext {
 pub struct PreToolUseInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -65,8 +65,8 @@ pub struct PreToolUseOutput {
 pub struct PreMcpToolCallInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -104,8 +104,8 @@ pub struct PreMcpToolCallOutput {
 pub struct PostToolUseInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -144,8 +144,8 @@ pub struct PostToolUseOutput {
 pub struct PostToolUseFailureInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -175,8 +175,8 @@ pub struct PostToolUseFailureOutput {
 pub struct UserPromptSubmittedInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -205,8 +205,8 @@ pub struct UserPromptSubmittedOutput {
 pub struct SessionStartInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -235,8 +235,8 @@ pub struct SessionStartOutput {
 pub struct SessionEndInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -271,8 +271,8 @@ pub struct SessionEndOutput {
 pub struct ErrorOccurredInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,

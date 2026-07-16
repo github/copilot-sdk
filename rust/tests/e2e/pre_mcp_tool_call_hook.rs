@@ -126,7 +126,7 @@ async fn should_set_meta_via_premcptoolcall_hook() {
                 assert_eq!(input.server_name, "meta-echo");
                 assert_eq!(input.tool_name, "echo_meta");
                 assert!(!input.working_directory.as_os_str().is_empty());
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

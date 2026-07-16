@@ -4349,7 +4349,7 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Lists the tools exposed by a connected MCP server on this session's host.
+    /// Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.
     ///
     /// Wire method: `session.mcp.listTools`.
     ///

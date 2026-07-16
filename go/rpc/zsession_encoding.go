@@ -83,6 +83,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantServerToolProgress:
+		var d AssistantServerToolProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantStreamingDelta:
 		var d AssistantStreamingDeltaData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -427,6 +433,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionLimitsExhaustedRequested:
 		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionManagedSettingsResolved:
+		var d SessionManagedSettingsResolvedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

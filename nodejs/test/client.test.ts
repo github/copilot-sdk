@@ -3133,7 +3133,7 @@ describe("CopilotClient", () => {
 
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
             // Validates the full JSON-RPC entry point used by the CLI:
-            // CopilotClient.handleHooksInvoke({sessionId, hookType, input})
+            // clientGlobalHandlers.hooks.invoke({sessionId, hookType, input})
             // → CopilotSession._handleHooksInvoke(hookType, input)
             // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
             //
@@ -3164,7 +3164,7 @@ describe("CopilotClient", () => {
                 cwd: "/tmp",
             };
 
-            const response = await (client as any).handleHooksInvoke({
+            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
                 sessionId: session.sessionId,
                 hookType: "postToolUseFailure",
                 input: failureInput,

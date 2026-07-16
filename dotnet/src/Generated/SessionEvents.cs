@@ -32,6 +32,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantMessageStartEvent), "assistant.message_start")]
 [JsonDerivedType(typeof(AssistantReasoningEvent), "assistant.reasoning")]
 [JsonDerivedType(typeof(AssistantReasoningDeltaEvent), "assistant.reasoning_delta")]
+[JsonDerivedType(typeof(AssistantServerToolProgressEvent), "assistant.server_tool_progress")]
 [JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
 [JsonDerivedType(typeof(AssistantToolCallDeltaEvent), "assistant.tool_call_delta")]
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
@@ -90,6 +91,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
+[JsonDerivedType(typeof(SessionManagedSettingsResolvedEvent), "session.managed_settings_resolved")]
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
@@ -600,6 +602,19 @@ public sealed partial class AssistantIntentEvent : SessionEvent
     /// <summary>The <c>assistant.intent</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required AssistantIntentData Data { get; set; }
+}
+
+/// <summary>Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message.</summary>
+/// <remarks>Represents the <c>assistant.server_tool_progress</c> event.</remarks>
+public sealed partial class AssistantServerToolProgressEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.server_tool_progress";
+
+    /// <summary>The <c>assistant.server_tool_progress</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantServerToolProgressData Data { get; set; }
 }
 
 /// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
@@ -1280,6 +1295,20 @@ public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
     public required SessionAutoModeResolvedData Data { get; set; }
 }
 
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server &gt; device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <remarks>Represents the <c>session.managed_settings_resolved</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionManagedSettingsResolvedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.managed_settings_resolved";
+
+    /// <summary>The <c>session.managed_settings_resolved</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionManagedSettingsResolvedData Data { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 /// <remarks>Represents the <c>commands.changed</c> event.</remarks>
 public sealed partial class CommandsChangedEvent : SessionEvent
@@ -1410,7 +1439,7 @@ public sealed partial class SessionMcpServerStatusChangedEvent : SessionEvent
     public required SessionMcpServerStatusChangedData Data { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 /// <remarks>Represents the <c>mcp.tools.list_changed</c> event.</remarks>
 public sealed partial class McpToolsListChangedEvent : SessionEvent
 {
@@ -1423,7 +1452,7 @@ public sealed partial class McpToolsListChangedEvent : SessionEvent
     public required McpToolsListChangedData Data { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 /// <remarks>Represents the <c>mcp.resources.list_changed</c> event.</remarks>
 public sealed partial class McpResourcesListChangedEvent : SessionEvent
 {
@@ -1436,7 +1465,7 @@ public sealed partial class McpResourcesListChangedEvent : SessionEvent
     public required McpResourcesListChangedData Data { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 /// <remarks>Represents the <c>mcp.prompts.list_changed</c> event.</remarks>
 public sealed partial class McpPromptsListChangedEvent : SessionEvent
 {
@@ -2512,6 +2541,22 @@ public sealed partial class AssistantIntentData
     public required string Intent { get; set; }
 }
 
+/// <summary>Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message.</summary>
+public sealed partial class AssistantServerToolProgressData
+{
+    /// <summary>Kind of hosted server tool that is running. Only `web_search` is emitted today.</summary>
+    [JsonPropertyName("kind")]
+    public required string Kind { get; set; }
+
+    /// <summary>Position of the hosted tool call in the response output. Stable across the call's lifecycle events (unlike the provider's per-event item id, which CAPI rotates), so the host keys the live in-progress row on it.</summary>
+    [JsonPropertyName("outputIndex")]
+    public required long OutputIndex { get; set; }
+
+    /// <summary>Lifecycle status of the hosted call: `in_progress`, `searching`, or `completed`.</summary>
+    [JsonPropertyName("status")]
+    public required string Status { get; set; }
+}
+
 /// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
 public sealed partial class AssistantReasoningData
 {
@@ -3564,6 +3609,11 @@ public sealed partial class SamplingCompletedData
 /// <summary>OAuth authentication request for an MCP server.</summary>
 public sealed partial class McpOauthRequiredData
 {
+    /// <summary>Raw HTTP response details from the OAuth auth challenge, as observed by the runtime. Header order and casing are transport-dependent, and duplicate header names may appear multiple times.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("httpResponse")]
+    public McpOauthHttpResponse? HttpResponse { get; set; }
+
     /// <summary>Why the runtime is requesting host-provided OAuth credentials.</summary>
     [JsonPropertyName("reason")]
     public required McpOauthRequestReason Reason { get; set; }
@@ -3850,6 +3900,40 @@ public sealed partial class SessionAutoModeResolvedData
     public AutoModeResolvedReasoningBucket? ReasoningBucket { get; set; }
 }
 
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server &gt; device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionManagedSettingsResolvedData
+{
+    /// <summary>Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.</summary>
+    [JsonPropertyName("bypassPermissionsDisabled")]
+    public required bool BypassPermissionsDisabled { get; set; }
+
+    /// <summary>Whether the device (MDM/plist/registry/file) managed-settings layer was present.</summary>
+    [JsonPropertyName("deviceManaged")]
+    public required bool DeviceManaged { get; set; }
+
+    /// <summary>Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.</summary>
+    [JsonPropertyName("failClosed")]
+    public required bool FailClosed { get; set; }
+
+    /// <summary>The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.</summary>
+    [JsonPropertyName("managedKeys")]
+    public required string[] ManagedKeys { get; set; }
+
+    /// <summary>Whether the server (account/org) managed-settings layer was present.</summary>
+    [JsonPropertyName("serverManaged")]
+    public required bool ServerManaged { get; set; }
+
+    /// <summary>The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("settings")]
+    public JsonElement? Settings { get; set; }
+
+    /// <summary>Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force.</summary>
+    [JsonPropertyName("source")]
+    public required ManagedSettingsResolvedSource Source { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public sealed partial class CommandsChangedData
 {
@@ -3981,7 +4065,7 @@ public sealed partial class SessionMcpServerStatusChangedData
     public required McpServerStatus Status { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 public sealed partial class McpToolsListChangedData
 {
     /// <summary>Name of the MCP server whose list changed.</summary>
@@ -3989,7 +4073,7 @@ public sealed partial class McpToolsListChangedData
     public required string ServerName { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 public sealed partial class McpResourcesListChangedData
 {
     /// <summary>Name of the MCP server whose list changed.</summary>
@@ -3997,7 +4081,7 @@ public sealed partial class McpResourcesListChangedData
     public required string ServerName { get; set; }
 }
 
-/// <summary>Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.</summary>
+/// <summary>Payload identifying the MCP server associated with a list change.</summary>
 public sealed partial class McpPromptsListChangedData
 {
     /// <summary>Name of the MCP server whose list changed.</summary>
@@ -7525,6 +7609,37 @@ public sealed partial class ElicitationRequestedSchema
     public required string Type { get; set; }
 }
 
+/// <summary>Single HTTP header entry as a name/value pair.</summary>
+/// <remarks>Nested data type for <c>HeaderEntry</c>.</remarks>
+public sealed partial class HeaderEntry
+{
+    /// <summary>HTTP response header name as observed by the runtime.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>HTTP response header value as observed by the runtime.</summary>
+    [JsonPropertyName("value")]
+    public required string Value { get; set; }
+}
+
+/// <summary>Raw HTTP response details from the OAuth auth challenge, as observed by the runtime.</summary>
+/// <remarks>Nested data type for <c>McpOauthHttpResponse</c>.</remarks>
+public sealed partial class McpOauthHttpResponse
+{
+    /// <summary>Complete UTF-8 response body for host-specific challenge handling, including an empty string for an empty body. Omitted when the complete body is not valid UTF-8; body read failures fail the HTTP operation rather than exposing a partial response.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
+
+    /// <summary>HTTP response headers as observed by the runtime. Order and casing are transport-dependent, and duplicate header names may appear multiple times.</summary>
+    [JsonPropertyName("headers")]
+    public required HeaderEntry[] Headers { get; set; }
+
+    /// <summary>HTTP status code returned with the auth challenge.</summary>
+    [JsonPropertyName("statusCode")]
+    public required int StatusCode { get; set; }
+}
+
 /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
 /// <remarks>Nested data type for <c>McpOauthRequiredStaticClientConfig</c>.</remarks>
 public sealed partial class McpOauthRequiredStaticClientConfig
@@ -10690,6 +10805,70 @@ public readonly struct AutoModeResolvedReasoningBucket : IEquatable<AutoModeReso
     }
 }
 
+/// <summary>Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSettingsResolvedSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedSettingsResolvedSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedSettingsResolvedSource"/>.</param>
+    [JsonConstructor]
+    public ManagedSettingsResolvedSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedSettingsResolvedSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).</summary>
+    public static ManagedSettingsResolvedSource Server { get; } = new("server");
+
+    /// <summary>Device-level MDM policy discovered from plist/registry/file (lower authority).</summary>
+    public static ManagedSettingsResolvedSource Device { get; } = new("device");
+
+    /// <summary>No managed policy is in force (no layer contributed).</summary>
+    public static ManagedSettingsResolvedSource None { get; } = new("none");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsResolvedSource"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedSettingsResolvedSource left, ManagedSettingsResolvedSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsResolvedSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedSettingsResolvedSource left, ManagedSettingsResolvedSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedSettingsResolvedSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedSettingsResolvedSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedSettingsResolvedSource}"/> for serializing <see cref="ManagedSettingsResolvedSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedSettingsResolvedSource>
+    {
+        /// <inheritdoc />
+        public override ManagedSettingsResolvedSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedSettingsResolvedSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedSettingsResolvedSource));
+        }
+    }
+}
+
 /// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -11197,6 +11376,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantReasoningDeltaData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaEvent))]
 [JsonSerializable(typeof(AssistantReasoningEvent))]
+[JsonSerializable(typeof(AssistantServerToolProgressData))]
+[JsonSerializable(typeof(AssistantServerToolProgressEvent))]
 [JsonSerializable(typeof(AssistantStreamingDeltaData))]
 [JsonSerializable(typeof(AssistantStreamingDeltaEvent))]
 [JsonSerializable(typeof(AssistantToolCallDeltaData))]
@@ -11282,6 +11463,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
 [JsonSerializable(typeof(GitHubRepoRef))]
 [JsonSerializable(typeof(HandoffRepository))]
+[JsonSerializable(typeof(HeaderEntry))]
 [JsonSerializable(typeof(HookEndData))]
 [JsonSerializable(typeof(HookEndError))]
 [JsonSerializable(typeof(HookEndEvent))]
@@ -11300,6 +11482,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(McpHeadersRefreshRequiredEvent))]
 [JsonSerializable(typeof(McpOauthCompletedData))]
 [JsonSerializable(typeof(McpOauthCompletedEvent))]
+[JsonSerializable(typeof(McpOauthHttpResponse))]
 [JsonSerializable(typeof(McpOauthRequiredData))]
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
 [JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
@@ -11413,6 +11596,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedData))]
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedEvent))]
 [JsonSerializable(typeof(SessionLimitsExhaustedResponse))]
+[JsonSerializable(typeof(SessionManagedSettingsResolvedData))]
+[JsonSerializable(typeof(SessionManagedSettingsResolvedEvent))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedEvent))]
 [JsonSerializable(typeof(SessionMcpServersLoadedData))]

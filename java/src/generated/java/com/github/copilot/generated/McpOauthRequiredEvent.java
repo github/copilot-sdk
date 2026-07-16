@@ -44,6 +44,8 @@ public final class McpOauthRequiredEvent extends SessionEvent {
         @JsonProperty("staticClientConfig") McpOauthRequiredStaticClientConfig staticClientConfig,
         /** OAuth WWW-Authenticate parameters parsed from the auth challenge, if available */
         @JsonProperty("wwwAuthenticateParams") McpOauthWWWAuthenticateParams wwwAuthenticateParams,
+        /** Raw HTTP response details from the OAuth auth challenge, as observed by the runtime. Header order and casing are transport-dependent, and duplicate header names may appear multiple times. */
+        @JsonProperty("httpResponse") McpOauthHttpResponse httpResponse,
         /** Raw OAuth protected-resource metadata document fetched for the MCP server, if available */
         @JsonProperty("resourceMetadata") String resourceMetadata,
         /** Why the runtime is requesting host-provided OAuth credentials. */

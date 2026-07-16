@@ -73,6 +73,8 @@ from .generated.rpc import (
     RemoteSessionMode,
     ServerRpc,
     _ConnectResult,
+    _HookInvokeRequest,
+    _HookInvokeResponse,
     from_datetime,
     register_client_global_api_handlers,
     register_client_session_api_handlers,
@@ -477,6 +479,25 @@ class _GitHubTelemetryAdapter:
                 await result
         except Exception:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
+
+
+class _HooksAdapter:
+    """Adapts session-scoped hook dispatch to the generated ``HooksHandler`` protocol.
+
+    ``hooks.invoke`` is a client-global RPC method whose payload carries a
+    ``sessionId``. This adapter routes each invocation to the matching session's
+    registered hook handlers.
+    """
+
+    def __init__(self, get_session: Callable[[str], CopilotSession | None]) -> None:
+        self._get_session = get_session
+
+    async def invoke(self, params: _HookInvokeRequest) -> _HookInvokeResponse:
+        session = self._get_session(params.session_id)
+        if session is None:
+            raise ValueError(f"unknown session {params.session_id}")
+        output = await session._handle_hooks_invoke(params.hook_type.value, params.input)
+        return _HookInvokeResponse(output=output)
 
 
 @dataclass
@@ -4072,7 +4093,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -4192,7 +4212,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -4282,15 +4301,18 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
-        if llm_inference_adapter is None and github_telemetry_adapter is None:
-            return
         register_client_global_api_handlers(
             self._client,
             ClientGlobalApiHandlers(
+                hooks=_HooksAdapter(self._get_session),
                 llm_inference=llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
             ),
         )
+
+    def _get_session(self, session_id: str) -> CopilotSession | None:
+        with self._sessions_lock:
+            return self._sessions.get(session_id)
 
     async def _set_llm_inference_provider(self) -> None:
         if self._request_handler is None or self._rpc is None:
@@ -4363,34 +4385,6 @@ class CopilotClient:
 
         response = await session._handle_auto_mode_switch_request(params)
         return {"response": response}
-
-    async def _handle_hooks_invoke(self, params: dict) -> dict:
-        """
-        Handle a hooks invocation from the CLI server.
-
-        Args:
-            params: The hooks invocation parameters from the server.
-
-        Returns:
-            A dict containing the hook output.
-
-        Raises:
-            ValueError: If the request payload is invalid.
-        """
-        session_id = params.get("sessionId")
-        hook_type = params.get("hookType")
-        input_data = params.get("input")
-
-        if not session_id or not hook_type:
-            raise ValueError("invalid hooks invoke payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
-        output = await session._handle_hooks_invoke(hook_type, input_data)
-        return {"output": output}
 
     async def _handle_system_message_transform(self, params: dict) -> dict:
         """Handle a systemMessage.transform request from the CLI server."""
