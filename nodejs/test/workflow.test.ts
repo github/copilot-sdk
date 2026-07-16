@@ -212,6 +212,32 @@ describe("workflows", () => {
         });
     });
 
+    it("rejects nested workflows without forwarding a runNested request", async () => {
+        const sendRequest = vi.fn(async () => {
+            throw new Error("Unexpected forward request");
+        });
+        const session = new CopilotSession("session-no-nesting", { sendRequest } as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "no-nesting",
+                description: "Nested workflow rejection test",
+                phases: [],
+            },
+            run: async (context) => context.workflow("nested", { value: 42 }),
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "no-nesting",
+                runId: "run-no-nesting",
+                args: {},
+            })
+        ).rejects.toThrow("nested workflows are not supported");
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
     it("flushes progress incrementally while a workflow body is awaiting", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-live-progress", { sendRequest } as never);

@@ -1109,10 +1109,6 @@ export class CopilotSession {
                     await self.rpc.workflow.log({ runId: params.runId, lines });
                 });
                 try {
-                    const unsupported = async (method: string): Promise<never> => {
-                        await progress.flush();
-                        throw new Error(`${method} is not yet supported`);
-                    };
                     const context: WorkflowContext = {
                         args: params.args,
                         session: self,
@@ -1184,7 +1180,9 @@ export class CopilotSession {
                         },
                         parallel: runWorkflowParallel,
                         pipeline: runWorkflowPipeline,
-                        workflow: async () => unsupported("workflow.runNested"),
+                        workflow: async () => {
+                            throw new Error("nested workflows are not supported");
+                        },
                     };
                     const result = await definition.run(context);
                     return { result } as WorkflowExecuteResult;
