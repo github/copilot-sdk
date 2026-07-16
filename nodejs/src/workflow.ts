@@ -93,6 +93,15 @@ export interface RunOptions<TArgs = unknown> {
 
 /** Friendly workflow API exposed on a session. */
 export interface SessionWorkflowApi {
+    run(name: string, options: RunOptions & { background: true }): Promise<WorkflowRunResult>;
+    run<TResult = unknown>(
+        name: string,
+        options?: RunOptions & { background?: false }
+    ): Promise<TResult>;
+    run<TResult = unknown>(
+        name: string,
+        options?: RunOptions
+    ): Promise<TResult | WorkflowRunResult>;
     run<TArgs, TResult>(
         workflow: WorkflowHandle<TArgs, TResult>,
         options: RunOptions<TArgs> & { background: true }
@@ -104,15 +113,6 @@ export interface SessionWorkflowApi {
     run<TArgs, TResult>(
         workflow: WorkflowHandle<TArgs, TResult>,
         options?: RunOptions<TArgs>
-    ): Promise<TResult | WorkflowRunResult>;
-    run(name: string, options: RunOptions & { background: true }): Promise<WorkflowRunResult>;
-    run<TResult = unknown>(
-        name: string,
-        options?: RunOptions & { background?: false }
-    ): Promise<TResult>;
-    run<TResult = unknown>(
-        name: string,
-        options?: RunOptions
     ): Promise<TResult | WorkflowRunResult>;
     /** Read the latest durable envelope for a workflow run. */
     getRun(runId: string): Promise<WorkflowRunResult>;
@@ -137,7 +137,6 @@ interface StoredWorkflow {
     run(context: WorkflowContext<unknown>): Promise<unknown>;
 }
 
-const workflowDefinitions = new Map<string, StoredWorkflow>();
 const workflowHandles = new WeakMap<object, StoredWorkflow>();
 
 function validateLimits(meta: WorkflowMeta): void {
@@ -172,7 +171,6 @@ export function defineWorkflow<TArgs = unknown, TResult = unknown>(
     };
     const handle = Object.freeze({ meta: definition.meta }) as WorkflowHandle<TArgs, TResult>;
 
-    workflowDefinitions.set(definition.meta.name, stored);
     workflowHandles.set(handle, stored);
     return handle;
 }

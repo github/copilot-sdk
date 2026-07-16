@@ -698,32 +698,45 @@ describe("workflows", () => {
         agentResponse.resolve({ result: "late" });
     });
 
-    it("dispatches workflow.execute by name and returns a structured unknown-name error", async () => {
-        const run = vi.fn(async ({ args, log }) => {
+    it("dispatches workflow.execute to the registered workflow selected by name", async () => {
+        const firstRun = vi.fn(async () => ({ selected: "first" }));
+        const secondRun = vi.fn(async ({ args, log }) => {
             log("executing");
-            return { echoed: args };
+            return { selected: "second", echoed: args };
         });
-        const workflow = defineWorkflow({
+        const firstWorkflow = defineWorkflow({
             meta: {
-                name: "echo",
-                description: "Echo arguments",
+                name: "first",
+                description: "First workflow",
                 phases: [],
             },
-            run,
+            run: firstRun,
+        });
+        const secondWorkflow = defineWorkflow({
+            meta: {
+                name: "second",
+                description: "Second workflow",
+                phases: [],
+            },
+            run: secondRun,
         });
         const session = new CopilotSession("session-execute", {
             sendRequest: vi.fn(async () => ({})),
         } as never);
-        session.registerWorkflows([workflow]);
+        session.registerWorkflows([firstWorkflow, secondWorkflow]);
 
         await expect(
             session.clientSessionApis.workflow!.execute({
                 sessionId: session.sessionId,
-                name: "echo",
+                name: "second",
                 runId: "run-echo",
                 args: { message: "hello" },
             })
-        ).resolves.toEqual({ result: { echoed: { message: "hello" } } });
+        ).resolves.toEqual({
+            result: { selected: "second", echoed: { message: "hello" } },
+        });
+        expect(firstRun).not.toHaveBeenCalled();
+        expect(secondRun).toHaveBeenCalledOnce();
 
         const error = await session.clientSessionApis
             .workflow!.execute({
