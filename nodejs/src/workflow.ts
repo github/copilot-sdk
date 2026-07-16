@@ -47,7 +47,9 @@ export interface WorkflowContext<TArgs = unknown> {
         options?: WorkflowStepOptions
     ): Promise<TResult>;
     /** Run thunks concurrently, returning null for a thunk that throws. */
-    parallel<TResult>(thunks: Array<() => Promise<TResult>>): Promise<Array<TResult | null>>;
+    parallel<TResult>(
+        thunks: Array<() => Promise<TResult> | TResult>
+    ): Promise<Array<TResult | null>>;
     /** Run each item through every stage without barriers between stages. */
     pipeline(items: unknown[], ...stages: WorkflowPipelineStage[]): Promise<unknown[]>;
     /** Start a named workflow progress phase. */
