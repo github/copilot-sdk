@@ -77,6 +77,8 @@ pub enum SessionEventType {
     AssistantTurnStart,
     #[serde(rename = "assistant.intent")]
     AssistantIntent,
+    #[serde(rename = "assistant.server_tool_progress")]
+    AssistantServerToolProgress,
     #[serde(rename = "assistant.reasoning")]
     AssistantReasoning,
     #[serde(rename = "assistant.reasoning_delta")]
@@ -195,6 +197,15 @@ pub enum SessionEventType {
     /// </div>
     #[serde(rename = "session.auto_mode_resolved")]
     SessionAutoModeResolved,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_resolved")]
+    SessionManagedSettingsResolved,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -359,6 +370,8 @@ pub enum SessionEventData {
     AssistantTurnStart(AssistantTurnStartData),
     #[serde(rename = "assistant.intent")]
     AssistantIntent(AssistantIntentData),
+    #[serde(rename = "assistant.server_tool_progress")]
+    AssistantServerToolProgress(AssistantServerToolProgressData),
     #[serde(rename = "assistant.reasoning")]
     AssistantReasoning(AssistantReasoningData),
     #[serde(rename = "assistant.reasoning_delta")]
@@ -470,6 +483,15 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "session.auto_mode_resolved")]
     SessionAutoModeResolved(SessionAutoModeResolvedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_resolved")]
+    SessionManagedSettingsResolved(SessionManagedSettingsResolvedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -1459,6 +1481,18 @@ pub struct AssistantTurnStartData {
 pub struct AssistantIntentData {
     /// Short description of what the agent is currently doing or planning to do
     pub intent: String,
+}
+
+/// Session event "assistant.server_tool_progress". Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantServerToolProgressData {
+    /// Kind of hosted server tool that is running. Only `web_search` is emitted today.
+    pub kind: String,
+    /// Position of the hosted tool call in the response output. Stable across the call's lifecycle events (unlike the provider's per-event item id, which CAPI rotates), so the host keys the live in-progress row on it.
+    pub output_index: i64,
+    /// Lifecycle status of the hosted call: `in_progress`, `searching`, or `completed`.
+    pub status: String,
 }
 
 /// Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
@@ -3653,6 +3687,29 @@ pub struct SamplingCompletedData {
     pub request_id: RequestId,
 }
 
+/// Single HTTP header entry as a name/value pair.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeaderEntry {
+    /// HTTP response header name as observed by the runtime.
+    pub name: String,
+    /// HTTP response header value as observed by the runtime.
+    pub value: String,
+}
+
+/// Raw HTTP response details from the OAuth auth challenge, as observed by the runtime.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthHttpResponse {
+    /// Complete UTF-8 response body for host-specific challenge handling, including an empty string for an empty body. Omitted when the complete body is not valid UTF-8; body read failures fail the HTTP operation rather than exposing a partial response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// HTTP response headers as observed by the runtime. Order and casing are transport-dependent, and duplicate header names may appear multiple times.
+    pub headers: Vec<HeaderEntry>,
+    /// HTTP status code returned with the auth challenge.
+    pub status_code: i32,
+}
+
 /// Static OAuth client configuration, if the server specifies one
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3689,6 +3746,9 @@ pub struct McpOauthWWWAuthenticateParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
+    /// Raw HTTP response details from the OAuth auth challenge, as observed by the runtime. Header order and casing are transport-dependent, and duplicate header names may appear multiple times.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_response: Option<McpOauthHttpResponse>,
     /// Why the runtime is requesting host-provided OAuth credentials.
     pub reason: McpOauthRequestReason,
     /// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
@@ -3916,6 +3976,34 @@ pub struct SessionAutoModeResolvedData {
     pub reasoning_bucket: Option<AutoModeResolvedReasoningBucket>,
 }
 
+/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettingsResolvedData {
+    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    pub bypass_permissions_disabled: bool,
+    /// Whether the device (MDM/plist/registry/file) managed-settings layer was present
+    pub device_managed: bool,
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    pub fail_closed: bool,
+    /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
+    pub managed_keys: Vec<String>,
+    /// Whether the server (account/org) managed-settings layer was present
+    pub server_managed: bool,
+    /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<serde_json::Value>,
+    /// Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force
+    pub source: ManagedSettingsResolvedSource,
+}
+
 /// A single slash command available in the session, as listed by the `commands.changed` event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4119,7 +4207,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub status: McpServerStatus,
 }
 
-/// Session event "mcp.tools.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolsListChangedData {
@@ -4127,7 +4215,7 @@ pub struct McpToolsListChangedData {
     pub server_name: String,
 }
 
-/// Session event "mcp.resources.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.resources.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpResourcesListChangedData {
@@ -4135,7 +4223,7 @@ pub struct McpResourcesListChangedData {
     pub server_name: String,
 }
 
-/// Session event "mcp.prompts.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.prompts.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpPromptsListChangedData {
@@ -5564,6 +5652,24 @@ pub enum AutoModeResolvedReasoningBucket {
     /// The request looks high-reasoning; a stronger model is appropriate.
     #[serde(rename = "high")]
     High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedSettingsResolvedSource {
+    /// Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+    #[serde(rename = "server")]
+    Server,
+    /// Device-level MDM policy discovered from plist/registry/file (lower authority).
+    #[serde(rename = "device")]
+    Device,
+    /// No managed policy is in force (no layer contributed).
+    #[serde(rename = "none")]
+    None,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

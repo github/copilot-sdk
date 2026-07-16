@@ -4241,6 +4241,19 @@ internal sealed class ModelSetReasoningEffortRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Cost-category metadata for a CAPI model.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionModelPriceCategory
+{
+    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the <c>priceCategory</c> value.</summary>
+    [JsonPropertyName("priceCategory")]
+    public ModelPickerPriceCategory PriceCategory { get; set; }
+}
+
 /// <summary>The list of models available to this session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionModelList
@@ -4248,6 +4261,10 @@ public sealed class SessionModelList
     /// <summary>Available models, ordered with the most preferred default first. Includes both Copilot (CAPI) models and any registry BYOK models; a BYOK model appears under its provider-qualified selection id (`provider/id`).</summary>
     [JsonPropertyName("list")]
     public IList<JsonElement> List { get => field ??= []; set; }
+
+    /// <summary>Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.</summary>
+    [JsonPropertyName("modelPriceCategories")]
+    public IList<SessionModelPriceCategory>? ModelPriceCategories { get; set; }
 
     /// <summary>Per-quota snapshots returned alongside the model list, keyed by quota type.</summary>
     [JsonPropertyName("quotaSnapshots")]
@@ -5725,7 +5742,20 @@ internal sealed class SessionMcpListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>MCP tool metadata with tool name and optional description.</summary>
+/// <summary>Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpToolUi
+{
+    /// <summary>URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use `session.mcp.resources.read` to fetch its HTML and resource metadata.</summary>
+    [JsonPropertyName("resourceUri")]
+    public string? ResourceUri { get; set; }
+
+    /// <summary>Tool visibility advertised by the server. When absent, MCP Apps defaults apply.</summary>
+    [JsonPropertyName("visibility")]
+    public IList<McpToolUiVisibility>? Visibility { get; set; }
+}
+
+/// <summary>MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpTools
 {
@@ -5736,6 +5766,10 @@ public sealed class McpTools
     /// <summary>Tool name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields.</summary>
+    [JsonPropertyName("ui")]
+    public McpToolUi? Ui { get; set; }
 }
 
 /// <summary>Tools exposed by the connected MCP server. Throws when the server is not connected.</summary>
@@ -7136,6 +7170,10 @@ internal sealed class ProviderAddRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionUpdateOptionsResult
 {
+    /// <summary>Number of hooks loaded from installed plugins, returned when installedPlugins is updated.</summary>
+    [JsonPropertyName("pluginHookCount")]
+    public long? PluginHookCount { get; set; }
+
     /// <summary>Whether the operation succeeded.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
@@ -12406,6 +12444,32 @@ public sealed class CanvasProviderInvokeActionRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Optional output returned by an SDK callback hook.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HookInvokeResponse
+{
+    /// <summary>Gets or sets the <c>output</c> value.</summary>
+    [JsonPropertyName("output")]
+    public JsonElement? Output { get; set; }
+}
+
+/// <summary>Runtime-owned wire payload for a server-to-client hook callback invocation.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HookInvokeRequest
+{
+    /// <summary>Gets or sets the <c>hookType</c> value.</summary>
+    [JsonPropertyName("hookType")]
+    public HookType HookType { get; set; }
+
+    /// <summary>Gets or sets the <c>input</c> value.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement Input { get; set; }
+
+    /// <summary>Gets or sets the <c>sessionId</c> value.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class LlmInferenceHttpRequestStartResult
@@ -15539,6 +15603,69 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
+        }
+    }
+}
+
+
+/// <summary>Consumer allowed to call an MCP tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpToolUiVisibility : IEquatable<McpToolUiVisibility>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpToolUiVisibility"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpToolUiVisibility"/>.</param>
+    [JsonConstructor]
+    public McpToolUiVisibility(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpToolUiVisibility"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The model may call the tool.</summary>
+    public static McpToolUiVisibility Model { get; } = new("model");
+
+    /// <summary>An MCP App view may call the tool.</summary>
+    public static McpToolUiVisibility App { get; } = new("app");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpToolUiVisibility"/> instances are equivalent.</summary>
+    public static bool operator ==(McpToolUiVisibility left, McpToolUiVisibility right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpToolUiVisibility"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpToolUiVisibility left, McpToolUiVisibility right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpToolUiVisibility other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpToolUiVisibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpToolUiVisibility}"/> for serializing <see cref="McpToolUiVisibility"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpToolUiVisibility>
+    {
+        /// <inheritdoc />
+        public override McpToolUiVisibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpToolUiVisibility value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpToolUiVisibility));
         }
     }
 }
@@ -18928,6 +19055,111 @@ public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQuer
 }
 
 
+/// <summary>Hook event name dispatched through the SDK callback transport.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct HookType : IEquatable<HookType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="HookType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="HookType"/>.</param>
+    [JsonConstructor]
+    public HookType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="HookType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Runs before a tool is invoked.</summary>
+    public static HookType PreToolUse { get; } = new("preToolUse");
+
+    /// <summary>Runs before an MCP tool is invoked.</summary>
+    public static HookType PreMcpToolCall { get; } = new("preMcpToolCall");
+
+    /// <summary>Runs after a tool completes successfully.</summary>
+    public static HookType PostToolUse { get; } = new("postToolUse");
+
+    /// <summary>Runs after a tool fails.</summary>
+    public static HookType PostToolUseFailure { get; } = new("postToolUseFailure");
+
+    /// <summary>Runs after the user submits a prompt.</summary>
+    public static HookType UserPromptSubmitted { get; } = new("userPromptSubmitted");
+
+    /// <summary>Runs when a session starts.</summary>
+    public static HookType SessionStart { get; } = new("sessionStart");
+
+    /// <summary>Runs when a session ends.</summary>
+    public static HookType SessionEnd { get; } = new("sessionEnd");
+
+    /// <summary>Runs after an agent result is produced.</summary>
+    public static HookType PostResult { get; } = new("postResult");
+
+    /// <summary>Runs before a pull request description is generated.</summary>
+    public static HookType PrePRDescription { get; } = new("prePRDescription");
+
+    /// <summary>Runs when the agent encounters an error.</summary>
+    public static HookType ErrorOccurred { get; } = new("errorOccurred");
+
+    /// <summary>Runs when the agent stops.</summary>
+    public static HookType AgentStop { get; } = new("agentStop");
+
+    /// <summary>Runs when a subagent starts.</summary>
+    public static HookType SubagentStart { get; } = new("subagentStart");
+
+    /// <summary>Runs when a subagent stops.</summary>
+    public static HookType SubagentStop { get; } = new("subagentStop");
+
+    /// <summary>Runs before conversation context is compacted.</summary>
+    public static HookType PreCompact { get; } = new("preCompact");
+
+    /// <summary>Runs when the agent requests permission.</summary>
+    public static HookType PermissionRequest { get; } = new("permissionRequest");
+
+    /// <summary>Runs when the agent emits a notification.</summary>
+    public static HookType Notification { get; } = new("notification");
+
+    /// <summary>Returns a value indicating whether two <see cref="HookType"/> instances are equivalent.</summary>
+    public static bool operator ==(HookType left, HookType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="HookType"/> instances are not equivalent.</summary>
+    public static bool operator !=(HookType left, HookType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HookType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(HookType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{HookType}"/> for serializing <see cref="HookType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<HookType>
+    {
+        /// <inheritdoc />
+        public override HookType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, HookType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HookType));
+        }
+    }
+}
+
+
 /// <summary>Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -21428,7 +21660,7 @@ public sealed class McpApi
         return await CopilotClient.InvokeRpcAsync<McpServerList>(_session.Rpc, "session.mcp.list", [request], cancellationToken);
     }
 
-    /// <summary>Lists the tools exposed by a connected MCP server on this session's host.</summary>
+    /// <summary>Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.</summary>
     /// <param name="serverName">Name of the connected MCP server whose tools to list.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Tools exposed by the connected MCP server. Throws when the server is not connected.</returns>
@@ -23599,6 +23831,17 @@ internal static class ClientSessionApiRegistration
     }
 }
 
+/// <summary>Handles `hooks` client global API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
+public interface IHooksHandler
+{
+    /// <summary>Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.</summary>
+    /// <param name="request">Runtime-owned wire payload for a server-to-client hook callback invocation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Optional output returned by an SDK callback hook.</returns>
+    Task<HookInvokeResponse> InvokeAsync(HookInvokeRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handles `llmInference` client global API methods.</summary>
 [Experimental(Diagnostics.Experimental)]
 public interface ILlmInferenceHandler
@@ -23628,6 +23871,9 @@ public interface IGitHubTelemetryHandler
 /// <summary>Provides all client global API handler groups for a connection.</summary>
 public sealed class ClientGlobalApiHandlers
 {
+    /// <summary>Optional handler for Hooks client global API methods.</summary>
+    public IHooksHandler? Hooks { get; set; }
+
     /// <summary>Optional handler for LlmInference client global API methods.</summary>
     public ILlmInferenceHandler? LlmInference { get; set; }
 
@@ -23646,6 +23892,11 @@ internal static class ClientGlobalApiRegistration
     /// </summary>
     public static void RegisterClientGlobalApiHandlers(JsonRpc rpc, ClientGlobalApiHandlers handlers)
     {
+        rpc.SetLocalRpcMethod("hooks.invoke", (Func<HookInvokeRequest, CancellationToken, ValueTask<HookInvokeResponse>>)(async (request, cancellationToken) =>
+        {
+            var handler = handlers.Hooks ?? throw new InvalidOperationException("No hooks client-global handler registered");
+            return await handler.InvokeAsync(request, cancellationToken);
+        }), singleObjectParam: true);
         rpc.SetLocalRpcMethod("llmInference.httpRequestStart", (Func<LlmInferenceHttpRequestStartRequest, CancellationToken, ValueTask<LlmInferenceHttpRequestStartResult>>)(async (request, cancellationToken) =>
         {
             var handler = handlers.LlmInference ?? throw new InvalidOperationException("No llmInference client-global handler registered");
@@ -23693,6 +23944,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantServerToolProgressData), TypeInfoPropertyName = "SessionEventsAssistantServerToolProgressData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantServerToolProgressEvent), TypeInfoPropertyName = "SessionEventsAssistantServerToolProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AssistantToolCallDeltaData), TypeInfoPropertyName = "SessionEventsAssistantToolCallDeltaData")]
@@ -23793,6 +24046,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.GitHubRepoRef), TypeInfoPropertyName = "SessionEventsGitHubRepoRef")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
+[JsonSerializable(typeof(GitHub.Copilot.HeaderEntry), TypeInfoPropertyName = "SessionEventsHeaderEntry")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
@@ -23800,6 +24054,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.HookProgressEvent), TypeInfoPropertyName = "SessionEventsHookProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ManagedSettingsResolvedSource), TypeInfoPropertyName = "SessionEventsManagedSettingsResolvedSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteData), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteError), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteError")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteEvent), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteEvent")]
@@ -23814,6 +24069,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletionOutcome), TypeInfoPropertyName = "SessionEventsMcpOauthCompletionOutcome")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthHttpResponse), TypeInfoPropertyName = "SessionEventsMcpOauthHttpResponse")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequestReason), TypeInfoPropertyName = "SessionEventsMcpOauthRequestReason")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
@@ -24098,6 +24354,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
 [JsonSerializable(typeof(HistoryTruncateResult))]
+[JsonSerializable(typeof(HookInvokeRequest))]
+[JsonSerializable(typeof(HookInvokeResponse))]
 [JsonSerializable(typeof(IDictionary<string, JsonElement>))]
 [JsonSerializable(typeof(IList<AccountAllUsers>))]
 [JsonSerializable(typeof(InstalledPlugin))]
@@ -24201,6 +24459,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpStartServerRequest))]
 [JsonSerializable(typeof(McpStartServersResult))]
 [JsonSerializable(typeof(McpStopServerRequest))]
+[JsonSerializable(typeof(McpToolUi))]
 [JsonSerializable(typeof(McpTools))]
 [JsonSerializable(typeof(McpUnregisterExternalClientRequest))]
 [JsonSerializable(typeof(MetadataContextAttributionResult))]
@@ -24454,6 +24713,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionModelList))]
+[JsonSerializable(typeof(SessionModelPriceCategory))]
 [JsonSerializable(typeof(SessionNameGetRequest))]
 [JsonSerializable(typeof(SessionOpenResult))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]

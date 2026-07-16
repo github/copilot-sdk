@@ -10,22 +10,20 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
+ * Optional output returned by an SDK callback hook.
  *
+ * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
+@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpTools(
-    /** Tool name. */
-    @JsonProperty("name") String name,
-    /** Tool description, when provided. */
-    @JsonProperty("description") String description,
-    /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
-    @JsonProperty("ui") McpToolUi ui
+public record HooksInvokeResult(
+    @JsonProperty("output") Object output
 ) {
 }

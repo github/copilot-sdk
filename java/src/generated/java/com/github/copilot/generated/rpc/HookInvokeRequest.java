@@ -13,19 +13,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
+ * Runtime-owned wire payload for a server-to-client hook callback invocation.
  *
  * @since 1.0.0
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record McpTools(
-    /** Tool name. */
-    @JsonProperty("name") String name,
-    /** Tool description, when provided. */
-    @JsonProperty("description") String description,
-    /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
-    @JsonProperty("ui") McpToolUi ui
+public record HookInvokeRequest(
+    @JsonProperty("sessionId") String sessionId,
+    @JsonProperty("hookType") HookType hookType,
+    @JsonProperty("input") Object input
 ) {
 }
