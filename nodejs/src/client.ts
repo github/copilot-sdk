@@ -85,7 +85,7 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
-import type { WorkflowHandle } from "./workflow.js";
+import type { OrchestrationHandle } from "./orchestration.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -1671,15 +1671,15 @@ export class CopilotClient {
     async resumeSessionForExtension(
         sessionId: string,
         config: ResumeSessionConfig,
-        workflows?: WorkflowHandle[]
+        orchestrations?: OrchestrationHandle[]
     ): Promise<CopilotSession> {
-        return this.resumeSessionInternal(sessionId, config, workflows);
+        return this.resumeSessionInternal(sessionId, config, orchestrations);
     }
 
     private async resumeSessionInternal(
         sessionId: string,
         config: ResumeSessionConfig,
-        workflows?: WorkflowHandle[]
+        orchestrations?: OrchestrationHandle[]
     ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
@@ -1697,7 +1697,7 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
-        session.registerWorkflows(workflows);
+        session.registerOrchestrations(orchestrations);
         const {
             wireProvider: bearerWireProvider,
             wireProviders: bearerWireProviders,
@@ -1769,7 +1769,7 @@ export class CopilotClient {
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
-                workflows: workflows?.map((workflow) => workflow.meta),
+                orchestrations: orchestrations?.map((orchestration) => orchestration.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
