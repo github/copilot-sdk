@@ -105,6 +105,63 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
 }
 
 const WORKFLOW_LOG_FLUSH_DELAY_MS = 10;
+const MAX_WORKFLOW_FANOUT_ITEMS = 4096;
+
+function assertWorkflowFanoutSize(kind: "parallel" | "pipeline", size: number): void {
+    if (size > MAX_WORKFLOW_FANOUT_ITEMS) {
+        throw new Error(
+            `${kind}() accepts at most ${MAX_WORKFLOW_FANOUT_ITEMS} items; got ${size}.`
+        );
+    }
+}
+
+async function runWorkflowParallel<TResult>(
+    thunks: Array<() => Promise<TResult> | TResult>
+): Promise<Array<TResult | null>> {
+    if (!Array.isArray(thunks)) {
+        throw new Error(
+            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
+        );
+    }
+    assertWorkflowFanoutSize("parallel", thunks.length);
+    if (thunks.some((thunk) => typeof thunk !== "function")) {
+        throw new Error(
+            "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
+        );
+    }
+    return Promise.all(
+        thunks.map((thunk) =>
+            Promise.resolve()
+                .then(() => thunk())
+                .catch(() => null)
+        )
+    );
+}
+
+async function runWorkflowPipeline(
+    items: unknown[],
+    ...stages: Array<
+        (previous: unknown, item: unknown, index: number) => Promise<unknown> | unknown
+    >
+): Promise<unknown[]> {
+    if (!Array.isArray(items)) {
+        throw new Error("pipeline(items, ...stages): items must be an array");
+    }
+    assertWorkflowFanoutSize("pipeline", items.length);
+    return Promise.all(
+        items.map(async (item, index) => {
+            let previous = item;
+            for (const stage of stages) {
+                try {
+                    previous = await stage(previous, item, index);
+                } catch {
+                    return null;
+                }
+            }
+            return previous;
+        })
+    );
+}
 
 class WorkflowProgressBuffer {
     private nextSeq = 0;
@@ -1045,8 +1102,8 @@ export class CopilotSession {
                             return response.result ?? null;
                         },
                         step: async () => unsupported("workflow.step"),
-                        parallel: async () => unsupported("workflow.parallel"),
-                        pipeline: async () => unsupported("workflow.pipeline"),
+                        parallel: runWorkflowParallel,
+                        pipeline: runWorkflowPipeline,
                         workflow: async () => unsupported("workflow.runNested"),
                     };
                     const result = await definition.run(context);
