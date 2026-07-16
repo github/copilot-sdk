@@ -284,6 +284,82 @@ describe("workflows", () => {
         });
     });
 
+    it("runs a durable step once, serves cached null, and does not cache failures", async () => {
+        const journal = new Map<string, unknown>();
+        const sendRequest = vi.fn(
+            async (method: string, params: { key?: string; resultJson?: unknown }) => {
+                if (method === "session.workflow.journal.get") {
+                    return journal.has(params.key!)
+                        ? { hit: true, resultJson: journal.get(params.key!) }
+                        : { hit: false };
+                }
+                if (method === "session.workflow.journal.put") {
+                    journal.set(params.key!, params.resultJson);
+                    return {};
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+        const session = new CopilotSession("session-step", { sendRequest } as never);
+        let cachedProducerCalls = 0;
+        let failingProducerCalls = 0;
+        const workflow = defineWorkflow({
+            meta: {
+                name: "step",
+                description: "Durable step context test",
+                phases: [],
+            },
+            run: async ({ step }) => {
+                const first = await step("cached-null", async () => {
+                    cachedProducerCalls++;
+                    return null;
+                });
+                const second = await step("cached-null", async () => {
+                    cachedProducerCalls++;
+                    return "wrong";
+                });
+                const failed = await step("retry", async () => {
+                    failingProducerCalls++;
+                    throw new Error("transient");
+                }).catch(() => "failed");
+                const retried = await step("retry", async () => {
+                    failingProducerCalls++;
+                    return "recovered";
+                });
+                return { first, second, failed, retried };
+            },
+        });
+        session.registerWorkflows([workflow]);
+
+        await expect(
+            session.clientSessionApis.workflow!.execute({
+                sessionId: session.sessionId,
+                name: "step",
+                runId: "run-step",
+                args: {},
+            })
+        ).resolves.toEqual({
+            result: { first: null, second: null, failed: "failed", retried: "recovered" },
+        });
+        expect(cachedProducerCalls).toBe(1);
+        expect(failingProducerCalls).toBe(2);
+        expect(
+            sendRequest.mock.calls.filter(([method]) => method === "session.workflow.journal.put")
+        ).toHaveLength(2);
+    });
+
+    it("exposes workflow getRun and forwards the run id", async () => {
+        const envelope = { runId: "run-read", status: "error", error: "failed" };
+        const sendRequest = vi.fn(async () => envelope);
+        const session = new CopilotSession("session-read", { sendRequest } as never);
+
+        await expect(session.workflow.getRun("run-read")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.workflow.getRun", {
+            sessionId: session.sessionId,
+            runId: "run-read",
+        });
+    });
+
     it("runs parallel as a barrier and maps a throwing thunk to null", async () => {
         const first = Promise.withResolvers<string>();
         const second = Promise.withResolvers<string>();

@@ -114,6 +114,8 @@ export interface SessionWorkflowApi {
         name: string,
         options?: RunOptions
     ): Promise<TResult | WorkflowRunResult>;
+    /** Read the latest durable envelope for a workflow run. */
+    getRun(runId: string): Promise<WorkflowRunResult>;
 }
 
 /** Error thrown when a foreground workflow run does not complete successfully. */
