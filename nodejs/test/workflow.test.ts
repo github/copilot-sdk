@@ -360,6 +360,18 @@ describe("workflows", () => {
         });
     });
 
+    it("exposes workflow cancel and forwards the run id", async () => {
+        const envelope = { runId: "run-cancel", status: "cancelled", reason: "cancelled" };
+        const sendRequest = vi.fn(async () => envelope);
+        const session = new CopilotSession("session-cancel", { sendRequest } as never);
+
+        await expect(session.workflow.cancel("run-cancel")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.workflow.cancel", {
+            sessionId: session.sessionId,
+            runId: "run-cancel",
+        });
+    });
+
     it("runs parallel as a barrier and maps a throwing thunk to null", async () => {
         const first = Promise.withResolvers<string>();
         const second = Promise.withResolvers<string>();
@@ -640,6 +652,42 @@ describe("workflows", () => {
 
         expect(signal.aborted).toBe(true);
         await expect(execution).resolves.toEqual({ result: true });
+    });
+
+    it("rejects an in-flight runtime-backed await when workflow.abort trips the signal", async () => {
+        const agentResponse = Promise.withResolvers<{ result: string }>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.workflow.agent") {
+                return agentResponse.promise;
+            }
+            return {};
+        });
+        const session = new CopilotSession("session-abort-await", { sendRequest } as never);
+        const workflow = defineWorkflow({
+            meta: {
+                name: "abort-await",
+                description: "Abort an in-flight workflow await",
+                phases: [],
+            },
+            run: async ({ agent }) => agent("wait forever"),
+        });
+        session.registerWorkflows([workflow]);
+
+        const execution = session.clientSessionApis.workflow!.execute({
+            sessionId: session.sessionId,
+            name: "abort-await",
+            runId: "run-abort-await",
+            args: {},
+        });
+        await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledWith("session.workflow.agent", expect.anything()));
+
+        await session.clientSessionApis.workflow!.abort({
+            sessionId: session.sessionId,
+            runId: "run-abort-await",
+        });
+
+        await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+        agentResponse.resolve({ result: "late" });
     });
 
     it("dispatches workflow.execute by name and returns a structured unknown-name error", async () => {

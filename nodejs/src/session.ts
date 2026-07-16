@@ -179,6 +179,7 @@ class WorkflowProgressBuffer {
         if (this.closed) {
             throw new Error("Cannot log after the workflow run has settled");
         }
+
         this.pending.push({ seq: this.nextSeq++, kind, text });
         this.scheduleFlush();
     }
@@ -225,6 +226,33 @@ class WorkflowProgressBuffer {
             clearTimeout(this.flushTimer);
             this.flushTimer = undefined;
         }
+    }
+}
+
+async function awaitWorkflowOperation<TResult>(
+    operation: Promise<TResult>,
+    signal: AbortSignal
+): Promise<TResult> {
+    throwIfWorkflowAborted(signal);
+    let rejectAbort: ((reason?: unknown) => void) | undefined;
+    const onAbort = () =>
+        rejectAbort?.(signal.reason ?? new DOMException("Workflow run was aborted", "AbortError"));
+    try {
+        return await Promise.race([
+            operation,
+            new Promise<never>((_resolve, reject) => {
+                rejectAbort = reject;
+                signal.addEventListener("abort", onAbort, { once: true });
+            }),
+        ]);
+    } finally {
+        signal.removeEventListener("abort", onAbort);
+    }
+}
+
+function throwIfWorkflowAborted(signal: AbortSignal): void {
+    if (signal.aborted) {
+        throw signal.reason ?? new DOMException("Workflow run was aborted", "AbortError");
     }
 }
 
@@ -320,6 +348,7 @@ export class CopilotSession {
             return envelope.result;
         }) as SessionWorkflowApi["run"],
         getRun: (runId) => this.rpc.workflow.getRun({ runId }),
+        cancel: (runId) => this.rpc.workflow.cancel({ runId }),
     };
 
     /**
@@ -1088,19 +1117,28 @@ export class CopilotSession {
                         args: params.args,
                         session: self,
                         signal: controller.signal,
-                        phase: (title: string) => progress.enqueue("phase", title),
-                        log: (message: string) => progress.enqueue("log", message),
+                        phase: (title: string) => {
+                            throwIfWorkflowAborted(controller.signal);
+                            progress.enqueue("phase", title);
+                        },
+                        log: (message: string) => {
+                            throwIfWorkflowAborted(controller.signal);
+                            progress.enqueue("log", message);
+                        },
                         agent: async (prompt, options = {}) => {
                             await progress.flush();
-                            const response = await self.rpc.workflow.agent({
-                                workflowRunId: params.runId,
-                                prompt,
-                                opts: {
-                                    label: options.label,
-                                    schema: options.schema,
-                                    model: options.model,
-                                },
-                            });
+                            const response = await awaitWorkflowOperation(
+                                self.rpc.workflow.agent({
+                                    workflowRunId: params.runId,
+                                    prompt,
+                                    opts: {
+                                        label: options.label,
+                                        schema: options.schema,
+                                        model: options.model,
+                                    },
+                                }),
+                                controller.signal
+                            );
                             return response.result ?? null;
                         },
                         step: async <TResult>(
@@ -1112,10 +1150,13 @@ export class CopilotSession {
                             if (options.volatile) {
                                 return producer();
                             }
-                            const cached = await self.rpc.workflow.journal.get({
-                                runId: params.runId,
-                                key,
-                            });
+                            const cached = await awaitWorkflowOperation(
+                                self.rpc.workflow.journal.get({
+                                    runId: params.runId,
+                                    key,
+                                }),
+                                controller.signal
+                            );
                             if (cached.hit) {
                                 return cached.resultJson as TResult;
                             }
@@ -1129,13 +1170,16 @@ export class CopilotSession {
                                     `step("${key}") returned a value that is not JSON-serializable`
                                 );
                             }
-                            await self.rpc.workflow.journal.put({
-                                runId: params.runId,
-                                key,
-                                resultJson: result as Parameters<
-                                    typeof self.rpc.workflow.journal.put
-                                >[0]["resultJson"],
-                            });
+                            await awaitWorkflowOperation(
+                                self.rpc.workflow.journal.put({
+                                    runId: params.runId,
+                                    key,
+                                    resultJson: result as Parameters<
+                                        typeof self.rpc.workflow.journal.put
+                                    >[0]["resultJson"],
+                                }),
+                                controller.signal
+                            );
                             return result;
                         },
                         parallel: runWorkflowParallel,
@@ -1155,7 +1199,9 @@ export class CopilotSession {
                 }
             },
             async abort(params) {
-                self.workflowAbortControllers.get(params.runId)?.abort();
+                self.workflowAbortControllers
+                    .get(params.runId)
+                    ?.abort(new DOMException("Workflow run was aborted", "AbortError"));
                 return {};
             },
         };
