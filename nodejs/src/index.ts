@@ -12,7 +12,7 @@ export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineWorkflow, WorkflowRunError } from "./workflow.js";
+export { defineOrchestration, OrchestrationRunError } from "./orchestration.js";
 export {
     Canvas,
     CanvasError,
@@ -90,8 +90,8 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
-    WorkflowLimits,
-    WorkflowMeta,
+    OrchestrationLimits,
+    OrchestrationMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -166,12 +166,12 @@ export type {
 } from "./types.js";
 export type {
     RunOptions,
-    SessionWorkflowApi,
-    WorkflowAgentOptions,
-    WorkflowContext,
-    WorkflowDefinition,
-    WorkflowHandle,
-    WorkflowJsonSchema,
-    WorkflowPipelineStage,
-    WorkflowStepOptions,
-} from "./workflow.js";
+    SessionOrchestrationApi,
+    OrchestrationAgentOptions,
+    OrchestrationContext,
+    OrchestrationDefinition,
+    OrchestrationHandle,
+    OrchestrationJsonSchema,
+    OrchestrationPipelineStage,
+    OrchestrationStepOptions,
+} from "./orchestration.js";
