@@ -147,11 +147,14 @@ describe("workflows", () => {
         );
     });
 
-    it("builds the workflow context with args, progress, signal, and the joined session identity", async () => {
+    it("builds the workflow context with the unrestricted joined session identity", async () => {
         process.env.SESSION_ID = "session-context";
         const sendRequest = vi.fn(async (method: string) => {
             if (method === "session.workflow.log") {
                 return {};
+            }
+            if (method === "session.tasks.list") {
+                return { tasks: [] };
             }
             throw new Error(`Unexpected method: ${method}`);
         });
@@ -171,7 +174,8 @@ describe("workflows", () => {
                 contextSeen.resolve(context);
                 context.phase("A");
                 context.log("hi");
-                return { ok: true };
+                const tasks = await context.session.rpc.tasks.list();
+                return { ok: true, taskCount: tasks.tasks.length };
             },
         });
         vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockImplementation(
@@ -192,8 +196,12 @@ describe("workflows", () => {
 
         expect(context.args).toEqual({ value: 42 });
         expect(context.session).toBe(joinSessionResult);
+        expect(context.session.rpc).toBe(joinSessionResult.rpc);
         expect(context.signal).toBeInstanceOf(AbortSignal);
-        expect(executeResult).toEqual({ result: { ok: true } });
+        expect(executeResult).toEqual({ result: { ok: true, taskCount: 0 } });
+        expect(sendRequest).toHaveBeenCalledWith("session.tasks.list", {
+            sessionId: joinSessionResult.sessionId,
+        });
         expect(sendRequest).toHaveBeenCalledWith("session.workflow.log", {
             sessionId: joinSessionResult.sessionId,
             runId: "run-context",
