@@ -11,8 +11,18 @@ declare const orchestrationHandleBrand: unique symbol;
 /**
  * Conservative JSON shape language accepted for structured orchestration agent output.
  *
- * Supports `type`, `required`, `enum`, `const`, recursive `properties`/`items`,
- * and `anyOf`/`oneOf`/`allOf`. Other JSON Schema keywords are ignored.
+ * This is a best-effort structural guard used to decide whether a subagent's
+ * structured output should be accepted or retried — **not** a full JSON Schema
+ * validator. Only these keywords are honored: `type`, `required`, `enum`,
+ * `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf`.
+ *
+ * Everything else is **ignored, not enforced**. In particular, string
+ * constraints (`pattern`, `minLength`, `maxLength`, `format`), numeric ranges
+ * (`minimum`, `maximum`), `additionalProperties`, and boolean (`true`/`false`)
+ * schemas do not reject non-conforming output. `oneOf` is treated like `anyOf`
+ * (at least one branch must match) rather than strict exactly-one. Author
+ * schemas within this subset; do not rely on unsupported constraints for
+ * correctness.
  *
  * @experimental Part of the experimental Agent Orchestrations surface and may
  * change or be removed in future SDK or CLI releases.
