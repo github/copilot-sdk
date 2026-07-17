@@ -76,6 +76,20 @@ describe("factories", () => {
         expect(() => defineFactory(definition)).toThrow(/must be a positive/);
     });
 
+    it("rejects a timeout above the Node setTimeout ceiling", () => {
+        const definition = {
+            meta: {
+                name: "oversized-timeout",
+                description: "Factory with an out-of-range timeout",
+                phases: [],
+                limits: { timeout: 2_147_483_648 },
+            },
+            run: async () => null,
+        } as FactoryDefinition;
+
+        expect(() => defineFactory(definition)).toThrow(/must not exceed/);
+    });
+
     it("serializes only factory metadata in the extension resume payload", async () => {
         const client = new CopilotClient();
         await client.start();
