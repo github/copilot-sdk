@@ -98,7 +98,7 @@ jobs:
         if: github.event.inputs.internal-only == 'true'
         env:
           FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-          RUNTIME_VERSION: 0.0.0-29549628608
+          RUNTIME_RANGE: ^1.0.71-2
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           {
@@ -108,7 +108,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Mode | \`internal-only\` |"
             echo "| SDK version | \`${VERSION}\` |"
-            echo "| Runtime dependency | \`@github/copilot@${RUNTIME_VERSION}\` (temporary exact pin) |"
+            echo "| Runtime dependency | \`@github/copilot@${RUNTIME_RANGE}\` (production range unchanged) |"
             echo "| Dist-tag | \`internal-test\` |"
             echo "| Feed | ${FEED_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -132,11 +132,6 @@ jobs:
         run: node scripts/set-version.js
         env:
           VERSION: ${{ needs.version.outputs.version }}
-      - name: Pin runtime dependency for internal-only validation
-        if: github.event.inputs.internal-only == 'true'
-        env:
-          RUNTIME_VERSION: 0.0.0-29549628608
-        run: npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
       - name: Build
         run: npm run build
       - name: Pack
