@@ -13,6 +13,10 @@ use tracing::{Instrument, debug, error, warn};
 
 use crate::{Error, ErrorKind, ProtocolErrorKind};
 
+fn elapsed_us(start: Instant) -> u64 {
+    start.elapsed().as_micros().min(u64::MAX as u128) as u64
+}
+
 /// Callback invoked synchronously by the JSON-RPC read loop the instant a
 /// successful response is parsed, before the response is delivered to the
 /// awaiter and before the read loop dispatches the next message. Use this
@@ -28,8 +32,24 @@ pub(crate) type InlineResponseCallback =
 /// Internal pairing of the response delivery channel with an optional
 /// inline callback that the read loop runs synchronously before delivery.
 struct PendingRequest {
-    sender: oneshot::Sender<JsonRpcResponse>,
+    sender: oneshot::Sender<ResponseDelivery>,
     inline_callback: Option<InlineResponseCallback>,
+}
+
+struct ResponseDelivery {
+    response: JsonRpcResponse,
+    header_received_at: Instant,
+    body_read_us: u64,
+    parse_us: u64,
+    dispatch_us: u64,
+    dispatched_at: Instant,
+}
+
+struct ReadMessage {
+    message: JsonRpcMessage,
+    header_received_at: Instant,
+    body_read_us: u64,
+    parse_us: u64,
 }
 
 /// A JSON-RPC 2.0 request message.
@@ -179,7 +199,7 @@ const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
 /// frame — caller cancellation cannot desync the wire.
 struct WriteCommand {
     frame: Vec<u8>,
-    ack: oneshot::Sender<Result<(), std::io::Error>>,
+    ack: oneshot::Sender<Result<Instant, std::io::Error>>,
 }
 
 /// Low-level JSON-RPC 2.0 client over Content-Length-framed streams.
@@ -288,7 +308,7 @@ impl JsonRpcClient {
             let result = async {
                 writer.write_all(&frame).await?;
                 writer.flush().await?;
-                Ok::<_, std::io::Error>(())
+                Ok::<_, std::io::Error>(Instant::now())
             }
             .await;
 
@@ -309,8 +329,9 @@ impl JsonRpcClient {
 
         loop {
             match Self::read_message(&mut reader).await {
-                Ok(Some(message)) => match message {
+                Ok(Some(read)) => match read.message {
                     JsonRpcMessage::Response(mut response) => {
+                        let dispatch_start = Instant::now();
                         let id = response.id;
                         let pending = pending_requests.write().remove(&id);
                         if let Some(PendingRequest {
@@ -357,7 +378,15 @@ impl JsonRpcClient {
                                     }
                                 }
                             }
-                            if sender.send(response).is_err() {
+                            let delivery = ResponseDelivery {
+                                response,
+                                header_received_at: read.header_received_at,
+                                body_read_us: read.body_read_us,
+                                parse_us: read.parse_us,
+                                dispatch_us: elapsed_us(dispatch_start),
+                                dispatched_at: Instant::now(),
+                            };
+                            if sender.send(delivery).is_err() {
                                 warn!(request_id = %id, "failed to send response for request");
                             }
                         } else {
@@ -365,6 +394,28 @@ impl JsonRpcClient {
                         }
                     }
                     JsonRpcMessage::Notification(notification) => {
+                        if tracing::enabled!(tracing::Level::DEBUG) {
+                            let event = notification
+                                .params
+                                .as_ref()
+                                .and_then(|params| params.get("event"));
+                            debug!(
+                                perf_phase = "jsonrpc.notification.ready",
+                                method = notification.method.as_str(),
+                                event_type = event
+                                    .and_then(|event| event.get("type"))
+                                    .and_then(|value| value.as_str())
+                                    .unwrap_or(""),
+                                event_id = event
+                                    .and_then(|event| event.get("id"))
+                                    .and_then(|value| value.as_str())
+                                    .unwrap_or(""),
+                                header_to_ready_us = elapsed_us(read.header_received_at),
+                                body_read_us = read.body_read_us,
+                                parse_us = read.parse_us,
+                                "JsonRpcClient notification ready"
+                            );
+                        }
                         let _ = notification_tx.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
@@ -397,15 +448,17 @@ impl JsonRpcClient {
 
     async fn read_message(
         reader: &mut BufReader<impl AsyncRead + Unpin>,
-    ) -> Result<Option<JsonRpcMessage>, Error> {
+    ) -> Result<Option<ReadMessage>, Error> {
         let mut line = String::new();
         let mut content_length = None;
+        let mut header_received_at = None;
 
         loop {
             line.clear();
             if reader.read_line(&mut line).await? == 0 {
                 return Ok(None);
             }
+            header_received_at.get_or_insert_with(Instant::now);
 
             let trimmed = line.trim();
             if trimmed.is_empty() {
@@ -426,10 +479,20 @@ impl JsonRpcClient {
         };
 
         let mut body = vec![0u8; length];
+        let body_read_start = Instant::now();
         reader.read_exact(&mut body).await?;
+        let body_read_us = elapsed_us(body_read_start);
 
+        let parse_start = Instant::now();
         let message: JsonRpcMessage = serde_json::from_slice(&body)?;
-        Ok(Some(message))
+        let parse_us = elapsed_us(parse_start);
+        Ok(Some(ReadMessage {
+            message,
+            header_received_at: header_received_at
+                .expect("a complete JSON-RPC header has a first line"),
+            body_read_us,
+            parse_us,
+        }))
     }
 
     /// Send a JSON-RPC request and wait for the matching response.
@@ -496,24 +559,30 @@ impl JsonRpcClient {
             id,
             armed: true,
         };
+        let prepare_us = elapsed_us(request_start);
 
         // The PendingGuard's drop removes the entry on every error path
         // and on cancellation; disarmed below before the success return so
         // the read loop owns the cleanup on the happy path.
-        if let Err(error) = self.write(&request).await {
-            warn!(
-                elapsed_ms = request_start.elapsed().as_millis(),
-                method = %method,
-                request_id = id,
-                status = "failed",
-                error = %error,
-                "JsonRpcClient::send_request JSON-RPC request finished"
-            );
-            return Err(error);
-        }
+        let write_start = Instant::now();
+        let written_at = match self.write_with_timing(&request).await {
+            Ok(written_at) => written_at,
+            Err(error) => {
+                warn!(
+                    elapsed_ms = request_start.elapsed().as_millis(),
+                    method = %method,
+                    request_id = id,
+                    status = "failed",
+                    error = %error,
+                    "JsonRpcClient::send_request JSON-RPC request finished"
+                );
+                return Err(error);
+            }
+        };
+        let write_us = elapsed_us(write_start);
 
-        let response = match rx.await {
-            Ok(response) => response,
+        let delivery = match rx.await {
+            Ok(delivery) => delivery,
             Err(_) => {
                 let error = ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled).into();
                 warn!(
@@ -527,7 +596,27 @@ impl JsonRpcClient {
                 return Err(error);
             }
         };
+        let response_delivery_us = elapsed_us(delivery.dispatched_at);
+        let response_wait_us = delivery
+            .header_received_at
+            .saturating_duration_since(written_at)
+            .as_micros()
+            .min(u64::MAX as u128) as u64;
+        let response = delivery.response;
         guard.disarm();
+        debug!(
+            perf_phase = "jsonrpc.request.complete",
+            method,
+            request_id = id,
+            prepare_us,
+            write_us,
+            response_wait_us,
+            response_body_read_us = delivery.body_read_us,
+            response_parse_us = delivery.parse_us,
+            response_dispatch_us = delivery.dispatch_us,
+            response_delivery_us,
+            "JsonRpcClient request timing"
+        );
         if let Some(error) = &response.error {
             warn!(
                 elapsed_ms = request_start.elapsed().as_millis(),
@@ -559,6 +648,10 @@ impl JsonRpcClient {
     /// drops the ack receiver; the actor still completes the frame and
     /// flushes. A partial frame can never appear on the wire.
     pub async fn write<T: serde::Serialize>(&self, message: &T) -> Result<(), Error> {
+        self.write_with_timing(message).await.map(|_| ())
+    }
+
+    async fn write_with_timing<T: serde::Serialize>(&self, message: &T) -> Result<Instant, Error> {
         let body = serde_json::to_vec(message)?;
         let mut frame = Vec::with_capacity(CONTENT_LENGTH_HEADER.len() + 16 + body.len() + 4);
         frame.extend_from_slice(CONTENT_LENGTH_HEADER.as_bytes());
@@ -577,7 +670,7 @@ impl JsonRpcClient {
             })?;
 
         match ack_rx.await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(written_at)) => Ok(written_at),
             Ok(Err(e)) => Err(Error::from(e)),
             Err(_) => Err(Error::from(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,

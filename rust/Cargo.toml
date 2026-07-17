@@ -75,8 +75,11 @@ zip = { version = "2", default-features = false, features = ["deflate"], optiona
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
+sha2 = "0.10"
 tempfile = "3"
+time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"] }
 
 # Integration tests that call test-support-only Client methods (e.g.
 # `from_streams_with_connection_token`, `from_streams_with_trace_provider`)

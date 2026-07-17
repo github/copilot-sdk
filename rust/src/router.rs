@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
 use crate::types::{SessionEventNotification, SessionId};
@@ -151,9 +152,20 @@ impl SessionRouter {
                             guard.get(session_id).map(|s| s.notifications.clone())
                         };
                         if let Some(sender) = sender {
+                            let route_start =
+                                tracing::enabled!(tracing::Level::DEBUG).then(Instant::now);
                             match serde_json::from_value::<SessionEventNotification>(params.clone())
                             {
                                 Ok(event_notification) => {
+                                    debug!(
+                                        perf_phase = "router.notification.ready",
+                                        event_type = event_notification.event.event_type.as_str(),
+                                        event_id = event_notification.event.id.as_str(),
+                                        route_us = route_start.map_or(0, |start| {
+                                            start.elapsed().as_micros().min(u64::MAX as u128) as u64
+                                        }),
+                                        "Session notification ready for event loop"
+                                    );
                                     let _ = sender.send(event_notification);
                                 }
                                 Err(e) => {

@@ -42,6 +42,10 @@ use crate::{
     error_codes,
 };
 
+fn elapsed_us(start: Instant) -> u64 {
+    start.elapsed().as_micros().min(u64::MAX as u128) as u64
+}
+
 /// Fixed name of the runtime's built-in tool-search tool. A client can replace
 /// its behavior by registering a tool with this exact name and
 /// `overrides_built_in_tool` set to `true`.
@@ -363,6 +367,7 @@ impl Session {
     }
 
     async fn send_inner(&self, opts: MessageOptions) -> Result<String, Error> {
+        let prepare_start = Instant::now();
         let mut params = serde_json::json!({
             "sessionId": self.id,
             "prompt": opts.prompt,
@@ -394,6 +399,7 @@ impl Session {
             self.client.resolve_trace_context().await
         };
         inject_trace_context(&mut params, &trace_ctx);
+        let prepare_us = elapsed_us(prepare_start);
         let rpc_start = Instant::now();
         let result = self.client.call("session.send", Some(params)).await?;
         let message_id = result
@@ -403,6 +409,9 @@ impl Session {
             .unwrap_or_default();
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
+            perf_phase = "session.send.complete",
+            prepare_us,
+            rpc_us = elapsed_us(rpc_start),
             session_id = %self.id,
             message_id = %message_id,
             "Session::send completed successfully"
@@ -928,7 +937,6 @@ impl Client {
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
 
-        let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
@@ -975,6 +983,7 @@ impl Client {
             }))
         };
 
+        let pre_rpc_us = elapsed_us(total_start);
         let rpc_start = Instant::now();
         let result = match self
             .call_with_inline_callback("session.create", Some(params), inline_callback)
@@ -988,6 +997,8 @@ impl Client {
                 return Err(error);
             }
         };
+        let rpc_us = elapsed_us(rpc_start);
+        let setup_start = Instant::now();
         tracing::debug!(
             elapsed_ms = rpc_start.elapsed().as_millis(),
             "Client::create_session session creation request completed successfully"
@@ -1036,24 +1047,11 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        tracing::debug!(
-            elapsed_ms = setup_start.elapsed().as_millis(),
-            session_id = %session_id,
-            tools_count,
-            commands_count,
-            has_hooks,
-            "Client::create_session local setup complete"
-        );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
         if has_mcp_auth_handler {
             register_mcp_auth_interest(self, &session_id).await?;
         }
 
-        tracing::debug!(
-            elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %session_id,
-            "Client::create_session complete"
-        );
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
@@ -1067,6 +1065,18 @@ impl Client {
             open_canvases,
             event_tx,
         };
+        let post_rpc_us = elapsed_us(setup_start);
+        tracing::debug!(
+            elapsed_ms = setup_start.elapsed().as_millis(),
+            pre_rpc_us,
+            rpc_us,
+            post_rpc_us,
+            session_id = %session.id,
+            tools_count,
+            commands_count,
+            has_hooks,
+            "Client::create_session local setup complete"
+        );
         apply_mode_post_create_patch(
             &session,
             mode,
@@ -1076,6 +1086,12 @@ impl Client {
             opt_manage_schedule_enabled,
         )
         .await?;
+        tracing::debug!(
+            elapsed_ms = total_start.elapsed().as_millis(),
+            total_us = elapsed_us(total_start),
+            session_id = %session.id,
+            "Client::create_session complete"
+        );
         Ok(session)
     }
 
@@ -1638,6 +1654,13 @@ async fn handle_notification(
     // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
     // only errors when there are no receivers, which is the normal case
     // before any consumer subscribes.
+    tracing::debug!(
+        perf_phase = "session.notification.ready",
+        event_type = notification.event.event_type.as_str(),
+        event_id = notification.event.id.as_str(),
+        dispatch_us = elapsed_us(dispatch_start),
+        "Session event ready for subscribers"
+    );
     let _ = event_tx.send(event.clone());
 
     tracing::debug!(

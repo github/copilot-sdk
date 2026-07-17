@@ -45,6 +45,40 @@ Your Application
 
 The SDK manages the CLI process lifecycle: spawning, health-checking, and graceful shutdown. Communication uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over stdin/stdout with `Content-Length` framing (the same protocol used by LSP). TCP transport is also supported.
 
+## First-response performance adapter
+
+The non-interactive SDK performance adapter is built from
+`rust/examples/first_response_benchmark.rs`:
+
+```sh
+cd rust
+cargo build --example first_response_benchmark
+target/debug/examples/first_response_benchmark describe
+target/debug/examples/first_response_benchmark run < batch-request.json
+```
+
+`run` requires an explicit Copilot CLI executable artifact in the batch
+request. It reads one process-batch request from stdin and writes one ordered
+v1 trial record per line to stdout. Diagnostics are written only to stderr.
+The orchestrator supplies deterministic routing through
+`configuration.parameters.providerPath`:
+
+- `capi-auth-token-env` uses `COPILOT_PERF_GITHUB_TOKEN` with the inherited
+  `COPILOT_API_URL`.
+- `custom-openai` uses `COPILOT_PERF_PROVIDER_BASE_URL` and
+  `COPILOT_PERF_PROVIDER_API_KEY`.
+
+These environment values are consumed only by the adapter and are never
+included in trial records.
+
+The adapter also emits content-free SDK timing milestones for `session.send`.
+They separate local message/trace preparation, JSON-RPC request preparation and
+write, Runtime/transport response wait, response parsing/dispatch, and the
+notification path through the JSON-RPC reader, session router, session event
+loop, and benchmark subscriber. Runtime/model work remains sourced from the
+trace-correlated Runtime OTEL attachment; the adapter does not infer it by
+subtracting separately executed CLI measurements.
+
 ## API Reference
 
 ### Client
