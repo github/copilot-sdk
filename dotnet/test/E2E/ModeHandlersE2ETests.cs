@@ -60,7 +60,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal(summary, request.Summary);
-        Assert.Equal(["interactive", "autopilot", "exit_only"], request.Actions);
+        Assert.Equal(["autopilot", "interactive", "exit_only"], request.Actions);
         Assert.Equal("interactive", request.RecommendedAction);
         Assert.NotNull(request.PlanContent);
 
