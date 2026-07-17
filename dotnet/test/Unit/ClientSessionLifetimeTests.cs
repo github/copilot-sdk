@@ -415,6 +415,107 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Fact]
+    public async Task SendAndWaitAsync_Completes_When_SessionIdle_Notification_Is_Dropped()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureDroppedIdleCompletion();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var response = await session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "complete without idle" },
+            timeout: TimeSpan.FromSeconds(2));
+
+        Assert.NotNull(response);
+        Assert.Equal("completed response", response.Data.Content);
+        Assert.Contains(server.Requests, request => request.Method == "session.metadata.activity");
+    }
+
+    [Fact]
+    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Flushes_Preceding_Event_Handlers()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureDroppedIdleCompletion(delayEvents: true);
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var completionTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "flush handlers before completion" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<AssistantMessageEvent>(_ =>
+        {
+            handlerStarted.TrySetResult();
+            releaseHandler.Task.GetAwaiter().GetResult();
+        });
+
+        server.ReleaseCompletionEvents();
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(200);
+
+        Assert.False(completionTask.IsCompleted, "Completion must wait for preceding FIFO event handlers to finish.");
+
+        releaseHandler.TrySetResult();
+        var response = await completionTask;
+        Assert.Equal("completed response", response?.Data.Content);
+    }
+
+    [Fact]
+    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Rechecks_Activity_After_Final_Barrier()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureActivityReactivationDuringFinalBarrier();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var barrierHandlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBarrierHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<AssistantTurnEndEvent>(evt =>
+        {
+            if (evt.Data.TurnId == "activity-reactivation-barrier")
+            {
+                barrierHandlerStarted.TrySetResult();
+                releaseBarrierHandler.Task.GetAwaiter().GetResult();
+            }
+        });
+
+        var completionTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "recheck activity after final barrier" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        try
+        {
+            await barrierHandlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await server.ActivityReactivated.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(completionTask.IsCompleted);
+
+            releaseBarrierHandler.TrySetResult();
+            await server.ReactivatedActivityObserved.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(completionTask.IsCompleted, "Completion must not use stale idle activity after the barrier.");
+
+            server.CompleteReactivatedActivity();
+            var response = await completionTask;
+            Assert.Equal("completed response", response?.Data.Content);
+        }
+        finally
+        {
+            releaseBarrierHandler.TrySetResult();
+            server.CompleteReactivatedActivity();
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -512,12 +613,20 @@ public sealed class ClientSessionLifetimeTests
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private readonly TaskCompletionSource _destroyStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _allowCompletionEvents = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _activityReactivated = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _reactivatedActivityObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
         private readonly List<RpcRequestRecord> _requests = [];
         private readonly object _requestsLock = new();
         private string? _lastSessionId;
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
+        private bool _emitCompletionWithoutIdle;
+        private bool _delayCompletionEvents;
+        private bool _reactivateDuringFinalBarrier;
+        private bool _hasActiveWork;
+        private int _activityRequestCount;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -542,6 +651,10 @@ public sealed class ClientSessionLifetimeTests
         }
 
         public Task DestroyStarted => _destroyStarted.Task;
+
+        public Task ActivityReactivated => _activityReactivated.Task;
+
+        public Task ReactivatedActivityObserved => _reactivatedActivityObserved.Task;
 
         public int RuntimeShutdownCount { get; private set; }
 
@@ -577,6 +690,32 @@ public sealed class ClientSessionLifetimeTests
         public void FailRuntimeShutdown()
         {
             _failRuntimeShutdown = true;
+        }
+
+        public void ConfigureDroppedIdleCompletion(bool delayEvents = false)
+        {
+            _emitCompletionWithoutIdle = true;
+            _delayCompletionEvents = delayEvents;
+            if (!delayEvents)
+            {
+                _allowCompletionEvents.TrySetResult();
+            }
+        }
+
+        public void ReleaseCompletionEvents()
+        {
+            _allowCompletionEvents.TrySetResult();
+        }
+
+        public void ConfigureActivityReactivationDuringFinalBarrier()
+        {
+            ConfigureDroppedIdleCompletion();
+            _reactivateDuringFinalBarrier = true;
+        }
+
+        public void CompleteReactivatedActivity()
+        {
+            Volatile.Write(ref _hasActiveWork, false);
         }
 
         public async ValueTask DisposeAsync()
@@ -646,6 +785,21 @@ public sealed class ClientSessionLifetimeTests
             {
                 _requests.Add(new RpcRequestRecord(method!, paramsElement));
             }
+
+            var activityRequestNumber = 0;
+            if (method == "session.metadata.activity")
+            {
+                activityRequestNumber = Interlocked.Increment(ref _activityRequestCount);
+                if (_reactivateDuringFinalBarrier && activityRequestNumber == 2)
+                {
+                    await EmitActivityReactivationBarrierEventAsync(stream, cancellationToken);
+                }
+                else if (_reactivateDuringFinalBarrier && activityRequestNumber >= 3 && Volatile.Read(ref _hasActiveWork))
+                {
+                    _reactivatedActivityObserved.TrySetResult();
+                }
+            }
+
             object? result = method switch
             {
                 "connect" => new Dictionary<string, object?>
@@ -664,6 +818,12 @@ public sealed class ClientSessionLifetimeTests
                 {
                     ["messageId"] = "message-1"
                 },
+                "session.metadata.activity" => new Dictionary<string, object?>
+                {
+                    ["abortable"] = false,
+                    ["hasActiveWork"] = Volatile.Read(ref _hasActiveWork)
+                },
+                "session.tasks.waitForPending" => new Dictionary<string, object?>(),
                 "session.mcp.oauth.handlePendingRequest" => new Dictionary<string, object?>
                 {
                     ["success"] = true
@@ -682,6 +842,89 @@ public sealed class ClientSessionLifetimeTests
                 ["jsonrpc"] = "2.0",
                 ["id"] = id,
                 ["result"] = result
+            }, cancellationToken);
+
+            if (_reactivateDuringFinalBarrier && method == "session.metadata.activity" && activityRequestNumber == 2)
+            {
+                Volatile.Write(ref _hasActiveWork, true);
+                _activityReactivated.TrySetResult();
+            }
+
+            if (method == "session.send" && _emitCompletionWithoutIdle)
+            {
+                _ = EmitCompletionWithoutIdleAsync(stream, cancellationToken);
+            }
+        }
+
+        private Task EmitActivityReactivationBarrierEventAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            return WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = _lastSessionId,
+                    ["event"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = "assistant.turn_end",
+                        ["id"] = Guid.NewGuid().ToString(),
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["data"] = new Dictionary<string, object?>
+                        {
+                            ["turnId"] = "activity-reactivation-barrier"
+                        }
+                    }
+                }
+            }, cancellationToken);
+        }
+
+        private async Task EmitCompletionWithoutIdleAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            if (_delayCompletionEvents)
+            {
+                await _allowCompletionEvents.Task.WaitAsync(cancellationToken);
+            }
+
+            await WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = _lastSessionId,
+                    ["event"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = "assistant.message",
+                        ["id"] = Guid.NewGuid().ToString(),
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["data"] = new Dictionary<string, object?>
+                        {
+                            ["content"] = "completed response",
+                            ["messageId"] = "assistant-message-1"
+                        }
+                    }
+                }
+            }, cancellationToken);
+
+            await WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = _lastSessionId,
+                    ["event"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = "assistant.turn_end",
+                        ["id"] = Guid.NewGuid().ToString(),
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["data"] = new Dictionary<string, object?>
+                        {
+                            ["turnId"] = "turn-1"
+                        }
+                    }
+                }
             }, cancellationToken);
         }
 
