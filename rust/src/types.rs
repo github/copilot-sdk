@@ -642,6 +642,12 @@ pub struct CustomAgentConfig {
     /// falling back to the parent session model if unavailable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Reasoning effort level for this agent's model.
+    ///
+    /// When unset, no per-agent override is sent and the backend chooses its
+    /// default. The parent session effort is not inherited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -707,6 +713,12 @@ impl CustomAgentConfig {
     /// Set the model identifier for this agent.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the reasoning effort level for this agent's model.
+    pub fn with_reasoning_effort(mut self, reasoning_effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(reasoning_effort.into());
         self
     }
 }
@@ -5507,6 +5519,28 @@ mod tests {
         let agent = CustomAgentConfig::new("no-model-agent", "prompt");
         let wire = serde_json::to_value(&agent).unwrap();
         assert!(wire.get("model").is_none());
+    }
+
+    #[test]
+    fn custom_agent_config_builder_with_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        assert_eq!(agent.reasoning_effort.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["reasoningEffort"], "high");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_reasoning_effort_when_none() {
+        let agent = CustomAgentConfig::new("default-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("reasoningEffort").is_none());
     }
 
     #[test]
