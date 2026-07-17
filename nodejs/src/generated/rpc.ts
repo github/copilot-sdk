@@ -8417,29 +8417,6 @@ export interface OrchestrationLogRequest {
   lines: OrchestrationLogLine[];
 }
 /**
- * Parameters for invoking a nested orchestration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationRunNestedRequest".
- */
-/** @experimental */
-export interface OrchestrationRunNestedRequest {
-  /**
-   * Parent orchestration run identifier.
-   */
-  parentRunId: string;
-  /**
-   * Registered child orchestration name.
-   */
-  name: string;
-  /**
-   * Child orchestration input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
  * Parameters for invoking a registered orchestration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10728,7 +10705,7 @@ export interface PushAttachmentGitHubActionsJob {
   type: "github_actions_job";
   repo: PushGitHubRepoRef;
   /**
-   * Job id within the orchestration run
+   * Job id within the workflow run
    */
   jobId: number;
   /**
@@ -10736,7 +10713,7 @@ export interface PushAttachmentGitHubActionsJob {
    */
   jobName: string;
   /**
-   * Display name of the orchestration the job ran in
+   * Display name of the workflow the job ran in
    */
   workflowName: string;
   /**
@@ -17054,15 +17031,6 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             run: async (params: OrchestrationRunRequest): Promise<OrchestrationRunResult> =>
                 connection.sendRequest("session.orchestration.run", { sessionId, ...params }),
-            /**
-             * Runs a registered orchestration as a child of an existing orchestration run.
-             *
-             * @param params Parameters for invoking a nested orchestration.
-             *
-             * @returns Complete current or terminal orchestration run envelope.
-             */
-            runNested: async (params: OrchestrationRunNestedRequest): Promise<OrchestrationRunResult> =>
-                connection.sendRequest("session.orchestration.runNested", { sessionId, ...params }),
             /**
              * Gets the current or settled envelope for a orchestration run.
              *
