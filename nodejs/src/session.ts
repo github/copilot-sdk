@@ -15,8 +15,8 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
-    OrchestrationExecuteResult,
-    OrchestrationLogLine,
+    FactoryExecuteResult,
+    FactoryLogLine,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -63,14 +63,14 @@ import type {
     UserInputResponse,
 } from "./types.js";
 import {
-    getOrchestrationDefinition,
-    OrchestrationRunError,
+    getFactoryDefinition,
+    FactoryRunError,
     type RunOptions,
-    type SessionOrchestrationApi,
-    type OrchestrationContext,
-    type OrchestrationHandle,
-    type OrchestrationStepOptions,
-} from "./orchestration.js";
+    type SessionFactoryApi,
+    type FactoryContext,
+    type FactoryHandle,
+    type FactoryStepOptions,
+} from "./factory.js";
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
@@ -105,18 +105,18 @@ function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
     );
 }
 
-const ORCHESTRATION_LOG_FLUSH_DELAY_MS = 10;
-const MAX_ORCHESTRATION_FANOUT_ITEMS = 4096;
+const FACTORY_LOG_FLUSH_DELAY_MS = 10;
+const MAX_FACTORY_FANOUT_ITEMS = 4096;
 
-function assertOrchestrationFanoutSize(kind: "parallel" | "pipeline", size: number): void {
-    if (size > MAX_ORCHESTRATION_FANOUT_ITEMS) {
+function assertFactoryFanoutSize(kind: "parallel" | "pipeline", size: number): void {
+    if (size > MAX_FACTORY_FANOUT_ITEMS) {
         throw new Error(
-            `${kind}() accepts at most ${MAX_ORCHESTRATION_FANOUT_ITEMS} items; got ${size}.`
+            `${kind}() accepts at most ${MAX_FACTORY_FANOUT_ITEMS} items; got ${size}.`
         );
     }
 }
 
-async function runOrchestrationParallel<TResult>(
+async function runFactoryParallel<TResult>(
     thunks: Array<() => Promise<TResult> | TResult>
 ): Promise<Array<TResult | null>> {
     if (!Array.isArray(thunks)) {
@@ -124,7 +124,7 @@ async function runOrchestrationParallel<TResult>(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
         );
     }
-    assertOrchestrationFanoutSize("parallel", thunks.length);
+    assertFactoryFanoutSize("parallel", thunks.length);
     if (thunks.some((thunk) => typeof thunk !== "function")) {
         throw new Error(
             "parallel() expects an array of functions, not promises. Wrap each call: () => agent(...)"
@@ -139,7 +139,7 @@ async function runOrchestrationParallel<TResult>(
     );
 }
 
-async function runOrchestrationPipeline(
+async function runFactoryPipeline(
     items: unknown[],
     ...stages: Array<
         (previous: unknown, item: unknown, index: number) => Promise<unknown> | unknown
@@ -148,7 +148,7 @@ async function runOrchestrationPipeline(
     if (!Array.isArray(items)) {
         throw new Error("pipeline(items, ...stages): items must be an array");
     }
-    assertOrchestrationFanoutSize("pipeline", items.length);
+    assertFactoryFanoutSize("pipeline", items.length);
     return Promise.all(
         items.map(async (item, index) => {
             let previous = item;
@@ -164,20 +164,20 @@ async function runOrchestrationPipeline(
     );
 }
 
-class OrchestrationProgressBuffer {
+class FactoryProgressBuffer {
     private nextSeq = 0;
-    private pending: OrchestrationLogLine[] = [];
+    private pending: FactoryLogLine[] = [];
     private flushTimer?: ReturnType<typeof setTimeout>;
     private flushTail: Promise<void> = Promise.resolve();
     private flushError: unknown;
     private flushFailed = false;
     private closed = false;
 
-    constructor(private readonly send: (lines: OrchestrationLogLine[]) => Promise<void>) {}
+    constructor(private readonly send: (lines: FactoryLogLine[]) => Promise<void>) {}
 
-    enqueue(kind: OrchestrationLogLine["kind"], text: string): void {
+    enqueue(kind: FactoryLogLine["kind"], text: string): void {
         if (this.closed) {
-            throw new Error("Cannot log after the orchestration run has settled");
+            throw new Error("Cannot log after the factory run has settled");
         }
 
         this.pending.push({ seq: this.nextSeq++, kind, text });
@@ -217,7 +217,7 @@ class OrchestrationProgressBuffer {
         this.flushTimer = setTimeout(() => {
             this.flushTimer = undefined;
             void this.flush().catch(() => {});
-        }, ORCHESTRATION_LOG_FLUSH_DELAY_MS);
+        }, FACTORY_LOG_FLUSH_DELAY_MS);
         this.flushTimer.unref?.();
     }
 
@@ -229,15 +229,15 @@ class OrchestrationProgressBuffer {
     }
 }
 
-async function awaitOrchestrationOperation<TResult>(
+async function awaitFactoryOperation<TResult>(
     operation: Promise<TResult>,
     signal: AbortSignal
 ): Promise<TResult> {
-    throwIfOrchestrationAborted(signal);
+    throwIfFactoryAborted(signal);
     let rejectAbort: ((reason?: unknown) => void) | undefined;
     const onAbort = () =>
         rejectAbort?.(
-            signal.reason ?? new DOMException("Orchestration run was aborted", "AbortError")
+            signal.reason ?? new DOMException("Factory run was aborted", "AbortError")
         );
     try {
         return await Promise.race([
@@ -252,9 +252,9 @@ async function awaitOrchestrationOperation<TResult>(
     }
 }
 
-function throwIfOrchestrationAborted(signal: AbortSignal): void {
+function throwIfFactoryAborted(signal: AbortSignal): void {
     if (signal.aborted) {
-        throw signal.reason ?? new DOMException("Orchestration run was aborted", "AbortError");
+        throw signal.reason ?? new DOMException("Factory run was aborted", "AbortError");
     }
 }
 
@@ -302,8 +302,8 @@ export class CopilotSession {
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
-    private orchestrations = new Map<string, ReturnType<typeof getOrchestrationDefinition>>();
-    private orchestrationAbortControllers = new Map<string, AbortController>();
+    private factories = new Map<string, ReturnType<typeof getFactoryDefinition>>();
+    private factoryAbortControllers = new Map<string, AbortController>();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
@@ -322,24 +322,24 @@ export class CopilotSession {
     clientSessionApis: ClientSessionApiHandlers = {};
 
     /**
-     * Friendly orchestration API for running registered orchestrations by name or handle.
+     * Friendly factory API for running registered factories by name or handle.
      *
-     * @experimental Part of the experimental Agent Orchestrations surface and may
+     * @experimental Part of the experimental Agent Factories surface and may
      * change or be removed in future SDK or CLI releases.
      */
-    readonly orchestration: SessionOrchestrationApi = {
+    readonly factory: SessionFactoryApi = {
         run: (async (
-            nameOrHandle: string | OrchestrationHandle,
+            nameOrHandle: string | FactoryHandle,
             options?: RunOptions
         ): Promise<unknown> => {
             const name =
                 typeof nameOrHandle === "string"
                     ? nameOrHandle
-                    : getOrchestrationDefinition(nameOrHandle).meta.name;
-            const envelope = await this.rpc.orchestration.run({
+                    : getFactoryDefinition(nameOrHandle).meta.name;
+            const envelope = await this.rpc.factory.run({
                 name,
                 args: (options?.args === undefined ? {} : options.args) as Parameters<
-                    typeof this.rpc.orchestration.run
+                    typeof this.rpc.factory.run
                 >[0]["args"],
                 options: {
                     background: options?.background,
@@ -351,12 +351,12 @@ export class CopilotSession {
                 return envelope;
             }
             if (envelope.status !== "completed") {
-                throw new OrchestrationRunError(envelope);
+                throw new FactoryRunError(envelope);
             }
             return envelope.result;
-        }) as SessionOrchestrationApi["run"],
-        getRun: (runId) => this.rpc.orchestration.getRun({ runId }),
-        cancel: (runId) => this.rpc.orchestration.cancel({ runId }),
+        }) as SessionFactoryApi["run"],
+        getRun: (runId) => this.rpc.factory.getRun({ runId }),
+        cancel: (runId) => this.rpc.factory.cancel({ runId }),
     };
 
     /**
@@ -562,11 +562,11 @@ export class CopilotSession {
         this.autoModeSwitchHandler = undefined;
         this.commandHandlers.clear();
         this.canvases.clear();
-        this.orchestrations.clear();
-        for (const controller of this.orchestrationAbortControllers.values()) {
+        this.factories.clear();
+        for (const controller of this.factoryAbortControllers.values()) {
             controller.abort();
         }
-        this.orchestrationAbortControllers.clear();
+        this.factoryAbortControllers.clear();
         this.transformCallbacks?.clear();
     }
 
@@ -1082,58 +1082,58 @@ export class CopilotSession {
     }
 
     /**
-     * Registers orchestration closures and reverse-RPC handlers for this session.
+     * Registers factory closures and reverse-RPC handlers for this session.
      *
-     * @param orchestrations - Orchestration handles declared by the joining extension.
+     * @param factories - Factory handles declared by the joining extension.
      * @internal Called by the SDK when an extension joins a session.
      */
-    registerOrchestrations(orchestrations?: OrchestrationHandle[]): void {
-        this.orchestrations.clear();
-        if (!orchestrations || orchestrations.length === 0) {
-            delete this.clientSessionApis.orchestration;
+    registerFactories(factories?: FactoryHandle[]): void {
+        this.factories.clear();
+        if (!factories || factories.length === 0) {
+            delete this.clientSessionApis.factory;
             return;
         }
 
-        for (const handle of orchestrations) {
-            const definition = getOrchestrationDefinition(handle);
-            this.orchestrations.set(definition.meta.name, definition);
+        for (const handle of factories) {
+            const definition = getFactoryDefinition(handle);
+            this.factories.set(definition.meta.name, definition);
         }
 
         const self = this;
-        this.clientSessionApis.orchestration = {
+        this.clientSessionApis.factory = {
             async execute(params) {
-                const definition = self.orchestrations.get(params.name);
+                const definition = self.factories.get(params.name);
                 if (!definition) {
-                    const message = `No orchestration registered with name "${params.name}"`;
+                    const message = `No factory registered with name "${params.name}"`;
                     throw new ResponseError(ErrorCodes.InvalidParams, message, {
-                        code: "orchestration_not_found",
+                        code: "factory_not_found",
                         name: params.name,
                     });
                 }
 
                 const controller = new AbortController();
-                self.orchestrationAbortControllers.set(params.runId, controller);
-                const progress = new OrchestrationProgressBuffer(async (lines) => {
-                    await self.rpc.orchestration.log({ runId: params.runId, lines });
+                self.factoryAbortControllers.set(params.runId, controller);
+                const progress = new FactoryProgressBuffer(async (lines) => {
+                    await self.rpc.factory.log({ runId: params.runId, lines });
                 });
                 try {
-                    const context: OrchestrationContext = {
+                    const context: FactoryContext = {
                         args: params.args,
                         session: self,
                         signal: controller.signal,
                         phase: (title: string) => {
-                            throwIfOrchestrationAborted(controller.signal);
+                            throwIfFactoryAborted(controller.signal);
                             progress.enqueue("phase", title);
                         },
                         log: (message: string) => {
-                            throwIfOrchestrationAborted(controller.signal);
+                            throwIfFactoryAborted(controller.signal);
                             progress.enqueue("log", message);
                         },
                         agent: async (prompt, options = {}) => {
                             await progress.flush();
-                            const response = await awaitOrchestrationOperation(
-                                self.rpc.orchestration.agent({
-                                    orchestrationRunId: params.runId,
+                            const response = await awaitFactoryOperation(
+                                self.rpc.factory.agent({
+                                    factoryRunId: params.runId,
                                     prompt,
                                     opts: {
                                         label: options.label,
@@ -1148,14 +1148,14 @@ export class CopilotSession {
                         step: async <TResult>(
                             key: string,
                             producer: () => Promise<TResult> | TResult,
-                            options: OrchestrationStepOptions = {}
+                            options: FactoryStepOptions = {}
                         ): Promise<TResult> => {
                             await progress.flush();
                             if (options.volatile) {
                                 return producer();
                             }
-                            const cached = await awaitOrchestrationOperation(
-                                self.rpc.orchestration.journal.get({
+                            const cached = await awaitFactoryOperation(
+                                self.rpc.factory.journal.get({
                                     runId: params.runId,
                                     key,
                                 }),
@@ -1174,40 +1174,40 @@ export class CopilotSession {
                                     `step("${key}") returned a value that is not JSON-serializable`
                                 );
                             }
-                            await awaitOrchestrationOperation(
-                                self.rpc.orchestration.journal.put({
+                            await awaitFactoryOperation(
+                                self.rpc.factory.journal.put({
                                     runId: params.runId,
                                     key,
                                     resultJson: result as Parameters<
-                                        typeof self.rpc.orchestration.journal.put
+                                        typeof self.rpc.factory.journal.put
                                     >[0]["resultJson"],
                                 }),
                                 controller.signal
                             );
                             return result;
                         },
-                        parallel: runOrchestrationParallel,
-                        pipeline: runOrchestrationPipeline,
-                        orchestration: async () => {
-                            throw new Error("nested orchestrations are not supported");
+                        parallel: runFactoryParallel,
+                        pipeline: runFactoryPipeline,
+                        factory: async () => {
+                            throw new Error("nested factories are not supported");
                         },
                     };
                     const result = await definition.run(context);
-                    return { result } as OrchestrationExecuteResult;
+                    return { result } as FactoryExecuteResult;
                 } finally {
                     try {
                         await progress.close();
                     } finally {
-                        if (self.orchestrationAbortControllers.get(params.runId) === controller) {
-                            self.orchestrationAbortControllers.delete(params.runId);
+                        if (self.factoryAbortControllers.get(params.runId) === controller) {
+                            self.factoryAbortControllers.delete(params.runId);
                         }
                     }
                 }
             },
             async abort(params) {
-                self.orchestrationAbortControllers
+                self.factoryAbortControllers
                     .get(params.runId)
-                    ?.abort(new DOMException("Orchestration run was aborted", "AbortError"));
+                    ?.abort(new DOMException("Factory run was aborted", "AbortError"));
                 return {};
             },
         };
