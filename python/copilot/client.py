@@ -3761,6 +3761,8 @@ class CopilotClient:
             wire_agent["skills"] = agent["skills"]
         if "model" in agent:
             wire_agent["model"] = agent["model"]
+        if "reasoning_effort" in agent:
+            wire_agent["reasoningEffort"] = agent["reasoning_effort"]
         return wire_agent
 
     def _convert_default_agent_to_wire_format(
