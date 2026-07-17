@@ -757,6 +757,46 @@ describe("factories", () => {
         agentResponse.resolve({ result: "late" });
     });
 
+    it("propagates cancellation out of parallel/pipeline instead of mapping it to null", async () => {
+        const agentResponse = Promise.withResolvers<{ result: string }>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return agentResponse.promise;
+            }
+            return {};
+        });
+        const session = new CopilotSession("session-abort-parallel", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "abort-parallel",
+                description: "Cancellation must bubble out of a combinator",
+                phases: [],
+            },
+            // If the combinator swallowed the AbortError to null, this run would
+            // resolve successfully with [null] despite the run being cancelled.
+            run: async ({ agent, parallel }) => parallel([() => agent("wait forever")]),
+        });
+        session.registerFactories([factory]);
+
+        const execution = session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "abort-parallel",
+            runId: "run-abort-parallel",
+            args: {},
+        });
+        await vi.waitFor(() =>
+            expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", expect.anything())
+        );
+
+        await session.clientSessionApis.factory!.abort({
+            sessionId: session.sessionId,
+            runId: "run-abort-parallel",
+        });
+
+        await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+        agentResponse.resolve({ result: "late" });
+    });
+
     it("dispatches factory.execute to the registered factory selected by name", async () => {
         const firstRun = vi.fn(async () => ({ selected: "first" }));
         const secondRun = vi.fn(async ({ args, log }) => {

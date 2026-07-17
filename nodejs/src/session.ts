@@ -134,7 +134,15 @@ async function runFactoryParallel<TResult>(
         thunks.map((thunk) =>
             Promise.resolve()
                 .then(() => thunk())
-                .catch(() => null)
+                .catch((error) => {
+                    // Cancellation must propagate out of the combinator rather
+                    // than be mapped to a successful `null`; otherwise an aborted
+                    // run could be reported as completed.
+                    if (isFactoryAbortError(error)) {
+                        throw error;
+                    }
+                    return null;
+                })
         )
     );
 }
@@ -155,7 +163,12 @@ async function runFactoryPipeline(
             for (const stage of stages) {
                 try {
                     previous = await stage(previous, item, index);
-                } catch {
+                } catch (error) {
+                    // Propagate cancellation instead of mapping it to `null`, so
+                    // an aborted stage does not let the run report success.
+                    if (isFactoryAbortError(error)) {
+                        throw error;
+                    }
                     return null;
                 }
             }
@@ -254,6 +267,20 @@ function throwIfFactoryAborted(signal: AbortSignal): void {
     if (signal.aborted) {
         throw signal.reason ?? new DOMException("Factory run was aborted", "AbortError");
     }
+}
+
+/**
+ * Whether an error represents factory run cancellation (an `AbortError`-shaped
+ * rejection from {@link awaitFactoryOperation}). Cancellation must bubble out of
+ * `parallel`/`pipeline` rather than being flattened into a `null` result.
+ */
+function isFactoryAbortError(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        (error as { name?: unknown }).name === "AbortError"
+    );
 }
 
 /** Assistant message event - the final response from the assistant. */
