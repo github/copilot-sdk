@@ -29,7 +29,7 @@ public class RpcWorkspaceCheckpointsE2ETests(E2ETestFixture fixture, ITestOutput
     {
         await using var session = await CreateSessionAsync();
 
-        var result = await session.Rpc.Workspaces.ReadCheckpointAsync(long.MaxValue);
+        var result = await session.Rpc.Workspaces.ReadCheckpointAsync(uint.MaxValue);
 
         Assert.True(string.IsNullOrEmpty(result.Content));
     }

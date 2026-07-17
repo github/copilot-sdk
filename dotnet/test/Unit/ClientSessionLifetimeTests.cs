@@ -183,25 +183,64 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
+    public async Task ResumeSessionAsync_Replaces_Session_Tracked_By_Same_Client()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var sessionId = "same-session-id";
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await client.CreateSessionAsync(new SessionConfig
         {
             SessionId = sessionId,
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
         AssertSessionCount(client, sessions: 1);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var resumedSession = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        Assert.NotSame(session, resumedSession);
+        AssertSessionCount(client, sessions: 1);
+        Assert.Same(resumedSession, GetTrackedSession(client, sessionId));
+        Assert.Equal("message-1", await session.SendAsync("The previous wrapper remains callable."));
+        Assert.DoesNotContain(server.Requests, request => request.Method == "session.destroy");
+
+        await session.DisposeAsync();
+        AssertSessionCount(client, sessions: 1);
+
+        await resumedSession.DisposeAsync();
+        AssertSessionCount(client, sessions: 0);
+        Assert.Equal(2, server.Requests.Count(request => request.Method == "session.destroy"));
+    }
+
+    [Fact]
+    public async Task Failed_ResumeSessionAsync_Restores_Previous_Registration()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        var sessionId = "same-session-id";
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SessionId = sessionId,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        server.FailNextResume();
+
+        await Assert.ThrowsAsync<IOException>(() => client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll
         }));
-        Assert.Contains(sessionId, exception.Message);
+
         AssertSessionCount(client, sessions: 1);
+        Assert.Same(session, GetTrackedSession(client, sessionId));
+        Assert.Equal("message-1", await session.SendAsync("The original session remains active."));
+
+        await session.DisposeAsync();
+        AssertSessionCount(client, sessions: 0);
+        Assert.Single(server.Requests, request => request.Method == "session.destroy");
     }
 
     [Fact]
@@ -438,6 +477,13 @@ public sealed class ClientSessionLifetimeTests
         Assert.Equal(sessions, GetPrivateDictionaryCount(client, "_sessions"));
     }
 
+    private static CopilotSession? GetTrackedSession(CopilotClient client, string sessionId)
+    {
+        var method = typeof(CopilotClient).GetMethod("GetSession", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("GetSession method was not found.");
+        return (CopilotSession?)method.Invoke(client, [sessionId]);
+    }
+
     private static int GetPrivateDictionaryCount(CopilotClient client, string fieldName)
     {
         var field = typeof(CopilotClient).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
@@ -518,6 +564,7 @@ public sealed class ClientSessionLifetimeTests
         private string? _lastSessionId;
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
+        private bool _failNextResume;
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -579,6 +626,11 @@ public sealed class ClientSessionLifetimeTests
             _failRuntimeShutdown = true;
         }
 
+        public void FailNextResume()
+        {
+            _failNextResume = true;
+        }
+
         public async ValueTask DisposeAsync()
         {
             _allowDestroy.TrySetResult();
@@ -623,6 +675,22 @@ public sealed class ClientSessionLifetimeTests
 
             var id = idElement.Clone();
             var method = request.GetProperty("method").GetString();
+            if (method == "session.resume" && _failNextResume)
+            {
+                _failNextResume = false;
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = id,
+                    ["error"] = new Dictionary<string, object?>
+                    {
+                        ["code"] = -32000,
+                        ["message"] = "session resume failed"
+                    }
+                }, cancellationToken);
+                return;
+            }
+
             if (method == "runtime.shutdown" && _failRuntimeShutdown)
             {
                 RuntimeShutdownCount++;

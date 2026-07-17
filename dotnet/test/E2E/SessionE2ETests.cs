@@ -226,17 +226,20 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Reject_Resuming_Active_Session_Using_The_Same_Client()
+    public async Task Should_Replace_Active_Session_When_Resuming_Using_The_Same_Client()
     {
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
-            {
-                OnPermissionRequest = PermissionHandler.ApproveAll,
-            }));
-        Assert.Contains(sessionId, exception.Message);
+        await using var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        Assert.Equal(sessionId, session2.SessionId);
+        _ = await session1.GetEventsAsync();
+
+        await session1.DisposeAsync();
     }
 
     [Fact]
