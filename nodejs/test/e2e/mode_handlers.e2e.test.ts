@@ -110,7 +110,7 @@ describe("Mode handlers", async () => {
             expect(exitPlanModeRequests).toHaveLength(1);
             expect(exitPlanModeRequests[0]).toMatchObject({
                 summary: PLAN_SUMMARY,
-                actions: ["interactive", "autopilot", "exit_only"],
+                actions: ["autopilot", "interactive", "exit_only"],
                 recommendedAction: "interactive",
             });
             expect(exitPlanModeRequests[0].planContent).toBeDefined();
