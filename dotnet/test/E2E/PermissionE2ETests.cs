@@ -205,7 +205,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         await session1.DisposeAsync();
 
         // Resume with permission handler
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -279,7 +279,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         await session1.DisposeAsync();
 
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
                 Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
