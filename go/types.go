@@ -949,6 +949,10 @@ type CustomAgentConfig struct {
 	// When set, the runtime will attempt to use this model for the agent,
 	// falling back to the parent session model if unavailable.
 	Model string `json:"model,omitempty"`
+	// ReasoningEffort is the reasoning effort level for this agent's model.
+	// When empty, no per-agent override is sent and the backend chooses its
+	// default. The parent session effort is not inherited.
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 }
 
 // DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).

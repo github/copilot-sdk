@@ -63,6 +63,9 @@ public class CustomAgentConfig {
     @JsonProperty("model")
     private String model;
 
+    @JsonProperty("reasoningEffort")
+    private String reasoningEffort;
+
     /**
      * Gets the unique identifier name for this agent.
      *
@@ -280,6 +283,30 @@ public class CustomAgentConfig {
      */
     public CustomAgentConfig setModel(String model) {
         this.model = model;
+        return this;
+    }
+
+    /**
+     * Gets the reasoning effort level for this agent's model.
+     *
+     * @return the reasoning effort level, or {@code null} if not set
+     */
+    public String getReasoningEffort() {
+        return reasoningEffort;
+    }
+
+    /**
+     * Sets the reasoning effort level for this agent's model.
+     * <p>
+     * When omitted, no per-agent override is sent and the backend chooses its
+     * default. The parent session effort is not inherited.
+     *
+     * @param reasoningEffort
+     *            the reasoning effort level
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setReasoningEffort(String reasoningEffort) {
+        this.reasoningEffort = reasoningEffort;
         return this;
     }
 }
