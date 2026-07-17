@@ -12,7 +12,7 @@ export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineOrchestration, OrchestrationRunError } from "./orchestration.js";
+export { defineFactory, FactoryRunError } from "./factory.js";
 export {
     Canvas,
     CanvasError,
@@ -87,8 +87,8 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
-    OrchestrationLimits,
-    OrchestrationMeta,
+    FactoryLimits,
+    FactoryMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -163,12 +163,12 @@ export type {
 } from "./types.js";
 export type {
     RunOptions,
-    SessionOrchestrationApi,
-    OrchestrationAgentOptions,
-    OrchestrationContext,
-    OrchestrationDefinition,
-    OrchestrationHandle,
-    OrchestrationJsonSchema,
-    OrchestrationPipelineStage,
-    OrchestrationStepOptions,
-} from "./orchestration.js";
+    SessionFactoryApi,
+    FactoryAgentOptions,
+    FactoryContext,
+    FactoryDefinition,
+    FactoryHandle,
+    FactoryJsonSchema,
+    FactoryPipelineStage,
+    FactoryStepOptions,
+} from "./factory.js";

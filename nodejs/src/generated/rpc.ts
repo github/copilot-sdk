@@ -510,6 +510,38 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
   | EmbeddedTextResourceContents
   | EmbeddedBlobResourceContents;
 /**
+ * Kind of factory progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryLogLineKind".
+ */
+/** @experimental */
+export type FactoryLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named factory phase marker. */
+  | "phase";
+/**
+ * Current or terminal state of a factory run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunStatus".
+ */
+/** @experimental */
+export type FactoryRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run stopped after reaching a resource ceiling. */
+  | "halted"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The factory body failed. */
+  | "error";
+/**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1220,38 +1252,6 @@ export type OptionsUpdateToolFilterPrecedence =
   | "available"
   /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
   | "excluded";
-/**
- * Kind of orchestration progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationLogLineKind".
- */
-/** @experimental */
-export type OrchestrationLogLineKind =
-  /** A narrator log line. */
-  | "log"
-  /** A named orchestration phase marker. */
-  | "phase";
-/**
- * Current or terminal state of a orchestration run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationRunStatus".
- */
-/** @experimental */
-export type OrchestrationRunStatus =
-  /** The run was minted and is awaiting approval. */
-  | "pending"
-  /** The run is executing. */
-  | "running"
-  /** The run completed successfully. */
-  | "completed"
-  /** The run stopped after reaching a resource ceiling. */
-  | "halted"
-  /** The run was cancelled before completion. */
-  | "cancelled"
-  /** The orchestration body failed. */
-  | "error";
 /**
  * The client's response to the pending permission prompt
  *
@@ -4866,6 +4866,324 @@ export interface ExternalToolTextResultForLlmContentResource {
   resource: ExternalToolTextResultForLlmContentResourceDetails;
 }
 /**
+ * Parameters for cooperatively aborting a factory body.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAbortRequest".
+ */
+/** @experimental */
+export interface FactoryAbortRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+}
+/**
+ * Acknowledgement that a factory request was accepted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAckResult".
+ */
+/** @experimental */
+export interface FactoryAckResult {}
+/**
+ * Options for one factory-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAgentOptions".
+ */
+/** @experimental */
+export interface FactoryAgentOptions {
+  /**
+   * Optional label distinguishing otherwise identical memoized agent calls.
+   */
+  label?: string;
+  /**
+   * Optional JSON Schema for structured agent output.
+   */
+  schema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Optional model identifier for the subagent.
+   */
+  model?: string;
+}
+/**
+ * Parameters for one factory-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAgentRequest".
+ */
+/** @experimental */
+export interface FactoryAgentRequest {
+  /**
+   * Factory run identifier that owns the subagent.
+   */
+  factoryRunId: string;
+  /**
+   * Prompt to send to the subagent.
+   */
+  prompt: string;
+  opts: FactoryAgentOptions;
+}
+/**
+ * Result of one factory-scoped subagent call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAgentResult".
+ */
+/** @experimental */
+export interface FactoryAgentResult {
+  /**
+   * Agent result, omitted when the agent produced no result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for cancelling a factory run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryCancelRequest".
+ */
+/** @experimental */
+export interface FactoryCancelRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters sent to the owning extension to execute a factory closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryExecuteRequest".
+ */
+/** @experimental */
+export interface FactoryExecuteRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Registered factory name.
+   */
+  name: string;
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Factory input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Parent factory run identifier for nested execution.
+   */
+  parentRunId?: string;
+}
+/**
+ * Result returned by an extension factory closure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryExecuteResult".
+ */
+/** @experimental */
+export interface FactoryExecuteResult {
+  /**
+   * Factory result value.
+   */
+  result: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for retrieving a factory run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryGetRunRequest".
+ */
+/** @experimental */
+export interface FactoryGetRunRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+}
+/**
+ * Parameters for reading a factory journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryJournalGetRequest".
+ */
+/** @experimental */
+export interface FactoryJournalGetRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+}
+/**
+ * Result of reading a factory journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryJournalGetResult".
+ */
+/** @experimental */
+export interface FactoryJournalGetResult {
+  /**
+   * Whether the journal contained the requested key.
+   */
+  hit: boolean;
+  /**
+   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+   */
+  resultJson?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Parameters for storing a factory journal entry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryJournalPutRequest".
+ */
+/** @experimental */
+export interface FactoryJournalPutRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Namespaced journal key.
+   */
+  key: string;
+  /**
+   * JSON result to memoize.
+   */
+  resultJson: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * One ordered factory progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryLogLine".
+ */
+/** @experimental */
+export interface FactoryLogLine {
+  /**
+   * Monotonic sequence number within the factory run.
+   */
+  seq: number;
+  kind: FactoryLogLineKind;
+  /**
+   * Progress text.
+   */
+  text: string;
+}
+/**
+ * Parameters for recording factory progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryLogRequest".
+ */
+/** @experimental */
+export interface FactoryLogRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Ordered progress lines to append.
+   */
+  lines: FactoryLogLine[];
+}
+/**
+ * Parameters for invoking a registered factory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunRequest".
+ */
+/** @experimental */
+export interface FactoryRunRequest {
+  /**
+   * Registered factory name.
+   */
+  name: string;
+  /**
+   * Factory input value.
+   */
+  args: {
+    [k: string]: unknown | undefined;
+  };
+  options?: RunOptions;
+}
+/**
+ * Options controlling factory invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "RunOptions".
+ */
+/** @experimental */
+export interface RunOptions {
+  /**
+   * Whether to return once the approved run starts instead of awaiting its terminal result.
+   */
+  background?: boolean;
+  /**
+   * Run identifier whose journal and progress should seed this resumed run.
+   */
+  resumeFromRunId?: string;
+}
+/**
+ * Complete current or terminal factory run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunResult".
+ */
+/** @experimental */
+export interface FactoryRunResult {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  status: FactoryRunStatus;
+  /**
+   * Completed factory result.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  /**
+   * Partial journal and progress snapshot for a halted or cancelled run.
+   */
+  snapshot?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
  * Optional user prompt to combine with the fleet orchestration instructions.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8168,324 +8486,6 @@ export interface OptionsUpdateAdditionalContentExclusionPolicyRule {
 export interface OptionsUpdateAdditionalContentExclusionPolicyRuleSource {
   name: string;
   type: string;
-}
-/**
- * Parameters for cooperatively aborting a orchestration body.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationAbortRequest".
- */
-/** @experimental */
-export interface OrchestrationAbortRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-}
-/**
- * Acknowledgement that a orchestration request was accepted.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationAckResult".
- */
-/** @experimental */
-export interface OrchestrationAckResult {}
-/**
- * Options for one orchestration-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationAgentOptions".
- */
-/** @experimental */
-export interface OrchestrationAgentOptions {
-  /**
-   * Optional label distinguishing otherwise identical memoized agent calls.
-   */
-  label?: string;
-  /**
-   * Optional JSON Schema for structured agent output.
-   */
-  schema?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Optional model identifier for the subagent.
-   */
-  model?: string;
-}
-/**
- * Parameters for one orchestration-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationAgentRequest".
- */
-/** @experimental */
-export interface OrchestrationAgentRequest {
-  /**
-   * Orchestration run identifier that owns the subagent.
-   */
-  orchestrationRunId: string;
-  /**
-   * Prompt to send to the subagent.
-   */
-  prompt: string;
-  opts: OrchestrationAgentOptions;
-}
-/**
- * Result of one orchestration-scoped subagent call.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationAgentResult".
- */
-/** @experimental */
-export interface OrchestrationAgentResult {
-  /**
-   * Agent result, omitted when the agent produced no result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for cancelling a orchestration run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationCancelRequest".
- */
-/** @experimental */
-export interface OrchestrationCancelRequest {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters sent to the owning extension to execute a orchestration closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationExecuteRequest".
- */
-/** @experimental */
-export interface OrchestrationExecuteRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
-   * Registered orchestration name.
-   */
-  name: string;
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-  /**
-   * Orchestration input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Parent orchestration run identifier for nested execution.
-   */
-  parentRunId?: string;
-}
-/**
- * Result returned by an extension orchestration closure.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationExecuteResult".
- */
-/** @experimental */
-export interface OrchestrationExecuteResult {
-  /**
-   * Orchestration result value.
-   */
-  result: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for retrieving a orchestration run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationGetRunRequest".
- */
-/** @experimental */
-export interface OrchestrationGetRunRequest {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-}
-/**
- * Parameters for reading a orchestration journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationJournalGetRequest".
- */
-/** @experimental */
-export interface OrchestrationJournalGetRequest {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-}
-/**
- * Result of reading a orchestration journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationJournalGetResult".
- */
-/** @experimental */
-export interface OrchestrationJournalGetResult {
-  /**
-   * Whether the journal contained the requested key.
-   */
-  hit: boolean;
-  /**
-   * Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
-   */
-  resultJson?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Parameters for storing a orchestration journal entry.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationJournalPutRequest".
- */
-/** @experimental */
-export interface OrchestrationJournalPutRequest {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-  /**
-   * Namespaced journal key.
-   */
-  key: string;
-  /**
-   * JSON result to memoize.
-   */
-  resultJson: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * One ordered orchestration progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationLogLine".
- */
-/** @experimental */
-export interface OrchestrationLogLine {
-  /**
-   * Monotonic sequence number within the orchestration run.
-   */
-  seq: number;
-  kind: OrchestrationLogLineKind;
-  /**
-   * Progress text.
-   */
-  text: string;
-}
-/**
- * Parameters for recording orchestration progress.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationLogRequest".
- */
-/** @experimental */
-export interface OrchestrationLogRequest {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-  /**
-   * Ordered progress lines to append.
-   */
-  lines: OrchestrationLogLine[];
-}
-/**
- * Parameters for invoking a registered orchestration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationRunRequest".
- */
-/** @experimental */
-export interface OrchestrationRunRequest {
-  /**
-   * Registered orchestration name.
-   */
-  name: string;
-  /**
-   * Orchestration input value.
-   */
-  args: {
-    [k: string]: unknown | undefined;
-  };
-  options?: RunOptions;
-}
-/**
- * Options controlling orchestration invocation.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "RunOptions".
- */
-/** @experimental */
-export interface RunOptions {
-  /**
-   * Whether to return once the approved run starts instead of awaiting its terminal result.
-   */
-  background?: boolean;
-  /**
-   * Run identifier whose journal and progress should seed this resumed run.
-   */
-  resumeFromRunId?: string;
-}
-/**
- * Complete current or terminal orchestration run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "OrchestrationRunResult".
- */
-/** @experimental */
-export interface OrchestrationRunResult {
-  /**
-   * Orchestration run identifier.
-   */
-  runId: string;
-  status: OrchestrationRunStatus;
-  /**
-   * Completed orchestration result.
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
-  /**
-   * Error message for an errored run.
-   */
-  error?: string;
-  /**
-   * Reason for a halted or cancelled run.
-   */
-  reason?: string;
-  /**
-   * Partial journal and progress snapshot for a halted or cancelled run.
-   */
-  snapshot?: {
-    [k: string]: unknown | undefined;
-  };
 }
 /**
  * Pending permission prompt reconstructed from event history, with request ID and user-facing prompt details.
@@ -17021,72 +17021,72 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             },
         },
         /** @experimental */
-        orchestration: {
+        factory: {
             /**
-             * Runs a registered orchestration by name at the top level.
+             * Runs a registered factory by name at the top level.
              *
-             * @param params Parameters for invoking a registered orchestration.
+             * @param params Parameters for invoking a registered factory.
              *
-             * @returns Complete current or terminal orchestration run envelope.
+             * @returns Complete current or terminal factory run envelope.
              */
-            run: async (params: OrchestrationRunRequest): Promise<OrchestrationRunResult> =>
-                connection.sendRequest("session.orchestration.run", { sessionId, ...params }),
+            run: async (params: FactoryRunRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.run", { sessionId, ...params }),
             /**
-             * Gets the current or settled envelope for a orchestration run.
+             * Gets the current or settled envelope for a factory run.
              *
-             * @param params Parameters for retrieving a orchestration run.
+             * @param params Parameters for retrieving a factory run.
              *
-             * @returns Complete current or terminal orchestration run envelope.
+             * @returns Complete current or terminal factory run envelope.
              */
-            getRun: async (params: OrchestrationGetRunRequest): Promise<OrchestrationRunResult> =>
-                connection.sendRequest("session.orchestration.getRun", { sessionId, ...params }),
+            getRun: async (params: FactoryGetRunRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.getRun", { sessionId, ...params }),
             /**
-             * Requests cancellation of a orchestration run and returns its run envelope.
+             * Requests cancellation of a factory run and returns its run envelope.
              *
-             * @param params Parameters for cancelling a orchestration run.
+             * @param params Parameters for cancelling a factory run.
              *
-             * @returns Complete current or terminal orchestration run envelope.
+             * @returns Complete current or terminal factory run envelope.
              */
-            cancel: async (params: OrchestrationCancelRequest): Promise<OrchestrationRunResult> =>
-                connection.sendRequest("session.orchestration.cancel", { sessionId, ...params }),
+            cancel: async (params: FactoryCancelRequest): Promise<FactoryRunResult> =>
+                connection.sendRequest("session.factory.cancel", { sessionId, ...params }),
             /**
-             * Records a batch of ordered orchestration progress lines.
+             * Records a batch of ordered factory progress lines.
              *
-             * @param params Parameters for recording orchestration progress.
+             * @param params Parameters for recording factory progress.
              *
-             * @returns Acknowledgement that a orchestration request was accepted.
+             * @returns Acknowledgement that a factory request was accepted.
              */
-            log: async (params: OrchestrationLogRequest): Promise<OrchestrationAckResult> =>
-                connection.sendRequest("session.orchestration.log", { sessionId, ...params }),
+            log: async (params: FactoryLogRequest): Promise<FactoryAckResult> =>
+                connection.sendRequest("session.factory.log", { sessionId, ...params }),
             /**
-             * Runs one orchestration-scoped subagent and returns its result.
+             * Runs one factory-scoped subagent and returns its result.
              *
-             * @param params Parameters for one orchestration-scoped subagent call.
+             * @param params Parameters for one factory-scoped subagent call.
              *
-             * @returns Result of one orchestration-scoped subagent call.
+             * @returns Result of one factory-scoped subagent call.
              */
-            agent: async (params: OrchestrationAgentRequest): Promise<OrchestrationAgentResult> =>
-                connection.sendRequest("session.orchestration.agent", { sessionId, ...params }),
+            agent: async (params: FactoryAgentRequest): Promise<FactoryAgentResult> =>
+                connection.sendRequest("session.factory.agent", { sessionId, ...params }),
             /** @experimental */
             journal: {
                 /**
-                 * Reads a memoized orchestration journal entry.
+                 * Reads a memoized factory journal entry.
                  *
-                 * @param params Parameters for reading a orchestration journal entry.
+                 * @param params Parameters for reading a factory journal entry.
                  *
-                 * @returns Result of reading a orchestration journal entry.
+                 * @returns Result of reading a factory journal entry.
                  */
-                get: async (params: OrchestrationJournalGetRequest): Promise<OrchestrationJournalGetResult> =>
-                    connection.sendRequest("session.orchestration.journal.get", { sessionId, ...params }),
+                get: async (params: FactoryJournalGetRequest): Promise<FactoryJournalGetResult> =>
+                    connection.sendRequest("session.factory.journal.get", { sessionId, ...params }),
                 /**
-                 * Stores a memoized orchestration journal entry.
+                 * Stores a memoized factory journal entry.
                  *
-                 * @param params Parameters for storing a orchestration journal entry.
+                 * @param params Parameters for storing a factory journal entry.
                  *
-                 * @returns Acknowledgement that a orchestration request was accepted.
+                 * @returns Acknowledgement that a factory request was accepted.
                  */
-                put: async (params: OrchestrationJournalPutRequest): Promise<OrchestrationAckResult> =>
-                    connection.sendRequest("session.orchestration.journal.put", { sessionId, ...params }),
+                put: async (params: FactoryJournalPutRequest): Promise<FactoryAckResult> =>
+                    connection.sendRequest("session.factory.journal.put", { sessionId, ...params }),
             },
         },
         /** @experimental */
@@ -18577,25 +18577,25 @@ export interface ProviderTokenHandler {
     getToken(params: ProviderTokenAcquireRequest): Promise<ProviderTokenAcquireResult>;
 }
 
-/** Handler for `orchestration` client session API methods. */
+/** Handler for `factory` client session API methods. */
 /** @experimental */
-export interface OrchestrationHandler {
+export interface FactoryHandler {
     /**
-     * Asks the owning extension connection to execute a registered orchestration closure.
+     * Asks the owning extension connection to execute a registered factory closure.
      *
-     * @param params Parameters sent to the owning extension to execute a orchestration closure.
+     * @param params Parameters sent to the owning extension to execute a factory closure.
      *
-     * @returns Result returned by an extension orchestration closure.
+     * @returns Result returned by an extension factory closure.
      */
-    execute(params: OrchestrationExecuteRequest): Promise<OrchestrationExecuteResult>;
+    execute(params: FactoryExecuteRequest): Promise<FactoryExecuteResult>;
     /**
-     * Asks the owning extension connection to abort a running orchestration cooperatively.
+     * Asks the owning extension connection to abort a running factory cooperatively.
      *
-     * @param params Parameters for cooperatively aborting a orchestration body.
+     * @param params Parameters for cooperatively aborting a factory body.
      *
-     * @returns Acknowledgement that a orchestration request was accepted.
+     * @returns Acknowledgement that a factory request was accepted.
      */
-    abort(params: OrchestrationAbortRequest): Promise<OrchestrationAckResult>;
+    abort(params: FactoryAbortRequest): Promise<FactoryAckResult>;
 }
 
 /** Handler for `sessionFs` client session API methods. */
@@ -18729,7 +18729,7 @@ export interface CanvasHandler {
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     providerToken?: ProviderTokenHandler;
-    orchestration?: OrchestrationHandler;
+    factory?: FactoryHandler;
     sessionFs?: SessionFsHandler;
     canvas?: CanvasHandler;
 }
@@ -18749,14 +18749,14 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No providerToken handler registered for session: ${params.sessionId}`);
         return handler.getToken(params);
     });
-    connection.onRequest("orchestration.execute", async (params: OrchestrationExecuteRequest) => {
-        const handler = getHandlers(params.sessionId).orchestration;
-        if (!handler) throw new Error(`No orchestration handler registered for session: ${params.sessionId}`);
+    connection.onRequest("factory.execute", async (params: FactoryExecuteRequest) => {
+        const handler = getHandlers(params.sessionId).factory;
+        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
         return handler.execute(params);
     });
-    connection.onRequest("orchestration.abort", async (params: OrchestrationAbortRequest) => {
-        const handler = getHandlers(params.sessionId).orchestration;
-        if (!handler) throw new Error(`No orchestration handler registered for session: ${params.sessionId}`);
+    connection.onRequest("factory.abort", async (params: FactoryAbortRequest) => {
+        const handler = getHandlers(params.sessionId).factory;
+        if (!handler) throw new Error(`No factory handler registered for session: ${params.sessionId}`);
         return handler.abort(params);
     });
     connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
