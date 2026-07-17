@@ -19,6 +19,11 @@ on:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
         required: false
+      internal-only:
+        description: "Test only: publish the Node.js SDK exclusively to the internal feed"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +52,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Get version
         id: version
+        env:
+          INTERNAL_ONLY: ${{ github.event.inputs.internal-only }}
         run: |
           CURRENT="$(node scripts/get-version.js current)"
           echo "CURRENT=$CURRENT" >> $GITHUB_OUTPUT
@@ -54,7 +61,10 @@ jobs:
           CURRENT_PRERELEASE="$(node scripts/get-version.js current-prerelease)"
           echo "CURRENT_PRERELEASE=$CURRENT_PRERELEASE" >> $GITHUB_OUTPUT
           echo "Current prerelease version: $CURRENT_PRERELEASE" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ github.event.inputs.version }}" ]; then
+          if [ "$INTERNAL_ONLY" = "true" ]; then
+            VERSION="0.0.0-${GITHUB_RUN_ID}"
+            echo "Using internal-only test version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
             # Validate version format matches dist-tag
             if [ "${{ github.event.inputs.dist-tag }}" = "latest" ]; then
@@ -84,6 +94,24 @@ jobs:
             @github/copilot-sdk \
             "$VERSION" \
             https://registry.npmjs.org
+      - name: Summarize internal-only validation
+        if: github.event.inputs.internal-only == 'true'
+        env:
+          FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+          RUNTIME_VERSION: 0.0.0-29549628608
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          {
+            echo "## Internal-only SDK publish validation"
+            echo ""
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Mode | \`internal-only\` |"
+            echo "| SDK version | \`${VERSION}\` |"
+            echo "| Runtime dependency | \`@github/copilot@${RUNTIME_VERSION}\` (temporary exact pin) |"
+            echo "| Dist-tag | \`internal-test\` |"
+            echo "| Feed | ${FEED_URL} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   package-nodejs:
     name: Package Node.js SDK
@@ -104,6 +132,11 @@ jobs:
         run: node scripts/set-version.js
         env:
           VERSION: ${{ needs.version.outputs.version }}
+      - name: Pin runtime dependency for internal-only validation
+        if: github.event.inputs.internal-only == 'true'
+        env:
+          RUNTIME_VERSION: 0.0.0-29549628608
+        run: npm pkg set "dependencies.@github/copilot=$RUNTIME_VERSION"
       - name: Build
         run: npm run build
       - name: Pack
@@ -115,6 +148,11 @@ jobs:
             exit 1
           fi
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+      - name: Record prepared package checksum
+        if: github.event.inputs.internal-only == 'true'
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: sha512sum "$TARBALL"
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.0
         with:
@@ -125,7 +163,9 @@ jobs:
   publish-nodejs:
     name: Publish Node.js SDK
     needs: package-nodejs
-    if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
+    if: |
+      github.event.inputs.internal-only != 'true' &&
+      (github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable')
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -162,7 +202,14 @@ jobs:
 
   publish-nodejs-internal:
     name: Publish Node.js SDK to internal feed
-    needs: publish-nodejs
+    needs: [package-nodejs, publish-nodejs]
+    if: |
+      always() &&
+      needs.package-nodejs.result == 'success' &&
+      (
+        (github.event.inputs.internal-only == 'true' && needs.publish-nodejs.result == 'skipped') ||
+        (github.event.inputs.internal-only != 'true' && needs.publish-nodejs.result == 'success')
+      )
     environment: cicd
     runs-on: ubuntu-latest
     permissions:
@@ -198,9 +245,12 @@ jobs:
           printf '%s\n' \
             "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
             "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Record downloaded package checksum
+        if: github.event.inputs.internal-only == 'true'
+        run: sha512sum ./dist/*.tgz
       - name: Publish tarball to internal feed
         env:
-          DIST_TAG: ${{ github.event.inputs.dist-tag }}
+          DIST_TAG: ${{ github.event.inputs.internal-only == 'true' && 'internal-test' || github.event.inputs.dist-tag }}
         run: |
           set -euo pipefail
           if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" ]; then
@@ -218,10 +268,24 @@ jobs:
             "$DIST_TAG" \
             "$FEED_URL" \
             azure
+      - name: Intentionally fail first internal-only attempt
+        if: github.event.inputs.internal-only == 'true' && github.run_attempt == 1
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo "## Intentional first-attempt failure"
+            echo ""
+            echo "The SDK was published to the internal feed. Re-run only failed jobs to exercise immutable Azure conflict handling:"
+            echo ""
+            echo "\`gh run rerun ${RUN_ID} --failed --repo ${GITHUB_REPOSITORY}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Intentional internal-only failure after the internal publish side effect."
+          exit 1
 
   publish-dotnet:
     name: Publish .NET SDK
-    if: github.event.inputs.dist-tag != 'unstable'
+    if: github.event.inputs.internal-only != 'true' && github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     permissions:
@@ -264,7 +328,7 @@ jobs:
 
   publish-rust:
     name: Publish Rust SDK
-    if: github.event.inputs.dist-tag != 'unstable'
+    if: github.event.inputs.internal-only != 'true' && github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -308,7 +372,7 @@ jobs:
 
   publish-python:
     name: Publish Python SDK
-    if: github.event.inputs.dist-tag != 'unstable'
+    if: github.event.inputs.internal-only != 'true' && github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     permissions:
@@ -349,7 +413,7 @@ jobs:
 
   publish-java:
     name: Publish Java SDK
-    if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
+    if: github.event.inputs.internal-only != 'true' && github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     needs: version
     permissions:
       contents: write
@@ -373,6 +437,7 @@ jobs:
       ]
     if: |
       always() &&
+      github.event.inputs.internal-only != 'true' &&
       github.ref == 'refs/heads/main' &&
       github.event.inputs.dist-tag != 'unstable' &&
       needs.version.result == 'success' &&
