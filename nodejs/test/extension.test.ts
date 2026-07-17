@@ -18,13 +18,13 @@ describe("joinSession", () => {
 
     it("defaults onPermissionRequest to no-result", async () => {
         process.env.SESSION_ID = "session-123";
-        const resumeSession = vi
-            .spyOn(CopilotClient.prototype, "resumeSession")
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as any);
 
         await joinSession({ tools: [] });
 
-        const [, config] = resumeSession.mock.calls[0]!;
+        const [, config] = resumeForExtension.mock.calls[0]!;
         expect(config.onPermissionRequest).toBeDefined();
         expect(config.onPermissionRequest).toBe(defaultJoinSessionPermissionHandler);
         const result = await Promise.resolve(
@@ -36,13 +36,13 @@ describe("joinSession", () => {
 
     it("preserves an explicit onPermissionRequest handler", async () => {
         process.env.SESSION_ID = "session-123";
-        const resumeSession = vi
-            .spyOn(CopilotClient.prototype, "resumeSession")
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as any);
 
         await joinSession({ onPermissionRequest: approveAll, suppressResumeEvent: false });
 
-        const [, config] = resumeSession.mock.calls[0]!;
+        const [, config] = resumeForExtension.mock.calls[0]!;
         expect(config.onPermissionRequest).toBe(approveAll);
         expect(config.suppressResumeEvent).toBe(false);
     });
