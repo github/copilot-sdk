@@ -949,6 +949,10 @@ type CustomAgentConfig struct {
 	// When set, the runtime will attempt to use this model for the agent,
 	// falling back to the parent session model if unavailable.
 	Model string `json:"model,omitempty"`
+	// ReasoningEffort is the reasoning effort level for this agent's model.
+	// When empty, no per-agent override is sent and the backend chooses its
+	// default. The parent session effort is not inherited.
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 }
 
 // DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -1341,6 +1345,11 @@ type Tool struct {
 	// Defer controls whether the tool may be deferred (loaded lazily via tool
 	// search) rather than always pre-loaded. When empty, the runtime decides.
 	Defer ToolDefer `json:"defer,omitempty"`
+	// Metadata is opaque, host-defined metadata associated with the tool
+	// definition. Keys are namespaced and not part of the stable public API;
+	// values are not interpreted and may be recognized to inform host-specific
+	// behavior. Unknown keys are preserved and round-tripped untouched.
+	Metadata map[string]any `json:"metadata,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`

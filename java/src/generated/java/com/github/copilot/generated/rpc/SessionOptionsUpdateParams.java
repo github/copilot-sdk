@@ -58,6 +58,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("availableTools") List<String> availableTools,
     /** Denylist of tool names for this session. */
     @JsonProperty("excludedTools") List<String> excludedTools,
+    /** Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction. */
+    @JsonProperty("includedBuiltinAgents") List<String> includedBuiltinAgents,
     /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
     /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */

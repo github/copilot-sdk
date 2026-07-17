@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Diagnostics;
-
 namespace GitHub.Copilot.Test.Harness;
 
 internal enum E2ETestBackend
@@ -31,8 +29,10 @@ internal static class E2ETestBackendConfiguration
             "anthropic-messages" => E2ETestBackend.AnthropicMessages,
             "openai-responses" => E2ETestBackend.OpenAIResponses,
             "openai-completions" => E2ETestBackend.OpenAICompletions,
-            _ => throw new UnreachableException(
-                $"Unsupported {EnvironmentVariable} value '{value}'. Expected capi, anthropic-messages, openai-responses, or openai-completions."),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(value),
+                value,
+                $"Unsupported {EnvironmentVariable} value. Expected capi, anthropic-messages, openai-responses, or openai-completions."),
         };
 
     internal static string ToWireName(this E2ETestBackend backend)
@@ -42,7 +42,7 @@ internal static class E2ETestBackendConfiguration
             E2ETestBackend.AnthropicMessages => "anthropic-messages",
             E2ETestBackend.OpenAIResponses => "openai-responses",
             E2ETestBackend.OpenAICompletions => "openai-completions",
-            _ => throw new UnreachableException(),
+            _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null),
         };
 
     internal static void ApplyProvider(
@@ -80,7 +80,7 @@ internal static class E2ETestBackendConfiguration
         {
             E2ETestBackend.AnthropicMessages => AnthropicDefaultModel,
             E2ETestBackend.OpenAIResponses or E2ETestBackend.OpenAICompletions => OpenAIDefaultModel,
-            _ => throw new UnreachableException(),
+            _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null),
         };
 
     private static ProviderConfig CreateProvider(
@@ -94,14 +94,14 @@ internal static class E2ETestBackendConfiguration
             {
                 E2ETestBackend.AnthropicMessages => "anthropic",
                 E2ETestBackend.OpenAIResponses or E2ETestBackend.OpenAICompletions => "openai",
-                _ => throw new UnreachableException(),
+                _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null),
             },
             WireApi = backend switch
             {
                 E2ETestBackend.AnthropicMessages => null,
                 E2ETestBackend.OpenAIResponses => "responses",
                 E2ETestBackend.OpenAICompletions => "completions",
-                _ => throw new UnreachableException(),
+                _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, null),
             },
             BearerToken = FakeCredential,
             ModelId = model,

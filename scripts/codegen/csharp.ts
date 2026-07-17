@@ -27,6 +27,7 @@ import {
     findSharedSchemaDefinitions,
     postProcessSchema,
     propagateInternalVisibility,
+    filterNodeByVisibility,
     resolveRef,
     resolveObjectSchema,
     resolveSchema,
@@ -1322,7 +1323,7 @@ function emitSessionEventEnvelopeProperty(
 export function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
     sessionDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
-    const variants = extractEventVariants(schema);
+    const variants = extractEventVariants(schema).filter((variant) => !isSchemaInternal(variant.dataSchema));
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
@@ -1381,12 +1382,16 @@ namespace GitHub.Copilot;
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
         }
-        const variantVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
-        lines.push(`${variantVisibility} sealed partial class ${variant.className} : SessionEvent`, `{`);
+        lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
         lines.push(`    [JsonIgnore]`, `    public override string Type => "${variant.typeName}";`, "");
         lines.push(`    /// <summary>The <c>${escapeXml(variant.typeName)}</c> event payload.</summary>`);
-        lines.push(`    [JsonPropertyName("data")]`, `    ${variantVisibility} required ${variant.dataClassName} Data { get; set; }`, `}`, "");
+        lines.push(
+            `    [JsonPropertyName("data")]`,
+            `    public required ${variant.dataClassName} Data { get; set; }`,
+            `}`,
+            ""
+        );
     }
 
     // Data classes
@@ -2486,11 +2491,23 @@ function generateRpcCode(
     let sessionRpcParts: string[] = [];
     if (schema.session) sessionRpcParts = emitSessionRpcClasses(schema.session, classes);
 
+    // Client handler surfaces (interfaces, handler properties, RPC registration)
+    // are only generated for public methods. Internal client methods (e.g.
+    // `hooks.invoke`) are runtime transport plumbing and must not surface any
+    // generated code — including their request/result DTOs, which would
+    // otherwise leak as `internal` types referenced by a `public` handler
+    // interface (CS0050/CS0051 inconsistent accessibility).
     let clientSessionParts: string[] = [];
-    if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
+    if (schema.clientSession) {
+        const publicClientSession = filterNodeByVisibility(schema.clientSession, "public");
+        if (publicClientSession) clientSessionParts = emitClientSessionApiRegistration(publicClientSession, classes);
+    }
 
     let clientGlobalParts: string[] = [];
-    if (schema.clientGlobal) clientGlobalParts = emitClientGlobalApiRegistration(schema.clientGlobal, classes);
+    if (schema.clientGlobal) {
+        const publicClientGlobal = filterNodeByVisibility(schema.clientGlobal, "public");
+        if (publicClientGlobal) clientGlobalParts = emitClientGlobalApiRegistration(publicClientGlobal, classes);
+    }
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}

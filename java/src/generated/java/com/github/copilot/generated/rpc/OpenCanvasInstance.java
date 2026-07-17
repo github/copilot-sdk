@@ -29,6 +29,8 @@ public record OpenCanvasInstance(
     @JsonProperty("extensionName") String extensionName,
     /** Provider-local canvas identifier */
     @JsonProperty("canvasId") String canvasId,
+    /** Host-local PNG path for the canvas icon, when supplied */
+    @JsonProperty("icon") String icon,
     /** Rendered title */
     @JsonProperty("title") String title,
     /** Provider-supplied status text */

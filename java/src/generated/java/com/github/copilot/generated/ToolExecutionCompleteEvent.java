@@ -41,6 +41,8 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("success") Boolean success,
         /** Model identifier that generated this tool call */
         @JsonProperty("model") String model,
+        /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental. */
+        @JsonProperty("mcpMeta") Object mcpMeta,
         /** CAPI interaction ID for correlating this tool execution with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
         /** Whether this tool call was explicitly requested by the user rather than the assistant */

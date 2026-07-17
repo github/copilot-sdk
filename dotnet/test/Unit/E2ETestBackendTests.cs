@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using System.Diagnostics;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
 
@@ -22,7 +21,7 @@ public class E2ETestBackendTests
 
     [Fact]
     public void RejectsUnknownBackend()
-        => Assert.Throws<UnreachableException>(
+        => Assert.Throws<ArgumentOutOfRangeException>(
             () => E2ETestBackendConfiguration.Parse("unknown"));
 
     [Theory]

@@ -32,6 +32,6 @@ public final class StaticTools$$CopilotToolMeta implements CopilotToolMetadataPr
                     // Mimics what the processor now generates for static methods:
                     // QualifiedClassName.method(...) instead of instance.method(...)
                     return CompletableFuture.completedFuture(StaticTools.greet(name));
-                }, null, null, null));
+                }, null, null, null, null));
     }
 }

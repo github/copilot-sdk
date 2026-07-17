@@ -208,6 +208,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       this.state.storedData = yaml.parse(content) as NormalizedData;
       normalizeToolResultOrder(this.state.storedData.conversations);
       normalizeStoredUserMessages(this.state.storedData.conversations);
+      normalizeStoredToolMessages(this.state.storedData.conversations);
       normalizeStoredMessagesForBackend(
         this.state.storedData.conversations,
         this.state.backend,
@@ -1298,6 +1299,22 @@ function coalesceMessages(
   return result;
 }
 
+// Re-normalizes the built-in tool enumeration in stored tool results at load
+// time. Snapshots recorded before normalizeAvailableToolNames collapsed the
+// whole list (or recorded against an older tool set) still contain the literal
+// enumeration on disk; the result normalizers only run against live requests,
+// so without this the stored side would keep the stale list and never match a
+// request whose tool set has since changed.
+function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
+  for (const conversation of conversations) {
+    for (const message of conversation.messages) {
+      if (message.role === "tool" && typeof message.content === "string") {
+        message.content = normalizeAvailableToolNames(message.content);
+      }
+    }
+  }
+}
+
 function normalizeSkillContextFrontmatter(content: string): string {
   // Runtime versions may include or omit SKILL.md metadata in the prompt context.
   return content.replace(
@@ -1388,41 +1405,21 @@ function normalizeReadAgentTimings(result: string): string {
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
-// Maps the platform-specific shell tool family names to stable placeholders.
-// On Windows the runtime exposes powershell/read_powershell/stop_powershell/...,
-// on Linux/macOS it exposes bash/read_bash/stop_bash/.... Ordered so that the
-// prefixed names are handled explicitly; \b boundaries keep bare names from
-// matching inside the prefixed ones.
-const shellToolFamilyReplacements: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bread_powershell\b/g, "${read_shell}"],
-  [/\bstop_powershell\b/g, "${stop_shell}"],
-  [/\blist_powershell\b/g, "${list_shell}"],
-  [/\bwrite_powershell\b/g, "${write_shell}"],
-  [/\bpowershell\b/g, "${shell}"],
-  [/\bread_bash\b/g, "${read_shell}"],
-  [/\bstop_bash\b/g, "${stop_shell}"],
-  [/\blist_bash\b/g, "${list_shell}"],
-  [/\bwrite_bash\b/g, "${write_shell}"],
-  [/\bbash\b/g, "${shell}"],
-];
-
-function normalizeShellToolFamilyNames(text: string): string {
-  let result = text;
-  for (const [pattern, replacement] of shellToolFamilyReplacements) {
-    result = result.replace(pattern, replacement);
-  }
-  return result;
-}
+// Stable placeholder for the built-in tool enumeration the runtime emits when a
+// nonexistent tool is called (see normalizeAvailableToolNames).
+export const availableToolsPlaceholder = "${available_tools}";
 
 // When a model calls a tool that doesn't exist (e.g., the removed report_intent
 // tool), the runtime replies with "Available tools that can be called are <list>."
-// The shell tool family names in that list are platform-specific, so normalize
-// them to placeholders to keep snapshots matching across Windows/Linux/macOS.
+// That enumeration is both platform-specific (shell tool family names differ
+// across OSes) and runtime-version-specific (built-in tools such as write_agent
+// are added or removed over time), so any test that trips this path would break
+// whenever the tool set changes. Collapse the whole list to a stable placeholder
+// so snapshots keep matching as the built-in tool set evolves.
 function normalizeAvailableToolNames(result: string): string {
   return result.replace(
-    /(Available tools that can be called are )([^.]*)/g,
-    (_full, prefix: string, list: string) =>
-      prefix + normalizeShellToolFamilyNames(list),
+    /(Available tools that can be called are )[^.]*/g,
+    (_full, prefix: string) => prefix + availableToolsPlaceholder,
   );
 }
 

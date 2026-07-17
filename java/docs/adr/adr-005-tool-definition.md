@@ -181,13 +181,44 @@ final class MyTools$$CopilotToolMeta {
                     Phase phase = invocation.getArgumentsAs(Phase.class);
                     return CompletableFuture.completedFuture(
                         instance.setCurrentPhase(phase));
-                }, null, null, null)
+                }, null, null, null, null)
         );
     }
 }
 ```
 
+The trailing constructor arguments are `overridesBuiltInTool`, `skipPermission`, `defer`, and `metadata` — all `null` here because none were set on the annotation.
+
 At runtime, `ToolDefinition.fromObject(myTools)` loads the generated `$$CopilotToolMeta` class — zero reflection, zero dependency on `-parameters`.
+
+### Host-defined metadata
+
+`@CopilotTool` also accepts an opaque `metadata` bag via nested annotations. Because annotation members can't express arbitrary maps, the representation is deliberately shallow: each entry maps a namespaced key to a boolean, a string, or a one-level map of named boolean flags.
+
+```java
+@CopilotTool(
+    value = "Reports phase",
+    metadata = {
+        @CopilotTool.MetadataEntry(
+            key = "github.com/copilot:safeForTelemetry",
+            value = @CopilotTool.MetadataValue(flags = {
+                @CopilotTool.MetadataFlag(name = "name", value = true),
+                @CopilotTool.MetadataFlag(name = "inputsNames", value = false)
+            }))
+    })
+public String reportPhase(@CopilotToolParam("Phase") String phase) {
+    return phase;
+}
+```
+
+The processor emits this as the `metadata` constructor argument:
+
+```java
+Map.<String, Object>of("github.com/copilot:safeForTelemetry",
+        Map.of("name", true, "inputsNames", false))
+```
+
+For richer values (numbers, arrays, deeper nesting), use the programmatic `ToolDefinition.createWithMetadata(...)` / `ToolDefinition.metadata(...)` API instead.
 
 ### Compile-time validation
 

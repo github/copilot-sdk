@@ -1118,6 +1118,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             InstanceId = data.InstanceId,
             Status = data.Status,
             Title = data.Title,
+            Icon = data.Icon,
             Url = data.Url,
         });
     }

@@ -7,7 +7,6 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import type { Response as OpenAIResponse } from "openai/resources/responses/responses";
 import {
   CanonicalMessage,
-  CanonicalToolCall,
   formatSseEvent,
   functionToolCalls,
   isObject,

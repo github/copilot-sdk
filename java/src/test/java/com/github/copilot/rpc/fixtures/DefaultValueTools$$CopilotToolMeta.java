@@ -40,6 +40,6 @@ public final class DefaultValueTools$$CopilotToolMeta implements CopilotToolMeta
                             Object countRaw = args.containsKey("count") ? args.get("count") : 42;
                             int count = ((Number) countRaw).intValue();
                             return CompletableFuture.completedFuture(instance.withDefault(label, count));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

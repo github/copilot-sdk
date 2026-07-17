@@ -640,6 +640,14 @@ export interface Tool<TArgs = unknown> {
      * Optional; defaults to `"auto"`.
      */
     defer?: "auto" | "never";
+    /**
+     * Opaque, host-defined metadata associated with the tool definition.
+     *
+     * Keys are namespaced and are not part of the stable public API. Values are
+     * not interpreted and may be recognized to inform host-specific behavior.
+     * Unknown keys are preserved and round-tripped untouched.
+     */
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -655,6 +663,7 @@ export function defineTool<T = unknown>(
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
         defer?: "auto" | "never";
+        metadata?: Record<string, unknown>;
     }
 ): Tool<T> {
     return { name, ...config };
@@ -1632,6 +1641,12 @@ export interface CustomAgentConfig {
      * falling back to the parent session model if unavailable.
      */
     model?: string;
+    /**
+     * Reasoning effort level for this agent's model.
+     * When omitted, no per-agent override is sent and the backend chooses its
+     * default. The parent session effort is not inherited.
+     */
+    reasoningEffort?: ReasoningEffort;
 }
 
 /**
