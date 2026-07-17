@@ -46,7 +46,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await isolatedCtx.ConfigureForTestAsync("rpc_session_state", nameof(Should_Call_Session_Rpc_Model_SwitchTo));
         var isolatedClient = isolatedCtx.CreateClient();
 
-        await using var session = await Ctx.CreateSessionAsync(isolatedClient, new SessionConfig
+        await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient, new SessionConfig
         {
             Model = "claude-sonnet-4.5",
             OnPermissionRequest = PermissionHandler.ApproveAll,

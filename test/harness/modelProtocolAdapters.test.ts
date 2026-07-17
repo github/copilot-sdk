@@ -346,15 +346,72 @@ describe("OpenAI Responses adapter", () => {
       "function_call",
     ]);
 
-    const stream =
-      chatCompletionResponseToResponsesApiSseChunks(completionWithTool).join(
-        "",
-      );
+    const chunks =
+      chatCompletionResponseToResponsesApiSseChunks(completionWithTool);
+    const events = chunks.map(
+      (chunk) =>
+        JSON.parse(chunk.split("\ndata: ")[1]) as Record<string, unknown>,
+    );
+    const stream = chunks.join("");
     expect(stream).toContain("event: response.created");
-      expect(stream).toContain("event: response.in_progress");
-      expect(stream).toContain("event: response.output_text.delta");
-      expect(stream).toContain('"sequence_number":0');
-      expect(stream).toContain("event: response.completed");
+    expect(stream).toContain("event: response.in_progress");
+    expect(stream).toContain("event: response.output_text.delta");
+    expect(stream).toContain('"sequence_number":0');
+    expect(stream).toContain("event: response.completed");
+
+    expect(events[0]).toMatchObject({
+      type: "response.created",
+      response: { status: "in_progress", output: [] },
+    });
+    expect(events[1]).toMatchObject({
+      type: "response.in_progress",
+      response: { status: "in_progress", output: [] },
+    });
+
+    const addedItems = events.filter(
+      (event) => event.type === "response.output_item.added",
+    );
+    expect(addedItems).toMatchObject([
+      {
+        item: {
+          type: "message",
+          status: "in_progress",
+          content: [],
+        },
+      },
+      {
+        item: {
+          type: "function_call",
+          status: "in_progress",
+          arguments: "",
+        },
+      },
+    ]);
+    expect(
+      events.find((event) => event.type === "response.content_part.added"),
+    ).toMatchObject({
+      part: { type: "output_text", text: "" },
+    });
+
+    const completedItems = events.filter(
+      (event) => event.type === "response.output_item.done",
+    );
+    expect(completedItems).toMatchObject([
+      {
+        item: {
+          type: "message",
+          status: "completed",
+          content: [{ type: "output_text", text: "Calling a tool" }],
+        },
+      },
+      {
+        item: {
+          type: "function_call",
+          status: "completed",
+          arguments: '{"value":42}',
+        },
+      },
+    ]);
   });
 });
 

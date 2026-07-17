@@ -322,6 +322,7 @@ export function chatCompletionResponseToResponsesApiSseChunks(
   const fullResponse = chatCompletionResponseToResponsesApiMessage(response);
   const skeleton = {
     ...fullResponse,
+    status: "in_progress" as const,
     output: [],
     output_text: "",
     usage: undefined,
@@ -346,10 +347,16 @@ export function chatCompletionResponseToResponsesApiSseChunks(
     outputIndex++
   ) {
     const item = fullResponse.output[outputIndex];
+    const addedItem =
+      item.type === "message"
+        ? { ...item, status: "in_progress" as const, content: [] }
+        : item.type === "function_call"
+          ? { ...item, status: "in_progress" as const, arguments: "" }
+          : item;
     chunks.push(
       event("response.output_item.added", {
         output_index: outputIndex,
-        item,
+        item: addedItem,
       }),
     );
 
@@ -365,7 +372,10 @@ export function chatCompletionResponseToResponsesApiSseChunks(
             item_id: item.id,
             output_index: outputIndex,
             content_index: contentIndex,
-            part,
+            part:
+              isObject(part) && part.type === "output_text"
+                ? { ...part, text: "" }
+                : part,
           }),
         );
         if (
