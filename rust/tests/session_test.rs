@@ -14,15 +14,15 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    InterruptMainTurnRequest, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
-    McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+    CapabilitiesChangedData, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
     CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
-    ExitPlanModeData, ExtensionInfo, InterruptMainTurnRequest, MessageOptions, RequestId,
+    ExitPlanModeData, ExtensionInfo, InterruptMainTurnOptions, MessageOptions, RequestId,
     SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
@@ -1303,13 +1303,27 @@ async fn interrupt_main_turn_sends_exact_options_and_returns_status() {
     let session = Arc::new(session);
 
     for (flush_queued, interrupted) in [(None, true), (Some(false), false), (Some(true), true)] {
-        let options = flush_queued.map(|value| InterruptMainTurnRequest {
-            flush_queued: Some(value),
-        });
-        let handle = tokio::spawn({
-            let session = session.clone();
-            async move { session.interrupt_main_turn(options).await }
-        });
+        let handle = match flush_queued {
+            Some(value) => {
+                let session = session.clone();
+                tokio::spawn(async move {
+                    session
+                        .interrupt_main_turn(
+                            InterruptMainTurnOptions::default().with_flush_queued(value),
+                        )
+                        .await
+                })
+            }
+            None => {
+                let session = session.clone();
+                tokio::spawn(async move {
+                    session
+                        .rpc()
+                        .interrupt_main_turn(InterruptMainTurnRequest::default())
+                        .await
+                })
+            }
+        };
 
         let request = server.read_request().await;
         assert_eq!(request["method"], "session.interruptMainTurn");
@@ -1333,7 +1347,11 @@ async fn interrupt_main_turn_sends_exact_options_and_returns_status() {
 #[tokio::test]
 async fn interrupt_main_turn_propagates_method_not_found_without_abort_fallback() {
     let (session, mut server) = create_session_pair().await;
-    let handle = tokio::spawn(async move { session.interrupt_main_turn(None).await });
+    let handle = tokio::spawn(async move {
+        session
+            .interrupt_main_turn(InterruptMainTurnOptions::default())
+            .await
+    });
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.interruptMainTurn");
@@ -3228,6 +3246,7 @@ async fn missing_interrupt_capability_from_older_server_remains_unknown() {
 #[tokio::test]
 async fn capabilities_changed_event_replaces_session_snapshot() {
     let (session, mut server) = create_session_pair().await;
+    let mut events = session.subscribe();
 
     assert_eq!(session.capabilities().interrupt_main_turn, None);
     assert!(session.capabilities().ui.is_none());
@@ -3242,17 +3261,16 @@ async fn capabilities_changed_event_replaces_session_snapshot() {
         )
         .await;
 
-    timeout(TIMEOUT, async {
-        loop {
-            let caps = session.capabilities();
-            if caps.interrupt_main_turn == Some(true) && caps.ui.is_some() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("capabilities should update within timeout");
+    let event = timeout(TIMEOUT, events.recv())
+        .await
+        .expect("capabilities event should arrive within timeout")
+        .unwrap();
+    let changed = event.typed_data::<CapabilitiesChangedData>().unwrap();
+    assert_eq!(changed.interrupt_main_turn, Some(true));
+
+    let caps = session.capabilities();
+    assert_eq!(caps.interrupt_main_turn, Some(true));
+    assert_eq!(caps.ui.as_ref().unwrap().elicitation, Some(true));
 
     server
         .send_event(
@@ -3261,18 +3279,16 @@ async fn capabilities_changed_event_replaces_session_snapshot() {
         )
         .await;
 
-    let caps = timeout(TIMEOUT, async {
-        loop {
-            let caps = session.capabilities();
-            if caps.interrupt_main_turn == Some(false) {
-                break caps;
-            }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("replacement capabilities should update within timeout");
+    let event = timeout(TIMEOUT, events.recv())
+        .await
+        .expect("replacement capabilities event should arrive within timeout")
+        .unwrap();
+    let changed = event.typed_data::<CapabilitiesChangedData>().unwrap();
+    assert_eq!(changed.interrupt_main_turn, Some(false));
+    assert!(changed.ui.is_none());
 
+    let caps = session.capabilities();
+    assert_eq!(caps.interrupt_main_turn, Some(false));
     assert!(caps.ui.is_none());
 }
 

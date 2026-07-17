@@ -380,14 +380,12 @@ async fn elicitation_returns_all_action_shapes() {
 
 #[tokio::test]
 async fn session_capabilities_types_are_properly_structured() {
-    let capabilities = github_copilot_sdk::SessionCapabilities {
-        interrupt_main_turn: None,
-        ui: Some(UiCapabilities {
-            elicitation: Some(true),
-            mcp_apps: None,
-            canvases: None,
-        }),
-    };
+    let mut capabilities = github_copilot_sdk::SessionCapabilities::default();
+    capabilities.ui = Some(UiCapabilities {
+        elicitation: Some(true),
+        mcp_apps: None,
+        canvases: None,
+    });
 
     assert_eq!(
         capabilities.ui.as_ref().and_then(|ui| ui.elicitation),
@@ -395,6 +393,7 @@ async fn session_capabilities_types_are_properly_structured() {
     );
 
     let empty = github_copilot_sdk::SessionCapabilities::default();
+    assert!(empty.interrupt_main_turn.is_none());
     assert!(empty.ui.is_none());
 }
 

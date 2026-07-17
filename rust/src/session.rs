@@ -31,9 +31,9 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
-    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InterruptMainTurnOptions,
+    MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult,
+    SectionOverride, SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
     UiInputOptions, ensure_attachment_display_names,
 };
@@ -533,9 +533,9 @@ impl Session {
     /// Interrupt only the active main coordinator turn while preserving
     /// background agents and other background work.
     ///
-    /// Pass `None` or set `flush_queued` to `Some(false)` to discard queued
-    /// prompts. Set it to `Some(true)` to preserve queued user prompts for the
-    /// next eligible turn while dropping hidden system prompts.
+    /// The default `flush_queued: false` discards queued prompts. Set
+    /// `flush_queued: true` to preserve queued user prompts for the next
+    /// eligible turn while dropping hidden system prompts.
     ///
     /// A result with `interrupted == false` means the method is supported but
     /// no main turn was active. Older CLIs and unsupported remote sessions
@@ -548,10 +548,12 @@ impl Session {
     /// through the writer-actor.
     pub async fn interrupt_main_turn(
         &self,
-        options: Option<InterruptMainTurnRequest>,
+        options: InterruptMainTurnOptions,
     ) -> Result<InterruptMainTurnResult, Error> {
         self.rpc()
-            .interrupt_main_turn(options.unwrap_or_default())
+            .interrupt_main_turn(InterruptMainTurnRequest {
+                flush_queued: Some(options.flush_queued),
+            })
             .await
     }
 

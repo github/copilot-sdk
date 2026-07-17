@@ -89,7 +89,7 @@ With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in th
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
 
 ```rust,ignore
-use github_copilot_sdk::{InterruptMainTurnRequest, MessageOptions};
+use github_copilot_sdk::{InterruptMainTurnOptions, MessageOptions};
 
 // Simple send — &str / String convert into MessageOptions automatically.
 // Returns the assigned message ID for correlation with later events.
@@ -109,9 +109,9 @@ let messages = session.get_events().await?;
 
 // Stop only the foreground turn while preserving background work.
 let result = session
-    .interrupt_main_turn(Some(InterruptMainTurnRequest {
-        flush_queued: Some(true),
-    }))
+    .interrupt_main_turn(
+        InterruptMainTurnOptions::default().with_flush_queued(true),
+    )
     .await?;
 
 // Recursively abort the active turn and all descendant/background work.

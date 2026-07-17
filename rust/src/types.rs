@@ -5235,8 +5235,10 @@ pub struct ElicitationRequest {
 /// Updated at runtime via `capabilities.changed` events.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SessionCapabilities {
-    /// Whether the host supports scoped interruption of the active main turn.
+    /// Whether the host supports scoped interruption via
+    /// [`Session::interrupt_main_turn`](crate::session::Session::interrupt_main_turn).
     ///
     /// Local sessions report `Some(true)`, unsupported remote sessions report
     /// `Some(false)`, and older servers omit the field (`None`).
@@ -5245,6 +5247,23 @@ pub struct SessionCapabilities {
     /// UI capabilities (elicitation support, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<UiCapabilities>,
+}
+
+/// Options for [`Session::interrupt_main_turn`](crate::session::Session::interrupt_main_turn).
+#[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
+pub struct InterruptMainTurnOptions {
+    /// Preserve queued user prompts for the next eligible turn while dropping
+    /// hidden system prompts. The default (`false`) discards queued prompts.
+    pub flush_queued: bool,
+}
+
+impl InterruptMainTurnOptions {
+    /// Set whether queued user prompts should be preserved.
+    pub fn with_flush_queued(mut self, flush_queued: bool) -> Self {
+        self.flush_queued = flush_queued;
+        self
+    }
 }
 
 /// UI-specific capabilities for a session.
@@ -5319,11 +5338,10 @@ impl InputFormat {
 /// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
-    InterruptMainTurnRequest, InterruptMainTurnResult, Model, ModelBilling,
-    ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, ModelCapabilities,
-    ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision, ModelCapabilitiesSupports, ModelList,
-    ModelPolicy, PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
-    PermissionDecisionUserNotAvailable,
+    Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
+    ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
+    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
+    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.
