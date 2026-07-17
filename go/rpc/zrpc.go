@@ -11440,6 +11440,9 @@ const (
 	HookTypeSubagentStop HookType = "subagentStop"
 	// Runs after the user submits a prompt.
 	HookTypeUserPromptSubmitted HookType = "userPromptSubmitted"
+	// Runs after the runtime transforms the submitted prompt for the model, before it is added
+	// to session history.
+	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
 // Constant value. Always "github".

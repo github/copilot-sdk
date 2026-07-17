@@ -2466,6 +2466,7 @@ class _HookType(Enum):
     SUBAGENT_START = "subagentStart"
     SUBAGENT_STOP = "subagentStop"
     USER_PROMPT_SUBMITTED = "userPromptSubmitted"
+    USER_PROMPT_TRANSFORMED = "userPromptTransformed"
 
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass

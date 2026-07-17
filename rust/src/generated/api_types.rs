@@ -20866,6 +20866,9 @@ pub enum HookType {
     /// Runs after the user submits a prompt.
     #[serde(rename = "userPromptSubmitted")]
     UserPromptSubmitted,
+    /// Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.
+    #[serde(rename = "userPromptTransformed")]
+    UserPromptTransformed,
     /// Runs when a session starts.
     #[serde(rename = "sessionStart")]
     SessionStart,
