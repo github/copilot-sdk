@@ -14,10 +14,10 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    InterruptMainTurnRequest, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
-    McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+    CapabilitiesChangedData, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
@@ -130,6 +130,16 @@ impl FakeServer {
     async fn respond(&mut self, request: &Value, result: Value) {
         let id = request["id"].as_u64().unwrap();
         let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result });
+        write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
+    }
+
+    async fn respond_error(&mut self, request: &Value, code: i32, message: &str) {
+        let id = request["id"].as_u64().unwrap();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": code, "message": message },
+        });
         write_framed(&mut self.write, &serde_json::to_vec(&response).unwrap()).await;
     }
 
@@ -1288,7 +1298,66 @@ async fn session_rpc_methods_send_correct_method_names() {
 }
 
 #[tokio::test]
-async fn interrupt_main_turn_sends_options_and_returns_typed_result() {
+async fn interrupt_main_turn_rpc_omits_default_flush_queued() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .rpc()
+            .interrupt_main_turn(InterruptMainTurnRequest::default())
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.interruptMainTurn");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({ "sessionId": server.session_id })
+    );
+    server
+        .respond(&request, serde_json::json!({ "interrupted": true }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.interrupted);
+}
+
+#[tokio::test]
+async fn interrupt_main_turn_sends_false_and_true_and_returns_status() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    for (options, interrupted) in [
+        (InterruptMainTurnOptions::default(), false),
+        (
+            InterruptMainTurnOptions::default().with_flush_queued(true),
+            true,
+        ),
+    ] {
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move { session.interrupt_main_turn(options).await }
+        });
+
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.interruptMainTurn");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "flushQueued": options.flush_queued,
+            })
+        );
+        server
+            .respond(&request, serde_json::json!({ "interrupted": interrupted }))
+            .await;
+
+        let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+        assert_eq!(result.interrupted, interrupted);
+    }
+}
+
+#[tokio::test]
+async fn interrupt_main_turn_propagates_method_not_found_without_abort_fallback() {
     let (session, mut server) = create_session_pair().await;
     let handle = tokio::spawn(async move {
         session
@@ -1298,14 +1367,22 @@ async fn interrupt_main_turn_sends_options_and_returns_typed_result() {
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.interruptMainTurn");
-    assert_eq!(request["params"]["sessionId"], server.session_id);
-    assert_eq!(request["params"]["flushQueued"], false);
     server
-        .respond(&request, serde_json::json!({ "interrupted": true }))
+        .respond_error(&request, -32601, "Method not found")
         .await;
 
-    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
-    assert!(result.interrupted);
+    let error = timeout(TIMEOUT, handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.rpc_code(), Some(-32601));
+
+    let fallback = timeout(Duration::from_millis(100), server.read_request()).await;
+    assert!(
+        fallback.is_err(),
+        "session.interruptMainTurn must not fall back to session.abort"
+    );
 }
 
 #[tokio::test]
@@ -3169,39 +3246,47 @@ async fn capabilities_captured_from_create_response() {
 }
 
 #[tokio::test]
-async fn capabilities_changed_event_updates_session() {
-    let (session, mut server) = create_session_pair().await;
+async fn missing_interrupt_capability_from_older_server_remains_unknown() {
+    let (session, _server) = create_session_pair_with_capabilities(serde_json::json!({
+        "ui": { "elicitation": true }
+    }))
+    .await;
 
-    // Initially no capabilities (create_session_pair doesn't send them)
-    assert!(session.capabilities().interrupt_main_turn.is_none());
-    assert!(session.capabilities().ui.is_none());
+    assert_eq!(session.capabilities().interrupt_main_turn, None);
+}
 
-    // CLI sends capabilities.changed event
+#[tokio::test]
+async fn capabilities_changed_event_replaces_complete_snapshot_and_is_typed() {
+    let (session, mut server) = create_session_pair_with_capabilities(serde_json::json!({
+        "interruptMainTurn": true,
+        "ui": { "elicitation": true }
+    }))
+    .await;
+    let mut events = session.subscribe();
+
     server
         .send_event(
             "capabilities.changed",
-            serde_json::json!({
-                "interruptMainTurn": true,
-                "ui": { "elicitation": true }
-            }),
+            serde_json::json!({ "interruptMainTurn": false }),
         )
         .await;
 
-    // Poll until the event loop processes the notification
-    let caps = timeout(TIMEOUT, async {
-        loop {
-            let caps = session.capabilities();
-            if caps.interrupt_main_turn.is_some() && caps.ui.is_some() {
-                return caps;
-            }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-    })
-    .await
-    .expect("capabilities should update within timeout");
+    let event = timeout(TIMEOUT, events.recv())
+        .await
+        .expect("capabilities.changed should arrive within timeout")
+        .unwrap();
+    let changed = event
+        .typed_data::<CapabilitiesChangedData>()
+        .expect("capabilities.changed should expose typed data");
+    assert_eq!(changed.interrupt_main_turn, Some(false));
+    assert!(changed.ui.is_none());
 
-    assert_eq!(caps.interrupt_main_turn, Some(true));
-    assert_eq!(caps.ui.as_ref().unwrap().elicitation, Some(true));
+    let caps = session.capabilities();
+    assert_eq!(caps.interrupt_main_turn, Some(false));
+    assert!(
+        caps.ui.is_none(),
+        "each capabilities.changed payload is a complete replacement snapshot"
+    );
 }
 
 #[tokio::test]
@@ -3334,7 +3419,7 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
 }
 
 #[tokio::test]
-async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
+async fn resume_session_sends_canvas_fields_and_captures_snapshots() {
     use github_copilot_sdk::types::ResumeSessionConfig;
 
     let (client, mut server_read, mut server_write) = make_client();
@@ -3398,6 +3483,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 "url": "https://example.test/counter"
             }],
             "capabilities": {
+                "interruptMainTurn": false,
                 "ui": { "canvases": true }
             }
         },
@@ -3415,6 +3501,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "counter-1");
     let caps = session.capabilities();
+    assert_eq!(caps.interrupt_main_turn, Some(false));
     assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
 

@@ -5240,6 +5240,9 @@ pub struct SessionCapabilities {
     /// Whether scoped foreground interruption via
     /// [`Session::interrupt_main_turn`](crate::session::Session::interrupt_main_turn)
     /// is supported by the connected CLI runtime.
+    ///
+    /// Local sessions report `Some(true)`, unsupported remote sessions report
+    /// `Some(false)`, and older servers omit the field (`None`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interrupt_main_turn: Option<bool>,
     /// UI capabilities (elicitation support, etc.).

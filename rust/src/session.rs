@@ -539,6 +539,11 @@ impl Session {
     /// client may connect to mixed CLI versions; unsupported runtimes return
     /// JSON-RPC `MethodNotFound`.
     ///
+    /// [`InterruptMainTurnOptions::default`] sends `flush_queued: false` and
+    /// discards queued prompts. Setting it to `true` preserves queued user
+    /// prompts for the next eligible turn, drops hidden system prompts, and
+    /// resumes normal delivery after the interrupted loop unwinds.
+    ///
     /// # Cancel safety
     ///
     /// **Cancel-safe.** Single `session.interruptMainTurn` RPC; the underlying
@@ -1638,7 +1643,9 @@ async fn handle_notification(
     // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match serde_json::from_value::<SessionCapabilities>(notification.event.data.clone()) {
-            Ok(changed) => *capabilities.write() = changed,
+            // Every capabilities.changed payload is a complete snapshot, so
+            // omitted fields intentionally clear values from the prior one.
+            Ok(snapshot) => *capabilities.write() = snapshot,
             Err(e) => warn!(error = %e, "failed to deserialize capabilities.changed payload"),
         }
     }
