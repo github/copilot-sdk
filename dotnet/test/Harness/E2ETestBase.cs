@@ -59,6 +59,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
+        Ctx.PrepareForTest();
         await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
     }
@@ -88,14 +89,23 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         config ??= new ResumeSessionConfig();
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
 
-        await Client.StartAsync();
-        var port = Client.RuntimePort
-            ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
-
-        var client = Ctx.CreateClient(options: new CopilotClientOptions
+        CopilotClient client;
+        if (E2ETestContext.UsesInProcessTransport)
         {
-            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
-        });
+            client = Client;
+        }
+        else
+        {
+            await Client.StartAsync();
+            var port = Client.RuntimePort
+                ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
+
+            client = Ctx.CreateClient(options: new CopilotClientOptions
+            {
+                Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
+            });
+        }
+
         return await client.ResumeSessionAsync(sessionId, config);
     }
 

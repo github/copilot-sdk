@@ -16,6 +16,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
+    internal static bool UsesInProcessTransport => IsInProcess(null);
 
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
     public ILogger? Logger { get; set; }
@@ -298,22 +299,8 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         if (IsInProcess(options.Connection))
         {
-            // In-process hosting: runtime code runs host-side in this process (the
-            // loaded cdylib) and reads the ambient process environment rather than
-            // the environment passed to copilot_runtime_host_start, so the per-test
-            // redirects, cleared tokens/HMAC, and isolated home must be mirrored
-            // onto this process's real environment. Restored after each test by
-            // InProcessEnvIsolationAttribute.
-            foreach (var (name, value) in env)
-            {
-                InProcessEnvIsolation.Apply(name, value);
-            }
-
-            // A per-client WorkingDirectory is rejected in-process; instead point this
-            // process's cwd at the desired directory so the worker inherits it at spawn
-            // (restored after the test by InProcessEnvIsolationAttribute).
             options.WorkingDirectory = null;
-            InProcessEnvIsolation.SetWorkingDirectory(desiredWorkingDirectory);
+            ApplyInProcessEnvironment(env, desiredWorkingDirectory);
         }
         else if (options.Connection is ChildProcessRuntimeConnection child)
         {
@@ -350,6 +337,29 @@ public sealed class E2ETestContext : IAsyncDisposable
             }
         }
         return client;
+    }
+
+    internal void PrepareForTest()
+    {
+        if (UsesInProcessTransport)
+        {
+            ApplyInProcessEnvironment(GetEnvironment(), WorkDir);
+        }
+    }
+
+    private static void ApplyInProcessEnvironment(IReadOnlyDictionary<string, string> environment, string workingDirectory)
+    {
+        // Runtime code runs host-side in this process and reads its ambient environment,
+        // so restore the per-test redirects and isolated home after the assembly-level
+        // isolation attribute reset them at the end of the preceding test.
+        foreach (var (name, value) in environment)
+        {
+            InProcessEnvIsolation.Apply(name, value);
+        }
+
+        // The worker inherits the host process cwd because the native host has no
+        // per-client working-directory parameter.
+        InProcessEnvIsolation.SetWorkingDirectory(workingDirectory);
     }
 
     public void UntrackClient(CopilotClient client)
