@@ -5235,10 +5235,33 @@ pub struct ElicitationRequest {
 /// Updated at runtime via `capabilities.changed` events.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SessionCapabilities {
+    /// Whether scoped foreground interruption via
+    /// [`Session::interrupt_main_turn`](crate::session::Session::interrupt_main_turn)
+    /// is supported by the connected CLI runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupt_main_turn: Option<bool>,
     /// UI capabilities (elicitation support, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<UiCapabilities>,
+}
+
+/// Options for [`Session::interrupt_main_turn`](crate::session::Session::interrupt_main_turn).
+#[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
+pub struct InterruptMainTurnOptions {
+    /// Preserve queued user prompts for the next eligible turn. The default
+    /// (`false`) discards queued prompts while interrupting the foreground turn.
+    pub flush_queued: bool,
+}
+
+impl InterruptMainTurnOptions {
+    /// Set whether queued user prompts should be preserved.
+    pub fn with_flush_queued(mut self, flush_queued: bool) -> Self {
+        self.flush_queued = flush_queued;
+        self
+    }
 }
 
 /// UI-specific capabilities for a session.

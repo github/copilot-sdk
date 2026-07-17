@@ -22,8 +22,8 @@ use github_copilot_sdk::session_events::{
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
     CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
-    ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig, SessionId,
-    SetModelOptions, Tool, ToolInvocation, ToolResult,
+    ExitPlanModeData, ExtensionInfo, InterruptMainTurnOptions, MessageOptions, RequestId,
+    SessionConfig, SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
 use serde_json::Value;
@@ -1285,6 +1285,27 @@ async fn session_rpc_methods_send_correct_method_names() {
         server.respond(&request, response).await;
         timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     }
+}
+
+#[tokio::test]
+async fn interrupt_main_turn_sends_options_and_returns_typed_result() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .interrupt_main_turn(InterruptMainTurnOptions::default())
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.interruptMainTurn");
+    assert_eq!(request["params"]["sessionId"], server.session_id);
+    assert_eq!(request["params"]["flushQueued"], false);
+    server
+        .respond(&request, serde_json::json!({ "interrupted": true }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.interrupted);
 }
 
 #[tokio::test]
@@ -3134,6 +3155,7 @@ async fn capabilities_captured_from_create_response() {
         "result": {
             "sessionId": session_id,
             "capabilities": {
+                "interruptMainTurn": true,
                 "ui": { "elicitation": true }
             }
         },
@@ -3142,6 +3164,7 @@ async fn capabilities_captured_from_create_response() {
 
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     let caps = session.capabilities();
+    assert_eq!(caps.interrupt_main_turn, Some(true));
     assert_eq!(caps.ui.as_ref().unwrap().elicitation, Some(true));
 }
 
@@ -3150,6 +3173,7 @@ async fn capabilities_changed_event_updates_session() {
     let (session, mut server) = create_session_pair().await;
 
     // Initially no capabilities (create_session_pair doesn't send them)
+    assert!(session.capabilities().interrupt_main_turn.is_none());
     assert!(session.capabilities().ui.is_none());
 
     // CLI sends capabilities.changed event
@@ -3157,6 +3181,7 @@ async fn capabilities_changed_event_updates_session() {
         .send_event(
             "capabilities.changed",
             serde_json::json!({
+                "interruptMainTurn": true,
                 "ui": { "elicitation": true }
             }),
         )
@@ -3166,7 +3191,7 @@ async fn capabilities_changed_event_updates_session() {
     let caps = timeout(TIMEOUT, async {
         loop {
             let caps = session.capabilities();
-            if caps.ui.is_some() {
+            if caps.interrupt_main_turn.is_some() && caps.ui.is_some() {
                 return caps;
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -3175,6 +3200,7 @@ async fn capabilities_changed_event_updates_session() {
     .await
     .expect("capabilities should update within timeout");
 
+    assert_eq!(caps.interrupt_main_turn, Some(true));
     assert_eq!(caps.ui.as_ref().unwrap().elicitation, Some(true));
 }
 

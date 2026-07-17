@@ -12,8 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    InterruptMainTurnRequest, InterruptMainTurnResult, LogRequest, ModelSwitchToRequest,
+    OpenCanvasInstance, RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -31,9 +31,9 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
-    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InterruptMainTurnOptions,
+    MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult,
+    SectionOverride, SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
     UiInputOptions, ensure_attachment_display_names,
 };
@@ -509,7 +509,11 @@ impl Session {
         self.get_events().await
     }
 
-    /// Abort the current agent turn.
+    /// Abort the active session turn and recursively cancel descendant and
+    /// background work.
+    ///
+    /// Use [`interrupt_main_turn`](Self::interrupt_main_turn) when independent
+    /// background work must survive.
     ///
     /// # Cancel safety
     ///
@@ -524,6 +528,30 @@ impl Session {
             )
             .await?;
         Ok(())
+    }
+
+    /// Interrupt only the active foreground/main turn while preserving
+    /// independent background agents and descendants.
+    ///
+    /// This never falls back to [`abort`](Self::abort), which is the recursive
+    /// destructive cancellation API. Check
+    /// [`SessionCapabilities::interrupt_main_turn`] before calling when the
+    /// client may connect to mixed CLI versions; unsupported runtimes return
+    /// JSON-RPC `MethodNotFound`.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Single `session.interruptMainTurn` RPC; the underlying
+    /// [`Client::call`](crate::Client::call) is cancel-safe via the writer actor.
+    pub async fn interrupt_main_turn(
+        &self,
+        options: InterruptMainTurnOptions,
+    ) -> Result<InterruptMainTurnResult, Error> {
+        self.rpc()
+            .interrupt_main_turn(InterruptMainTurnRequest {
+                flush_queued: Some(options.flush_queued),
+            })
+            .await
     }
 
     /// Switch to a different model.
