@@ -392,9 +392,7 @@ describe("factories", () => {
         expect(cachedProducerCalls).toBe(1);
         expect(failingProducerCalls).toBe(2);
         expect(
-            sendRequest.mock.calls.filter(
-                ([method]) => method === "session.factory.journal.put"
-            )
+            sendRequest.mock.calls.filter(([method]) => method === "session.factory.journal.put")
         ).toHaveLength(2);
     });
 
@@ -730,10 +728,7 @@ describe("factories", () => {
             args: {},
         });
         await vi.waitFor(() =>
-            expect(sendRequest).toHaveBeenCalledWith(
-                "session.factory.agent",
-                expect.anything()
-            )
+            expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", expect.anything())
         );
 
         await session.clientSessionApis.factory!.abort({
@@ -824,17 +819,13 @@ describe("factories", () => {
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
-        await expect(session.factory.run("by-name", { args: { value: 1 } })).resolves.toEqual(
-            {
-                name: "by-name",
-            }
-        );
+        await expect(session.factory.run("by-name", { args: { value: 1 } })).resolves.toEqual({
+            name: "by-name",
+        });
         await expect(session.factory.run(factory)).resolves.toEqual({
             name: "friendly-run",
         });
-        await expect(
-            session.factory.run("background", { background: true })
-        ).resolves.toEqual({
+        await expect(session.factory.run("background", { background: true })).resolves.toEqual({
             runId: "run-background",
             status: "running",
         });
