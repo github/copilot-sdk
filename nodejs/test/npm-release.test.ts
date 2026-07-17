@@ -52,7 +52,7 @@ describe("npm release publishing", () => {
             "public",
         ],
         [
-            "npm error 403 403 Forbidden - PUT https://pkgs.dev.azure.com/feed - already contains file 'package.tgz' in package '@github/copilot-sdk/1.2.3'",
+            "npm error 403 403 Forbidden - The feed 'copilot-canary' already contains file 'copilot-sdk-0.0.0-29613896246.tgz' in package '@github/copilot-sdk 0.0.0-29613896246'.",
             "azure",
         ],
     ])("recovers the immutable conflict: %s", async (error, mode) => {

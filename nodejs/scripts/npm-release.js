@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 const PUBLIC_CONFLICT =
     /^(?:npm (?:error|ERR!) code EPUBLISHCONFLICT|npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:You )?cannot publish over (?:the )?previously published versions(?:: [^\r\n]+)?\.?)\r?$/im;
 const AZURE_CONFLICT =
-    /^npm (?:error|ERR!) (?:403 [^\r\n]* - )?already contains file '[^'\r\n]+\.tgz' in package '[^'\r\n]+'\.?\r?$/im;
+    /^npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:The feed '[^'\r\n]+' )?already contains file '[^'\r\n]+\.tgz' in package '[^'\r\n]+'\.?\r?$/im;
 
 export function runCommand(command, args, { stream = false } = {}) {
     return new Promise((resolve, reject) => {
