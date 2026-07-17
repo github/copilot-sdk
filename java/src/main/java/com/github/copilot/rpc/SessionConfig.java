@@ -632,11 +632,11 @@ public class SessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory (no organisation-level discovery).
      * <p>
-     * This option is sent to the server via a {@code session.options.update}
-     * JSON-RPC call immediately after session creation. In
-     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
-     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
-     * forwarded only when explicitly set.
+     * This option is sent with the initial create request and maintained via
+     * {@code session.options.update}. In {@link CopilotClientMode#EMPTY EMPTY} mode
+     * the default is {@code true} (local only); in
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is forwarded
+     * only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents

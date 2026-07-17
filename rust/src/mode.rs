@@ -33,6 +33,14 @@ pub enum ClientMode {
     Empty,
 }
 
+/// Resolve the effective custom-agents locality setting for a client mode.
+pub(crate) fn resolve_custom_agents_local_only(
+    mode: ClientMode,
+    custom_agents_local_only: Option<bool>,
+) -> Option<bool> {
+    custom_agents_local_only.or_else(|| (mode == ClientMode::Empty).then_some(true))
+}
+
 /// Tool name character set enforced by the runtime at every registration
 /// boundary. Mirrors the runtime's `VALID_TOOL_NAME_REGEX`.
 fn is_valid_tool_name(name: &str) -> bool {
@@ -286,6 +294,22 @@ pub(crate) fn memory_for_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn custom_agents_local_only_respects_mode_and_caller_value() {
+        assert_eq!(
+            resolve_custom_agents_local_only(ClientMode::Empty, None),
+            Some(true)
+        );
+        assert_eq!(
+            resolve_custom_agents_local_only(ClientMode::Empty, Some(false)),
+            Some(false)
+        );
+        assert_eq!(
+            resolve_custom_agents_local_only(ClientMode::CopilotCli, None),
+            None
+        );
+    }
 
     #[test]
     fn tool_set_emits_source_qualified_patterns() {

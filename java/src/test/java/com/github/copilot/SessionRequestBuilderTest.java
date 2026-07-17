@@ -17,6 +17,7 @@ import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
@@ -85,6 +86,36 @@ public class SessionRequestBuilderTest {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
         assertTrue(request.getRequestPermission(),
                 "requestPermission should always be true to enable deny-by-default behavior");
+    }
+
+    @Test
+    void testBuildRequestsResolveAndSerializeCustomAgentsLocalOnly() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        var explicitCreate = SessionRequestBuilder
+                .buildCreateRequest(new SessionConfig().setCustomAgentsLocalOnly(false), "create-explicit");
+        var explicitResume = SessionRequestBuilder.buildResumeRequest("resume-explicit",
+                new ResumeSessionConfig().setCustomAgentsLocalOnly(false));
+        assertFalse(explicitCreate.getCustomAgentsLocalOnly());
+        assertFalse(explicitResume.getCustomAgentsLocalOnly());
+        assertTrue(mapper.writeValueAsString(explicitCreate).contains("\"customAgentsLocalOnly\":false"));
+        assertTrue(mapper.writeValueAsString(explicitResume).contains("\"customAgentsLocalOnly\":false"));
+
+        var emptyCreate = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-empty",
+                CopilotClientMode.EMPTY);
+        var emptyResume = SessionRequestBuilder.buildResumeRequest("resume-empty", new ResumeSessionConfig(),
+                CopilotClientMode.EMPTY);
+        assertTrue(emptyCreate.getCustomAgentsLocalOnly());
+        assertTrue(emptyResume.getCustomAgentsLocalOnly());
+        assertTrue(mapper.writeValueAsString(emptyCreate).contains("\"customAgentsLocalOnly\":true"));
+        assertTrue(mapper.writeValueAsString(emptyResume).contains("\"customAgentsLocalOnly\":true"));
+
+        var cliCreate = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-cli");
+        var cliResume = SessionRequestBuilder.buildResumeRequest("resume-cli", new ResumeSessionConfig());
+        assertNull(cliCreate.getCustomAgentsLocalOnly());
+        assertNull(cliResume.getCustomAgentsLocalOnly());
+        assertFalse(mapper.writeValueAsString(cliCreate).contains("\"customAgentsLocalOnly\""));
+        assertFalse(mapper.writeValueAsString(cliResume).contains("\"customAgentsLocalOnly\""));
     }
 
     @Test

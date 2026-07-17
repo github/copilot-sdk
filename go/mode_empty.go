@@ -160,6 +160,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 	if config.MCPOAuthTokenStorage == "" {
 		config.MCPOAuthTokenStorage = "in-memory"
 	}
+	if config.CustomAgentsLocalOnly == nil {
+		localOnly := true
+		config.CustomAgentsLocalOnly = &localOnly
+	}
 }
 
 func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
@@ -203,6 +207,10 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	}
 	if config.MCPOAuthTokenStorage == "" {
 		config.MCPOAuthTokenStorage = "in-memory"
+	}
+	if config.CustomAgentsLocalOnly == nil {
+		localOnly := true
+		config.CustomAgentsLocalOnly = &localOnly
 	}
 }
 

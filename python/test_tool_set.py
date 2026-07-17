@@ -6,6 +6,7 @@ import pytest
 
 from copilot import BUILTIN_TOOLS_ISOLATED, CopilotClient, ToolSet, UriRuntimeConnection
 from copilot._mode import (
+    _custom_agents_local_only_default,
     _embedding_cache_storage_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
@@ -198,6 +199,7 @@ class TestEmptyModeBooleanDefaults:
             (_enable_host_git_operations_default, False),
             (_enable_session_store_default, False),
             (_enable_skills_default, False),
+            (_custom_agents_local_only_default, True),
         ],
     )
     def test_empty_mode_defaults(self, helper, empty_default):
@@ -213,6 +215,7 @@ class TestEmptyModeBooleanDefaults:
             _enable_host_git_operations_default,
             _enable_session_store_default,
             _enable_skills_default,
+            _custom_agents_local_only_default,
         ],
     )
     def test_caller_wins(self, helper):
@@ -229,6 +232,7 @@ class TestEmptyModeBooleanDefaults:
             _enable_host_git_operations_default,
             _enable_session_store_default,
             _enable_skills_default,
+            _custom_agents_local_only_default,
         ],
     )
     def test_copilot_cli_does_not_change(self, helper):
