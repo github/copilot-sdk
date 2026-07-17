@@ -81,13 +81,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
 
     private int _isDisposed;
+    private long _eventEnqueueVersion;
+
+    private abstract record EventDispatchItem;
+    private sealed record EventItem(SessionEvent Event) : EventDispatchItem;
+    private sealed record EventBarrier(TaskCompletionSource<bool> Completion) : EventDispatchItem;
 
     /// <summary>
     /// Channel that serializes event dispatch. <see cref="DispatchEvent"/> enqueues;
     /// a single background consumer (<see cref="ProcessEventsAsync"/>) dequeues and
     /// invokes handlers one at a time, preserving arrival order.
     /// </summary>
-    private readonly Channel<SessionEvent> _eventChannel = Channel.CreateUnbounded<SessionEvent>(
+    private readonly Channel<EventDispatchItem> _eventChannel = Channel.CreateUnbounded<EventDispatchItem>(
         new() { SingleReader = true });
 
     /// <summary>
@@ -336,7 +341,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
-        var tcs = new TaskCompletionSource<AssistantMessageEvent?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tcs = new TaskCompletionSource<(AssistantMessageEvent? Message, string CompletedBy)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completionCandidate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         AssistantMessageEvent? lastAssistantMessage = null;
         var firstAssistantMessageLogged = false;
 
@@ -346,6 +352,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 case AssistantMessageEvent assistantMessage:
                     lastAssistantMessage = assistantMessage;
+                    completionCandidate.TrySetResult(true);
                     if (!firstAssistantMessageLogged)
                     {
                         firstAssistantMessageLogged = true;
@@ -356,18 +363,93 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     }
                     break;
 
+                case AssistantTurnEndEvent:
+                    completionCandidate.TrySetResult(true);
+                    break;
+
                 case SessionIdleEvent:
                     LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                         "CopilotSession.SendAndWaitAsync idle received. Elapsed={Elapsed}, SessionId={SessionId}",
                         totalTimestamp,
                         SessionId);
-                    tcs.TrySetResult(lastAssistantMessage);
+                    tcs.TrySetResult((lastAssistantMessage, "idle"));
                     break;
 
                 case SessionErrorEvent errorEvent:
                     var message = errorEvent.Data?.Message ?? "session error";
                     tcs.TrySetException(new InvalidOperationException($"Session error: {message}"));
                     break;
+            }
+        }
+
+        async Task MonitorRuntimeCompletionAsync(CancellationToken waitCancellationToken)
+        {
+            try
+            {
+                var candidateOrCompletion = await Task.WhenAny(completionCandidate.Task, tcs.Task).ConfigureAwait(false);
+                if (candidateOrCompletion != completionCandidate.Task)
+                {
+                    return;
+                }
+
+                // In the normal path session.idle follows the assistant events in the
+                // same notification burst. Give it a brief chance to arrive so the
+                // fallback adds no RPC traffic to healthy turns.
+                var graceDelay = Task.Delay(TimeSpan.FromMilliseconds(250), waitCancellationToken);
+                if (await Task.WhenAny(graceDelay, tcs.Task).ConfigureAwait(false) != graceDelay)
+                {
+                    return;
+                }
+
+                while (!tcs.Task.IsCompleted)
+                {
+                    // The runtime owns the authoritative view of background tasks and
+                    // follow-up turns. This RPC returns only after those have settled.
+                    await Rpc.Tasks.WaitForPendingAsync(waitCancellationToken).ConfigureAwait(false);
+
+                    var activity = await Rpc.Metadata.ActivityAsync(waitCancellationToken).ConfigureAwait(false);
+                    if (!activity.HasActiveWork)
+                    {
+                        // RPC responses and session.event notifications share one ordered
+                        // connection, but user handlers run on a separate FIFO channel.
+                        // Flush that channel before confirming the runtime is still idle.
+                        await FlushEventDispatchAsync(waitCancellationToken).ConfigureAwait(false);
+                        activity = await Rpc.Metadata.ActivityAsync(waitCancellationToken).ConfigureAwait(false);
+                        if (!activity.HasActiveWork)
+                        {
+                            var stableEventVersion = Volatile.Read(ref _eventEnqueueVersion);
+                            await FlushEventDispatchAsync(waitCancellationToken).ConfigureAwait(false);
+                            if (stableEventVersion != Volatile.Read(ref _eventEnqueueVersion))
+                            {
+                                continue;
+                            }
+
+                            activity = await Rpc.Metadata.ActivityAsync(waitCancellationToken).ConfigureAwait(false);
+                            if (!activity.HasActiveWork
+                                && stableEventVersion == Volatile.Read(ref _eventEnqueueVersion))
+                            {
+                                tcs.TrySetResult((lastAssistantMessage, "activity"));
+                                return;
+                            }
+                        }
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), waitCancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (RemoteRpcException ex) when (ex.ErrorCode == RemoteRpcException.MethodNotFoundErrorCode)
+            {
+                // Older runtimes may not expose activity/task-drain RPCs. Preserve the
+                // existing event-only behavior and let session.idle or the timeout win.
+                LogRuntimeCompletionFallbackUnavailable(ex, SessionId);
+            }
+            catch (OperationCanceledException) when (waitCancellationToken.IsCancellationRequested)
+            {
+                // The timeout/caller-cancellation registration completes tcs.
+            }
+            catch (Exception ex) when (ex is RemoteRpcException or IOException or ObjectDisposedException or JsonException)
+            {
+                tcs.TrySetException(ex);
             }
         }
 
@@ -385,16 +467,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
             else
                 tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}"));
         });
+        var runtimeCompletionTask = MonitorRuntimeCompletionAsync(cts.Token);
         try
         {
-            var result = await tcs.Task;
+            var completion = await tcs.Task;
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.SendAndWaitAsync complete. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}, AssistantMessageReceived={AssistantMessageReceived}",
                 totalTimestamp,
                 SessionId,
-                "idle",
-                result is not null);
-            return result;
+                completion.CompletedBy,
+                completion.Message is not null);
+            return completion.Message;
         }
         catch (Exception ex) when (ex is TimeoutException)
         {
@@ -413,6 +496,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 "error");
             throw;
+        }
+        finally
+        {
+            cts.Cancel();
+            await runtimeCompletionTask.ConfigureAwait(false);
         }
     }
 
@@ -485,8 +573,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
         // never completes (multi-client permission scenario).
         _ = HandleBroadcastEventAsync(sessionEvent);
 
-        // Queue the event for serial processing by user handlers.
-        _eventChannel.Writer.TryWrite(sessionEvent);
+        // Queue the event for serial processing by user handlers. Increment first so
+        // a completion monitor can detect an event even if this thread is preempted
+        // before the channel write.
+        Interlocked.Increment(ref _eventEnqueueVersion);
+        _eventChannel.Writer.TryWrite(new EventItem(sessionEvent));
+    }
+
+    /// <summary>
+    /// Waits until every event already queued for this session has been delivered to
+    /// user handlers. Events arriving after the barrier remain queued behind it.
+    /// </summary>
+    private async Task FlushEventDispatchAsync(CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queued = _eventChannel.Writer.TryWrite(new EventBarrier(completion));
+        ObjectDisposedException.ThrowIf(!queued, this);
+
+        using var registration = cancellationToken.Register(
+            static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(),
+            completion);
+        await completion.Task.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -495,8 +602,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ProcessEventsAsync()
     {
-        await foreach (var sessionEvent in _eventChannel.Reader.ReadAllAsync())
+        await foreach (var item in _eventChannel.Reader.ReadAllAsync())
         {
+            if (item is EventBarrier barrier)
+            {
+                barrier.Completion.TrySetResult(true);
+                continue;
+            }
+
+            var sessionEvent = ((EventItem)item).Event;
             var dispatchTimestamp = Stopwatch.GetTimestamp();
             var eventType = sessionEvent.GetType();
             foreach (var subscription in _eventHandlers)
@@ -1934,6 +2048,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in session event handler")]
     private partial void LogEventHandlerError(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Runtime completion fallback unavailable. SessionId={sessionId}")]
+    private partial void LogRuntimeCompletionFallbackUnavailable(Exception exception, string sessionId);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
