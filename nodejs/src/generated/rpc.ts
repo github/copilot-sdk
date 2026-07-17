@@ -4985,10 +4985,6 @@ export interface FactoryExecuteRequest {
   args: {
     [k: string]: unknown | undefined;
   };
-  /**
-   * Parent factory run identifier for nested execution.
-   */
-  parentRunId?: string;
 }
 /**
  * Result returned by an extension factory closure.

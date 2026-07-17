@@ -197,6 +197,13 @@ interface StoredFactory {
 
 const factoryHandles = new WeakMap<object, StoredFactory>();
 
+/**
+ * Maximum accepted factory timeout in milliseconds (2^31-1). Node clamps
+ * `setTimeout` delays above this to ~1ms, so a larger value would invert the
+ * declared timeout into an immediate halt.
+ */
+const MAX_FACTORY_TIMEOUT_MS = 2_147_483_647;
+
 function validateLimits(meta: FactoryMeta): void {
     const limits = meta.limits;
     if (!limits) {
@@ -212,6 +219,13 @@ function validateLimits(meta: FactoryMeta): void {
 
     if (limits.timeout !== undefined && (!Number.isFinite(limits.timeout) || limits.timeout <= 0)) {
         throw new Error('Factory limit "timeout" must be a positive number of milliseconds');
+    }
+    // Node clamps setTimeout delays above 2^31-1 ms to ~1ms, which would make a
+    // large timeout halt the run almost immediately. Reject it up front.
+    if (limits.timeout !== undefined && limits.timeout > MAX_FACTORY_TIMEOUT_MS) {
+        throw new Error(
+            `Factory limit "timeout" must not exceed ${MAX_FACTORY_TIMEOUT_MS} milliseconds (~24.8 days)`
+        );
     }
 }
 
