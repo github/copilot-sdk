@@ -381,6 +381,7 @@ async fn elicitation_returns_all_action_shapes() {
 #[tokio::test]
 async fn session_capabilities_types_are_properly_structured() {
     let capabilities = github_copilot_sdk::SessionCapabilities {
+        interrupt_main_turn: None,
         ui: Some(UiCapabilities {
             elicitation: Some(true),
             mcp_apps: None,

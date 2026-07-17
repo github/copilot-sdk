@@ -177,6 +177,8 @@ pub mod rpc_methods {
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.abort`
     pub const SESSION_ABORT: &str = "session.abort";
+    /// `session.interruptMainTurn`
+    pub const SESSION_INTERRUPTMAINTURN: &str = "session.interruptMainTurn";
     /// `session.shutdown`
     pub const SESSION_SHUTDOWN: &str = "session.shutdown";
     /// `session.gitHubAuth.getStatus`
@@ -587,7 +589,7 @@ pub mod rpc_methods {
     pub const CANVAS_ACTION_INVOKE: &str = "canvas.action.invoke";
 }
 
-/// Parameters for aborting the current turn
+/// Parameters for aborting the active session turn and recursively cancelling its descendant and background work
 ///
 /// <div class="warning">
 ///
@@ -603,7 +605,7 @@ pub struct AbortRequest {
     pub reason: Option<AbortReason>,
 }
 
-/// Result of aborting the current turn
+/// Result of recursively aborting the active session work
 ///
 /// <div class="warning">
 ///
@@ -4312,6 +4314,37 @@ pub struct InstructionSource {
 pub struct InstructionsGetSourcesResult {
     /// Instruction sources for the session
     pub sources: Vec<InstructionSource>,
+}
+
+/// Parameters for interrupting only the active main coordinator turn while preserving background work
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InterruptMainTurnRequest {
+    /// When an active main turn is interrupted, true flushes queued user prompts through to the next eligible turn: it preserves them, drops hidden system prompts, and resumes normal queue delivery after the interrupted loop unwinds (including existing deferred-idle ordering). False or omitted discards all queued prompts. When no main turn is active, this option has no effect.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flush_queued: Option<bool>,
+}
+
+/// Result of interrupting only the active main coordinator turn
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InterruptMainTurnResult {
+    /// True when an active main coordinator turn was interrupted; false only when the method is supported but no main turn was active
+    pub interrupted: bool,
 }
 
 /// A request body chunk or cancellation signal.
@@ -15100,6 +15133,9 @@ pub struct UsageMetricsModelMetricUsage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetricsModelMetric {
+    /// Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<String>,
     /// Request count and cost metrics for this model
     pub requests: UsageMetricsModelMetricRequests,
     /// Token count details per type
@@ -16278,7 +16314,7 @@ pub struct SessionSendMessagesResult {
     pub message_ids: Vec<String>,
 }
 
-/// Result of aborting the current turn
+/// Result of recursively aborting the active session work
 ///
 /// <div class="warning">
 ///
@@ -16294,6 +16330,21 @@ pub struct SessionAbortResult {
     pub error: Option<String>,
     /// Whether the abort completed successfully
     pub success: bool,
+}
+
+/// Result of interrupting only the active main coordinator turn
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInterruptMainTurnResult {
+    /// True when an active main coordinator turn was interrupted; false only when the method is supported but no main turn was active
+    pub interrupted: bool,
 }
 
 /// Identifies the target session.
@@ -20866,6 +20917,9 @@ pub enum HookType {
     /// Runs after the user submits a prompt.
     #[serde(rename = "userPromptSubmitted")]
     UserPromptSubmitted,
+    /// Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.
+    #[serde(rename = "userPromptTransformed")]
+    UserPromptTransformed,
     /// Runs when a session starts.
     #[serde(rename = "sessionStart")]
     SessionStart,

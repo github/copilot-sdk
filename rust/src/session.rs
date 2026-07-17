@@ -12,8 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    InterruptMainTurnRequest, InterruptMainTurnResult, LogRequest, ModelSwitchToRequest,
+    OpenCanvasInstance, RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -509,7 +509,11 @@ impl Session {
         self.get_events().await
     }
 
-    /// Abort the current agent turn.
+    /// Abort the active session turn and recursively cancel its descendant and
+    /// background work.
+    ///
+    /// Use [`interrupt_main_turn`](Self::interrupt_main_turn) when background
+    /// work must survive.
     ///
     /// # Cancel safety
     ///
@@ -524,6 +528,31 @@ impl Session {
             )
             .await?;
         Ok(())
+    }
+
+    /// Interrupt only the active main coordinator turn while preserving
+    /// background agents and other background work.
+    ///
+    /// Pass `None` or set `flush_queued` to `Some(false)` to discard queued
+    /// prompts. Set it to `Some(true)` to preserve queued user prompts for the
+    /// next eligible turn while dropping hidden system prompts.
+    ///
+    /// A result with `interrupted == false` means the method is supported but
+    /// no main turn was active. Older CLIs and unsupported remote sessions
+    /// return JSON-RPC `-32601`; that error is propagated without falling back
+    /// to recursive [`abort`](Self::abort).
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** A single `session.interruptMainTurn` RPC is dispatched
+    /// through the writer-actor.
+    pub async fn interrupt_main_turn(
+        &self,
+        options: Option<InterruptMainTurnRequest>,
+    ) -> Result<InterruptMainTurnResult, Error> {
+        self.rpc()
+            .interrupt_main_turn(options.unwrap_or_default())
+            .await
     }
 
     /// Switch to a different model.

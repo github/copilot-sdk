@@ -5236,6 +5236,12 @@ pub struct ElicitationRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCapabilities {
+    /// Whether the host supports scoped interruption of the active main turn.
+    ///
+    /// Local sessions report `Some(true)`, unsupported remote sessions report
+    /// `Some(false)`, and older servers omit the field (`None`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupt_main_turn: Option<bool>,
     /// UI capabilities (elicitation support, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<UiCapabilities>,
@@ -5313,10 +5319,11 @@ impl InputFormat {
 /// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
-    Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
-    ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    InterruptMainTurnRequest, InterruptMainTurnResult, Model, ModelBilling,
+    ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, ModelCapabilities,
+    ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision, ModelCapabilitiesSupports, ModelList,
+    ModelPolicy, PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.
