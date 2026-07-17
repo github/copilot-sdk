@@ -81,9 +81,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           node scripts/npm-release.js preflight \
-            --package @github/copilot-sdk \
-            --version "$VERSION" \
-            --registry https://registry.npmjs.org
+            @github/copilot-sdk \
+            "$VERSION" \
+            https://registry.npmjs.org
 
   package-nodejs:
     name: Package Node.js SDK
@@ -155,10 +155,10 @@ jobs:
             exit 1
           fi
           node nodejs/scripts/npm-release.js publish \
-            --tarball "${TARBALLS[0]}" \
-            --tag "$DIST_TAG" \
-            --access public \
-            --registry https://registry.npmjs.org
+            "${TARBALLS[0]}" \
+            "$DIST_TAG" \
+            https://registry.npmjs.org \
+            public
 
   publish-nodejs-internal:
     name: Publish Node.js SDK to internal feed
@@ -214,10 +214,10 @@ jobs:
             exit 1
           fi
           node nodejs/scripts/npm-release.js publish \
-            --tarball "${TARBALLS[0]}" \
-            --tag "$DIST_TAG" \
-            --registry "$FEED_URL" \
-            --azure true
+            "${TARBALLS[0]}" \
+            "$DIST_TAG" \
+            "$FEED_URL" \
+            azure
 
   publish-dotnet:
     name: Publish .NET SDK
