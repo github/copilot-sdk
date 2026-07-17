@@ -6,6 +6,13 @@ import type { FactoryRunResult } from "./generated/rpc.js";
 import type { CopilotSession } from "./session.js";
 import type { FactoryMeta } from "./types.js";
 
+/**
+ * The terminal envelope describing a factory run's outcome (status, result,
+ * reason). Re-exported so consumers can name the type returned by
+ * {@link SessionFactoryApi} methods and carried on {@link FactoryRunError}.
+ */
+export type { FactoryRunResult } from "./generated/rpc.js";
+
 declare const factoryHandleBrand: unique symbol;
 
 /**
