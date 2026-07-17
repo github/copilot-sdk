@@ -98,7 +98,6 @@ jobs:
         if: github.event.inputs.internal-only == 'true'
         env:
           FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
-          RUNTIME_RANGE: ^1.0.71-2
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           {
@@ -108,7 +107,6 @@ jobs:
             echo "| --- | --- |"
             echo "| Mode | \`internal-only\` |"
             echo "| SDK version | \`${VERSION}\` |"
-            echo "| Runtime dependency | \`@github/copilot@${RUNTIME_RANGE}\` (production range unchanged) |"
             echo "| Dist-tag | \`internal-test\` |"
             echo "| Feed | ${FEED_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"
