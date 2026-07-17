@@ -171,4 +171,5 @@ export type {
     FactoryJsonSchema,
     FactoryPipelineStage,
     FactoryStepOptions,
+    FactoryRunResult,
 } from "./factory.js";

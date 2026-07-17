@@ -55,6 +55,23 @@ describe("factories", () => {
         expect(result).toEqual({ result: { value: 42 } });
     });
 
+    it("rejects duplicate factory names within a single registration", () => {
+        const run = async () => null;
+        const first = defineFactory({
+            meta: { name: "dup", description: "first", phases: [] },
+            run,
+        });
+        const second = defineFactory({
+            meta: { name: "dup", description: "second", phases: [] },
+            run,
+        });
+
+        const session = new CopilotSession("session-dup", {} as never);
+        expect(() => session.registerFactories([first, second])).toThrow(
+            /Duplicate factory name "dup"/
+        );
+    });
+
     it.each([
         ["maxConcurrentSubagents", 0],
         ["maxConcurrentSubagents", 1.5],
