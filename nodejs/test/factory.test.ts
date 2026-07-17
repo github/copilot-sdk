@@ -8,17 +8,17 @@ import { CopilotClient } from "../src/client.js";
 import { joinSession } from "../src/extension.js";
 import { CopilotSession } from "../src/session.js";
 import {
-    defineOrchestration,
-    OrchestrationRunError,
-    type OrchestrationAgentOptions,
-    type OrchestrationDefinition,
-} from "../src/orchestration.js";
+    defineFactory,
+    FactoryRunError,
+    type FactoryAgentOptions,
+    type FactoryDefinition,
+} from "../src/factory.js";
 
 async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
 
-describe("orchestrations", () => {
+describe("factories", () => {
     const originalSessionId = process.env.SESSION_ID;
 
     afterEach(() => {
@@ -33,18 +33,18 @@ describe("orchestrations", () => {
     it("defines a stable handle and accepts omitted limits", async () => {
         const meta = {
             name: "no-limits",
-            description: "A orchestration without resource limits",
+            description: "A factory without resource limits",
             phases: [],
         };
         const run = vi.fn(async ({ args }: { args: unknown }) => args);
-        const handle = defineOrchestration({ meta, run });
+        const handle = defineFactory({ meta, run });
 
         expect(handle.meta).toBe(meta);
         expect(Object.isFrozen(handle)).toBe(true);
 
         const session = new CopilotSession("session-1", {} as never);
-        session.registerOrchestrations([handle]);
-        const result = await session.clientSessionApis.orchestration!.execute({
+        session.registerFactories([handle]);
+        const result = await session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: meta.name,
             runId: "run-1",
@@ -66,23 +66,23 @@ describe("orchestrations", () => {
         const definition = {
             meta: {
                 name: `invalid-${field}-${String(value)}`,
-                description: "Invalid orchestration",
+                description: "Invalid factory",
                 phases: [],
                 limits: { [field]: value },
             },
             run: async () => null,
-        } as OrchestrationDefinition;
+        } as FactoryDefinition;
 
-        expect(() => defineOrchestration(definition)).toThrow(/must be a positive/);
+        expect(() => defineFactory(definition)).toThrow(/must be a positive/);
     });
 
-    it("serializes only orchestration metadata in the extension resume payload", async () => {
+    it("serializes only factory metadata in the extension resume payload", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
 
         const run = vi.fn(async () => ({ ok: true }));
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "registered",
                 description: "Registration test",
@@ -101,7 +101,7 @@ describe("orchestrations", () => {
                     const sessions = (client as never as { sessions: Map<string, CopilotSession> })
                         .sessions;
                     expect(
-                        sessions.get(params.sessionId as string)?.clientSessionApis.orchestration
+                        sessions.get(params.sessionId as string)?.clientSessionApis.factory
                     ).toBeDefined();
                     return { sessionId: params.sessionId };
                 }
@@ -111,22 +111,22 @@ describe("orchestrations", () => {
         await client.resumeSessionForExtension(
             "session-registration",
             { onPermissionRequest: () => ({ kind: "approved" }) },
-            [orchestration]
+            [factory]
         );
 
         const payload = sendRequest.mock.calls.find(
             ([method]) => method === "session.resume"
         )![1] as {
-            orchestrations: unknown[];
+            factories: unknown[];
         };
-        expect(payload.orchestrations).toEqual([orchestration.meta]);
-        expect(payload.orchestrations[0]).not.toHaveProperty("run");
-        expect(JSON.stringify(payload.orchestrations)).not.toContain("async");
+        expect(payload.factories).toEqual([factory.meta]);
+        expect(payload.factories[0]).not.toHaveProperty("run");
+        expect(JSON.stringify(payload.factories)).not.toContain("async");
     });
 
-    it("passes orchestrations only through the extension join path", async () => {
+    it("passes factories only through the extension join path", async () => {
         process.env.SESSION_ID = "session-extension";
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "extension-only",
                 description: "Extension-only registration",
@@ -138,19 +138,19 @@ describe("orchestrations", () => {
             .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
             .mockResolvedValue({} as CopilotSession);
 
-        await joinSession({ orchestrations: [orchestration] });
+        await joinSession({ factories: [factory] });
 
         expect(resumeSessionForExtension).toHaveBeenCalledWith(
             "session-extension",
             expect.objectContaining({ suppressResumeEvent: true }),
-            [orchestration]
+            [factory]
         );
     });
 
-    it("builds the orchestration context with the unrestricted joined session identity", async () => {
+    it("builds the factory context with the unrestricted joined session identity", async () => {
         process.env.SESSION_ID = "session-context";
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.orchestration.log") {
+            if (method === "session.factory.log") {
                 return {};
             }
             if (method === "session.tasks.list") {
@@ -164,7 +164,7 @@ describe("orchestrations", () => {
             session: CopilotSession;
             signal: AbortSignal;
         }>();
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "context",
                 description: "Context test",
@@ -179,14 +179,14 @@ describe("orchestrations", () => {
             },
         });
         vi.spyOn(CopilotClient.prototype, "resumeSessionForExtension").mockImplementation(
-            async (_sessionId, _config, orchestrations) => {
-                joinedSession.registerOrchestrations(orchestrations);
+            async (_sessionId, _config, factories) => {
+                joinedSession.registerFactories(factories);
                 return joinedSession;
             }
         );
 
-        const joinSessionResult = await joinSession({ orchestrations: [orchestration] });
-        const executeResult = await joinSessionResult.clientSessionApis.orchestration!.execute({
+        const joinSessionResult = await joinSession({ factories: [factory] });
+        const executeResult = await joinSessionResult.clientSessionApis.factory!.execute({
             sessionId: joinSessionResult.sessionId,
             name: "context",
             runId: "run-context",
@@ -202,7 +202,7 @@ describe("orchestrations", () => {
         expect(sendRequest).toHaveBeenCalledWith("session.tasks.list", {
             sessionId: joinSessionResult.sessionId,
         });
-        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
             sessionId: joinSessionResult.sessionId,
             runId: "run-context",
             lines: [
@@ -212,37 +212,37 @@ describe("orchestrations", () => {
         });
     });
 
-    it("rejects nested orchestrations without forwarding a runNested request", async () => {
+    it("rejects nested factories without forwarding a runNested request", async () => {
         const sendRequest = vi.fn(async () => {
             throw new Error("Unexpected forward request");
         });
         const session = new CopilotSession("session-no-nesting", { sendRequest } as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "no-nesting",
-                description: "Nested orchestration rejection test",
+                description: "Nested factory rejection test",
                 phases: [],
             },
-            run: async (context) => context.orchestration("nested", { value: 42 }),
+            run: async (context) => context.factory("nested", { value: 42 }),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "no-nesting",
                 runId: "run-no-nesting",
                 args: {},
             })
-        ).rejects.toThrow("nested orchestrations are not supported");
+        ).rejects.toThrow("nested factories are not supported");
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
-    it("flushes progress incrementally while a orchestration body is awaiting", async () => {
+    it("flushes progress incrementally while a factory body is awaiting", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-live-progress", { sendRequest } as never);
         const body = Promise.withResolvers<void>();
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "live-progress",
                 description: "Incremental progress test",
@@ -254,16 +254,16 @@ describe("orchestrations", () => {
                 return "done";
             },
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
-        const execution = session.clientSessionApis.orchestration!.execute({
+        const execution = session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: "live-progress",
             runId: "run-live-progress",
             args: {},
         });
         await vi.waitFor(() => {
-            expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
+            expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
                 sessionId: session.sessionId,
                 runId: "run-live-progress",
                 lines: [{ seq: 0, kind: "log", text: "before await" }],
@@ -274,15 +274,15 @@ describe("orchestrations", () => {
         await expect(execution).resolves.toEqual({ result: "done" });
     });
 
-    it("calls orchestration.agent with the current run id and returns its text", async () => {
+    it("calls factory.agent with the current run id and returns its text", async () => {
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.orchestration.agent") {
+            if (method === "session.factory.agent") {
                 return { result: "pong" };
             }
             throw new Error(`Unexpected method: ${method}`);
         });
         const session = new CopilotSession("session-agent", { sendRequest } as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "agent",
                 description: "Agent context test",
@@ -294,21 +294,21 @@ describe("orchestrations", () => {
                     model: "gpt-test",
                     schema: { type: "string" },
                     effort: "high",
-                } as OrchestrationAgentOptions),
+                } as FactoryAgentOptions),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "agent",
                 runId: "run-agent",
                 args: {},
             })
         ).resolves.toEqual({ result: "pong" });
-        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.agent", {
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
             sessionId: session.sessionId,
-            orchestrationRunId: "run-agent",
+            factoryRunId: "run-agent",
             prompt: "Reply with pong",
             opts: {
                 label: "Pong helper",
@@ -322,12 +322,12 @@ describe("orchestrations", () => {
         const journal = new Map<string, unknown>();
         const sendRequest = vi.fn(
             async (method: string, params: { key?: string; resultJson?: unknown }) => {
-                if (method === "session.orchestration.journal.get") {
+                if (method === "session.factory.journal.get") {
                     return journal.has(params.key!)
                         ? { hit: true, resultJson: journal.get(params.key!) }
                         : { hit: false };
                 }
-                if (method === "session.orchestration.journal.put") {
+                if (method === "session.factory.journal.put") {
                     journal.set(params.key!, params.resultJson);
                     return {};
                 }
@@ -337,7 +337,7 @@ describe("orchestrations", () => {
         const session = new CopilotSession("session-step", { sendRequest } as never);
         let cachedProducerCalls = 0;
         let failingProducerCalls = 0;
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "step",
                 description: "Durable step context test",
@@ -363,10 +363,10 @@ describe("orchestrations", () => {
                 return { first, second, failed, retried };
             },
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "step",
                 runId: "run-step",
@@ -379,30 +379,30 @@ describe("orchestrations", () => {
         expect(failingProducerCalls).toBe(2);
         expect(
             sendRequest.mock.calls.filter(
-                ([method]) => method === "session.orchestration.journal.put"
+                ([method]) => method === "session.factory.journal.put"
             )
         ).toHaveLength(2);
     });
 
-    it("exposes orchestration getRun and forwards the run id", async () => {
+    it("exposes factory getRun and forwards the run id", async () => {
         const envelope = { runId: "run-read", status: "error", error: "failed" };
         const sendRequest = vi.fn(async () => envelope);
         const session = new CopilotSession("session-read", { sendRequest } as never);
 
-        await expect(session.orchestration.getRun("run-read")).resolves.toEqual(envelope);
-        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.getRun", {
+        await expect(session.factory.getRun("run-read")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.getRun", {
             sessionId: session.sessionId,
             runId: "run-read",
         });
     });
 
-    it("exposes orchestration cancel and forwards the run id", async () => {
+    it("exposes factory cancel and forwards the run id", async () => {
         const envelope = { runId: "run-cancel", status: "cancelled", reason: "cancelled" };
         const sendRequest = vi.fn(async () => envelope);
         const session = new CopilotSession("session-cancel", { sendRequest } as never);
 
-        await expect(session.orchestration.cancel("run-cancel")).resolves.toEqual(envelope);
-        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.cancel", {
+        await expect(session.factory.cancel("run-cancel")).resolves.toEqual(envelope);
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.cancel", {
             sessionId: session.sessionId,
             runId: "run-cancel",
         });
@@ -413,7 +413,7 @@ describe("orchestrations", () => {
         const second = Promise.withResolvers<string>();
         const started: string[] = [];
         const session = new CopilotSession("session-parallel", {} as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "parallel",
                 description: "Parallel combinator test",
@@ -435,11 +435,11 @@ describe("orchestrations", () => {
                     },
                 ]),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         let settled = false;
         const execution = session.clientSessionApis
-            .orchestration!.execute({
+            .factory!.execute({
                 sessionId: session.sessionId,
                 name: "parallel",
                 runId: "run-parallel",
@@ -460,7 +460,7 @@ describe("orchestrations", () => {
 
     it("rejects already-invoked promises passed to parallel with a clear diagnostic", async () => {
         const session = new CopilotSession("session-parallel-promises", {} as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "parallel-promises",
                 description: "Parallel misuse diagnostic",
@@ -471,10 +471,10 @@ describe("orchestrations", () => {
                     () => Promise<string>
                 >),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "parallel-promises",
                 runId: "run-parallel-promises",
@@ -490,7 +490,7 @@ describe("orchestrations", () => {
         const secondStageStarted = Promise.withResolvers<void>();
         const finalStageItems: string[] = [];
         const session = new CopilotSession("session-pipeline", {} as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "pipeline",
                 description: "Pipeline combinator test",
@@ -517,9 +517,9 @@ describe("orchestrations", () => {
                     }
                 ),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
-        const execution = session.clientSessionApis.orchestration!.execute({
+        const execution = session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: "pipeline",
             runId: "run-pipeline",
@@ -537,7 +537,7 @@ describe("orchestrations", () => {
 
     it("enforces the 4096-item cap for parallel and pipeline", async () => {
         const session = new CopilotSession("session-fanout-cap", {} as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "fanout-cap",
                 description: "Fan-out cap test",
@@ -555,10 +555,10 @@ describe("orchestrations", () => {
                 };
             },
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "fanout-cap",
                 runId: "run-fanout-cap",
@@ -578,7 +578,7 @@ describe("orchestrations", () => {
         let tail = Promise.resolve();
         const sendRequest = vi.fn(
             async (method: string, params: { prompt: string }): Promise<{ result: string }> => {
-                if (method !== "session.orchestration.agent") {
+                if (method !== "session.factory.agent") {
                     throw new Error(`Unexpected method: ${method}`);
                 }
                 const previous = tail;
@@ -596,7 +596,7 @@ describe("orchestrations", () => {
         const session = new CopilotSession("session-nested-combinators", {
             sendRequest,
         } as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "nested-combinators",
                 description: "Nested combinator deadlock regression",
@@ -608,10 +608,10 @@ describe("orchestrations", () => {
                     () => pipeline(["c"], (_previous, item) => agent(item as string)),
                 ]),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "nested-combinators",
                 runId: "run-nested-combinators",
@@ -622,10 +622,10 @@ describe("orchestrations", () => {
         expect(sendRequest).toHaveBeenCalledTimes(3);
     });
 
-    it("flushes buffered progress in finally when the orchestration body throws", async () => {
+    it("flushes buffered progress in finally when the factory body throws", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-throw-progress", { sendRequest } as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "throw-progress",
                 description: "Throwing progress test",
@@ -636,27 +636,27 @@ describe("orchestrations", () => {
                 throw new Error("body failed");
             },
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "throw-progress",
                 runId: "run-throw-progress",
                 args: {},
             })
         ).rejects.toThrow("body failed");
-        expect(sendRequest).toHaveBeenCalledWith("session.orchestration.log", {
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
             sessionId: session.sessionId,
             runId: "run-throw-progress",
             lines: [{ seq: 0, kind: "log", text: "before throw" }],
         });
     });
 
-    it("surfaces the per-run abort signal on the orchestration context", async () => {
+    it("surfaces the per-run abort signal on the factory context", async () => {
         const session = new CopilotSession("session-abort-signal", {} as never);
         const signalSeen = Promise.withResolvers<AbortSignal>();
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "abort-signal",
                 description: "Abort signal test",
@@ -670,9 +670,9 @@ describe("orchestrations", () => {
                 return signal.aborted;
             },
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
-        const execution = session.clientSessionApis.orchestration!.execute({
+        const execution = session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: "abort-signal",
             runId: "run-abort-signal",
@@ -681,7 +681,7 @@ describe("orchestrations", () => {
         const signal = await signalSeen.promise;
         expect(signal.aborted).toBe(false);
 
-        await session.clientSessionApis.orchestration!.abort({
+        await session.clientSessionApis.factory!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-signal",
         });
@@ -690,26 +690,26 @@ describe("orchestrations", () => {
         await expect(execution).resolves.toEqual({ result: true });
     });
 
-    it("rejects an in-flight runtime-backed await when orchestration.abort trips the signal", async () => {
+    it("rejects an in-flight runtime-backed await when factory.abort trips the signal", async () => {
         const agentResponse = Promise.withResolvers<{ result: string }>();
         const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.orchestration.agent") {
+            if (method === "session.factory.agent") {
                 return agentResponse.promise;
             }
             return {};
         });
         const session = new CopilotSession("session-abort-await", { sendRequest } as never);
-        const orchestration = defineOrchestration({
+        const factory = defineFactory({
             meta: {
                 name: "abort-await",
-                description: "Abort an in-flight orchestration await",
+                description: "Abort an in-flight factory await",
                 phases: [],
             },
             run: async ({ agent }) => agent("wait forever"),
         });
-        session.registerOrchestrations([orchestration]);
+        session.registerFactories([factory]);
 
-        const execution = session.clientSessionApis.orchestration!.execute({
+        const execution = session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: "abort-await",
             runId: "run-abort-await",
@@ -717,12 +717,12 @@ describe("orchestrations", () => {
         });
         await vi.waitFor(() =>
             expect(sendRequest).toHaveBeenCalledWith(
-                "session.orchestration.agent",
+                "session.factory.agent",
                 expect.anything()
             )
         );
 
-        await session.clientSessionApis.orchestration!.abort({
+        await session.clientSessionApis.factory!.abort({
             sessionId: session.sessionId,
             runId: "run-abort-await",
         });
@@ -731,24 +731,24 @@ describe("orchestrations", () => {
         agentResponse.resolve({ result: "late" });
     });
 
-    it("dispatches orchestration.execute to the registered orchestration selected by name", async () => {
+    it("dispatches factory.execute to the registered factory selected by name", async () => {
         const firstRun = vi.fn(async () => ({ selected: "first" }));
         const secondRun = vi.fn(async ({ args, log }) => {
             log("executing");
             return { selected: "second", echoed: args };
         });
-        const firstOrchestration = defineOrchestration({
+        const firstFactory = defineFactory({
             meta: {
                 name: "first",
-                description: "First orchestration",
+                description: "First factory",
                 phases: [],
             },
             run: firstRun,
         });
-        const secondOrchestration = defineOrchestration({
+        const secondFactory = defineFactory({
             meta: {
                 name: "second",
-                description: "Second orchestration",
+                description: "Second factory",
                 phases: [],
             },
             run: secondRun,
@@ -756,10 +756,10 @@ describe("orchestrations", () => {
         const session = new CopilotSession("session-execute", {
             sendRequest: vi.fn(async () => ({})),
         } as never);
-        session.registerOrchestrations([firstOrchestration, secondOrchestration]);
+        session.registerFactories([firstFactory, secondFactory]);
 
         await expect(
-            session.clientSessionApis.orchestration!.execute({
+            session.clientSessionApis.factory!.execute({
                 sessionId: session.sessionId,
                 name: "second",
                 runId: "run-echo",
@@ -772,7 +772,7 @@ describe("orchestrations", () => {
         expect(secondRun).toHaveBeenCalledOnce();
 
         const error = await session.clientSessionApis
-            .orchestration!.execute({
+            .factory!.execute({
                 sessionId: session.sessionId,
                 name: "missing",
                 runId: "run-missing",
@@ -781,13 +781,13 @@ describe("orchestrations", () => {
             .catch((caught: unknown) => caught);
         expect(error).toBeInstanceOf(ResponseError);
         expect((error as ResponseError<{ code: string; name: string }>).data).toEqual({
-            code: "orchestration_not_found",
+            code: "factory_not_found",
             name: "missing",
         });
     });
 
-    it("runs orchestrations by name or handle and unwraps only foreground results", async () => {
-        const orchestration = defineOrchestration({
+    it("runs factories by name or handle and unwraps only foreground results", async () => {
+        const factory = defineFactory({
             meta: {
                 name: "friendly-run",
                 description: "Friendly run wrapper",
@@ -810,28 +810,28 @@ describe("orchestrations", () => {
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
-        await expect(session.orchestration.run("by-name", { args: { value: 1 } })).resolves.toEqual(
+        await expect(session.factory.run("by-name", { args: { value: 1 } })).resolves.toEqual(
             {
                 name: "by-name",
             }
         );
-        await expect(session.orchestration.run(orchestration)).resolves.toEqual({
+        await expect(session.factory.run(factory)).resolves.toEqual({
             name: "friendly-run",
         });
         await expect(
-            session.orchestration.run("background", { background: true })
+            session.factory.run("background", { background: true })
         ).resolves.toEqual({
             runId: "run-background",
             status: "running",
         });
 
-        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.orchestration.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.run", {
             sessionId: session.sessionId,
             name: "by-name",
             args: { value: 1 },
             options: { background: undefined, resumeFromRunId: undefined },
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.orchestration.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
@@ -839,19 +839,19 @@ describe("orchestrations", () => {
         });
     });
 
-    it("throws OrchestrationRunError with the full foreground envelope", async () => {
+    it("throws FactoryRunError with the full foreground envelope", async () => {
         const envelope = {
             runId: "run-error",
             status: "error" as const,
-            error: "orchestration failed",
+            error: "factory failed",
             snapshot: { completed: 1 },
         };
         const session = new CopilotSession("session-error", {
             sendRequest: vi.fn(async () => envelope),
         } as never);
 
-        const error = await session.orchestration.run("failing").catch((caught: unknown) => caught);
-        expect(error).toBeInstanceOf(OrchestrationRunError);
-        expect((error as OrchestrationRunError).envelope).toBe(envelope);
+        const error = await session.factory.run("failing").catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(FactoryRunError);
+        expect((error as FactoryRunError).envelope).toBe(envelope);
     });
 });

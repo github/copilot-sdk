@@ -1837,35 +1837,35 @@ export interface CanvasProviderIdentity {
 }
 
 /**
- * Static resource ceilings declared by a orchestration before it runs.
+ * Static resource ceilings declared by a factory before it runs.
  *
- * @experimental Part of the experimental Agent Orchestrations surface and may
+ * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface OrchestrationLimits {
-    /** Maximum number of orchestration subagents that may run concurrently. Must be positive when present. */
+export interface FactoryLimits {
+    /** Maximum number of factory subagents that may run concurrently. Must be positive when present. */
     maxConcurrentSubagents?: number;
-    /** Maximum total number of orchestration subagents that may be spawned. Must be positive when present. */
+    /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
     maxTotalSubagents?: number;
-    /** Wall-clock timeout for the orchestration run, in milliseconds. Must be positive when present. */
+    /** Wall-clock timeout for the factory run, in milliseconds. Must be positive when present. */
     timeout?: number;
 }
 
 /**
- * Registration metadata for an extension-authored orchestration.
+ * Registration metadata for an extension-authored factory.
  *
- * @experimental Part of the experimental Agent Orchestrations surface and may
+ * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface OrchestrationMeta {
-    /** Stable orchestration name used for invocation. */
+export interface FactoryMeta {
+    /** Stable factory name used for invocation. */
     name: string;
-    /** Human-readable orchestration description. */
+    /** Human-readable factory description. */
     description: string;
-    /** Display metadata for the progress phases the orchestration may report. */
+    /** Display metadata for the progress phases the factory may report. */
     phases: Array<{ title: string; detail?: string }>;
     /** Optional resource ceilings presented to the user before execution. */
-    limits?: OrchestrationLimits;
+    limits?: FactoryLimits;
 }
 
 /**

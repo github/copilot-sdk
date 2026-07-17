@@ -9,7 +9,7 @@ import {
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
-import type { OrchestrationHandle } from "./orchestration.js";
+import type { FactoryHandle } from "./factory.js";
 
 export {
     Canvas,
@@ -28,28 +28,28 @@ export type JoinSessionConfig = Omit<
 > & {
     onPermissionRequest?: PermissionHandler;
     /**
-     * Orchestration handles to register when the extension joins the session.
+     * Factory handles to register when the extension joins the session.
      *
-     * @experimental Part of the experimental Agent Orchestrations surface and may
+     * @experimental Part of the experimental Agent Factories surface and may
      * change or be removed in future SDK or CLI releases.
      */
-    orchestrations?: OrchestrationHandle[];
+    factories?: FactoryHandle[];
 };
 
-export type { ExtensionInfo, OrchestrationLimits, OrchestrationMeta } from "./types.js";
+export type { ExtensionInfo, FactoryLimits, FactoryMeta } from "./types.js";
 export {
-    defineOrchestration,
-    OrchestrationRunError,
+    defineFactory,
+    FactoryRunError,
     type RunOptions,
-    type SessionOrchestrationApi,
-    type OrchestrationAgentOptions,
-    type OrchestrationContext,
-    type OrchestrationDefinition,
-    type OrchestrationHandle,
-    type OrchestrationJsonSchema,
-    type OrchestrationPipelineStage,
-    type OrchestrationStepOptions,
-} from "./orchestration.js";
+    type SessionFactoryApi,
+    type FactoryAgentOptions,
+    type FactoryContext,
+    type FactoryDefinition,
+    type FactoryHandle,
+    type FactoryJsonSchema,
+    type FactoryPipelineStage,
+    type FactoryStepOptions,
+} from "./factory.js";
 
 /**
  * Joins the current foreground session.
@@ -80,7 +80,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     // already been forked by the host with the SDK the host chose.
     const {
         extensionSdkPath: _stripped,
-        orchestrations,
+        factories,
         ...rest
     } = config as JoinSessionConfig & {
         extensionSdkPath?: string;
@@ -94,6 +94,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
             onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
             suppressResumeEvent: config.suppressResumeEvent ?? true,
         },
-        orchestrations
+        factories
     );
 }
