@@ -1094,6 +1094,11 @@ export class CopilotSession {
 
         for (const handle of factories) {
             const definition = getFactoryDefinition(handle);
+            if (this.factories.has(definition.meta.name)) {
+                throw new Error(
+                    `Duplicate factory name "${definition.meta.name}". Factory names must be unique within a joinSession call.`
+                );
+            }
             this.factories.set(definition.meta.name, definition);
         }
 

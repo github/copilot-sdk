@@ -49,6 +49,7 @@ export {
     type FactoryJsonSchema,
     type FactoryPipelineStage,
     type FactoryStepOptions,
+    type FactoryRunResult,
 } from "./factory.js";
 
 /**
