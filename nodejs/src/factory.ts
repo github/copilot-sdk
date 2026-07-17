@@ -151,10 +151,7 @@ export interface SessionFactoryApi {
         name: string,
         options?: RunOptions & { background?: false }
     ): Promise<TResult>;
-    run<TResult = unknown>(
-        name: string,
-        options?: RunOptions
-    ): Promise<TResult | FactoryRunResult>;
+    run<TResult = unknown>(name: string, options?: RunOptions): Promise<TResult | FactoryRunResult>;
     run<TArgs, TResult>(
         factory: FactoryHandle<TArgs, TResult>,
         options: RunOptions<TArgs> & { background: true }

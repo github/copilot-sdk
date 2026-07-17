@@ -236,9 +236,7 @@ async function awaitFactoryOperation<TResult>(
     throwIfFactoryAborted(signal);
     let rejectAbort: ((reason?: unknown) => void) | undefined;
     const onAbort = () =>
-        rejectAbort?.(
-            signal.reason ?? new DOMException("Factory run was aborted", "AbortError")
-        );
+        rejectAbort?.(signal.reason ?? new DOMException("Factory run was aborted", "AbortError"));
     try {
         return await Promise.race([
             operation,
