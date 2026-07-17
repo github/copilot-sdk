@@ -916,6 +916,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableSkills ??= false;
             config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
+            config.CustomAgentsLocalOnly ??= true;
         }
     }
 
