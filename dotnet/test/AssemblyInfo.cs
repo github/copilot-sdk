@@ -5,7 +5,7 @@
 using Xunit;
 using GitHub.Copilot.Test.Harness;
 
-// Each E2E test class fixture spins up its own Copilot CLI subprocess plus a CapiProxy
+// Each E2E test class fixture spins up its own Copilot CLI subprocess plus a ReplayProxy
 // (replaying HTTP proxy) Node.js subprocess. With ~25 test classes, running them in parallel
 // would launch ~50 long-lived Node.js processes simultaneously and exhaust both file
 // descriptors and memory on developer machines and CI runners (especially Windows). Tests
