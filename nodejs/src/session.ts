@@ -368,6 +368,7 @@ export class CopilotSession {
                 >[0]["args"],
                 options: {
                     background: options?.background,
+                    limits: options?.limits,
                     resumeFromRunId: options?.resumeFromRunId,
                 },
             });

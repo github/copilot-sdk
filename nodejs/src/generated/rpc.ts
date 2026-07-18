@@ -522,6 +522,49 @@ export type FactoryLogLineKind =
   /** A named factory phase marker. */
   | "phase";
 /**
+ * Machine-readable factory run failure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunFailure".
+ */
+/** @experimental */
+export type FactoryRunFailure =
+  | {
+      kind: FactoryRunFailureKind;
+      /**
+       * Approved effective ceiling that was reached.
+       */
+      value: number;
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      type: "factory_limit_reached";
+    }
+  | {
+      /**
+       * Factory run identifier whose changed limits were declined.
+       */
+      runId: string;
+      /**
+       * Human-readable reason the resume did not proceed.
+       */
+      reason: string;
+      type: "factory_resume_declined";
+    };
+/**
+ * Cumulative resource ceiling that stopped a factory run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunFailureKind".
+ */
+/** @experimental */
+export type FactoryRunFailureKind =
+  /** The run admitted the approved maximum total number of subagents. */
+  | "maxTotalSubagents"
+  /** The run reached the approved timeout deadline. */
+  | "timeout";
+/**
  * Current or terminal state of a factory run.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -535,11 +578,11 @@ export type FactoryRunStatus =
   | "running"
   /** The run completed successfully. */
   | "completed"
-  /** The run stopped after reaching a resource ceiling. */
+  /** The run was interrupted while resource budget remained. */
   | "halted"
   /** The run was cancelled before completion. */
   | "cancelled"
-  /** The factory body failed. */
+  /** The factory body failed or reached a cumulative resource ceiling. */
   | "error";
 /**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
@@ -5109,6 +5152,27 @@ export interface FactoryLogRequest {
   lines: FactoryLogLine[];
 }
 /**
+ * Wire-only per-invocation factory resource ceiling overrides.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunLimits".
+ */
+/** @experimental */
+export interface FactoryRunLimits {
+  /**
+   * Maximum number of factory subagents that may run concurrently.
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Maximum total number of factory subagents that may be admitted.
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Factory active-run timeout in milliseconds.
+   */
+  timeout?: number;
+}
+/**
  * Parameters for invoking a registered factory.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -5140,6 +5204,7 @@ export interface RunOptions {
    * Whether to return once the approved run starts instead of awaiting its terminal result.
    */
   background?: boolean;
+  limits?: FactoryRunLimits;
   /**
    * Run identifier whose journal and progress should seed this resumed run.
    */
@@ -5168,12 +5233,13 @@ export interface FactoryRunResult {
    * Error message for an errored run.
    */
   error?: string;
+  failure?: FactoryRunFailure;
   /**
    * Reason for a halted or cancelled run.
    */
   reason?: string;
   /**
-   * Partial journal and progress snapshot for a halted or cancelled run.
+   * Partial journal and progress snapshot for a halted, cancelled, or errored run.
    */
   snapshot?: {
     [k: string]: unknown | undefined;
@@ -15694,6 +15760,10 @@ export interface UsageMetricsCodeChanges {
 export interface UsageMetricsModelMetric {
   requests: UsageMetricsModelMetricRequests;
   usage: UsageMetricsModelMetricUsage;
+  /**
+   * Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+   */
+  cacheExpiresAt?: string;
   /**
    * Accumulated nano-AI units cost for this model
    */

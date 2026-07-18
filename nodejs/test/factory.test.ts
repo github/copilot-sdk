@@ -864,7 +864,14 @@ describe("factories", () => {
         const sendRequest = vi.fn(
             async (
                 _method: string,
-                params: { name: string; options?: { background?: boolean } }
+                params: {
+                    name: string;
+                    options?: {
+                        background?: boolean;
+                        limits?: { maxTotalSubagents?: number };
+                        resumeFromRunId?: string;
+                    };
+                }
             ) =>
                 params.options?.background
                     ? { runId: "run-background", status: "running" }
@@ -876,7 +883,13 @@ describe("factories", () => {
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
-        await expect(session.factory.run("by-name", { args: { value: 1 } })).resolves.toEqual({
+        await expect(
+            session.factory.run("by-name", {
+                args: { value: 1 },
+                limits: { maxTotalSubagents: 7 },
+                resumeFromRunId: "run-prior",
+            })
+        ).resolves.toEqual({
             name: "by-name",
         });
         await expect(session.factory.run(factory)).resolves.toEqual({
@@ -891,13 +904,17 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "by-name",
             args: { value: 1 },
-            options: { background: undefined, resumeFromRunId: undefined },
+            options: {
+                background: undefined,
+                limits: { maxTotalSubagents: 7 },
+                resumeFromRunId: "run-prior",
+            },
         });
         expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
-            options: { background: undefined, resumeFromRunId: undefined },
+            options: { background: undefined, limits: undefined, resumeFromRunId: undefined },
         });
     });
 
@@ -915,5 +932,30 @@ describe("factories", () => {
         const error = await session.factory.run("failing").catch((caught: unknown) => caught);
         expect(error).toBeInstanceOf(FactoryRunError);
         expect((error as FactoryRunError).envelope).toBe(envelope);
+    });
+
+    it("preserves the typed resume-declined failure in FactoryRunError", async () => {
+        const envelope = {
+            runId: "run-declined",
+            status: "error" as const,
+            error: "Factory resume was declined",
+            failure: {
+                type: "factory_resume_declined" as const,
+                runId: "run-declined",
+                reason: "Factory execution was declined",
+            },
+        };
+        const session = new CopilotSession("session-declined", {
+            sendRequest: vi.fn(async () => envelope),
+        } as never);
+
+        const error = await session.factory
+            .run("resumable", {
+                limits: { maxTotalSubagents: 5 },
+                resumeFromRunId: "run-declined",
+            })
+            .catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(FactoryRunError);
+        expect((error as FactoryRunError).envelope.failure).toEqual(envelope.failure);
     });
 });

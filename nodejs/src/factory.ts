@@ -4,7 +4,7 @@
 
 import type { FactoryRunResult } from "./generated/rpc.js";
 import type { CopilotSession } from "./session.js";
-import type { FactoryMeta } from "./types.js";
+import type { FactoryLimits, FactoryMeta } from "./types.js";
 
 /**
  * The terminal envelope describing a factory run's outcome (status, result,
@@ -142,6 +142,8 @@ export interface RunOptions<TArgs = unknown> {
     args?: TArgs;
     /** Return once the approved run starts instead of awaiting completion. */
     background?: boolean;
+    /** Optional per-invocation resource ceiling overrides. */
+    limits?: FactoryLimits;
     /** Prior run whose journal and progress should seed this run. */
     resumeFromRunId?: string;
 }
