@@ -5200,10 +5200,6 @@ export interface FactoryRunRequest {
  */
 /** @experimental */
 export interface RunOptions {
-  /**
-   * Whether to return once the approved run starts instead of awaiting its terminal result.
-   */
-  background?: boolean;
   limits?: FactoryRunLimits;
   /**
    * Run identifier whose journal and progress should seed this resumed run.
