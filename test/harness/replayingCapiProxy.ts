@@ -129,6 +129,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "*", normalizer: normalizeAvailableToolNames },
     { toolName: "task", normalizer: normalizeBackgroundAgentAdvice },
     { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
+    { toolName: "read_agent", normalizer: normalizeReadAgentLifecycle },
   ];
 
   /**
@@ -1322,6 +1323,7 @@ function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
       if (message.role === "tool" && typeof message.content === "string") {
         message.content = normalizeAvailableToolNames(message.content);
         message.content = normalizeBackgroundAgentAdvice(message.content);
+        message.content = normalizeReadAgentLifecycle(message.content);
       }
     }
   }
@@ -1415,6 +1417,35 @@ function normalizeReadAgentTimings(result: string): string {
   return result
     .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
+}
+
+// Background-agent lifecycle framing changed with 1.0.72's multi-turn agents.
+// An agent that has finished its work now reports
+//   "Agent is idle (waiting for messages)." with status: idle, total_turns: >=1
+// whereas older runtimes reported
+//   "Agent completed." with status: completed, total_turns: 0, duration: <d>.
+// 1.0.72 also prefixes each turn's output with a "[Turn N]" marker. None of this
+// changes what the read_agent-based tests assert (e.g. subagent_hooks checks that
+// hooks fire, not the completion wording), and the agent's actual response body is
+// itself replayed from the snapshot, so only this CLI-generated framing drifts.
+// Collapse the lifecycle fields to stable placeholders, drop the trailing
+// duration, and strip the turn markers so snapshots keep matching across runtime
+// versions. Applied symmetrically to stored snapshots and incoming requests, and
+// guarded on the leading status header so unrelated tool results are never
+// touched.
+function normalizeReadAgentLifecycle(result: string): string {
+  if (!/^Agent (?:completed|is idle \(waiting for messages\))\./.test(result)) {
+    return result;
+  }
+  return result
+    .replace(
+      /^Agent (?:completed|is idle \(waiting for messages\))\./,
+      "Agent ${agent_state}.",
+    )
+    .replace(/\bstatus: \w+/, "status: ${agent_status}")
+    .replace(/\btotal_turns: \d+/, "total_turns: ${turns}")
+    .replace(/, duration: \d+(?:\.\d+)?s\b/g, "")
+    .replace(/\n\[Turn \d+\]\n/g, "\n");
 }
 
 // When a model calls a tool that doesn't exist (e.g., the removed report_intent

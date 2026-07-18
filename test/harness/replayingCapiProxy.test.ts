@@ -624,7 +624,7 @@ Always include PINEAPPLE_COCONUT_42.
     );
   });
 
-  test("normalizes read_agent timing metadata", async () => {
+  test("normalizes read_agent timing and lifecycle metadata", async () => {
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -662,7 +662,49 @@ Always include PINEAPPLE_COCONUT_42.
       (m) => m.role === "tool",
     );
     expect(toolMessage?.content).toBe(
-      "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nDone.",
+      "Agent ${agent_state}. agent_id: read-file, agent_type: explore, status: ${agent_status}, description: Reading subagent-test.txt, elapsed: 0s, total_turns: ${turns}\n\nDone.",
+    );
+  });
+
+  test("normalizes the 1.0.72 idle-phrasing read_agent result to match the older completed form", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: {
+                name: "read_agent",
+                arguments: '{"agent_id":"read-file","wait":true}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Agent is idle (waiting for messages). agent_id: read-file, agent_type: explore, status: idle, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 1\n\n[Turn 0]\nDone.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(
+      "Agent ${agent_state}. agent_id: read-file, agent_type: explore, status: ${agent_status}, description: Reading subagent-test.txt, elapsed: 0s, total_turns: ${turns}\n\nDone.",
     );
   });
 
@@ -1409,6 +1451,96 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(response.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("Read agent completed.");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches cached read_agent result against the 1.0.72 idle-phrasing runtime", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Snapshot recorded against the older runtime: an agent that finished its
+      // work reported "Agent completed." with a completed status and a trailing
+      // duration, and no per-turn markers.
+      const storedResult =
+        "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 0, duration: 0s\n\nThe file says hello.";
+      // The 1.0.72 runtime reports the same finished agent as idle, with a
+      // total_turns count of at least 1 and a "[Turn N]" marker before the body.
+      const runtimeResult =
+        "Agent is idle (waiting for messages). agent_id: read-file, agent_type: explore, status: idle, description: Reading subagent-test.txt, elapsed: 0s, total_turns: 1\n\n[Turn 0]\nThe file says hello.";
+
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Read the file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: "read_agent",
+                      arguments: '{"agent_id":"read-file","wait":true}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: storedResult,
+              },
+              { role: "assistant", content: "The file was read successfully." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Read the file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: {
+                      name: "read_agent",
+                      arguments: '{"agent_id":"read-file","wait":true}',
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                content: runtimeResult,
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("The file was read successfully.");
       } finally {
         await proxy.stop();
       }
