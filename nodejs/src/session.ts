@@ -367,15 +367,11 @@ export class CopilotSession {
                     typeof this.rpc.factory.run
                 >[0]["args"],
                 options: {
-                    background: options?.background,
                     limits: options?.limits,
                     resumeFromRunId: options?.resumeFromRunId,
                 },
             });
 
-            if (options?.background) {
-                return envelope;
-            }
             if (envelope.status !== "completed") {
                 throw new FactoryRunError(envelope);
             }

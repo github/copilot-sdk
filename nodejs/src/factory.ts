@@ -140,8 +140,6 @@ export interface FactoryHandle<TArgs = unknown, TResult = unknown> {
 export interface RunOptions<TArgs = unknown> {
     /** Input surfaced as `context.args`. */
     args?: TArgs;
-    /** Return once the approved run starts instead of awaiting completion. */
-    background?: boolean;
     /** Optional per-invocation resource ceiling overrides. */
     limits?: FactoryLimits;
     /** Prior run whose journal and progress should seed this run. */
@@ -155,24 +153,11 @@ export interface RunOptions<TArgs = unknown> {
  * change or be removed in future SDK or CLI releases.
  */
 export interface SessionFactoryApi {
-    run(name: string, options: RunOptions & { background: true }): Promise<FactoryRunResult>;
-    run<TResult = unknown>(
-        name: string,
-        options?: RunOptions & { background?: false }
-    ): Promise<TResult>;
-    run<TResult = unknown>(name: string, options?: RunOptions): Promise<TResult | FactoryRunResult>;
-    run<TArgs, TResult>(
-        factory: FactoryHandle<TArgs, TResult>,
-        options: RunOptions<TArgs> & { background: true }
-    ): Promise<FactoryRunResult>;
-    run<TArgs, TResult>(
-        factory: FactoryHandle<TArgs, TResult>,
-        options?: RunOptions<TArgs> & { background?: false }
-    ): Promise<TResult>;
+    run<TResult = unknown>(name: string, options?: RunOptions): Promise<TResult>;
     run<TArgs, TResult>(
         factory: FactoryHandle<TArgs, TResult>,
         options?: RunOptions<TArgs>
-    ): Promise<TResult | FactoryRunResult>;
+    ): Promise<TResult>;
     /** Read the latest durable envelope for a factory run. */
     getRun(runId: string): Promise<FactoryRunResult>;
     /** Cancel a factory run and return its terminal envelope. */
