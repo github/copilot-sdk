@@ -225,6 +225,19 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
 
         await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.NeedsAuth);
 
+        // The MCP connection is kicked off by session.create, but the SDK only registers its
+        // `mcp.oauth_required` event interest once create returns. If the server's initial 401
+        // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+        // so `observedRequest` is briefly null even after `needs-auth` is observed. A later
+        // auth retry (now that interest is registered) invokes the callback with the same
+        // `Initial` reason. Wait for the callback rather than sampling it the instant
+        // `needs-auth` first appears, which is what made this test flaky.
+        await TestHelper.WaitForConditionAsync(
+            () => Task.FromResult(observedRequest is not null),
+            timeout: TimeSpan.FromSeconds(60),
+            pollInterval: TimeSpan.FromMilliseconds(200),
+            timeoutMessage: $"{serverName} OAuth request reaching the host callback");
+
         Assert.NotNull(observedRequest);
         Assert.NotEmpty(observedRequest!.RequestId);
         Assert.Equal(serverName, observedRequest!.ServerName);

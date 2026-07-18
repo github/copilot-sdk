@@ -197,12 +197,17 @@ func TestMCPOAuthE2E(t *testing.T) {
 	t.Run("cancel pending MCP OAuth request", func(t *testing.T) {
 		baseURL := startOAuthMCPServer(t)
 		serverName := "oauth-cancelled-mcp"
+		var mu sync.Mutex
 		var observedRequest copilot.MCPAuthRequest
+		var observed bool
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
+				mu.Lock()
 				observedRequest = request
+				observed = true
+				mu.Unlock()
 				return copilot.MCPAuthResultCancelled(), nil
 			},
 			MCPServers: map[string]copilot.MCPServerConfig{
@@ -218,11 +223,35 @@ func TestMCPOAuthE2E(t *testing.T) {
 		t.Cleanup(func() { session.Disconnect() })
 
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusNeedsAuth)
-		if observedRequest.ServerName != serverName {
-			t.Fatalf("Expected serverName %q, got %q", serverName, observedRequest.ServerName)
+
+		// The MCP connection is kicked off by session.create, but the SDK only registers its
+		// `mcp.oauth_required` event interest once create returns. If the server's initial 401
+		// wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+		// so `observedRequest` is briefly unset even after `needs-auth` is observed. A later
+		// auth retry (now that interest is registered) invokes the callback with the same
+		// `Initial` reason. Wait for the callback rather than sampling it the instant
+		// `needs-auth` first appears, which is what made this test flaky.
+		var request copilot.MCPAuthRequest
+		deadline := time.Now().Add(60 * time.Second)
+		for {
+			mu.Lock()
+			got := observed
+			request = observedRequest
+			mu.Unlock()
+			if got {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s OAuth request did not reach the host callback", serverName)
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
-		if observedRequest.Reason != copilot.MCPOauthRequestReasonInitial {
-			t.Fatalf("Unexpected auth request reason: %q", observedRequest.Reason)
+
+		if request.ServerName != serverName {
+			t.Fatalf("Expected serverName %q, got %q", serverName, request.ServerName)
+		}
+		if request.Reason != copilot.MCPOauthRequestReasonInitial {
+			t.Fatalf("Unexpected auth request reason: %q", request.Reason)
 		}
 	})
 
