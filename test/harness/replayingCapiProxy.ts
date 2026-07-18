@@ -127,6 +127,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "*", normalizer: normalizeAvailableToolNames },
+    { toolName: "task", normalizer: normalizeBackgroundAgentAdvice },
     { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
 
@@ -1299,17 +1300,17 @@ function coalesceMessages(
   return result;
 }
 
-// Re-normalizes the built-in tool enumeration in stored tool results at load
-// time. Snapshots recorded before normalizeAvailableToolNames collapsed the
-// whole list (or recorded against an older tool set) still contain the literal
-// enumeration on disk; the result normalizers only run against live requests,
-// so without this the stored side would keep the stale list and never match a
-// request whose tool set has since changed.
+// Re-normalizes stored tool results at load time. Snapshots recorded against an
+// older runtime still contain the literal built-in tool enumeration (or the
+// background-agent advice wording) on disk; the result normalizers only run
+// against live requests, so without this the stored side would keep the stale
+// text and never match a request whose runtime output has since changed.
 function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "tool" && typeof message.content === "string") {
         message.content = normalizeAvailableToolNames(message.content);
+        message.content = normalizeBackgroundAgentAdvice(message.content);
       }
     }
   }
@@ -1405,21 +1406,35 @@ function normalizeReadAgentTimings(result: string): string {
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
-// Stable placeholder for the built-in tool enumeration the runtime emits when a
-// nonexistent tool is called (see normalizeAvailableToolNames).
-export const availableToolsPlaceholder = "${available_tools}";
-
 // When a model calls a tool that doesn't exist (e.g., the removed report_intent
-// tool), the runtime replies with "Available tools that can be called are <list>."
-// That enumeration is both platform-specific (shell tool family names differ
-// across OSes) and runtime-version-specific (built-in tools such as write_agent
-// are added or removed over time), so any test that trips this path would break
-// whenever the tool set changes. Collapse the whole list to a stable placeholder
-// so snapshots keep matching as the built-in tool set evolves.
+// tool), the runtime replies with "Tool '<name>' does not exist. Available tools
+// that can be called are <list>." Some runtime versions omit that second sentence
+// entirely, and when present the enumeration is both platform-specific (shell tool
+// family names differ across OSes) and runtime-version-specific (built-in tools
+// such as write_agent are added or removed over time). Strip the whole "Available
+// tools..." sentence so its presence, absence, and exact contents are all
+// equivalent and snapshots keep matching as the built-in tool set evolves.
 function normalizeAvailableToolNames(result: string): string {
   return result.replace(
-    /(Available tools that can be called are )[^.]*/g,
-    (_full, prefix: string) => prefix + availableToolsPlaceholder,
+    /\s*Available tools that can be called are [^.]*\./g,
+    "",
+  );
+}
+
+// Stable placeholder for the advice text the runtime appends after starting a
+// background agent (see normalizeBackgroundAgentAdvice).
+export const backgroundAgentAdvicePlaceholder = "${background_agent_advice}";
+
+// When the task tool starts an agent in the background, the runtime replies with
+// "Agent started in background with agent_id: <id>." followed by advice text
+// ("You'll be notified when it completes... The agent supports multi-turn
+// conversations — use write_agent...") that changes across runtime versions.
+// Collapse that trailing advice to a stable placeholder so snapshots keep
+// matching as the wording evolves, while preserving the meaningful agent_id.
+function normalizeBackgroundAgentAdvice(result: string): string {
+  return result.replace(
+    /(Agent started in background with agent_id: \S+\.)[\s\S]*/,
+    (_full, prefix: string) => `${prefix} ${backgroundAgentAdvicePlaceholder}`,
   );
 }
 

@@ -509,7 +509,7 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessages[1].content).toBe("[beta result]");
   });
 
-  test("collapses the available-tools list to a stable placeholder", async () => {
+  test("strips the available-tools list so its contents don't matter", async () => {
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -543,10 +543,52 @@ Always include PINEAPPLE_COCONUT_42.
     const toolMessage = result.conversations[0].messages.find(
       (m) => m.role === "tool",
     );
-    // The whole enumeration collapses so snapshots stay stable as the built-in
-    // tool set evolves (e.g. write_agent being added).
+    // The whole "Available tools..." sentence is stripped so snapshots stay
+    // stable whether or not the runtime emits the list and as the built-in tool
+    // set evolves (e.g. write_agent being added).
     expect(toolMessage?.content).toBe(
-      "Tool 'report_intent' does not exist. Available tools that can be called are ${available_tools}.",
+      "Tool 'report_intent' does not exist.",
+    );
+  });
+
+  test("collapses background-agent start advice to a stable placeholder", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "task", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    // The volatile advice tail collapses so snapshots stay stable as the wording
+    // evolves across runtime versions, while the agent_id is preserved.
+    expect(toolMessage?.content).toBe(
+      "Agent started in background with agent_id: read-file. ${background_agent_advice}",
     );
   });
 
@@ -932,6 +974,163 @@ Always include PINEAPPLE_COCONUT_42.
                 // Newer runtime added write_agent to the built-in tool set.
                 content:
                   "Tool 'report_intent' does not exist. Available tools that can be called are bash, read_bash, view, read_agent, list_agents, write_agent, grep, glob, task.",
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches truncated report_intent results against a runtime that emits the tool list", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Older snapshots truncated the report_intent error to just the first
+      // sentence, with no "Available tools..." enumeration recorded on disk.
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Report intent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: { name: "report_intent", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content: "Tool 'report_intent' does not exist.",
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Report intent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: { name: "report_intent", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                // Newer runtime appends the full built-in tool enumeration.
+                content:
+                  "Tool 'report_intent' does not exist. Available tools that can be called are bash, read_bash, view, read_agent, list_agents, write_agent, grep, glob, task.",
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches background-agent start results after the advice wording changes", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Legacy snapshot recorded before the runtime appended multi-turn advice
+      // to the background-agent start message.
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Spawn an agent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: { name: "task", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content:
+                  "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.",
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Spawn an agent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: { name: "task", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                // Newer runtime appends multi-turn advice referencing write_agent.
+                content:
+                  "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.",
               },
             ],
           },
