@@ -852,7 +852,7 @@ describe("factories", () => {
         });
     });
 
-    it("runs factories by name or handle and unwraps only foreground results", async () => {
+    it("runs factories by name or handle and unwraps completed results", async () => {
         const factory = defineFactory({
             meta: {
                 name: "friendly-run",
@@ -867,19 +867,15 @@ describe("factories", () => {
                 params: {
                     name: string;
                     options?: {
-                        background?: boolean;
                         limits?: { maxTotalSubagents?: number };
                         resumeFromRunId?: string;
                     };
                 }
-            ) =>
-                params.options?.background
-                    ? { runId: "run-background", status: "running" }
-                    : {
-                          runId: "run-foreground",
-                          status: "completed",
-                          result: { name: params.name },
-                      }
+            ) => ({
+                runId: "run-foreground",
+                status: "completed",
+                result: { name: params.name },
+            })
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
@@ -895,17 +891,11 @@ describe("factories", () => {
         await expect(session.factory.run(factory)).resolves.toEqual({
             name: "friendly-run",
         });
-        await expect(session.factory.run("background", { background: true })).resolves.toEqual({
-            runId: "run-background",
-            status: "running",
-        });
-
         expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.run", {
             sessionId: session.sessionId,
             name: "by-name",
             args: { value: 1 },
             options: {
-                background: undefined,
                 limits: { maxTotalSubagents: 7 },
                 resumeFromRunId: "run-prior",
             },
@@ -914,7 +904,7 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
-            options: { background: undefined, limits: undefined, resumeFromRunId: undefined },
+            options: { limits: undefined, resumeFromRunId: undefined },
         });
     });
 
