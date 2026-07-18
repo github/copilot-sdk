@@ -1223,8 +1223,9 @@ function transformOpenAIRequestMessage(
 }
 
 function normalizeUserMessage(content: string): string {
-  return normalizeSkillContextFrontmatter(content)
-    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
+  return normalizeAgentCompletionNotification(
+    normalizeSkillContextFrontmatter(content),
+  )
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1237,19 +1238,29 @@ function normalizeUserMessage(content: string): string {
     .trim();
 }
 
-const taskCompletionNotificationPattern =
-  /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g;
-const taskCompletionNotificationReplacement =
-  'Use read_agent with agent_id "$1" to retrieve the full results.';
+// The runtime's background-agent completion system_notification has been reworded
+// across CLI versions — both the status sentence ("has completed successfully." vs
+// "has finished processing and is now idle.") and the follow-up advice ("to retrieve
+// unread results." vs "to read the results, or write_agent to send follow-up
+// messages."). Collapse every known phrasing to one canonical form so snapshots keep
+// matching regardless of which runtime version recorded them or replays against them.
+function normalizeAgentCompletionNotification(content: string): string {
+  return content
+    .replace(
+      /Agent ("[^"]*" \([^)]*\)) has finished processing and is now idle\./g,
+      "Agent $1 has completed successfully.",
+    )
+    .replace(
+      /Use read_agent with agent_id "([^"]+)" to (?:retrieve unread results|read the results, or write_agent to send follow-up messages)\./g,
+      'Use read_agent with agent_id "$1" to retrieve the full results.',
+    );
+}
 
 function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "user" && typeof message.content === "string") {
-        message.content = message.content.replace(
-          taskCompletionNotificationPattern,
-          taskCompletionNotificationReplacement,
-        );
+        message.content = normalizeAgentCompletionNotification(message.content);
       }
     }
   }

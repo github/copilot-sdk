@@ -379,6 +379,38 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe(fullNotification);
   });
 
+  test("normalizes the idle-phrasing task completion notification", async () => {
+    const idleNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has finished processing and is now idle. Use read_agent with agent_id "sdk-background-agent" to read the results, or write_agent to send follow-up messages.',
+      "</system_notification>",
+    ].join("\n");
+    const fullNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve the full results.',
+      "</system_notification>",
+    ].join("\n");
+
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: idleNotification,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(fullNotification);
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -1307,6 +1339,67 @@ Always include PINEAPPLE_COCONUT_42.
               { role: "user", content: "Hello" },
               { role: "assistant", content: "Hi!" },
               { role: "user", content: unreadNotification },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Read agent completed.");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches cached completion notification against the idle-phrasing runtime", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Snapshot recorded with the canonical completion wording.
+      const canonicalNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve the full results.',
+        "</system_notification>",
+      ].join("\n");
+      // Newer runtime emits the idle phrasing with write_agent advice.
+      const idleNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has finished processing and is now idle. Use read_agent with agent_id "read-file" to read the results, or write_agent to send follow-up messages.',
+        "</system_notification>",
+      ].join("\n");
+
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: canonicalNotification },
+              { role: "assistant", content: "Read agent completed." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: idleNotification },
             ],
           },
         });
