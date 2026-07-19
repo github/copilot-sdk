@@ -563,8 +563,8 @@ export type FactoryRunFailure =
 export type FactoryRunFailureKind =
   /** The run admitted the approved maximum total number of subagents. */
   | "maxTotalSubagents"
-  /** The run reached the approved timeout deadline. */
-  | "timeout";
+  /** The run reached the approved accumulated active-execution time in seconds. */
+  | "timeoutSeconds";
 /**
  * Current or terminal state of a factory run.
  *
@@ -5004,9 +5004,9 @@ export interface FactoryRunLimits {
    */
   maxTotalSubagents?: number;
   /**
-   * Factory active-run timeout in milliseconds.
+   * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
-  timeout?: number;
+  timeoutSeconds?: number;
 }
 /**
  * Parameters for invoking a registered factory.

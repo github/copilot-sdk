@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ResponseError } from "vscode-jsonrpc/node.js";
 import { CopilotClient } from "../src/client.js";
@@ -252,8 +253,9 @@ describe("factories", () => {
         ["maxConcurrentSubagents", 1.5],
         ["maxTotalSubagents", -1],
         ["maxTotalSubagents", Number.POSITIVE_INFINITY],
-        ["timeout", 0],
-        ["timeout", Number.NaN],
+        ["timeoutSeconds", 0],
+        ["timeoutSeconds", Number.NaN],
+        ["timeoutSeconds", Number.POSITIVE_INFINITY],
     ] as const)("rejects invalid %s limit %s", (field, value) => {
         const definition = {
             meta: {
@@ -268,18 +270,51 @@ describe("factories", () => {
         expect(() => defineFactory(definition)).toThrow(/must be a positive/);
     });
 
-    it("rejects a timeout above the Node setTimeout ceiling", () => {
+    it("accepts positive fractional timeoutSeconds through the Node timer ceiling", () => {
+        for (const timeoutSeconds of [0.001, 1.5, 2_147_483.647]) {
+            expect(() =>
+                defineFactory({
+                    meta: {
+                        name: `accepted-timeout-${timeoutSeconds}`,
+                        description: "Factory with an accepted active-execution timeout",
+                        phases: [],
+                        limits: { timeoutSeconds },
+                    },
+                    run: async () => null,
+                })
+            ).not.toThrow();
+        }
+    });
+
+    it("rejects timeoutSeconds above the Node setTimeout ceiling", () => {
         const definition = {
             meta: {
                 name: "oversized-timeout",
                 description: "Factory with an out-of-range timeout",
                 phases: [],
-                limits: { timeout: 2_147_483_648 },
+                limits: { timeoutSeconds: 2_147_483.648 },
             },
             run: async () => null,
         } as FactoryDefinition;
 
-        expect(() => defineFactory(definition)).toThrow(/must not exceed/);
+        expect(() => defineFactory(definition)).toThrow(
+            'Factory limit "timeoutSeconds" must not exceed 2147483.647 seconds'
+        );
+    });
+
+    it("documents timeoutSeconds as accumulated active-execution time in public and generated types", () => {
+        const publicTypes = readFileSync(new URL("../src/types.ts", import.meta.url), "utf8");
+        const generatedRpc = readFileSync(
+            new URL("../src/generated/rpc.ts", import.meta.url),
+            "utf8"
+        );
+
+        expect(publicTypes).toContain("Maximum accumulated active-execution time, in seconds.");
+        expect(publicTypes).toContain("subprocess waits, queued-agent waits, and sleeps");
+        expect(publicTypes).toContain("timeoutSeconds?: number;");
+        expect(generatedRpc).toContain("Maximum accumulated active-execution time in seconds.");
+        expect(generatedRpc).toContain("subprocess waits, queued-agent waits, and sleeps");
+        expect(generatedRpc).toContain("timeoutSeconds?: number;");
     });
 
     it("serializes only factory metadata in the extension resume payload", async () => {

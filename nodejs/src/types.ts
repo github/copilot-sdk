@@ -1847,8 +1847,12 @@ export interface FactoryLimits {
     maxConcurrentSubagents?: number;
     /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
     maxTotalSubagents?: number;
-    /** Wall-clock timeout for the factory run, in milliseconds. Must be positive when present. */
-    timeout?: number;
+    /**
+     * Maximum accumulated active-execution time, in seconds. Active execution includes the entire extension body,
+     * subprocess waits, queued-agent waits, and sleeps. The limit is armed from the remaining headroom when a run
+     * resumes; time between attempts is not counted. Must be finite and positive when present.
+     */
+    timeoutSeconds?: number;
 }
 
 /**
