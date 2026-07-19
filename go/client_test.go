@@ -3181,9 +3181,13 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 }
 
 func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-123",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"threshold": 5, "enabled": true}},
+		},
+		AssignmentContext: "ctx-123",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
@@ -3222,9 +3226,13 @@ func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
 }
 
 func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-456",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"copilot_exp_flag": "treatment"}},
+		},
+		AssignmentContext: "ctx-456",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {

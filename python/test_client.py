@@ -25,6 +25,8 @@ from copilot import (
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
+    CopilotExpAssignmentResponse,
+    ExpConfigEntry,
     ModelBilling,
     ModelCapabilities,
     ModelInfo,
@@ -867,8 +869,12 @@ class TestCreateSessionConfig:
 
             client._client.request = mock_request
 
-            create_assignments = {"Configs": [{"Id": "exp-create"}]}
-            resume_assignments = {"Configs": [{"Id": "exp-resume"}]}
+            create_assignments = CopilotExpAssignmentResponse(
+                configs=[ExpConfigEntry(id="exp-create")]
+            )
+            resume_assignments = CopilotExpAssignmentResponse(
+                configs=[ExpConfigEntry(id="exp-resume")]
+            )
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -880,8 +886,18 @@ class TestCreateSessionConfig:
                 exp_assignments=resume_assignments,
             )
 
-            assert captured["session.create"]["expAssignments"] == create_assignments
-            assert captured["session.resume"]["expAssignments"] == resume_assignments
+            assert captured["session.create"]["expAssignments"] == {
+                "Features": [],
+                "Flights": {},
+                "Configs": [{"Id": "exp-create", "Parameters": {}}],
+                "AssignmentContext": "",
+            }
+            assert captured["session.resume"]["expAssignments"] == {
+                "Features": [],
+                "Flights": {},
+                "Configs": [{"Id": "exp-resume", "Parameters": {}}],
+                "AssignmentContext": "",
+            }
         finally:
             await client.force_stop()
 
