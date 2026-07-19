@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ExpConfigEntry {
 
     @JsonProperty("Id")
-    private String id;
+    private String id = "";
 
     @JsonProperty("Parameters")
     private Map<String, Object> parameters = new LinkedHashMap<>();
@@ -29,7 +29,7 @@ public class ExpConfigEntry {
     /**
      * Gets the identifier of this configuration entry.
      *
-     * @return the entry identifier, or {@code null} if not set
+     * @return the entry identifier (empty string when unset)
      */
     public String getId() {
         return id;
