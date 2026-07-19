@@ -1064,6 +1064,35 @@ type CopilotExpAssignmentResponse struct {
 	AssignmentContext string `json:"AssignmentContext"`
 }
 
+// MarshalJSON normalizes the required collection fields so a zero-value
+// response serializes them as JSON arrays/objects rather than null, which the
+// runtime can otherwise treat as a malformed assignment payload and drop.
+func (r CopilotExpAssignmentResponse) MarshalJSON() ([]byte, error) {
+	type wire CopilotExpAssignmentResponse
+	w := wire(r)
+	if w.Features == nil {
+		w.Features = []string{}
+	}
+	if w.Flights == nil {
+		w.Flights = map[string]string{}
+	}
+	if w.Configs == nil {
+		w.Configs = []ExpConfigEntry{}
+	}
+	return json.Marshal(w)
+}
+
+// MarshalJSON normalizes the required Parameters map so an entry serializes it
+// as a JSON object rather than null.
+func (e ExpConfigEntry) MarshalJSON() ([]byte, error) {
+	type wire ExpConfigEntry
+	w := wire(e)
+	if w.Parameters == nil {
+		w.Parameters = map[string]ExpFlagValue{}
+	}
+	return json.Marshal(w)
+}
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID

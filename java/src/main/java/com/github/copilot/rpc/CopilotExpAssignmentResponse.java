@@ -44,7 +44,7 @@ public class CopilotExpAssignmentResponse {
     private String impressionId;
 
     @JsonProperty("AssignmentContext")
-    private String assignmentContext;
+    private String assignmentContext = "";
 
     /**
      * Gets the enabled feature names.
@@ -175,7 +175,7 @@ public class CopilotExpAssignmentResponse {
     /**
      * Gets the assignment context string forwarded to CAPI and telemetry.
      *
-     * @return the assignment context, or {@code null} if not set
+     * @return the assignment context (empty string when unset)
      */
     public String getAssignmentContext() {
         return assignmentContext;

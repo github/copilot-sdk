@@ -3225,6 +3225,42 @@ func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
 	})
 }
 
+func TestCopilotExpAssignmentResponse_MarshalNormalizesNilCollections(t *testing.T) {
+	// A response left with zero-value collections must still serialize the
+	// required fields as JSON arrays/objects, not null, so the runtime does not
+	// treat the payload as malformed.
+	data, err := json.Marshal(&CopilotExpAssignmentResponse{AssignmentContext: "ctx"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	for _, tc := range []struct{ key, want string }{
+		{"Features", "[]"},
+		{"Flights", "{}"},
+		{"Configs", "[]"},
+		{"AssignmentContext", `"ctx"`},
+	} {
+		if got := string(m[tc.key]); got != tc.want {
+			t.Errorf("Expected %s to serialize as %s, got %s", tc.key, tc.want, got)
+		}
+	}
+
+	// A nil Parameters map on an entry must likewise serialize as {}.
+	entryData, err := json.Marshal(ExpConfigEntry{ID: "cfg"})
+	if err != nil {
+		t.Fatalf("Failed to marshal entry: %v", err)
+	}
+	if err := json.Unmarshal(entryData, &m); err != nil {
+		t.Fatalf("Failed to unmarshal entry: %v", err)
+	}
+	if got := string(m["Parameters"]); got != "{}" {
+		t.Errorf("Expected Parameters to serialize as {}, got %s", got)
+	}
+}
+
 func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 	assignments := &CopilotExpAssignmentResponse{
 		Features: []string{"copilot_exp_flag"},

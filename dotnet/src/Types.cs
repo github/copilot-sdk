@@ -2836,11 +2836,11 @@ public sealed class ExpConfigEntry
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Parameter values keyed by parameter name. Each value is a string, number,
-    /// boolean, or <c>null</c>.
+    /// Parameter values keyed by parameter name. Each value is a scalar string,
+    /// number, boolean, or <c>null</c>.
     /// </summary>
     [JsonPropertyName("Parameters")]
-    public IDictionary<string, JsonNode?> Parameters { get; set; } = new Dictionary<string, JsonNode?>();
+    public IDictionary<string, JsonValue?> Parameters { get; set; } = new Dictionary<string, JsonValue?>();
 }
 
 /// <summary>
