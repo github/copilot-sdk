@@ -10,6 +10,7 @@ import { joinSession } from "../src/extension.js";
 import { CopilotSession } from "../src/session.js";
 import {
     defineFactory,
+    FactoryResumeError,
     FactoryRunError,
     type FactoryAgentOptions,
     type FactoryDefinition,
@@ -1145,7 +1146,7 @@ describe("factories", () => {
         });
     });
 
-    it("runs factories by name or handle and unwraps completed results", async () => {
+    it("runs fresh factories and routes direct and legacy resumes by ID without args", async () => {
         const factory = defineFactory({
             meta: {
                 name: "friendly-run",
@@ -1154,24 +1155,32 @@ describe("factories", () => {
             },
             run: async () => ({ unused: true }),
         });
-        const sendRequest = vi.fn(
-            async (
-                _method: string,
-                params: {
-                    name: string;
-                    options?: {
-                        limits?: { maxTotalSubagents?: number };
-                        resumeFromRunId?: string;
-                    };
-                }
-            ) => ({
-                runId: "run-foreground",
-                status: "completed",
-                result: { name: params.name },
-            })
+        const sendRequest = vi.fn(async (method: string, params: { name?: string }) =>
+            method === "session.factory.resume"
+                ? {
+                      factoryName: "stored-name",
+                      run: {
+                          runId: "run-prior",
+                          status: "completed",
+                          result: { name: "stored-name", persistedArgs: true },
+                      },
+                  }
+                : {
+                      runId: "run-foreground",
+                      status: "completed",
+                      result: { name: params.name },
+                  }
         );
         const session = new CopilotSession("session-run", { sendRequest } as never);
 
+        await expect(
+            session.factory.resume<{ name: string; persistedArgs: boolean }>("run-prior", {
+                limits: { maxTotalSubagents: 7 },
+            })
+        ).resolves.toEqual({
+            name: "stored-name",
+            persistedArgs: true,
+        });
         await expect(
             session.factory.run("by-name", {
                 args: { value: 1 },
@@ -1179,25 +1188,27 @@ describe("factories", () => {
                 resumeFromRunId: "run-prior",
             })
         ).resolves.toEqual({
-            name: "by-name",
+            name: "stored-name",
+            persistedArgs: true,
         });
         await expect(session.factory.run(factory)).resolves.toEqual({
             name: "friendly-run",
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.resume", {
             sessionId: session.sessionId,
-            name: "by-name",
-            args: { value: 1 },
-            options: {
-                limits: { maxTotalSubagents: 7 },
-                resumeFromRunId: "run-prior",
-            },
+            runId: "run-prior",
+            limits: { maxTotalSubagents: 7 },
         });
-        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.run", {
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.resume", {
+            sessionId: session.sessionId,
+            runId: "run-prior",
+            limits: { maxTotalSubagents: 7 },
+        });
+        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.run", {
             sessionId: session.sessionId,
             name: "friendly-run",
             args: {},
-            options: { limits: undefined, resumeFromRunId: undefined },
+            options: { limits: undefined },
         });
     });
 
@@ -1217,28 +1228,43 @@ describe("factories", () => {
         expect((error as FactoryRunError).envelope).toBe(envelope);
     });
 
-    it("preserves the typed resume-declined failure in FactoryRunError", async () => {
+    it.each([
+        "not_found",
+        "non_resumable",
+        "already_active",
+        "reapproval_declined",
+        "no_approval_provider",
+    ] as const)(
+        "throws FactoryResumeError with code %s for pre-execution failures",
+        async (code) => {
+            const session = new CopilotSession("session-resume-error", {
+                sendRequest: vi.fn(async () => {
+                    throw new ResponseError(-32602, `resume failed: ${code}`, { code });
+                }),
+            } as never);
+
+            const error = await session.factory
+                .resume("run-error")
+                .catch((caught: unknown) => caught);
+            expect(error).toBeInstanceOf(FactoryResumeError);
+            expect((error as FactoryResumeError).code).toBe(code);
+        }
+    );
+
+    it("keeps resumed execution failures as FactoryRunError envelopes", async () => {
         const envelope = {
-            runId: "run-declined",
+            runId: "run-execution-error",
             status: "error" as const,
-            error: "Factory resume was declined",
-            failure: {
-                type: "factory_resume_declined" as const,
-                runId: "run-declined",
-                reason: "Factory execution was declined",
-            },
+            error: "resumed body failed",
         };
-        const session = new CopilotSession("session-declined", {
-            sendRequest: vi.fn(async () => envelope),
+        const session = new CopilotSession("session-resumed-run-error", {
+            sendRequest: vi.fn(async () => ({ factoryName: "stored-name", run: envelope })),
         } as never);
 
         const error = await session.factory
-            .run("resumable", {
-                limits: { maxTotalSubagents: 5 },
-                resumeFromRunId: "run-declined",
-            })
+            .resume("run-execution-error")
             .catch((caught: unknown) => caught);
         expect(error).toBeInstanceOf(FactoryRunError);
-        expect((error as FactoryRunError).envelope.failure).toEqual(envelope.failure);
+        expect((error as FactoryRunError).envelope).toBe(envelope);
     });
 });

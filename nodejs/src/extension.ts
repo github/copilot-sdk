@@ -39,8 +39,11 @@ export type JoinSessionConfig = Omit<
 export type { ExtensionInfo, FactoryLimits, FactoryMeta } from "./types.js";
 export {
     defineFactory,
+    FactoryResumeError,
     FactoryRunError,
     type RunOptions,
+    type ResumeOptions,
+    type FactoryResumeErrorCode,
     type SessionFactoryApi,
     type FactoryAgentOptions,
     type FactoryContext,

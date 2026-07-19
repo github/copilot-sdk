@@ -523,6 +523,26 @@ export type FactoryLogLineKind =
   /** A named factory phase marker. */
   | "phase";
 /**
+ * Current or terminal state of a factory run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunStatus".
+ */
+/** @experimental */
+export type FactoryRunStatus =
+  /** The run was minted and is awaiting approval. */
+  | "pending"
+  /** The run is executing. */
+  | "running"
+  /** The run completed successfully. */
+  | "completed"
+  /** The run was interrupted while resource budget remained. */
+  | "halted"
+  /** The run was cancelled before completion. */
+  | "cancelled"
+  /** The factory body failed or reached a cumulative resource ceiling. */
+  | "error";
+/**
  * Machine-readable factory run failure.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -565,26 +585,6 @@ export type FactoryRunFailureKind =
   | "maxTotalSubagents"
   /** The run reached the approved accumulated active-execution time in seconds. */
   | "timeoutSeconds";
-/**
- * Current or terminal state of a factory run.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunStatus".
- */
-/** @experimental */
-export type FactoryRunStatus =
-  /** The run was minted and is awaiting approval. */
-  | "pending"
-  /** The run is executing. */
-  | "running"
-  /** The run completed successfully. */
-  | "completed"
-  /** The run was interrupted while resource budget remained. */
-  | "halted"
-  /** The run was cancelled before completion. */
-  | "cancelled"
-  /** The factory body failed or reached a cumulative resource ceiling. */
-  | "error";
 
 /** @experimental */
 export type FilterMapping = JsonValue;
@@ -4988,6 +4988,20 @@ export interface FactoryLogRequest {
   lines: FactoryLogLine[];
 }
 /**
+ * Parameters for resuming a factory run from its persisted identity.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryResumeRequest".
+ */
+/** @experimental */
+export interface FactoryResumeRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  limits?: FactoryRunLimits;
+}
+/**
  * Wire-only per-invocation factory resource ceiling overrides.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -5007,6 +5021,45 @@ export interface FactoryRunLimits {
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
   timeoutSeconds?: number;
+}
+/**
+ * Resolved persisted factory identity and resumed run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryResumeResult".
+ */
+/** @experimental */
+export interface FactoryResumeResult {
+  /**
+   * Persisted factory name resolved for the resumed run.
+   */
+  factoryName: string;
+  run: FactoryRunResult;
+}
+/**
+ * Complete current or terminal factory run envelope.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunResult".
+ */
+/** @experimental */
+export interface FactoryRunResult {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  status: FactoryRunStatus;
+  result?: JsonValue;
+  /**
+   * Error message for an errored run.
+   */
+  error?: string;
+  failure?: FactoryRunFailure;
+  /**
+   * Reason for a halted or cancelled run.
+   */
+  reason?: string;
+  snapshot?: JsonValue;
 }
 /**
  * Parameters for invoking a registered factory.
@@ -5036,31 +5089,6 @@ export interface RunOptions {
    * Run identifier whose journal and progress should seed this resumed run.
    */
   resumeFromRunId?: string;
-}
-/**
- * Complete current or terminal factory run envelope.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryRunResult".
- */
-/** @experimental */
-export interface FactoryRunResult {
-  /**
-   * Factory run identifier.
-   */
-  runId: string;
-  status: FactoryRunStatus;
-  result?: JsonValue;
-  /**
-   * Error message for an errored run.
-   */
-  error?: string;
-  failure?: FactoryRunFailure;
-  /**
-   * Reason for a halted or cancelled run.
-   */
-  reason?: string;
-  snapshot?: JsonValue;
 }
 /**
  * Optional user prompt to combine with the fleet orchestration instructions.
@@ -16762,6 +16790,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             run: async (params: FactoryRunRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.run", { sessionId, ...params }),
+            /**
+             * Resumes a factory run using its persisted name, arguments, journal, and accounting.
+             *
+             * @param params Parameters for resuming a factory run from its persisted identity.
+             *
+             * @returns Resolved persisted factory identity and resumed run envelope.
+             */
+            resume: async (params: FactoryResumeRequest): Promise<FactoryResumeResult> =>
+                connection.sendRequest("session.factory.resume", { sessionId, ...params }),
             /**
              * Gets the current or settled envelope for a factory run.
              *

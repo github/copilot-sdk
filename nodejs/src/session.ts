@@ -62,7 +62,9 @@ import type {
 } from "./types.js";
 import {
     getFactoryDefinition,
+    FactoryResumeError,
     FactoryRunError,
+    type FactoryResumeErrorCode,
     type RunOptions,
     type SessionFactoryApi,
     type FactoryContext,
@@ -70,6 +72,16 @@ import {
     type JsonValue,
     type FactoryStepOptions,
 } from "./factory.js";
+
+function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCode {
+    return (
+        value === "not_found" ||
+        value === "non_resumable" ||
+        value === "already_active" ||
+        value === "reapproval_declined" ||
+        value === "no_approval_provider"
+    );
+}
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
@@ -375,12 +387,16 @@ export class CopilotSession {
                 typeof nameOrHandle === "string"
                     ? nameOrHandle
                     : getFactoryDefinition(nameOrHandle).meta.name;
+            if (options?.resumeFromRunId !== undefined) {
+                return this.factory.resume(options.resumeFromRunId, {
+                    limits: options.limits,
+                });
+            }
             const envelope = await this.rpc.factory.run({
                 name,
                 args: options?.args === undefined ? {} : options.args,
                 options: {
                     limits: options?.limits,
-                    resumeFromRunId: options?.resumeFromRunId,
                 },
             });
 
@@ -389,6 +405,31 @@ export class CopilotSession {
             }
             return envelope.result;
         }) as SessionFactoryApi["run"],
+        resume: (async (runId: string, options?: Parameters<SessionFactoryApi["resume"]>[1]) => {
+            let response;
+            try {
+                response = await this.rpc.factory.resume({
+                    runId,
+                    limits: options?.limits,
+                });
+            } catch (error) {
+                if (
+                    error instanceof ResponseError &&
+                    typeof error.data === "object" &&
+                    error.data !== null
+                ) {
+                    const code = (error.data as { code?: unknown }).code;
+                    if (isFactoryResumeErrorCode(code)) {
+                        throw new FactoryResumeError(code, error.message);
+                    }
+                }
+                throw error;
+            }
+            if (response.run.status !== "completed") {
+                throw new FactoryRunError(response.run);
+            }
+            return response.run.result;
+        }) as SessionFactoryApi["resume"],
         getRun: (runId) => this.rpc.factory.getRun({ runId }),
         cancel: (runId) => this.rpc.factory.cancel({ runId }),
     };

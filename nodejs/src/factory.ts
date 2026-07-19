@@ -17,7 +17,12 @@ declare const factoryHandleBrand: unique symbol;
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue =
-    null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+    | null
+    | boolean
+    | number
+    | string
+    | JsonValue[]
+    | { [key: string]: JsonValue };
 
 /**
  * Conservative JSON shape language accepted for structured factory agent output.
@@ -154,9 +159,32 @@ export interface RunOptions<TArgs extends JsonValue = JsonValue> {
     args?: TArgs;
     /** Optional per-invocation resource ceiling overrides. */
     limits?: FactoryLimits;
-    /** Prior run whose journal and progress should seed this run. */
+    /**
+     * Prior run whose persisted identity, arguments, journal, and accounting should be resumed.
+     *
+     * @deprecated Use {@link SessionFactoryApi.resume} instead.
+     */
     resumeFromRunId?: string;
 }
+
+/**
+ * Options for resuming a factory run by ID.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface ResumeOptions {
+    /** Optional per-invocation resource ceiling overrides. */
+    limits?: FactoryLimits;
+}
+
+/** Machine-readable pre-execution factory resume failure. */
+export type FactoryResumeErrorCode =
+    | "not_found"
+    | "non_resumable"
+    | "already_active"
+    | "reapproval_declined"
+    | "no_approval_provider";
 
 /**
  * Friendly factory API exposed on a session.
@@ -173,6 +201,12 @@ export interface SessionFactoryApi {
         factory: FactoryHandle<TArgs, TResult>,
         options?: RunOptions<TArgs>
     ): Promise<TResult>;
+    /**
+     * Resume a run from its persisted factory name, arguments, journal, and accounting.
+     *
+     * `TResult` is an unchecked caller hint because a run ID does not carry its result type.
+     */
+    resume<TResult = JsonValue | void>(runId: string, options?: ResumeOptions): Promise<TResult>;
     /** Read the latest durable envelope for a factory run. */
     getRun(runId: string): Promise<FactoryRunResult>;
     /** Cancel a factory run and return its terminal envelope. */
@@ -193,6 +227,22 @@ export class FactoryRunError extends Error {
                 `Factory run "${envelope.runId}" ended with status "${envelope.status}"`
         );
         this.name = "FactoryRunError";
+    }
+}
+
+/**
+ * Error thrown when a factory cannot be resumed before execution begins.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export class FactoryResumeError extends Error {
+    constructor(
+        public readonly code: FactoryResumeErrorCode,
+        message: string
+    ) {
+        super(message);
+        this.name = "FactoryResumeError";
     }
 }
 
