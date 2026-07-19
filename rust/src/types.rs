@@ -5469,6 +5469,7 @@ impl Default for ExitPlanModeData {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use serde_json::json;
@@ -5485,7 +5486,6 @@ mod tests {
         ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
-    use std::collections::HashMap;
 
     #[test]
     fn tool_builder_composes() {
