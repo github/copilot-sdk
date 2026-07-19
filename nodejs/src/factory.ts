@@ -2,7 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { FactoryRunResult } from "./generated/rpc.js";
+import type {
+    FactoryAgentSummary,
+    FactoryGetRunProgressRequest,
+    FactoryPhaseStatus,
+    FactoryPhaseObservation,
+    FactoryProgressLine,
+    FactoryProgressPage,
+    FactoryRunDetail,
+    FactoryRunResult,
+    FactoryRunSummary,
+} from "./generated/rpc.js";
 import type { CopilotSession } from "./session.js";
 import type { FactoryLimits, FactoryMeta } from "./types.js";
 
@@ -11,7 +21,16 @@ import type { FactoryLimits, FactoryMeta } from "./types.js";
  * reason). Re-exported so consumers can name the type returned by
  * {@link SessionFactoryApi} methods and carried on {@link FactoryRunError}.
  */
-export type { FactoryRunResult } from "./generated/rpc.js";
+export type {
+    FactoryAgentSummary,
+    FactoryPhaseStatus,
+    FactoryPhaseObservation,
+    FactoryProgressLine,
+    FactoryProgressPage,
+    FactoryRunDetail,
+    FactoryRunResult,
+    FactoryRunSummary,
+} from "./generated/rpc.js";
 
 declare const factoryHandleBrand: unique symbol;
 
@@ -209,6 +228,15 @@ export interface SessionFactoryApi {
     resume<TResult = JsonValue | void>(runId: string, options?: ResumeOptions): Promise<TResult>;
     /** Read the latest durable envelope for a factory run. */
     getRun(runId: string): Promise<FactoryRunResult>;
+    /** List this session's durable factory runs in creation order. */
+    listRuns(): Promise<FactoryRunSummary[]>;
+    /** Read durable phases, direct agents, and the latest progress tail for a run. */
+    getRunDetail(runId: string): Promise<FactoryRunDetail>;
+    /** Page durable progress forward, backward, or from the latest tail. */
+    getRunProgress(
+        runId: string,
+        options?: Omit<FactoryGetRunProgressRequest, "runId">
+    ): Promise<FactoryProgressPage>;
     /** Cancel a factory run and return its terminal envelope. */
     cancel(runId: string): Promise<FactoryRunResult>;
 }
@@ -302,6 +330,19 @@ function validateLimits(meta: FactoryMeta): void {
     }
 }
 
+function validatePhases(meta: FactoryMeta): void {
+    const titles = new Set<string>();
+    for (const phase of meta.phases) {
+        if (phase.title.trim().length === 0) {
+            throw new Error("Factory phase titles must not be empty");
+        }
+        if (titles.has(phase.title)) {
+            throw new Error(`Factory phase title "${phase.title}" is declared more than once`);
+        }
+        titles.add(phase.title);
+    }
+}
+
 /**
  * Defines an extension-authored factory and returns an opaque registration handle.
  *
@@ -313,6 +354,7 @@ export function defineFactory<
     TResult extends JsonValue | void = JsonValue | void,
 >(definition: FactoryDefinition<TArgs, TResult>): FactoryHandle<TArgs, TResult> {
     validateLimits(definition.meta);
+    validatePhases(definition.meta);
 
     const stored: StoredFactory = {
         meta: definition.meta,

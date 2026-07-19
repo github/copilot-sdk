@@ -511,18 +511,6 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
   | EmbeddedTextResourceContents
   | EmbeddedBlobResourceContents;
 /**
- * Kind of factory progress line.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FactoryLogLineKind".
- */
-/** @experimental */
-export type FactoryLogLineKind =
-  /** A narrator log line. */
-  | "log"
-  /** A named factory phase marker. */
-  | "phase";
-/**
  * Current or terminal state of a factory run.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -587,6 +575,26 @@ export type FactoryRunFailureKind =
   | "timeoutSeconds"
   /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
   | "maxAiCredits";
+/**
+ * Kind of factory progress line.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryLogLineKind".
+ */
+/** @experimental */
+export type FactoryLogLineKind =
+  /** A narrator log line. */
+  | "log"
+  /** A named factory phase marker. */
+  | "phase";
+/**
+ * Derived lifecycle state of a factory phase.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPhaseStatus".
+ */
+/** @experimental */
+export type FactoryPhaseStatus = "pending" | "active" | "completed" | "skipped";
 
 /** @experimental */
 export type FilterMapping = JsonValue;
@@ -4848,6 +4856,28 @@ export interface FactoryAgentResult {
   result?: JsonValue;
 }
 /**
+ * Prompt-safe durable identity and live status for a direct factory agent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryAgentSummary".
+ */
+/** @experimental */
+export interface FactoryAgentSummary {
+  agentId: string;
+  toolCallId: string;
+  runId: string;
+  phaseId: string | null;
+  label: string;
+  agentType: string;
+  status: string;
+  requestedModel?: string;
+  resolvedModel?: string;
+  startedAt?: number;
+  completedAt?: number;
+  activeMs: number;
+  activity?: string;
+}
+/**
  * Parameters for cancelling a factory run.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4859,6 +4889,30 @@ export interface FactoryCancelRequest {
    * Factory run identifier.
    */
   runId: string;
+}
+/**
+ * Current factory phase identity.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryCurrentPhase".
+ */
+/** @experimental */
+export interface FactoryCurrentPhase {
+  id: string;
+  ordinal: number | null;
+}
+/**
+ * Declared or approved factory resource ceilings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryDeclaredLimits".
+ */
+/** @experimental */
+export interface FactoryDeclaredLimits {
+  maxConcurrentSubagents?: number;
+  maxTotalSubagents?: number;
+  timeoutSeconds?: number;
+  maxAiCredits?: number;
 }
 /**
  * Parameters sent to the owning extension to execute a factory closure.
@@ -4891,6 +4945,35 @@ export interface FactoryExecuteRequest {
 /** @experimental */
 export interface FactoryExecuteResult {
   result?: JsonValue;
+}
+/**
+ * Parameters for paging factory progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryGetRunProgressRequest".
+ */
+/** @experimental */
+export interface FactoryGetRunProgressRequest {
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  /**
+   * Optional phase identifier used to scope records and cursors.
+   */
+  phaseId?: string;
+  /**
+   * Exclusive forward cursor.
+   */
+  afterSeq?: number;
+  /**
+   * Exclusive backward cursor.
+   */
+  beforeSeq?: number;
+  /**
+   * Maximum records to return. Defaults to 200 and is capped at 500.
+   */
+  limit?: number;
 }
 /**
  * Parameters for retrieving a factory run.
@@ -4955,6 +5038,77 @@ export interface FactoryJournalPutRequest {
   resultJson: JsonValue;
 }
 /**
+ * Empty parameters for listing factory runs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryListRunsRequest".
+ */
+/** @experimental */
+export interface FactoryListRunsRequest {}
+/**
+ * Factory runs in durable creation order.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryListRunsResult".
+ */
+/** @experimental */
+export interface FactoryListRunsResult {
+  runs: FactoryRunSummary[];
+}
+/**
+ * Durable factory run summary with read-time live overlays.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunSummary".
+ */
+/** @experimental */
+export interface FactoryRunSummary {
+  runId: string;
+  factoryName: string;
+  description: string;
+  status: FactoryRunStatus;
+  revision: number;
+  createdAt: number;
+  startedAt: number | null;
+  updatedAt: number;
+  completedAt: number | null;
+  currentPhase: FactoryCurrentPhase | null;
+  declaredPhaseCount: number;
+  liveAgentCount: number;
+  totalSpawnedAgentCount: number;
+  consumed: FactoryRunConsumed;
+  declaredLimits: FactoryDeclaredLimits;
+  approved: FactoryDeclaredLimits | null;
+  observedAt: number;
+  activeSegmentStartedAt: number | null;
+  terminal: FactoryRunTerminal | null;
+}
+/**
+ * Durable factory resource consumption.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunConsumed".
+ */
+/** @experimental */
+export interface FactoryRunConsumed {
+  activeMs: number;
+  subagents: number;
+  nanoAiu: number;
+}
+/**
+ * Prompt-safe terminal factory outcome.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunTerminal".
+ */
+/** @experimental */
+export interface FactoryRunTerminal {
+  reason?: string;
+  failure?: FactoryRunFailure;
+  error?: string;
+  resultPreview?: string;
+}
+/**
  * One ordered factory progress line.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4988,6 +5142,76 @@ export interface FactoryLogRequest {
    * Ordered progress lines to append.
    */
   lines: FactoryLogLine[];
+}
+/**
+ * Durable lifecycle and timing for one factory phase.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryPhaseObservation".
+ */
+/** @experimental */
+export interface FactoryPhaseObservation {
+  id: string;
+  ordinal: number | null;
+  title: string;
+  detail?: string;
+  status: FactoryPhaseStatus;
+  lastEnteredRunAttempt: number;
+  entryCount: number;
+  startedAt?: number;
+  completedAt?: number;
+  accumulatedActiveMs: number;
+  currentActiveMs: number;
+  totalAgentCount: number;
+  liveAgentCount: number;
+}
+/**
+ * One durable factory progress record.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryProgressLine".
+ */
+/** @experimental */
+export interface FactoryProgressLine {
+  /**
+   * Global monotonic sequence number within the run.
+   */
+  seq: number;
+  /**
+   * Resume attempt that emitted this record.
+   */
+  attempt: number;
+  /**
+   * Phase active when the record was emitted, or null before any phase.
+   */
+  phaseId: string | null;
+  /**
+   * Epoch milliseconds when the record was persisted.
+   */
+  recordedAt: number;
+  kind: FactoryLogLineKind;
+  /**
+   * Prompt-safe progress text.
+   */
+  text: string;
+}
+/**
+ * A bidirectional page of factory progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryProgressPage".
+ */
+/** @experimental */
+export interface FactoryProgressPage {
+  records: FactoryProgressLine[];
+  oldestSeq: number | null;
+  newestSeq: number | null;
+  hasMoreOlder: boolean;
+  hasMoreNewer: boolean;
+  /**
+   * Run revision reflected by this page.
+   */
+  revision: number;
 }
 /**
  * Parameters for resuming a factory run from its persisted identity.
@@ -5066,6 +5290,37 @@ export interface FactoryRunResult {
    */
   reason?: string;
   snapshot?: JsonValue;
+}
+/**
+ * Full factory run observability detail.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryRunDetail".
+ */
+/** @experimental */
+export interface FactoryRunDetail {
+  runId: string;
+  factoryName: string;
+  description: string;
+  status: FactoryRunStatus;
+  revision: number;
+  createdAt: number;
+  startedAt: number | null;
+  updatedAt: number;
+  completedAt: number | null;
+  currentPhase: FactoryCurrentPhase | null;
+  declaredPhaseCount: number;
+  liveAgentCount: number;
+  totalSpawnedAgentCount: number;
+  consumed: FactoryRunConsumed;
+  declaredLimits: FactoryDeclaredLimits;
+  approved: FactoryDeclaredLimits | null;
+  observedAt: number;
+  activeSegmentStartedAt: number | null;
+  terminal: FactoryRunTerminal | null;
+  phases: FactoryPhaseObservation[];
+  agents: FactoryAgentSummary[];
+  progress: FactoryProgressPage;
 }
 /**
  * Parameters for invoking a registered factory.
@@ -16814,6 +17069,31 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getRun: async (params: FactoryGetRunRequest): Promise<FactoryRunResult> =>
                 connection.sendRequest("session.factory.getRun", { sessionId, ...params }),
+            /**
+             * Lists durable factory runs for this session in creation order.
+             *
+             * @returns Factory runs in durable creation order.
+             */
+            listRuns: async (): Promise<FactoryListRunsResult> =>
+                connection.sendRequest("session.factory.listRuns", { sessionId }),
+            /**
+             * Gets durable and live observability detail for one factory run.
+             *
+             * @param params Parameters for retrieving a factory run.
+             *
+             * @returns Full factory run observability detail.
+             */
+            getRunDetail: async (params: FactoryGetRunRequest): Promise<FactoryRunDetail> =>
+                connection.sendRequest("session.factory.getRunDetail", { sessionId, ...params }),
+            /**
+             * Pages durable progress for one factory run.
+             *
+             * @param params Parameters for paging factory progress.
+             *
+             * @returns A bidirectional page of factory progress.
+             */
+            getRunProgress: async (params: FactoryGetRunProgressRequest): Promise<FactoryProgressPage> =>
+                connection.sendRequest("session.factory.getRunProgress", { sessionId, ...params }),
             /**
              * Requests cancellation of a factory run and returns its run envelope.
              *

@@ -58,6 +58,22 @@ describe("factories", () => {
         expect(result).toEqual({ result: { value: 42 } });
     });
 
+    it.each([
+        [[{ title: "" }], "must not be empty"],
+        [[{ title: "Inspect" }, { title: "Inspect" }], "declared more than once"],
+    ])("rejects invalid declared phase titles", (phases, message) => {
+        expect(() =>
+            defineFactory({
+                meta: {
+                    name: "invalid-phases",
+                    description: "Invalid phase metadata",
+                    phases,
+                },
+                run: async () => {},
+            })
+        ).toThrow(message);
+    });
+
     it("returns an absent execute result for a void factory", async () => {
         const factory = defineFactory({
             meta: {
@@ -660,6 +676,69 @@ describe("factories", () => {
         expect(sendRequest).toHaveBeenCalledWith("session.factory.getRun", {
             sessionId: session.sessionId,
             runId: "run-read",
+        });
+    });
+
+    it("exposes factory observability methods and forwards paging options", async () => {
+        const summary = {
+            runId: "run-observe",
+            factoryName: "observe",
+            description: "Observe",
+            status: "running" as const,
+            revision: 4,
+            createdAt: 1,
+            startedAt: 2,
+            updatedAt: 3,
+            completedAt: null,
+            currentPhase: { id: "p0", ordinal: 0 },
+            declaredPhaseCount: 1,
+            liveAgentCount: 1,
+            totalSpawnedAgentCount: 1,
+            consumed: { activeMs: 10, subagents: 1, nanoAiu: 5 },
+            declaredLimits: {},
+            approved: {},
+            observedAt: 4,
+            activeSegmentStartedAt: 2,
+            terminal: null,
+        };
+        const progress = {
+            records: [],
+            oldestSeq: null,
+            newestSeq: null,
+            hasMoreOlder: false,
+            hasMoreNewer: false,
+            revision: 4,
+        };
+        const detail = { ...summary, phases: [], agents: [], progress };
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.listRuns") return { runs: [summary] };
+            if (method === "session.factory.getRunDetail") return detail;
+            return progress;
+        });
+        const session = new CopilotSession("session-observe", { sendRequest } as never);
+
+        await expect(session.factory.listRuns()).resolves.toEqual([summary]);
+        await expect(session.factory.getRunDetail("run-observe")).resolves.toEqual(detail);
+        await expect(
+            session.factory.getRunProgress("run-observe", {
+                phaseId: "p0",
+                afterSeq: 10,
+                limit: 50,
+            })
+        ).resolves.toEqual(progress);
+        expect(sendRequest).toHaveBeenNthCalledWith(1, "session.factory.listRuns", {
+            sessionId: session.sessionId,
+        });
+        expect(sendRequest).toHaveBeenNthCalledWith(2, "session.factory.getRunDetail", {
+            sessionId: session.sessionId,
+            runId: "run-observe",
+        });
+        expect(sendRequest).toHaveBeenNthCalledWith(3, "session.factory.getRunProgress", {
+            sessionId: session.sessionId,
+            runId: "run-observe",
+            phaseId: "p0",
+            afterSeq: 10,
+            limit: 50,
         });
     });
 

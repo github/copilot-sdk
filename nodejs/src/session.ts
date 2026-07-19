@@ -431,6 +431,10 @@ export class CopilotSession {
             return response.run.result;
         }) as SessionFactoryApi["resume"],
         getRun: (runId) => this.rpc.factory.getRun({ runId }),
+        listRuns: async () => (await this.rpc.factory.listRuns()).runs,
+        getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
+        getRunProgress: (runId, options = {}) =>
+            this.rpc.factory.getRunProgress({ runId, ...options }),
         cancel: (runId) => this.rpc.factory.cancel({ runId }),
     };
 
