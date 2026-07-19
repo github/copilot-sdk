@@ -56,4 +56,5 @@ The `session` object provides methods for sending messages, logging to the timel
 ## Further Reading
 
 - `examples.md` — Practical code examples for tools, hooks, events, and complete extensions
+- `factories.md`: Authoring, running, resuming, and observing Agent Factories
 - `agent-author.md` — Step-by-step workflow for agents authoring extensions programmatically
