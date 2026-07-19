@@ -255,6 +255,7 @@ const factoryHandles = new WeakMap<object, StoredFactory>();
 
 /** Maximum accepted factory timeout in seconds, derived from Node's maximum timer delay. */
 const MAX_FACTORY_TIMEOUT_SECONDS = 2_147_483.647;
+const NANO_AIU_PER_AIU = 1_000_000_000;
 
 function validateLimits(meta: FactoryMeta): void {
     const limits = meta.limits;
@@ -284,6 +285,20 @@ function validateLimits(meta: FactoryMeta): void {
         throw new Error(
             `Factory limit "timeoutSeconds" must not exceed ${MAX_FACTORY_TIMEOUT_SECONDS} seconds`
         );
+    }
+
+    if (limits.maxAiCredits !== undefined) {
+        const maxNanoAiu = Math.round(limits.maxAiCredits * NANO_AIU_PER_AIU);
+        if (
+            !Number.isFinite(limits.maxAiCredits) ||
+            limits.maxAiCredits <= 0 ||
+            !Number.isSafeInteger(maxNanoAiu) ||
+            maxNanoAiu < 1
+        ) {
+            throw new Error(
+                'Factory limit "maxAiCredits" must be a positive, finite number that rounds to a safe positive integer nano-AIU ceiling'
+            );
+        }
     }
 }
 

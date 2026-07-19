@@ -257,6 +257,11 @@ describe("factories", () => {
         ["timeoutSeconds", 0],
         ["timeoutSeconds", Number.NaN],
         ["timeoutSeconds", Number.POSITIVE_INFINITY],
+        ["maxAiCredits", 0],
+        ["maxAiCredits", Number.NaN],
+        ["maxAiCredits", Number.POSITIVE_INFINITY],
+        ["maxAiCredits", 0.000_000_000_4],
+        ["maxAiCredits", (Number.MAX_SAFE_INTEGER + 2) / 1_000_000_000],
     ] as const)("rejects invalid %s limit %s", (field, value) => {
         const definition = {
             meta: {
@@ -280,6 +285,26 @@ describe("factories", () => {
                         description: "Factory with an accepted active-execution timeout",
                         phases: [],
                         limits: { timeoutSeconds },
+                    },
+                    run: async () => null,
+                })
+            ).not.toThrow();
+        }
+    });
+
+    it("accepts AI-credit ceilings that round to a positive safe nano-AIU integer", () => {
+        for (const maxAiCredits of [
+            0.000_000_000_5,
+            1.25,
+            Number.MAX_SAFE_INTEGER / 1_000_000_000,
+        ]) {
+            expect(() =>
+                defineFactory({
+                    meta: {
+                        name: `accepted-credits-${maxAiCredits}`,
+                        description: "Factory with an accepted AI-credit ceiling",
+                        phases: [],
+                        limits: { maxAiCredits },
                     },
                     run: async () => null,
                 })

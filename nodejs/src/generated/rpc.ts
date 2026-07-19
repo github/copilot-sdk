@@ -584,7 +584,9 @@ export type FactoryRunFailureKind =
   /** The run admitted the approved maximum total number of subagents. */
   | "maxTotalSubagents"
   /** The run reached the approved accumulated active-execution time in seconds. */
-  | "timeoutSeconds";
+  | "timeoutSeconds"
+  /** The run's settled subagent model usage exceeded the approved AI-credit ceiling, or no headroom remained for another subagent. */
+  | "maxAiCredits";
 
 /** @experimental */
 export type FilterMapping = JsonValue;
@@ -5021,6 +5023,10 @@ export interface FactoryRunLimits {
    * Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted.
    */
   timeoutSeconds?: number;
+  /**
+   * Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops.
+   */
+  maxAiCredits?: number;
 }
 /**
  * Resolved persisted factory identity and resumed run envelope.

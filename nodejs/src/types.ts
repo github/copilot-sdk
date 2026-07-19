@@ -1847,6 +1847,8 @@ export interface FactoryLimits {
     maxConcurrentSubagents?: number;
     /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
     maxTotalSubagents?: number;
+    /** Maximum AI credits consumed by factory subagents and descendants. This post-paid ceiling is soft. */
+    maxAiCredits?: number;
     /**
      * Maximum accumulated active-execution time, in seconds. Active execution includes the entire extension body,
      * subprocess waits, queued-agent waits, and sleeps. The limit is armed from the remaining headroom when a run
