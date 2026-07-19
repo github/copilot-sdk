@@ -540,6 +540,8 @@ export type HookType =
   | "postToolUseFailure"
   /** Runs after the user submits a prompt. */
   | "userPromptSubmitted"
+  /** Runs after the runtime transforms the submitted prompt for the model, before it is added to session history. */
+  | "userPromptTransformed"
   /** Runs when a session starts. */
   | "sessionStart"
   /** Runs when a session ends. */
@@ -15346,6 +15348,10 @@ export interface UsageMetricsCodeChanges {
 export interface UsageMetricsModelMetric {
   requests: UsageMetricsModelMetricRequests;
   usage: UsageMetricsModelMetricUsage;
+  /**
+   * Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+   */
+  cacheExpiresAt?: string;
   /**
    * Accumulated nano-AI units cost for this model
    */

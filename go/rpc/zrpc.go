@@ -10445,6 +10445,9 @@ type UsageMetricsCodeChanges struct {
 // Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
 // removed.
 type UsageMetricsModelMetric struct {
+	// Latest known prompt-cache expiration for this model. A timestamp in the past indicates
+	// that the observed cache has expired.
+	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
 	// Token count details per type
@@ -11440,6 +11443,9 @@ const (
 	HookTypeSubagentStop HookType = "subagentStop"
 	// Runs after the user submits a prompt.
 	HookTypeUserPromptSubmitted HookType = "userPromptSubmitted"
+	// Runs after the runtime transforms the submitted prompt for the model, before it is added
+	// to session history.
+	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
 // Constant value. Always "github".

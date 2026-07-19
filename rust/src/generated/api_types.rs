@@ -15100,6 +15100,9 @@ pub struct UsageMetricsModelMetricUsage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetricsModelMetric {
+    /// Latest known prompt-cache expiration for this model. A timestamp in the past indicates that the observed cache has expired.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<String>,
     /// Request count and cost metrics for this model
     pub requests: UsageMetricsModelMetricRequests,
     /// Token count details per type
@@ -20866,6 +20869,9 @@ pub enum HookType {
     /// Runs after the user submits a prompt.
     #[serde(rename = "userPromptSubmitted")]
     UserPromptSubmitted,
+    /// Runs after the runtime transforms the submitted prompt for the model, before it is added to session history.
+    #[serde(rename = "userPromptTransformed")]
+    UserPromptTransformed,
     /// Runs when a session starts.
     #[serde(rename = "sessionStart")]
     SessionStart,

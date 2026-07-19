@@ -136,8 +136,10 @@ type (
 	MCPToolsListChangedData                                        = rpc.MCPToolsListChangedData
 	ModelCallFailureBadRequestKind                                 = rpc.ModelCallFailureBadRequestKind
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
+	ModelCallFailureKind                                           = rpc.ModelCallFailureKind
 	ModelCallFailureRequestFingerprint                             = rpc.ModelCallFailureRequestFingerprint
 	ModelCallFailureSource                                         = rpc.ModelCallFailureSource
+	ModelCallFailureTransport                                      = rpc.ModelCallFailureTransport
 	OmittedBinaryOmittedReason                                     = rpc.OmittedBinaryOmittedReason
 	OmittedBinaryResult                                            = rpc.OmittedBinaryResult
 	OmittedBinaryType                                              = rpc.OmittedBinaryType
@@ -459,9 +461,13 @@ const (
 	MCPServerTransportStdio                                            = rpc.MCPServerTransportStdio
 	ModelCallFailureBadRequestKindBodyless                             = rpc.ModelCallFailureBadRequestKindBodyless
 	ModelCallFailureBadRequestKindStructuredError                      = rpc.ModelCallFailureBadRequestKindStructuredError
+	ModelCallFailureKindAPI                                            = rpc.ModelCallFailureKindAPI
+	ModelCallFailureKindTransport                                      = rpc.ModelCallFailureKindTransport
 	ModelCallFailureSourceMCPSampling                                  = rpc.ModelCallFailureSourceMCPSampling
 	ModelCallFailureSourceSubagent                                     = rpc.ModelCallFailureSourceSubagent
 	ModelCallFailureSourceTopLevel                                     = rpc.ModelCallFailureSourceTopLevel
+	ModelCallFailureTransportHTTP                                      = rpc.ModelCallFailureTransportHTTP
+	ModelCallFailureTransportWebsocket                                 = rpc.ModelCallFailureTransportWebsocket
 	OmittedBinaryOmittedReasonAssetUnavailable                         = rpc.OmittedBinaryOmittedReasonAssetUnavailable
 	OmittedBinaryOmittedReasonTooLarge                                 = rpc.OmittedBinaryOmittedReasonTooLarge
 	OmittedBinaryTypeImage                                             = rpc.OmittedBinaryTypeImage

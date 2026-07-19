@@ -333,6 +333,14 @@ export type ModelCallFailureBadRequestKind =
   /** The 400 response carried a structured CAPI error envelope (deterministic validation failure). */
   | "structured_error";
 /**
+ * Boundary that produced a model call failure
+ */
+export type ModelCallFailureKind =
+  /** The provider returned an API error response. */
+  | "api"
+  /** The request transport failed before a usable API response completed. */
+  | "transport";
+/**
  * Where the failed model call originated
  */
 export type ModelCallFailureSource =
@@ -342,6 +350,14 @@ export type ModelCallFailureSource =
   | "subagent"
   /** Model call from MCP sampling. */
   | "mcp_sampling";
+/**
+ * Transport used for a failed model call
+ */
+export type ModelCallFailureTransport =
+  /** HTTP transport, including SSE streams. */
+  | "http"
+  /** WebSocket transport. */
+  | "websocket";
 /**
  * Finite reason code describing why the current turn was aborted
  */
@@ -2156,6 +2172,12 @@ export interface UsageCheckpointEvent {
  */
 export interface UsageCheckpointData {
   /**
+   * Internal per-model prompt-cache state used to restore expiration tracking on resume
+   *
+   * @internal
+   */
+  modelCacheState?: UsageCheckpointModelCacheState[];
+  /**
    * Session-wide accumulated nano-AI units cost at checkpoint time
    */
   totalNanoAiu: number;
@@ -2165,6 +2187,26 @@ export interface UsageCheckpointData {
    * @internal
    */
   totalPremiumRequests?: number;
+}
+/**
+ * Internal prompt-cache expiration state for one model
+ */
+/** @internal */
+export interface UsageCheckpointModelCacheState {
+  /**
+   * Latest known prompt-cache expiration
+   */
+  cacheExpiresAt: string;
+  /**
+   * Retained cache lifetime in seconds, used to refresh expiration after a cache read
+   *
+   * @internal
+   */
+  cacheTtlSeconds: number;
+  /**
+   * Model identifier associated with this cache state
+   */
+  modelId: string;
 }
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
@@ -3885,6 +3927,10 @@ export interface AssistantUsageData {
   apiCallId?: string;
   apiEndpoint?: AssistantUsageApiEndpoint;
   /**
+   * Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+   */
+  cacheExpiresAt?: string;
+  /**
    * Number of tokens read from prompt cache
    */
   cacheReadTokens?: number;
@@ -4111,6 +4157,7 @@ export interface ModelCallFailureData {
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
   apiCallId?: string;
+  apiEndpoint?: AssistantUsageApiEndpoint;
   badRequestKind?: ModelCallFailureBadRequestKind;
   /**
    * Duration of the failed API call in milliseconds
@@ -4128,10 +4175,27 @@ export interface ModelCallFailureData {
    * For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
    */
   errorType?: string;
+  failureKind?: ModelCallFailureKind;
   /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
   initiator?: string;
+  /**
+   * Whether the session selected Auto mode for the failed call
+   */
+  isAuto?: boolean;
+  /**
+   * Whether the failed call used a bring-your-own-key provider
+   */
+  isByok?: boolean;
+  /**
+   * Effective maximum output-token limit for the failed call
+   */
+  maxOutputTokens?: number;
+  /**
+   * Effective maximum prompt-token limit for the failed call
+   */
+  maxPromptTokens?: number;
   /**
    * Model identifier used for the failed API call
    */
@@ -4148,6 +4212,10 @@ export interface ModelCallFailureData {
   quotaSnapshots?: {
     [k: string]: AssistantUsageQuotaSnapshot | undefined;
   };
+  /**
+   * Reasoning effort level used for the failed model call, if applicable
+   */
+  reasoningEffort?: string;
   requestFingerprint?: ModelCallFailureRequestFingerprint;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -4158,6 +4226,7 @@ export interface ModelCallFailureData {
    * HTTP status code from the failed request
    */
   statusCode?: number;
+  transport?: ModelCallFailureTransport;
 }
 /**
  * Content-free structural summary of the failing request for diagnosing malformed 4xx calls

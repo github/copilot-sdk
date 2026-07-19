@@ -2466,6 +2466,7 @@ class _HookType(Enum):
     SUBAGENT_START = "subagentStart"
     SUBAGENT_STOP = "subagentStop"
     USER_PROMPT_SUBMITTED = "userPromptSubmitted"
+    USER_PROMPT_TRANSFORMED = "userPromptTransformed"
 
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
@@ -17953,6 +17954,10 @@ class UsageMetricsModelMetric:
     usage: UsageMetricsModelMetricUsage
     """Token usage metrics for this model"""
 
+    cache_expires_at: datetime | None = None
+    """Latest known prompt-cache expiration for this model. A timestamp in the past indicates
+    that the observed cache has expired.
+    """
     token_details: dict[str, UsageMetricsModelMetricTokenDetail] | None = None
     """Token count details per type"""
 
@@ -17964,14 +17969,17 @@ class UsageMetricsModelMetric:
         assert isinstance(obj, dict)
         requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
         usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
+        cache_expires_at = from_union([from_datetime, from_none], obj.get("cacheExpiresAt"))
         token_details = from_union([lambda x: from_dict(UsageMetricsModelMetricTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
         total_nano_aiu = from_union([from_float, from_none], obj.get("totalNanoAiu"))
-        return UsageMetricsModelMetric(requests, usage, token_details, total_nano_aiu)
+        return UsageMetricsModelMetric(requests, usage, cache_expires_at, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["requests"] = to_class(UsageMetricsModelMetricRequests, self.requests)
         result["usage"] = to_class(UsageMetricsModelMetricUsage, self.usage)
+        if self.cache_expires_at is not None:
+            result["cacheExpiresAt"] = from_union([lambda x: x.isoformat(), from_none], self.cache_expires_at)
         if self.token_details is not None:
             result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsModelMetricTokenDetail, x), x), from_none], self.token_details)
         if self.total_nano_aiu is not None:

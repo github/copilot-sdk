@@ -1209,10 +1209,27 @@ pub struct SessionShutdownData {
     pub(crate) total_premium_requests: Option<f64>,
 }
 
+/// Internal prompt-cache expiration state for one model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UsageCheckpointModelCacheState {
+    /// Latest known prompt-cache expiration
+    pub cache_expires_at: String,
+    /// Retained cache lifetime in seconds, used to refresh expiration after a cache read
+    #[doc(hidden)]
+    pub(crate) cache_ttl_seconds: i64,
+    /// Model identifier associated with this cache state
+    pub model_id: String,
+}
+
 /// Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsageCheckpointData {
+    /// Internal per-model prompt-cache state used to restore expiration tracking on resume
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_cache_state: Option<Vec<UsageCheckpointModelCacheState>>,
     /// Session-wide accumulated nano-AI units cost at checkpoint time
     pub total_nano_aiu: f64,
     /// Total number of premium API requests used at checkpoint time
@@ -1870,6 +1887,9 @@ pub struct AssistantUsageData {
     /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_endpoint: Option<AssistantUsageApiEndpoint>,
+    /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<String>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<i64>,
@@ -1966,6 +1986,9 @@ pub struct ModelCallFailureData {
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_endpoint: Option<AssistantUsageApiEndpoint>,
     /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bad_request_kind: Option<ModelCallFailureBadRequestKind>,
@@ -1981,9 +2004,24 @@ pub struct ModelCallFailureData {
     /// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_type: Option<String>,
+    /// Whether the failure originated from an API response or the request transport
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_kind: Option<ModelCallFailureKind>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
+    /// Whether the session selected Auto mode for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_auto: Option<bool>,
+    /// Whether the failed call used a bring-your-own-key provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_byok: Option<bool>,
+    /// Effective maximum output-token limit for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Effective maximum prompt-token limit for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
     /// Model identifier used for the failed API call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -1994,6 +2032,9 @@ pub struct ModelCallFailureData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) quota_snapshots: Option<HashMap<String, AssistantUsageQuotaSnapshot>>,
+    /// Reasoning effort level used for the failed model call, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
@@ -2005,6 +2046,9 @@ pub struct ModelCallFailureData {
     /// HTTP status code from the failed request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<i32>,
+    /// Transport used for the failed model call (http or websocket)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ModelCallFailureTransport>,
 }
 
 /// Session event "abort". Turn abort information including the reason for termination
@@ -4830,6 +4874,21 @@ pub enum ModelCallFailureBadRequestKind {
     Unknown,
 }
 
+/// Boundary that produced a model call failure
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureKind {
+    /// The provider returned an API error response.
+    #[serde(rename = "api")]
+    Api,
+    /// The request transport failed before a usable API response completed.
+    #[serde(rename = "transport")]
+    Transport,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Where the failed model call originated
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelCallFailureSource {
@@ -4842,6 +4901,21 @@ pub enum ModelCallFailureSource {
     /// Model call from MCP sampling.
     #[serde(rename = "mcp_sampling")]
     McpSampling,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport used for a failed model call
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureTransport {
+    /// HTTP transport, including SSE streams.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websocket")]
+    Websocket,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

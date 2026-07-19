@@ -501,6 +501,9 @@ func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTy
 
 // Durable session usage checkpoint for reconstructing aggregate accounting on resume
 type SessionUsageCheckpointData struct {
+	// Internal per-model prompt-cache state used to restore expiration tracking on resume
+	// Internal: ModelCacheState is part of the SDK's internal API surface and is not intended for external use.
+	ModelCacheState []UsageCheckpointModelCacheState `json:"modelCacheState,omitzero"`
 	// Session-wide accumulated nano-AI units cost at checkpoint time
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 	// Total number of premium API requests used at checkpoint time
@@ -689,6 +692,8 @@ func (*ExternalToolRequestedData) Type() SessionEventType {
 type ModelCallFailureData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
+	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
 	// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
 	BadRequestKind *ModelCallFailureBadRequestKind `json:"badRequestKind,omitempty"`
 	// Duration of the failed API call in milliseconds
@@ -699,8 +704,18 @@ type ModelCallFailureData struct {
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 	// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
 	ErrorType *string `json:"errorType,omitempty"`
+	// Whether the failure originated from an API response or the request transport
+	FailureKind *ModelCallFailureKind `json:"failureKind,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
+	// Whether the session selected Auto mode for the failed call
+	IsAuto *bool `json:"isAuto,omitempty"`
+	// Whether the failed call used a bring-your-own-key provider
+	IsByok *bool `json:"isByok,omitempty"`
+	// Effective maximum output-token limit for the failed call
+	MaxOutputTokens *int64 `json:"maxOutputTokens,omitempty"`
+	// Effective maximum prompt-token limit for the failed call
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for the failed API call
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
@@ -708,6 +723,8 @@ type ModelCallFailureData struct {
 	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
 	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
+	// Reasoning effort level used for the failed model call, if applicable
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -716,6 +733,8 @@ type ModelCallFailureData struct {
 	Source ModelCallFailureSource `json:"source"`
 	// HTTP status code from the failed request
 	StatusCode *int32 `json:"statusCode,omitempty"`
+	// Transport used for the failed model call (http or websocket)
+	Transport *ModelCallFailureTransport `json:"transport,omitempty"`
 }
 
 func (*ModelCallFailureData) sessionEventData()      {}
@@ -772,6 +791,8 @@ type AssistantUsageData struct {
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
+	// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Number of tokens read from prompt cache
 	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Number of tokens written to prompt cache
@@ -3670,6 +3691,18 @@ type ToolExecutionStartToolDescriptionMetaUI struct {
 	Visibility []ToolExecutionStartToolDescriptionMetaUIVisibility `json:"visibility,omitzero"`
 }
 
+// Internal prompt-cache expiration state for one model
+// Internal: UsageCheckpointModelCacheState is an internal SDK API and is not part of the public surface.
+type UsageCheckpointModelCacheState struct {
+	// Latest known prompt-cache expiration
+	CacheExpiresAt time.Time `json:"cacheExpiresAt"`
+	// Retained cache lifetime in seconds, used to refresh expiration after a cache read
+	// Internal: CacheTtlSeconds is part of the SDK's internal API surface and is not intended for external use.
+	CacheTtlSeconds int64 `json:"cacheTtlSeconds"`
+	// Model identifier associated with this cache state
+	ModelID string `json:"modelId"`
+}
+
 // Working directory and git context at session start
 type WorkingDirectoryContext struct {
 	// Base commit of current git branch at session start time
@@ -3994,6 +4027,16 @@ const (
 	ModelCallFailureBadRequestKindStructuredError ModelCallFailureBadRequestKind = "structured_error"
 )
 
+// Boundary that produced a model call failure
+type ModelCallFailureKind string
+
+const (
+	// The provider returned an API error response.
+	ModelCallFailureKindAPI ModelCallFailureKind = "api"
+	// The request transport failed before a usable API response completed.
+	ModelCallFailureKindTransport ModelCallFailureKind = "transport"
+)
+
 // Where the failed model call originated
 type ModelCallFailureSource string
 
@@ -4004,6 +4047,16 @@ const (
 	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
 	// Model call from the top-level agent.
 	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
+)
+
+// Transport used for a failed model call
+type ModelCallFailureTransport string
+
+const (
+	// HTTP transport, including SSE streams.
+	ModelCallFailureTransportHTTP ModelCallFailureTransport = "http"
+	// WebSocket transport.
+	ModelCallFailureTransportWebsocket ModelCallFailureTransport = "websocket"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.

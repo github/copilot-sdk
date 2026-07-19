@@ -1640,6 +1640,7 @@ class AssistantUsageData:
     model: str
     api_call_id: str | None = None
     api_endpoint: AssistantUsageApiEndpoint | None = None
+    cache_expires_at: datetime | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
     content_filter_triggered: bool | None = None
@@ -1668,6 +1669,7 @@ class AssistantUsageData:
         model = from_str(obj.get("model"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
+        cache_expires_at = from_union([from_none, from_datetime], obj.get("cacheExpiresAt"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
         content_filter_triggered = from_union([from_none, from_bool], obj.get("contentFilterTriggered"))
@@ -1690,6 +1692,7 @@ class AssistantUsageData:
             model=model,
             api_call_id=api_call_id,
             api_endpoint=api_endpoint,
+            cache_expires_at=cache_expires_at,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
             content_filter_triggered=content_filter_triggered,
@@ -1717,6 +1720,8 @@ class AssistantUsageData:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.api_endpoint is not None:
             result["apiEndpoint"] = from_union([from_none, lambda x: to_enum(AssistantUsageApiEndpoint, x)], self.api_endpoint)
+        if self.cache_expires_at is not None:
+            result["cacheExpiresAt"] = from_union([from_none, to_datetime], self.cache_expires_at)
         if self.cache_read_tokens is not None:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
@@ -3862,52 +3867,76 @@ class ModelCallFailureData:
     "Failed LLM API call metadata for telemetry"
     source: ModelCallFailureSource
     api_call_id: str | None = None
+    api_endpoint: AssistantUsageApiEndpoint | None = None
     bad_request_kind: ModelCallFailureBadRequestKind | None = None
     duration: timedelta | None = None
     error_code: str | None = None
     error_message: str | None = None
     error_type: str | None = None
+    failure_kind: ModelCallFailureKind | None = None
     initiator: str | None = None
+    is_auto: bool | None = None
+    is_byok: bool | None = None
+    max_output_tokens: int | None = None
+    max_prompt_tokens: int | None = None
     model: str | None = None
     provider_call_id: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
+    reasoning_effort: str | None = None
     request_fingerprint: ModelCallFailureRequestFingerprint | None = None
     service_request_id: str | None = None
     status_code: int | None = None
+    transport: ModelCallFailureTransport | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ModelCallFailureData":
         assert isinstance(obj, dict)
         source = parse_enum(ModelCallFailureSource, obj.get("source"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
         bad_request_kind = from_union([from_none, lambda x: parse_enum(ModelCallFailureBadRequestKind, x)], obj.get("badRequestKind"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
         error_message = from_union([from_none, from_str], obj.get("errorMessage"))
         error_type = from_union([from_none, from_str], obj.get("errorType"))
+        failure_kind = from_union([from_none, lambda x: parse_enum(ModelCallFailureKind, x)], obj.get("failureKind"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
+        is_auto = from_union([from_none, from_bool], obj.get("isAuto"))
+        is_byok = from_union([from_none, from_bool], obj.get("isByok"))
+        max_output_tokens = from_union([from_none, from_int], obj.get("maxOutputTokens"))
+        max_prompt_tokens = from_union([from_none, from_int], obj.get("maxPromptTokens"))
         model = from_union([from_none, from_str], obj.get("model"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
+        reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         request_fingerprint = from_union([from_none, ModelCallFailureRequestFingerprint.from_dict], obj.get("requestFingerprint"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
+        transport = from_union([from_none, lambda x: parse_enum(ModelCallFailureTransport, x)], obj.get("transport"))
         return ModelCallFailureData(
             source=source,
             api_call_id=api_call_id,
+            api_endpoint=api_endpoint,
             bad_request_kind=bad_request_kind,
             duration=duration,
             error_code=error_code,
             error_message=error_message,
             error_type=error_type,
+            failure_kind=failure_kind,
             initiator=initiator,
+            is_auto=is_auto,
+            is_byok=is_byok,
+            max_output_tokens=max_output_tokens,
+            max_prompt_tokens=max_prompt_tokens,
             model=model,
             provider_call_id=provider_call_id,
             _quota_snapshots=_quota_snapshots,
+            reasoning_effort=reasoning_effort,
             request_fingerprint=request_fingerprint,
             service_request_id=service_request_id,
             status_code=status_code,
+            transport=transport,
         )
 
     def to_dict(self) -> dict:
@@ -3915,6 +3944,8 @@ class ModelCallFailureData:
         result["source"] = to_enum(ModelCallFailureSource, self.source)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.api_endpoint is not None:
+            result["apiEndpoint"] = from_union([from_none, lambda x: to_enum(AssistantUsageApiEndpoint, x)], self.api_endpoint)
         if self.bad_request_kind is not None:
             result["badRequestKind"] = from_union([from_none, lambda x: to_enum(ModelCallFailureBadRequestKind, x)], self.bad_request_kind)
         if self.duration is not None:
@@ -3925,20 +3956,34 @@ class ModelCallFailureData:
             result["errorMessage"] = from_union([from_none, from_str], self.error_message)
         if self.error_type is not None:
             result["errorType"] = from_union([from_none, from_str], self.error_type)
+        if self.failure_kind is not None:
+            result["failureKind"] = from_union([from_none, lambda x: to_enum(ModelCallFailureKind, x)], self.failure_kind)
         if self.initiator is not None:
             result["initiator"] = from_union([from_none, from_str], self.initiator)
+        if self.is_auto is not None:
+            result["isAuto"] = from_union([from_none, from_bool], self.is_auto)
+        if self.is_byok is not None:
+            result["isByok"] = from_union([from_none, from_bool], self.is_byok)
+        if self.max_output_tokens is not None:
+            result["maxOutputTokens"] = from_union([from_none, to_int], self.max_output_tokens)
+        if self.max_prompt_tokens is not None:
+            result["maxPromptTokens"] = from_union([from_none, to_int], self.max_prompt_tokens)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
         if self._quota_snapshots is not None:
             result["quotaSnapshots"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(_AssistantUsageQuotaSnapshot, x), x)], self._quota_snapshots)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.request_fingerprint is not None:
             result["requestFingerprint"] = from_union([from_none, lambda x: to_class(ModelCallFailureRequestFingerprint, x)], self.request_fingerprint)
         if self.service_request_id is not None:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
+        if self.transport is not None:
+            result["transport"] = from_union([from_none, lambda x: to_enum(ModelCallFailureTransport, x)], self.transport)
         return result
 
 
@@ -6696,21 +6741,27 @@ class SessionUsageCheckpointData:
     "Durable session usage checkpoint for reconstructing aggregate accounting on resume"
     total_nano_aiu: float
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _model_cache_state: list[_UsageCheckpointModelCacheState] | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _total_premium_requests: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionUsageCheckpointData":
         assert isinstance(obj, dict)
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        _model_cache_state = from_union([from_none, lambda x: from_list(_UsageCheckpointModelCacheState.from_dict, x)], obj.get("modelCacheState"))
         _total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
         return SessionUsageCheckpointData(
             total_nano_aiu=total_nano_aiu,
+            _model_cache_state=_model_cache_state,
             _total_premium_requests=_total_premium_requests,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["totalNanoAiu"] = to_float(self.total_nano_aiu)
+        if self._model_cache_state is not None:
+            result["modelCacheState"] = from_union([from_none, lambda x: from_list(lambda x: to_class(_UsageCheckpointModelCacheState, x), x)], self._model_cache_state)
         if self._total_premium_requests is not None:
             result["totalPremiumRequests"] = from_union([from_none, to_float], self._total_premium_requests)
         return result
@@ -8433,6 +8484,34 @@ class ToolUserRequestedData:
 
 
 @dataclass
+class _UsageCheckpointModelCacheState:
+    "Internal prompt-cache expiration state for one model"
+    cache_expires_at: datetime
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _cache_ttl_seconds: int
+    model_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "_UsageCheckpointModelCacheState":
+        assert isinstance(obj, dict)
+        cache_expires_at = from_datetime(obj.get("cacheExpiresAt"))
+        _cache_ttl_seconds = from_int(obj.get("cacheTtlSeconds"))
+        model_id = from_str(obj.get("modelId"))
+        return _UsageCheckpointModelCacheState(
+            cache_expires_at=cache_expires_at,
+            _cache_ttl_seconds=_cache_ttl_seconds,
+            model_id=model_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cacheExpiresAt"] = to_datetime(self.cache_expires_at)
+        result["cacheTtlSeconds"] = to_int(self._cache_ttl_seconds)
+        result["modelId"] = from_str(self.model_id)
+        return result
+
+
+@dataclass
 class UserInputCompletedData:
     "User input request completion with the user's response"
     request_id: str
@@ -9249,6 +9328,14 @@ class ModelCallFailureBadRequestKind(Enum):
     STRUCTURED_ERROR = "structured_error"
 
 
+class ModelCallFailureKind(Enum):
+    "Boundary that produced a model call failure"
+    # The provider returned an API error response.
+    API = "api"
+    # The request transport failed before a usable API response completed.
+    TRANSPORT = "transport"
+
+
 class ModelCallFailureSource(Enum):
     "Where the failed model call originated"
     # Model call from the top-level agent.
@@ -9257,6 +9344,14 @@ class ModelCallFailureSource(Enum):
     SUBAGENT = "subagent"
     # Model call from MCP sampling.
     MCP_SAMPLING = "mcp_sampling"
+
+
+class ModelCallFailureTransport(Enum):
+    "Transport used for a failed model call"
+    # HTTP transport, including SSE streams.
+    HTTP = "http"
+    # WebSocket transport.
+    WEBSOCKET = "websocket"
 
 
 class OmittedBinaryOmittedReason(Enum):
@@ -9770,8 +9865,10 @@ __all__ = [
     "McpToolsListChangedData",
     "ModelCallFailureBadRequestKind",
     "ModelCallFailureData",
+    "ModelCallFailureKind",
     "ModelCallFailureRequestFingerprint",
     "ModelCallFailureSource",
+    "ModelCallFailureTransport",
     "OmittedBinaryOmittedReason",
     "OmittedBinaryResult",
     "OmittedBinaryType",

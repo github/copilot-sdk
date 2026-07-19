@@ -26,6 +26,8 @@ public enum HookType {
     POSTTOOLUSEFAILURE("postToolUseFailure"),
     /** The {@code userPromptSubmitted} variant. */
     USERPROMPTSUBMITTED("userPromptSubmitted"),
+    /** The {@code userPromptTransformed} variant. */
+    USERPROMPTTRANSFORMED("userPromptTransformed"),
     /** The {@code sessionStart} variant. */
     SESSIONSTART("sessionStart"),
     /** The {@code sessionEnd} variant. */
