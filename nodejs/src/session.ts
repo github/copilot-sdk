@@ -220,7 +220,22 @@ class FactoryProgressBuffer {
 
     async close(): Promise<void> {
         this.closed = true;
-        await this.flush();
+        this.clearFlushTimer();
+        const lines = this.pending.splice(0);
+        await this.flushTail;
+        if (this.flushFailed) {
+            throw this.flushError;
+        }
+        if (lines.length > 0) {
+            try {
+                await this.send(lines);
+            } catch (error) {
+                console.warn(
+                    "Failed to flush final factory progress after the factory body settled",
+                    error
+                );
+            }
+        }
     }
 
     private scheduleFlush(): void {
@@ -1145,6 +1160,7 @@ export class CopilotSession {
                 });
                 try {
                     const context: FactoryContext = {
+                        runId: params.runId,
                         args: params.args,
                         session: self,
                         signal: controller.signal,

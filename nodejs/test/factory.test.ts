@@ -191,6 +191,7 @@ describe("factories", () => {
         });
         const joinedSession = new CopilotSession("session-context", { sendRequest } as never);
         const contextSeen = Promise.withResolvers<{
+            runId: string;
             args: unknown;
             session: CopilotSession;
             signal: AbortSignal;
@@ -225,6 +226,7 @@ describe("factories", () => {
         });
         const context = await contextSeen.promise;
 
+        expect(context.runId).toBe("run-context");
         expect(context.args).toEqual({ value: 42 });
         expect(context.session).toBe(joinSessionResult);
         expect(context.session.rpc).toBe(joinSessionResult.rpc);
@@ -682,6 +684,81 @@ describe("factories", () => {
         });
     });
 
+    it("keeps a completed execution successful when only the final progress flush fails", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.log") {
+                throw new Error("final transport failure");
+            }
+            return {};
+        });
+        const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const session = new CopilotSession("session-final-flush-failure", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "final-flush-failure",
+                description: "Final flush failure regression test",
+                phases: [],
+            },
+            run: async ({ log }) => {
+                log("final line");
+                return "done";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "final-flush-failure",
+                runId: "run-final-flush-failure",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "done" });
+        expect(warning).toHaveBeenCalledWith(
+            "Failed to flush final factory progress after the factory body settled",
+            expect.objectContaining({ message: "final transport failure" })
+        );
+    });
+
+    it("keeps a mid-run progress flush failure fatal", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.log") {
+                throw new Error("mid-run transport failure");
+            }
+            if (method === "session.factory.agent") {
+                return { result: "must not complete" };
+            }
+            return {};
+        });
+        const session = new CopilotSession("session-mid-run-flush-failure", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "mid-run-flush-failure",
+                description: "Mid-run flush failure regression test",
+                phases: [],
+            },
+            run: async ({ agent, log }) => {
+                log("before agent");
+                return agent("trigger a flush");
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "mid-run-flush-failure",
+                runId: "run-mid-run-flush-failure",
+                args: {},
+            })
+        ).rejects.toThrow("mid-run transport failure");
+        expect(sendRequest).not.toHaveBeenCalledWith("session.factory.agent", expect.anything());
+    });
+
     it("surfaces the per-run abort signal on the factory context", async () => {
         const session = new CopilotSession("session-abort-signal", {} as never);
         const signalSeen = Promise.withResolvers<AbortSignal>();
@@ -757,45 +834,51 @@ describe("factories", () => {
         agentResponse.resolve({ result: "late" });
     });
 
-    it("propagates cancellation out of parallel/pipeline instead of mapping it to null", async () => {
-        const agentResponse = Promise.withResolvers<{ result: string }>();
-        const sendRequest = vi.fn(async (method: string) => {
-            if (method === "session.factory.agent") {
-                return agentResponse.promise;
-            }
-            return {};
-        });
-        const session = new CopilotSession("session-abort-parallel", { sendRequest } as never);
-        const factory = defineFactory({
-            meta: {
-                name: "abort-parallel",
-                description: "Cancellation must bubble out of a combinator",
-                phases: [],
-            },
-            // If the combinator swallowed the AbortError to null, this run would
-            // resolve successfully with [null] despite the run being cancelled.
-            run: async ({ agent, parallel }) => parallel([() => agent("wait forever")]),
-        });
-        session.registerFactories([factory]);
+    it.each(["parallel", "pipeline"] as const)(
+        "propagates cancellation out of %s instead of mapping it to null",
+        async (combinator) => {
+            const agentResponse = Promise.withResolvers<{ result: string }>();
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.factory.agent") {
+                    return agentResponse.promise;
+                }
+                return {};
+            });
+            const session = new CopilotSession("session-abort-parallel", { sendRequest } as never);
+            const factory = defineFactory({
+                meta: {
+                    name: `abort-${combinator}`,
+                    description: "Cancellation must bubble out of a combinator",
+                    phases: [],
+                },
+                // If the combinator swallowed the AbortError to null, this run would
+                // resolve successfully with [null] despite the run being cancelled.
+                run: async ({ agent, parallel, pipeline }) =>
+                    combinator === "parallel"
+                        ? parallel([() => agent("wait forever")])
+                        : pipeline(["wait forever"], (_previous, item) => agent(item as string)),
+            });
+            session.registerFactories([factory]);
 
-        const execution = session.clientSessionApis.factory!.execute({
-            sessionId: session.sessionId,
-            name: "abort-parallel",
-            runId: "run-abort-parallel",
-            args: {},
-        });
-        await vi.waitFor(() =>
-            expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", expect.anything())
-        );
+            const execution = session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: `abort-${combinator}`,
+                runId: `run-abort-${combinator}`,
+                args: {},
+            });
+            await vi.waitFor(() =>
+                expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", expect.anything())
+            );
 
-        await session.clientSessionApis.factory!.abort({
-            sessionId: session.sessionId,
-            runId: "run-abort-parallel",
-        });
+            await session.clientSessionApis.factory!.abort({
+                sessionId: session.sessionId,
+                runId: `run-abort-${combinator}`,
+            });
 
-        await expect(execution).rejects.toMatchObject({ name: "AbortError" });
-        agentResponse.resolve({ result: "late" });
-    });
+            await expect(execution).rejects.toMatchObject({ name: "AbortError" });
+            agentResponse.resolve({ result: "late" });
+        }
+    );
 
     it("dispatches factory.execute to the registered factory selected by name", async () => {
         const firstRun = vi.fn(async () => ({ selected: "first" }));

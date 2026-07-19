@@ -78,6 +78,8 @@ export type FactoryPipelineStage<TInput = unknown, TResult = unknown> = (
  * change or be removed in future SDK or CLI releases.
  */
 export interface FactoryContext<TArgs = unknown> {
+    /** Stable identifier for the current factory run. */
+    readonly runId: string;
     /** Spawn and await one factory-scoped subagent. */
     agent(prompt: string, options?: FactoryAgentOptions): Promise<unknown>;
     /** Memoize an arbitrary producer under a stable author-supplied key. */
