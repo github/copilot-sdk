@@ -2316,7 +2316,7 @@ class CopilotClient:
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
             payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
@@ -3013,7 +3013,7 @@ class CopilotClient:
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
             payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
