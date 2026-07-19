@@ -172,6 +172,7 @@ export type {
     FactoryDefinition,
     FactoryHandle,
     FactoryJsonSchema,
+    JsonValue,
     FactoryPipelineStage,
     FactoryStepOptions,
     FactoryRunResult,

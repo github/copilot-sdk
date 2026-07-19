@@ -38,9 +38,9 @@ import {
     isVoidSchema,
     isSchemaExperimental,
     isSchemaInternal,
+    isOpaqueJson,
     appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
-    stripOpaqueJsonMarker,
     loadSchemaJson,
     fixBrandCasing,
     type ApiSchema,
@@ -52,6 +52,8 @@ const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
+export const TYPESCRIPT_JSON_VALUE_DECLARATION =
+    "export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };";
 
 function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
@@ -286,12 +288,9 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
-        // The TypeScript codegen doesn't distinguish opaque JSON from any
-        // other unconstrained value, so drop the marker before feeding the
-        // schema to json-schema-to-typescript. C# codegen reads the marker
-        // from its own (un-normalized) view of the schema and emits
-        // `JsonElement` instead.
-        stripOpaqueJsonMarker(rewritten);
+        if (isOpaqueJson(rewritten as JSONSchema7)) {
+            return { tsType: "JsonValue" };
+        }
 
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
         if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
@@ -394,7 +393,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         strictIndexSignatures: true,
     });
 
-    let annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    let annotatedTs = `${TYPESCRIPT_JSON_VALUE_DECLARATION}\n\n${annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC)}`;
     // Add @internal JSDoc annotations for session-event types marked
     // `visibility: "internal"` in the schema. The tag drives `stripInternal`
     // so the whole type is dropped from the published .d.ts.
@@ -546,6 +545,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     if (externalSchemaRefs.size > 0) {
         lines.push("");
     }
+    lines.push(TYPESCRIPT_JSON_VALUE_DECLARATION);
+    lines.push("");
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});

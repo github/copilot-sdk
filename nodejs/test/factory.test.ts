@@ -12,6 +12,7 @@ import {
     FactoryRunError,
     type FactoryAgentOptions,
     type FactoryDefinition,
+    type JsonValue,
 } from "../src/factory.js";
 
 async function stopClient(client: CopilotClient): Promise<void> {
@@ -54,6 +55,180 @@ describe("factories", () => {
         expect(run).toHaveBeenCalledOnce();
         expect(result).toEqual({ result: { value: 42 } });
     });
+
+    it("returns an absent execute result for a void factory", async () => {
+        const factory = defineFactory({
+            meta: {
+                name: "void-result",
+                description: "Returns no result",
+                phases: [],
+            },
+            run: async () => {},
+        });
+        const session = new CopilotSession("session-void-result", {} as never);
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "void-result",
+                runId: "run-void-result",
+                args: {},
+            })
+        ).resolves.toEqual({});
+    });
+
+    it.each<JsonValue>([42, "factory-result", [1, "two", false]])(
+        "returns non-object JSON factory result %j",
+        async (factoryResult) => {
+            const factory = defineFactory({
+                meta: {
+                    name: "json-result",
+                    description: "Returns any JSON value",
+                    phases: [],
+                },
+                run: async () => factoryResult,
+            });
+            const session = new CopilotSession("session-json-result", {} as never);
+            session.registerFactories([factory]);
+
+            await expect(
+                session.clientSessionApis.factory!.execute({
+                    sessionId: session.sessionId,
+                    name: "json-result",
+                    runId: "run-json-result",
+                    args: {},
+                })
+            ).resolves.toEqual({ result: factoryResult });
+        }
+    );
+
+    it.each([
+        ["function", { nested: () => undefined }, "$.nested"],
+        ["symbol", [Symbol("invalid")], "$[0]"],
+        ["BigInt", { nested: 1n }, "$.nested"],
+    ])("rejects a %s anywhere in a factory result", async (_label, factoryResult, expectedPath) => {
+        const factory = defineFactory({
+            meta: {
+                name: "unsupported-result",
+                description: "Returns an unsupported value",
+                phases: [],
+            },
+            run: async () => factoryResult as never,
+        });
+        const session = new CopilotSession("session-unsupported-result", {} as never);
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "unsupported-result",
+                runId: "run-unsupported-result",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            message: `Factory result contains a function, symbol, or BigInt at ${expectedPath}`,
+            data: {
+                code: "factory_result_not_json",
+                category: "unsupported_type",
+            },
+        });
+    });
+
+    it.each([
+        ["NaN", Number.NaN],
+        ["Infinity", Number.POSITIVE_INFINITY],
+    ])("rejects the non-finite number %s in a factory result", async (_label, value) => {
+        const factory = defineFactory({
+            meta: {
+                name: "non-finite-result",
+                description: "Returns a non-finite number",
+                phases: [],
+            },
+            run: async () => ({ value }) as never,
+        });
+        const session = new CopilotSession("session-non-finite-result", {} as never);
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "non-finite-result",
+                runId: "run-non-finite-result",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            message: "Factory result contains a non-finite number at $.value",
+            data: {
+                code: "factory_result_not_json",
+                category: "non_finite_number",
+            },
+        });
+    });
+
+    it("rejects a cyclic factory result", async () => {
+        const factoryResult: Record<string, unknown> = {};
+        factoryResult.self = factoryResult;
+        const factory = defineFactory({
+            meta: {
+                name: "cyclic-result",
+                description: "Returns a cycle",
+                phases: [],
+            },
+            run: async () => factoryResult as never,
+        });
+        const session = new CopilotSession("session-cyclic-result", {} as never);
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "cyclic-result",
+                runId: "run-cyclic-result",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            message: "Factory result contains a cyclic reference at $.self",
+            data: {
+                code: "factory_result_not_json",
+                category: "cyclic_value",
+            },
+        });
+    });
+
+    it.each([
+        ["object", { nested: undefined }, "$.nested"],
+        ["array", [undefined], "$[0]"],
+    ])(
+        "rejects nested undefined in a factory result %s",
+        async (_label, factoryResult, expectedPath) => {
+            const factory = defineFactory({
+                meta: {
+                    name: "nested-undefined-result",
+                    description: "Returns nested undefined",
+                    phases: [],
+                },
+                run: async () => factoryResult as never,
+            });
+            const session = new CopilotSession("session-nested-undefined-result", {} as never);
+            session.registerFactories([factory]);
+
+            await expect(
+                session.clientSessionApis.factory!.execute({
+                    sessionId: session.sessionId,
+                    name: "nested-undefined-result",
+                    runId: "run-nested-undefined-result",
+                    args: {},
+                })
+            ).rejects.toMatchObject({
+                message: `Factory result contains nested undefined at ${expectedPath}`,
+                data: {
+                    code: "factory_result_not_json",
+                    category: "nested_undefined",
+                },
+            });
+        }
+    );
 
     it("rejects duplicate factory names within a single registration", () => {
         const run = async () => null;

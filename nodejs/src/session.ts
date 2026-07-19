@@ -15,7 +15,6 @@ import type {
     CanvasActionInvokeResult,
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
-    FactoryExecuteResult,
     FactoryLogLine,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
@@ -54,7 +53,6 @@ import type {
     SessionUiApi,
     Tool,
     ToolHandler,
-    ToolResult,
     ToolResultObject,
     TraceContextProvider,
     TypedSessionEventHandler,
@@ -69,6 +67,7 @@ import {
     type SessionFactoryApi,
     type FactoryContext,
     type FactoryHandle,
+    type JsonValue,
     type FactoryStepOptions,
 } from "./factory.js";
 
@@ -378,9 +377,7 @@ export class CopilotSession {
                     : getFactoryDefinition(nameOrHandle).meta.name;
             const envelope = await this.rpc.factory.run({
                 name,
-                args: (options?.args === undefined ? {} : options.args) as Parameters<
-                    typeof this.rpc.factory.run
-                >[0]["args"],
+                args: options?.args === undefined ? {} : options.args,
                 options: {
                     limits: options?.limits,
                     resumeFromRunId: options?.resumeFromRunId,
@@ -884,13 +881,13 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
             });
-            let result: ToolResult;
+            let result: JsonValue;
             if (rawResult == null) {
                 result = "";
             } else if (typeof rawResult === "string") {
                 result = rawResult;
             } else if (isToolResultObject(rawResult)) {
-                result = rawResult;
+                result = JSON.parse(JSON.stringify(rawResult));
             } else {
                 result = JSON.stringify(rawResult);
             }
@@ -1188,11 +1185,11 @@ export class CopilotSession {
                             );
                             return response.result ?? null;
                         },
-                        step: async <TResult>(
+                        step: async (
                             key: string,
-                            producer: () => Promise<TResult> | TResult,
+                            producer: () => Promise<JsonValue> | JsonValue,
                             options: FactoryStepOptions = {}
-                        ): Promise<TResult> => {
+                        ): Promise<JsonValue> => {
                             await progress.flush();
                             if (options.volatile) {
                                 return producer();
@@ -1205,7 +1202,12 @@ export class CopilotSession {
                                 controller.signal
                             );
                             if (cached.hit) {
-                                return cached.resultJson as TResult;
+                                if (cached.resultJson === undefined) {
+                                    throw new Error(
+                                        `step("${key}") journal returned a hit without a result`
+                                    );
+                                }
+                                return cached.resultJson;
                             }
 
                             // Producers are best-effort at-least-once across crashes or
@@ -1221,9 +1223,7 @@ export class CopilotSession {
                                 self.rpc.factory.journal.put({
                                     runId: params.runId,
                                     key,
-                                    resultJson: result as Parameters<
-                                        typeof self.rpc.factory.journal.put
-                                    >[0]["resultJson"],
+                                    resultJson: result,
                                 }),
                                 controller.signal
                             );
@@ -1236,7 +1236,11 @@ export class CopilotSession {
                         },
                     };
                     const result = await definition.run(context);
-                    return { result } as FactoryExecuteResult;
+                    if (result === undefined) {
+                        return {};
+                    }
+                    assertFactoryResult(result);
+                    return { result };
                 } finally {
                     try {
                         await progress.close();
@@ -1833,4 +1837,114 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
     const code = error instanceof CanvasError ? error.code : "canvas_handler_error";
     const message = error instanceof Error ? error.message : String(error);
     return new ResponseError(ErrorCodes.InternalError, message, { code, message });
+}
+
+type FactoryResultValidationCategory =
+    | "unsupported_type"
+    | "non_finite_number"
+    | "cyclic_value"
+    | "nested_undefined"
+    | "unsupported_object";
+
+function factoryResultValidationError(
+    category: FactoryResultValidationCategory,
+    message: string,
+    path: string
+): ResponseError<{ code: string; category: FactoryResultValidationCategory; path: string }> {
+    return new ResponseError(ErrorCodes.InternalError, message, {
+        code: "factory_result_not_json",
+        category,
+        path,
+    });
+}
+
+function assertFactoryResult(value: unknown): asserts value is JsonValue {
+    const ancestors = new Set<object>();
+
+    const visit = (current: unknown, path: string, allowUndefined: boolean): void => {
+        if (current === undefined) {
+            if (allowUndefined) {
+                return;
+            }
+            throw factoryResultValidationError(
+                "nested_undefined",
+                `Factory result contains nested undefined at ${path}`,
+                path
+            );
+        }
+        if (current === null || typeof current === "boolean" || typeof current === "string") {
+            return;
+        }
+        if (typeof current === "number") {
+            if (!Number.isFinite(current)) {
+                throw factoryResultValidationError(
+                    "non_finite_number",
+                    `Factory result contains a non-finite number at ${path}`,
+                    path
+                );
+            }
+            return;
+        }
+        if (
+            typeof current === "function" ||
+            typeof current === "symbol" ||
+            typeof current === "bigint"
+        ) {
+            throw factoryResultValidationError(
+                "unsupported_type",
+                `Factory result contains a function, symbol, or BigInt at ${path}`,
+                path
+            );
+        }
+        if (typeof current !== "object") {
+            throw factoryResultValidationError(
+                "unsupported_type",
+                `Factory result contains a function, symbol, or BigInt at ${path}`,
+                path
+            );
+        }
+        if (ancestors.has(current)) {
+            throw factoryResultValidationError(
+                "cyclic_value",
+                `Factory result contains a cyclic reference at ${path}`,
+                path
+            );
+        }
+
+        ancestors.add(current);
+        try {
+            if (Array.isArray(current)) {
+                for (let index = 0; index < current.length; index++) {
+                    visit(current[index], `${path}[${index}]`, false);
+                }
+                return;
+            }
+
+            const prototype = Object.getPrototypeOf(current);
+            if (prototype !== Object.prototype && prototype !== null) {
+                throw factoryResultValidationError(
+                    "unsupported_object",
+                    `Factory result contains a non-JSON object at ${path}`,
+                    path
+                );
+            }
+            for (const key of Reflect.ownKeys(current)) {
+                if (typeof key === "symbol") {
+                    throw factoryResultValidationError(
+                        "unsupported_type",
+                        `Factory result contains a function, symbol, or BigInt at ${path}`,
+                        path
+                    );
+                }
+                const propertyPath = /^[A-Za-z_$][\w$]*$/.test(key)
+                    ? `${path}.${key}`
+                    : `${path}[${JSON.stringify(key)}]`;
+                visit((current as Record<string, unknown>)[key], propertyPath, false);
+            }
+        } finally {
+            ancestors.delete(current);
+        }
+    };
+
+    visit(value, "$", false);
 }

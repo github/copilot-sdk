@@ -18,6 +18,7 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type {
     GitHubTelemetryNotification,
+    JsonValue,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
@@ -834,10 +835,9 @@ export interface ElicitationSchema {
 }
 
 /**
- * Primitive field value in an elicitation result.
- * Matches MCP SDK's `ElicitResult.content` value type.
+ * JSON field value in an elicitation result.
  */
-export type ElicitationFieldValue = string | number | boolean | string[];
+export type ElicitationFieldValue = JsonValue;
 
 /**
  * Result returned from an elicitation request.

@@ -35,6 +35,7 @@ import {
 } from "./generated/rpc.js";
 import type {
     GitHubTelemetryNotification,
+    JsonValue,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
@@ -3001,7 +3002,7 @@ export class CopilotClient {
         sessionId: string;
         hookType: string;
         input: unknown;
-    }): Promise<{ output?: unknown }> {
+    }): Promise<{ output?: JsonValue }> {
         if (
             !params ||
             typeof params.sessionId !== "string" ||
@@ -3016,7 +3017,7 @@ export class CopilotClient {
         }
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
-        return { output };
+        return output === undefined ? {} : { output: JSON.parse(JSON.stringify(output)) };
     }
 
     private async handleSystemMessageTransform(params: {

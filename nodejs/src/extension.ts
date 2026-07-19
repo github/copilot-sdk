@@ -47,6 +47,7 @@ export {
     type FactoryDefinition,
     type FactoryHandle,
     type FactoryJsonSchema,
+    type JsonValue,
     type FactoryPipelineStage,
     type FactoryStepOptions,
     type FactoryRunResult,

@@ -15,6 +15,10 @@ export type { FactoryRunResult } from "./generated/rpc.js";
 
 declare const factoryHandleBrand: unique symbol;
 
+/** A value that can be represented losslessly on the SDK JSON wire. */
+export type JsonValue =
+    null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
 /**
  * Conservative JSON shape language accepted for structured factory agent output.
  *
@@ -34,7 +38,7 @@ declare const factoryHandleBrand: unique symbol;
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export type FactoryJsonSchema = Record<string, unknown>;
+export type FactoryJsonSchema = { [key: string]: JsonValue };
 
 /**
  * Options for one factory-scoped subagent call.
@@ -77,17 +81,17 @@ export type FactoryPipelineStage<TInput = unknown, TResult = unknown> = (
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface FactoryContext<TArgs = unknown> {
+export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
     /** Stable identifier for the current factory run. */
     readonly runId: string;
     /** Spawn and await one factory-scoped subagent. */
     agent(prompt: string, options?: FactoryAgentOptions): Promise<unknown>;
     /** Memoize an arbitrary producer under a stable author-supplied key. */
-    step<TResult>(
+    step(
         key: string,
-        producer: () => Promise<TResult> | TResult,
+        producer: () => Promise<JsonValue> | JsonValue,
         options?: FactoryStepOptions
-    ): Promise<TResult>;
+    ): Promise<JsonValue>;
     /** Run thunks concurrently, returning null for a thunk that throws. */
     parallel<TResult>(
         thunks: Array<() => Promise<TResult> | TResult>
@@ -99,7 +103,7 @@ export interface FactoryContext<TArgs = unknown> {
     /** Emit a factory progress line. */
     log(message: string): void;
     /** Reject because nested factories are not supported. */
-    factory(name: string, args?: unknown): Promise<unknown>;
+    factory(name: string, args?: JsonValue): Promise<JsonValue | void>;
     /** Caller-supplied input, forwarded verbatim. */
     args: TArgs;
     /** The same full session instance returned by `joinSession`. */
@@ -114,7 +118,10 @@ export interface FactoryContext<TArgs = unknown> {
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface FactoryDefinition<TArgs = unknown, TResult = unknown> {
+export interface FactoryDefinition<
+    TArgs extends JsonValue = JsonValue,
+    TResult extends JsonValue | void = JsonValue | void,
+> {
     meta: FactoryMeta;
     run(context: FactoryContext<TArgs>): Promise<TResult>;
 }
@@ -125,7 +132,10 @@ export interface FactoryDefinition<TArgs = unknown, TResult = unknown> {
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface FactoryHandle<TArgs = unknown, TResult = unknown> {
+export interface FactoryHandle<
+    TArgs extends JsonValue = JsonValue,
+    TResult extends JsonValue | void = JsonValue | void,
+> {
     readonly meta: FactoryMeta;
     readonly [factoryHandleBrand]: {
         readonly args: TArgs;
@@ -139,7 +149,7 @@ export interface FactoryHandle<TArgs = unknown, TResult = unknown> {
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export interface RunOptions<TArgs = unknown> {
+export interface RunOptions<TArgs extends JsonValue = JsonValue> {
     /** Input surfaced as `context.args`. */
     args?: TArgs;
     /** Optional per-invocation resource ceiling overrides. */
@@ -155,8 +165,11 @@ export interface RunOptions<TArgs = unknown> {
  * change or be removed in future SDK or CLI releases.
  */
 export interface SessionFactoryApi {
-    run<TResult = unknown>(name: string, options?: RunOptions): Promise<TResult>;
-    run<TArgs, TResult>(
+    run<TResult extends JsonValue | void = JsonValue | void>(
+        name: string,
+        options?: RunOptions
+    ): Promise<TResult>;
+    run<TArgs extends JsonValue, TResult extends JsonValue | void>(
         factory: FactoryHandle<TArgs, TResult>,
         options?: RunOptions<TArgs>
     ): Promise<TResult>;
@@ -185,7 +198,7 @@ export class FactoryRunError extends Error {
 
 interface StoredFactory {
     meta: FactoryMeta;
-    run(context: FactoryContext<unknown>): Promise<unknown>;
+    run(context: FactoryContext): Promise<JsonValue | void>;
 }
 
 const factoryHandles = new WeakMap<object, StoredFactory>();
@@ -228,14 +241,15 @@ function validateLimits(meta: FactoryMeta): void {
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
-export function defineFactory<TArgs = unknown, TResult = unknown>(
-    definition: FactoryDefinition<TArgs, TResult>
-): FactoryHandle<TArgs, TResult> {
+export function defineFactory<
+    TArgs extends JsonValue = JsonValue,
+    TResult extends JsonValue | void = JsonValue | void,
+>(definition: FactoryDefinition<TArgs, TResult>): FactoryHandle<TArgs, TResult> {
     validateLimits(definition.meta);
 
     const stored: StoredFactory = {
         meta: definition.meta,
-        run: definition.run as StoredFactory["run"],
+        run: definition.run,
     };
     const handle = Object.freeze({ meta: definition.meta }) as FactoryHandle<TArgs, TResult>;
 
