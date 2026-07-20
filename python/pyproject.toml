@@ -35,6 +35,11 @@ Homepage = "https://github.com/github/copilot-sdk"
 Repository = "https://github.com/github/copilot-sdk"
 
 [project.optional-dependencies]
+telemetry = [
+    "opentelemetry-api>=1.0.0",
+]
+
+[dependency-groups]
 dev = [
     "ruff>=0.1.0",
     "ty>=0.0.2,<0.0.25",
@@ -43,9 +48,6 @@ dev = [
     "pytest-timeout>=2.0.0",
     "websockets>=12.0",
     "opentelemetry-sdk>=1.0.0",
-]
-telemetry = [
-    "opentelemetry-api>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
