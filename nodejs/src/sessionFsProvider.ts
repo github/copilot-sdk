@@ -9,6 +9,7 @@ import type {
     SessionFsReaddirWithTypesEntry,
     SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
     SessionFsSqliteQueryType,
+    SessionFsSqliteTransactionStatement,
 } from "./generated/rpc.js";
 
 export type { SessionFsSqliteQueryType };
@@ -44,6 +45,15 @@ export interface SessionFsSqliteProvider {
         query: string,
         params?: Record<string, string | number | null>
     ): Promise<SessionFsSqliteQueryResult | undefined>;
+
+    /**
+     * Execute statements atomically on the provider-owned connection.
+     *
+     * Apply SQLite busy handling for every call and roll back before throwing.
+     */
+    transaction(
+        statements: SessionFsSqliteTransactionStatement[]
+    ): Promise<SessionFsSqliteQueryResult[]>;
 
     /**
      * Check whether the per-session database already exists, without creating it.
@@ -219,6 +229,33 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             );
             return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
+        sqliteTransaction: async ({ statements }) => {
+            if (!provider.sqlite) {
+                return {
+                    results: [],
+                    error: {
+                        errorClass: "fatal",
+                        message: "SQLite is not supported by this provider",
+                    },
+                };
+            }
+            try {
+                const normalized = statements.map((statement) => ({
+                    ...statement,
+                    params: normalizeSqliteParams(statement.params),
+                }));
+                return { results: await provider.sqlite.transaction(normalized) };
+            } catch (err) {
+                const errorClass = sqliteTransactionErrorClass(err);
+                return {
+                    results: [],
+                    error: {
+                        errorClass,
+                        message: err instanceof Error ? err.message : String(err),
+                    },
+                };
+            }
+        },
         sqliteExists: async () => {
             if (!provider.sqlite) {
                 throw new Error("SQLite is not supported by this provider");
@@ -226,6 +263,31 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             return { exists: await provider.sqlite.exists() };
         },
     };
+}
+
+function sqliteTransactionErrorClass(
+    err: unknown
+): "busyOrLocked" | "fatal" | "postCommitAmbiguous" {
+    if (typeof err !== "object" || err === null) {
+        return "fatal";
+    }
+    const classified = "errorClass" in err ? err.errorClass : undefined;
+    if (
+        classified === "busyOrLocked" ||
+        classified === "fatal" ||
+        classified === "postCommitAmbiguous"
+    ) {
+        return classified;
+    }
+    const code = "code" in err ? err.code : undefined;
+    const errcode = "errcode" in err ? err.errcode : undefined;
+    return code === "SQLITE_BUSY" ||
+        code === "SQLITE_LOCKED" ||
+        code === "EBUSY" ||
+        errcode === 5 ||
+        errcode === 6
+        ? "busyOrLocked"
+        : "fatal";
 }
 
 function toSessionFsError(err: unknown): SessionFsError {

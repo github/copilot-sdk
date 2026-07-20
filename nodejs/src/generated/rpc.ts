@@ -511,6 +511,34 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
   | EmbeddedTextResourceContents
   | EmbeddedBlobResourceContents;
 /**
+ * Execution-critical factory storage operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FactoryDurableOperation".
+ */
+/** @experimental */
+export type FactoryDurableOperation =
+  /** Creating the durable run and declared phases. */
+  | "createRun"
+  /** Persisting the transition to running. */
+  | "markRunStarted"
+  /** Persisting the terminal run envelope. */
+  | "finishRun"
+  /** Persisting subagent admission accounting. */
+  | "reserveAgent"
+  /** Rolling back an uncommitted subagent admission. */
+  | "releaseAgent"
+  /** Persisting an idempotent model-usage charge. */
+  | "chargeCredit"
+  /** Persisting active execution time. */
+  | "addElapsed"
+  /** Reading the authoritative AI-credit total. */
+  | "reconcileCreditTotal"
+  /** Reading a journal entry without treating storage failure as a cache miss. */
+  | "journalGet"
+  /** Persisting a journal entry before reporting success. */
+  | "journalPut";
+/**
  * Current or terminal state of a factory run.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -560,6 +588,18 @@ export type FactoryRunFailure =
        */
       reason: string;
       type: "factory_resume_declined";
+    }
+  | {
+      /**
+       * Stable failure code.
+       */
+      code: string;
+      operation: FactoryDurableOperation;
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      type: "factory_durable_failure";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -1659,6 +1699,20 @@ export type SessionFsSqliteQueryType =
   | "query"
   /** Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata. */
   | "run";
+/**
+ * SQLite transaction failure classification.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteTransactionErrorClass".
+ */
+/** @experimental */
+export type SessionFsSqliteTransactionErrorClass =
+  /** SQLite reported BUSY or LOCKED before commit; the transaction was rolled back and may be retried. */
+  | "busyOrLocked"
+  /** The statement, database, or provider failed definitively and must not be retried automatically. */
+  | "fatal"
+  /** The transport failed after the provider may have committed; retrying could duplicate effects. */
+  | "postCommitAmbiguous";
 
 /** @experimental */
 export type SessionInstalledPluginSource = JsonValue;
@@ -12342,7 +12396,7 @@ export interface SessionFsSqliteExistsResult {
   exists: boolean;
 }
 /**
- * SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+ * SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database. The provider applies its SQLite busy timeout for every call.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteQueryRequest".
@@ -12392,6 +12446,62 @@ export interface SessionFsSqliteQueryResult {
    */
   lastInsertRowid?: number;
   error?: SessionFsError;
+}
+/**
+ * Classified SQLite transaction failure. busyOrLocked guarantees rollback; postCommitAmbiguous must never be retried.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteTransactionError".
+ */
+/** @experimental */
+export interface SessionFsSqliteTransactionError {
+  errorClass: SessionFsSqliteTransactionErrorClass;
+  message: string;
+}
+/**
+ * Statements to execute atomically. Providers apply busy handling for every call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteTransactionRequest".
+ */
+/** @experimental */
+export interface SessionFsSqliteTransactionRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  statements: SessionFsSqliteTransactionStatement[];
+}
+/**
+ * One statement in an atomic SQLite transaction.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteTransactionStatement".
+ */
+/** @experimental */
+export interface SessionFsSqliteTransactionStatement {
+  /**
+   * SQL statement to execute.
+   */
+  query: string;
+  queryType: SessionFsSqliteQueryType;
+  /**
+   * Optional named bind parameters.
+   */
+  params?: {
+    [k: string]: JsonValue | undefined;
+  };
+}
+/**
+ * Per-statement results, or a classified transaction error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteTransactionResult".
+ */
+/** @experimental */
+export interface SessionFsSqliteTransactionResult {
+  results: SessionFsSqliteQueryResult[];
+  error?: SessionFsSqliteTransactionError;
 }
 /**
  * Path whose metadata should be returned from the client-provided session filesystem.
@@ -18736,13 +18846,21 @@ export interface SessionFsHandler {
      */
     rename(params: SessionFsRenameRequest): Promise<SessionFsError | undefined>;
     /**
-     * Executes a SQLite query against the per-session database.
+     * Executes a SQLite query against the per-session database. Providers apply busy handling for every call.
      *
-     * @param params SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+     * @param params SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database. The provider applies its SQLite busy timeout for every call.
      *
      * @returns Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
      */
     sqliteQuery(params: SessionFsSqliteQueryRequest): Promise<SessionFsSqliteQueryResult>;
+    /**
+     * Executes SQLite statements atomically on the provider-owned connection.
+     *
+     * @param params Statements to execute atomically. Providers apply busy handling for every call.
+     *
+     * @returns Per-statement results, or a classified transaction error.
+     */
+    sqliteTransaction(params: SessionFsSqliteTransactionRequest): Promise<SessionFsSqliteTransactionResult>;
     /**
      * Checks whether the per-session SQLite database already exists, without creating it.
      *
@@ -18867,6 +18985,11 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.sqliteQuery(params);
+    });
+    connection.onRequest("sessionFs.sqliteTransaction", async (params: SessionFsSqliteTransactionRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.sqliteTransaction(params);
     });
     connection.onRequest("sessionFs.sqliteExists", async (params: SessionFsSqliteExistsRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
