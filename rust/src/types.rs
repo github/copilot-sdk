@@ -1608,6 +1608,67 @@ impl ProviderModelConfig {
     }
 }
 
+/// A single ExP (Experiment Platform) flag value.
+///
+/// ExP assignments resolve to a string, number, boolean, or null.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ExpFlagValue {
+    /// A boolean flag value.
+    Bool(bool),
+    /// An integer flag value.
+    Integer(i64),
+    /// A floating-point flag value.
+    Float(f64),
+    /// A string flag value.
+    String(String),
+    /// A null flag value.
+    Null,
+}
+
+/// A single configuration entry in a [`CopilotExpAssignmentResponse`].
+///
+/// Each entry carries an identifier and a bag of typed parameter values.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ExpConfigEntry {
+    /// Identifier of the configuration entry.
+    pub id: String,
+    /// Parameter values keyed by parameter name.
+    pub parameters: HashMap<String, ExpFlagValue>,
+}
+
+/// ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+/// fetches from the experimentation service.
+///
+/// Field names serialize as PascalCase (`Features`, `Flights`, ...) to match
+/// the on-the-wire contract consumed by the runtime.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct CopilotExpAssignmentResponse {
+    /// Enabled feature names.
+    #[serde(default)]
+    pub features: Vec<String>,
+    /// Assigned flights keyed by flight name.
+    #[serde(default)]
+    pub flights: HashMap<String, String>,
+    /// Configuration entries carrying typed parameter values.
+    #[serde(default)]
+    pub configs: Vec<ExpConfigEntry>,
+    /// Opaque parameter-group payload passed through untouched. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter_groups: Option<Value>,
+    /// Version of the flighting configuration. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flighting_version: Option<i64>,
+    /// Impression identifier for the assignment. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impression_id: Option<String>,
+    /// Assignment context string forwarded to CAPI and telemetry.
+    #[serde(default)]
+    pub assignment_context: String,
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1878,7 +1939,7 @@ pub struct SessionConfig {
     /// When absent, the session does not block on ExP. Set via
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
-    pub exp_assignments: Option<Value>,
+    pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
     /// settings (bypass-permissions policy) at session bootstrap using the
     /// session's [`github_token`](Self::github_token). Requires `github_token`
@@ -2867,7 +2928,7 @@ impl SessionConfig {
     /// integrators that fetch ExP data out of process; malformed payloads
     /// are dropped by the runtime (fail-open).
     #[doc(hidden)]
-    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+    pub fn with_exp_assignments(mut self, assignments: CopilotExpAssignmentResponse) -> Self {
         self.exp_assignments = Some(assignments);
         self
     }
@@ -3054,7 +3115,7 @@ pub struct ResumeSessionConfig {
     /// re-applies the assignments after a CLI process restart. Set via
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
-    pub exp_assignments: Option<Value>,
+    pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in flag injected on resume. See
     /// [`SessionConfig::enable_managed_settings`]. Re-supply on resume so
     /// the runtime re-applies the managed-settings self-fetch after a CLI
@@ -3993,7 +4054,7 @@ impl ResumeSessionConfig {
     /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
     /// resume so the runtime re-applies them after a CLI process restart.
     #[doc(hidden)]
-    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+    pub fn with_exp_assignments(mut self, assignments: CopilotExpAssignmentResponse) -> Self {
         self.exp_assignments = Some(assignments);
         self
     }
@@ -5420,6 +5481,7 @@ impl Default for ExitPlanModeData {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use serde_json::json;
@@ -5427,7 +5489,8 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
+        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
+        ExpFlagValue, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
         LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
         NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
         ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
@@ -5788,18 +5851,55 @@ mod tests {
         assert!(empty_json.get("memory").is_none());
     }
 
+    fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
+        CopilotExpAssignmentResponse {
+            features: vec!["copilot_exp_flag".to_string()],
+            flights: HashMap::from([("copilot_exp_flag".to_string(), "treatment".to_string())]),
+            configs: vec![ExpConfigEntry {
+                id: "cfg-1".to_string(),
+                parameters: HashMap::from([
+                    ("threshold".to_string(), ExpFlagValue::Integer(5)),
+                    ("enabled".to_string(), ExpFlagValue::Bool(true)),
+                ]),
+            }],
+            assignment_context: context.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn exp_flag_value_round_trips_all_variants() {
+        let values = serde_json::json!({
+            "s": "text",
+            "i": 7,
+            "f": 1.5,
+            "b": true,
+            "n": null,
+        });
+        let parsed: HashMap<String, ExpFlagValue> = serde_json::from_value(values.clone()).unwrap();
+        assert_eq!(parsed["s"], ExpFlagValue::String("text".to_string()));
+        assert_eq!(parsed["i"], ExpFlagValue::Integer(7));
+        assert_eq!(parsed["f"], ExpFlagValue::Float(1.5));
+        assert_eq!(parsed["b"], ExpFlagValue::Bool(true));
+        assert_eq!(parsed["n"], ExpFlagValue::Null);
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), values);
+    }
+
     #[test]
     fn session_config_with_exp_assignments_serializes() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-123",
-        });
+        let assignments = sample_exp_assignments("ctx-123");
+        let expected = serde_json::to_value(&assignments).unwrap();
         let (wire, _runtime) = SessionConfig::default()
-            .with_exp_assignments(assignments.clone())
+            .with_exp_assignments(assignments)
             .into_wire(Some(SessionId::from("exp-on")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(json["expAssignments"], expected);
+        assert_eq!(json["expAssignments"]["AssignmentContext"], "ctx-123");
+        assert_eq!(
+            json["expAssignments"]["Flights"]["copilot_exp_flag"],
+            "treatment"
+        );
 
         // Unset exp assignments are omitted on the wire.
         let (empty_wire, _) = SessionConfig::default()
@@ -5811,16 +5911,14 @@ mod tests {
 
     #[test]
     fn resume_session_config_with_exp_assignments_serializes() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-456",
-        });
+        let assignments = sample_exp_assignments("ctx-456");
+        let expected = serde_json::to_value(&assignments).unwrap();
         let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-exp-on"))
-            .with_exp_assignments(assignments.clone())
+            .with_exp_assignments(assignments)
             .into_wire()
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(json["expAssignments"], expected);
 
         // Unset exp assignments are omitted on the wire.
         let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-exp-unset"))
@@ -5832,10 +5930,7 @@ mod tests {
 
     #[test]
     fn session_config_clone_preserves_exp_assignments() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-clone",
-        });
+        let assignments = sample_exp_assignments("ctx-clone");
         let config = SessionConfig::default().with_exp_assignments(assignments.clone());
         let cloned = config.clone();
 
@@ -5845,15 +5940,15 @@ mod tests {
             .into_wire(Some(SessionId::from("exp-clone")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(
+            json["expAssignments"],
+            serde_json::to_value(&assignments).unwrap()
+        );
     }
 
     #[test]
     fn resume_session_config_clone_preserves_exp_assignments() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-clone-resume",
-        });
+        let assignments = sample_exp_assignments("ctx-clone-resume");
         let config = ResumeSessionConfig::new(SessionId::from("resume-exp-clone"))
             .with_exp_assignments(assignments.clone());
         let cloned = config.clone();
@@ -5862,7 +5957,10 @@ mod tests {
 
         let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(
+            json["expAssignments"],
+            serde_json::to_value(&assignments).unwrap()
+        );
     }
 
     #[test]

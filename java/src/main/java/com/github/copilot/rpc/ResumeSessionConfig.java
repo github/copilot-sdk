@@ -13,7 +13,6 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.SessionEvent;
@@ -102,7 +101,7 @@ public class ResumeSessionConfig {
     private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
 
     /**
@@ -1749,21 +1748,22 @@ public class ResumeSessionConfig {
      *
      * @return the ExP assignment data, or {@code null} if not set
      */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets ExP assignment ("flight") data injected by a trusted integrator.
      * <p>
-     * See {@link SessionConfig#setExpAssignments(JsonNode)} for details. The
-     * runtime supports injecting ExP assignments on resume as well as create.
+     * See {@link SessionConfig#setExpAssignments(CopilotExpAssignmentResponse)} for
+     * details. The runtime supports injecting ExP assignments on resume as well as
+     * create.
      *
      * @param expAssignments
-     *            the opaque ExP assignment data
+     *            the ExP assignment data
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setExpAssignments(JsonNode expAssignments) {
+    public ResumeSessionConfig setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
         return this;
     }

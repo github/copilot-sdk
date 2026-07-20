@@ -717,7 +717,9 @@ describe("CopilotClient", () => {
             });
 
         const assignments = {
-            Parameters: { copilot_exp_flag: "treatment" },
+            Features: ["copilot_exp_flag"],
+            Flights: { copilot_exp_flag: "treatment" },
+            Configs: [{ Id: "cfg-1", Parameters: { threshold: 5, enabled: true } }],
             AssignmentContext: "ctx-123",
         };
 
