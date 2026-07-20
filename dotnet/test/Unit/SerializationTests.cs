@@ -591,6 +591,58 @@ public class SerializationTests
     }
 
     [Fact]
+    public void CreateSessionRequest_CanSerializeCustomAgentsLocalOnly_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentsLocalOnly", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("customAgentsLocalOnly").GetBoolean());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeCustomAgentsLocalOnly_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentsLocalOnly", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("customAgentsLocalOnly").GetBoolean());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitCustomAgentsLocalOnly_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("customAgentsLocalOnly", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("customAgentsLocalOnly", out _));
+    }
+
+    [Fact]
     public void ResumeSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();

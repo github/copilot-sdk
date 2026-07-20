@@ -37,6 +37,7 @@ from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
     CopilotClientMode,
     ToolSet,
+    _custom_agents_local_only_default,
     _embedding_cache_storage_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
@@ -2206,6 +2207,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        custom_agents_local_only = _custom_agents_local_only_default(mode, custom_agents_local_only)
 
         payload: dict[str, Any] = {}
         if model:
@@ -2344,6 +2346,8 @@ class CopilotClient:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
+        if custom_agents_local_only is not None:
+            payload["customAgentsLocalOnly"] = custom_agents_local_only
 
         # Add default agent configuration if provided
         if default_agent:
@@ -2879,6 +2883,7 @@ class CopilotClient:
         )
         enable_session_store = _enable_session_store_default(mode, enable_session_store)
         enable_skills = _enable_skills_default(mode, enable_skills)
+        custom_agents_local_only = _custom_agents_local_only_default(mode, custom_agents_local_only)
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
@@ -3017,6 +3022,8 @@ class CopilotClient:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(a) for a in custom_agents
             ]
+        if custom_agents_local_only is not None:
+            payload["customAgentsLocalOnly"] = custom_agents_local_only
 
         # Add default agent configuration if provided
         if default_agent:

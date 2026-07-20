@@ -117,6 +117,9 @@ public final class CreateSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("customAgentsLocalOnly")
+    private Boolean customAgentsLocalOnly;
+
     @JsonProperty("defaultAgent")
     private DefaultAgentConfig defaultAgent;
 
@@ -551,6 +554,19 @@ public final class CreateSessionRequest {
     /** Sets custom agents. @param customAgents the agents */
     public void setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+    }
+
+    /** Gets whether custom agents are local only. @return the flag */
+    public Boolean getCustomAgentsLocalOnly() {
+        return customAgentsLocalOnly;
+    }
+
+    /**
+     * Sets whether custom agents are local only. @param customAgentsLocalOnly the
+     * flag
+     */
+    public void setCustomAgentsLocalOnly(Boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
     }
 
     /** Gets the default agent config. @return the default agent config */

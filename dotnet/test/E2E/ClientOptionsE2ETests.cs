@@ -180,6 +180,65 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Forward_CustomAgentsLocalOnly_In_Create_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgentsLocalOnly = false,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.False(createRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Forward_CustomAgentsLocalOnly_In_Resume_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var createSession = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        var sessionId = createSession.SessionId;
+        await createSession.DisposeAsync();
+
+        var resumeSession = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            CustomAgentsLocalOnly = false,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var resumeRequest = GetCapturedRequestParams(capture.RootElement, "session.resume");
+        Assert.False(resumeRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
+
+        await resumeSession.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Forward_Granular_Multitenancy_Fields_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -451,6 +510,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.False(createRequest.GetProperty("enableSessionStore").GetBoolean());
         Assert.False(createRequest.GetProperty("enableSkills").GetBoolean());
+        Assert.True(createRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
         Assert.False(createRequest.TryGetProperty("organizationCustomInstructions", out _));
 
         await session.DisposeAsync();
@@ -725,6 +785,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(resumeRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableSessionStore").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableSkills").GetBoolean());
+        Assert.True(resumeRequest.GetProperty("customAgentsLocalOnly").GetBoolean());
         Assert.False(resumeRequest.TryGetProperty("organizationCustomInstructions", out _));
 
         await session.DisposeAsync();

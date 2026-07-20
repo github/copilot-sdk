@@ -1928,9 +1928,9 @@ pub struct SessionConfig {
     /// Applied via `session.options.update` after create/resume. Defaults to
     /// `true` in [`crate::ClientMode::Empty`] when unset.
     pub skip_custom_instructions: Option<bool>,
-    /// Whether to constrain custom agents to local-only execution. Applied
-    /// via `session.options.update` after create/resume. Defaults to `true`
-    /// in [`crate::ClientMode::Empty`] when unset.
+    /// Whether to constrain custom agents to local-only execution. Sent with
+    /// the initial create request and maintained via `session.options.update`.
+    /// Defaults to `true` in [`crate::ClientMode::Empty`] when unset.
     pub custom_agents_local_only: Option<bool>,
     /// Whether to include the `Co-authored-by` trailer in commit messages.
     /// Applied via `session.options.update` after create/resume. Defaults to
@@ -2269,6 +2269,7 @@ impl SessionConfig {
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
+            custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
@@ -3323,6 +3324,7 @@ impl ResumeSessionConfig {
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
+            custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
@@ -5706,6 +5708,35 @@ mod tests {
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
         assert!(!wire.request_mcp_apps);
+    }
+
+    #[test]
+    fn custom_agents_local_only_serializes_on_create_and_resume() {
+        let (create_wire, _) = SessionConfig::default()
+            .with_custom_agents_local_only(false)
+            .into_wire(Some(SessionId::from("create-locality")))
+            .expect("create config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["customAgentsLocalOnly"], false);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-locality"))
+            .with_custom_agents_local_only(false)
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["customAgentsLocalOnly"], false);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("create-unset")))
+            .expect("create config has no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("customAgentsLocalOnly").is_none());
+
+        let (unset_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-unset"))
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("customAgentsLocalOnly").is_none());
     }
 
     #[test]

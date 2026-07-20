@@ -879,6 +879,8 @@ impl Client {
         if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
             config.embedding_cache_storage = Some("in-memory".into());
         }
+        config.custom_agents_local_only =
+            crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
@@ -1144,6 +1146,8 @@ impl Client {
         if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
             config.embedding_cache_storage = Some("in-memory".into());
         }
+        config.custom_agents_local_only =
+            crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
