@@ -522,6 +522,47 @@ export type FilterMapping =
     }
   | ContentFilterMode;
 /**
+ * Hook event name dispatched through the SDK callback transport.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookType".
+ */
+/** @experimental */
+/** @internal */
+export type HookType =
+  /** Runs before a tool is invoked. */
+  | "preToolUse"
+  /** Runs before an MCP tool is invoked. */
+  | "preMcpToolCall"
+  /** Runs after a tool completes successfully. */
+  | "postToolUse"
+  /** Runs after a tool fails. */
+  | "postToolUseFailure"
+  /** Runs after the user submits a prompt. */
+  | "userPromptSubmitted"
+  /** Runs when a session starts. */
+  | "sessionStart"
+  /** Runs when a session ends. */
+  | "sessionEnd"
+  /** Runs after an agent result is produced. */
+  | "postResult"
+  /** Runs before a pull request description is generated. */
+  | "prePRDescription"
+  /** Runs when the agent encounters an error. */
+  | "errorOccurred"
+  /** Runs when the agent stops. */
+  | "agentStop"
+  /** Runs when a subagent starts. */
+  | "subagentStart"
+  /** Runs when a subagent stops. */
+  | "subagentStop"
+  /** Runs before conversation context is compacted. */
+  | "preCompact"
+  /** Runs when the agent requests permission. */
+  | "permissionRequest"
+  /** Runs when the agent emits a notification. */
+  | "notification";
+/**
  * Source for direct repo installs (when marketplace is empty)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -817,6 +858,18 @@ export type McpHeadersHandlePendingHeadersRefreshRequest =
   | {
       kind: "none";
     };
+/**
+ * Consumer allowed to call an MCP tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpToolUiVisibility".
+ */
+/** @experimental */
+export type McpToolUiVisibility =
+  /** The model may call the tool. */
+  | "model"
+  /** An MCP App view may call the tool. */
+  | "app";
 /**
  * Host response to the pending OAuth request.
  *
@@ -5131,6 +5184,30 @@ export interface HistoryTruncateResult {
   eventsRemoved: number;
 }
 /**
+ * Runtime-owned wire payload for a server-to-client hook callback invocation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookInvokeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface HookInvokeRequest {
+  sessionId: string;
+  hookType: HookType;
+  input: unknown;
+}
+/**
+ * Optional output returned by an SDK callback hook.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HookInvokeResponse".
+ */
+/** @experimental */
+/** @internal */
+export interface HookInvokeResponse {
+  output?: unknown;
+}
+/**
  * Installed plugin record from global state, with marketplace, version, install time, enabled state, cache path, and source.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6628,7 +6705,7 @@ export interface McpListToolsResult {
   tools: McpTools[];
 }
 /**
- * MCP tool metadata with tool name and optional description.
+ * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpTools".
@@ -6643,6 +6720,24 @@ export interface McpTools {
    * Tool description, when provided.
    */
   description?: string;
+  ui?: McpToolUi;
+}
+/**
+ * Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpToolUi".
+ */
+/** @experimental */
+export interface McpToolUi {
+  /**
+   * URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use `session.mcp.resources.read` to fetch its HTML and resource metadata.
+   */
+  resourceUri?: string;
+  /**
+   * Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
+   */
+  visibility?: McpToolUiVisibility[];
 }
 /**
  * Pending MCP OAuth request ID and host-provided token or cancellation response.
@@ -12137,11 +12232,26 @@ export interface SessionModelList {
    */
   list: unknown[];
   /**
+   * Cost categories for the full CAPI catalog, including picker-disabled models that Auto may select. Metadata only; entries absent from `list` are not manually selectable.
+   */
+  modelPriceCategories?: SessionModelPriceCategory[];
+  /**
    * Per-quota snapshots returned alongside the model list, keyed by quota type.
    */
   quotaSnapshots?: {
     [k: string]: unknown | undefined;
   };
+}
+/**
+ * Cost-category metadata for a CAPI model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionModelPriceCategory".
+ */
+/** @experimental */
+export interface SessionModelPriceCategory {
+  id: string;
+  priceCategory: ModelPickerPriceCategory;
 }
 /**
  * Session construction options.
@@ -13522,6 +13632,10 @@ export interface SessionUpdateOptionsResult {
    * Whether the operation succeeded
    */
   success: boolean;
+  /**
+   * Number of hooks loaded from installed plugins, returned when installedPlugins is updated
+   */
+  pluginHookCount?: number;
 }
 /**
  * User-requested shell execution cancellation handle.
@@ -16961,7 +17075,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
             /**
-             * Lists the tools exposed by a connected MCP server on this session's host.
+             * Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.
              *
              * @param params Server name whose tool list should be returned.
              *
@@ -18269,6 +18383,19 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `hooks` client global API methods. */
+/** @experimental */
+export interface HooksHandler {
+    /**
+     * Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.
+     *
+     * @param params Runtime-owned wire payload for a server-to-client hook callback invocation.
+     *
+     * @returns Optional output returned by an SDK callback hook.
+     */
+    invoke(params: HookInvokeRequest): Promise<HookInvokeResponse>;
+}
+
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -18303,6 +18430,7 @@ export interface GitHubTelemetryHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    hooks?: HooksHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
 }
@@ -18318,6 +18446,11 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onRequest("hooks.invoke", async (params: HookInvokeRequest) => {
+        const handler = handlers.hooks;
+        if (!handler) throw new Error("No hooks client-global handler registered");
+        return handler.invoke(params);
+    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");

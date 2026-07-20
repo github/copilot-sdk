@@ -30,7 +30,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             RequestHandler = requestHandler
         }, environment: env);
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks

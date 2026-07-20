@@ -2281,9 +2281,10 @@ describe("CopilotClient", () => {
             const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
             expect(payload.agent).toBe("test-agent");
             expect(payload.customAgents).toEqual([expect.objectContaining({ name: "test-agent" })]);
+            expect(payload.customAgents[0].reasoningEffort).toBeUndefined();
         });
 
-        it("forwards custom agent model in session.create request", async () => {
+        it("forwards custom agent model and reasoning effort in session.create request", async () => {
             const client = new CopilotClient();
             await client.start();
             onTestFinished(() => stopClient(client));
@@ -2296,13 +2297,18 @@ describe("CopilotClient", () => {
                         name: "model-agent",
                         prompt: "You are a model agent.",
                         model: "claude-haiku-4.5",
+                        reasoningEffort: "high",
                     },
                 ],
             });
 
             const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
             expect(payload.customAgents).toEqual([
-                expect.objectContaining({ name: "model-agent", model: "claude-haiku-4.5" }),
+                expect.objectContaining({
+                    name: "model-agent",
+                    model: "claude-haiku-4.5",
+                    reasoningEffort: "high",
+                }),
             ]);
         });
 
@@ -3133,7 +3139,7 @@ describe("CopilotClient", () => {
 
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
             // Validates the full JSON-RPC entry point used by the CLI:
-            // CopilotClient.handleHooksInvoke({sessionId, hookType, input})
+            // clientGlobalHandlers.hooks.invoke({sessionId, hookType, input})
             // → CopilotSession._handleHooksInvoke(hookType, input)
             // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
             //
@@ -3164,7 +3170,7 @@ describe("CopilotClient", () => {
                 cwd: "/tmp",
             };
 
-            const response = await (client as any).handleHooksInvoke({
+            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
                 sessionId: session.sessionId,
                 hookType: "postToolUseFailure",
                 input: failureInput,

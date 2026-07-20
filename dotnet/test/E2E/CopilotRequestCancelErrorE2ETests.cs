@@ -54,7 +54,7 @@ public class CopilotRequestCancelErrorE2ETests(E2ETestFixture fixture, ITestOutp
         await using var client = CreateClientWith(handler);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -81,7 +81,7 @@ public class CopilotRequestCancelErrorE2ETests(E2ETestFixture fixture, ITestOutp
         await using var client = CreateClientWith(handler);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

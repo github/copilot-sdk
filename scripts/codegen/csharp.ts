@@ -27,6 +27,7 @@ import {
     findSharedSchemaDefinitions,
     postProcessSchema,
     propagateInternalVisibility,
+    filterNodeByVisibility,
     resolveRef,
     resolveObjectSchema,
     resolveSchema,
@@ -2490,11 +2491,23 @@ function generateRpcCode(
     let sessionRpcParts: string[] = [];
     if (schema.session) sessionRpcParts = emitSessionRpcClasses(schema.session, classes);
 
+    // Client handler surfaces (interfaces, handler properties, RPC registration)
+    // are only generated for public methods. Internal client methods (e.g.
+    // `hooks.invoke`) are runtime transport plumbing and must not surface any
+    // generated code — including their request/result DTOs, which would
+    // otherwise leak as `internal` types referenced by a `public` handler
+    // interface (CS0050/CS0051 inconsistent accessibility).
     let clientSessionParts: string[] = [];
-    if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
+    if (schema.clientSession) {
+        const publicClientSession = filterNodeByVisibility(schema.clientSession, "public");
+        if (publicClientSession) clientSessionParts = emitClientSessionApiRegistration(publicClientSession, classes);
+    }
 
     let clientGlobalParts: string[] = [];
-    if (schema.clientGlobal) clientGlobalParts = emitClientGlobalApiRegistration(schema.clientGlobal, classes);
+    if (schema.clientGlobal) {
+        const publicClientGlobal = filterNodeByVisibility(schema.clientGlobal, "public");
+        if (publicClientGlobal) clientGlobalParts = emitClientGlobalApiRegistration(publicClientGlobal, classes);
+    }
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}

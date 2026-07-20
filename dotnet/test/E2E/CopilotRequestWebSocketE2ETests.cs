@@ -31,6 +31,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// message. Without the eager start the turn never completes and this test
 /// times out.
 /// </remarks>
+[Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
 public class CopilotRequestWebSocketE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "copilot_request_websocket", output)
 {
@@ -54,7 +55,7 @@ public class CopilotRequestWebSocketE2ETests(E2ETestFixture fixture, ITestOutput
         }, environment: env);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

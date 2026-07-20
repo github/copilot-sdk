@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
+[Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
 public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "per-session-auth", output)
 {
     /// <summary>
@@ -74,7 +75,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
     {
         await SetupCopilotUsersAsync();
 
-        await using var session = await AuthClient.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(AuthClient, new SessionConfig
         {
             GitHubToken = "token-alice",
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -90,13 +91,13 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
     {
         await SetupCopilotUsersAsync();
 
-        await using var sessionA = await AuthClient.CreateSessionAsync(new SessionConfig
+        await using var sessionA = await Ctx.CreateSessionAsync(AuthClient, new SessionConfig
         {
             GitHubToken = "token-alice",
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        await using var sessionB = await AuthClient.CreateSessionAsync(new SessionConfig
+        await using var sessionB = await Ctx.CreateSessionAsync(AuthClient, new SessionConfig
         {
             GitHubToken = "token-bob",
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -116,7 +117,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
     {
         var noAuthClient = CreateNoAuthTestClient();
 
-        await using var session = await noAuthClient.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(noAuthClient, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -131,7 +132,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
     {
         await SetupCopilotUsersAsync();
 
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => AuthClient.CreateSessionAsync(new SessionConfig
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => Ctx.CreateSessionAsync(AuthClient, new SessionConfig
         {
             GitHubToken = "invalid-token",
             OnPermissionRequest = PermissionHandler.ApproveAll,

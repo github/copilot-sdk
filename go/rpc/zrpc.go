@@ -2463,6 +2463,26 @@ type HistoryTruncateResult struct {
 	EventsRemoved int64 `json:"eventsRemoved"`
 }
 
+// Runtime-owned wire payload for a server-to-client hook callback invocation.
+// Experimental: HookInvokeRequest is part of an experimental API and may change or be
+// removed.
+// Internal: HookInvokeRequest is an internal SDK API and is not part of the public surface.
+type HookInvokeRequest struct {
+	// Internal: HookType is part of the SDK's internal API surface and is not intended for
+	// external use.
+	HookType  HookType `json:"hookType"`
+	Input     any      `json:"input"`
+	SessionID string   `json:"sessionId"`
+}
+
+// Optional output returned by an SDK callback hook.
+// Experimental: HookInvokeResponse is part of an experimental API and may change or be
+// removed.
+// Internal: HookInvokeResponse is an internal SDK API and is not part of the public surface.
+type HookInvokeResponse struct {
+	Output any `json:"output,omitempty"`
+}
+
 // Installed plugin record from global state, with marketplace, version, install time,
 // enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
@@ -3978,13 +3998,27 @@ type MCPStopServerRequest struct {
 	ServerName string `json:"serverName"`
 }
 
-// MCP tool metadata with tool name and optional description.
+// MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery
+// metadata.
 // Experimental: MCPTools is part of an experimental API and may change or be removed.
 type MCPTools struct {
 	// Tool description, when provided.
 	Description *string `json:"description,omitempty"`
 	// Tool name.
 	Name string `json:"name"`
+	// Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui`
+	// block was present without recognized fields.
+	UI *MCPToolUI `json:"ui,omitempty"`
+}
+
+// Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
+// Experimental: MCPToolUI is part of an experimental API and may change or be removed.
+type MCPToolUI struct {
+	// URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use
+	// `session.mcp.resources.read` to fetch its HTML and resource metadata.
+	ResourceURI *string `json:"resourceUri,omitempty"`
+	// Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
+	Visibility []MCPToolUIVisibility `json:"visibility,omitzero"`
 }
 
 // Server name identifying the external client to remove.
@@ -7958,8 +7992,19 @@ type SessionModelList struct {
 	// (CAPI) models and any registry BYOK models; a BYOK model appears under its
 	// provider-qualified selection id (`provider/id`).
 	List []any `json:"list"`
+	// Cost categories for the full CAPI catalog, including picker-disabled models that Auto may
+	// select. Metadata only; entries absent from `list` are not manually selectable.
+	ModelPriceCategories []SessionModelPriceCategory `json:"modelPriceCategories,omitzero"`
 	// Per-quota snapshots returned alongside the model list, keyed by quota type.
 	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitzero"`
+}
+
+// Cost-category metadata for a CAPI model.
+// Experimental: SessionModelPriceCategory is part of an experimental API and may change or
+// be removed.
+type SessionModelPriceCategory struct {
+	ID            string                   `json:"id"`
+	PriceCategory ModelPickerPriceCategory `json:"priceCategory"`
 }
 
 // Experimental: SessionModeSetResult is part of an experimental API and may change or be
@@ -9061,6 +9106,8 @@ type SessionUpdateOptionsParams struct {
 // Experimental: SessionUpdateOptionsResult is part of an experimental API and may change or
 // be removed.
 type SessionUpdateOptionsResult struct {
+	// Number of hooks loaded from installed plugins, returned when installedPlugins is updated
+	PluginHookCount *int64 `json:"pluginHookCount,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -11356,6 +11403,45 @@ const (
 	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
 )
 
+// Hook event name dispatched through the SDK callback transport.
+// Experimental: HookType is part of an experimental API and may change or be removed.
+type HookType string
+
+const (
+	// Runs when the agent stops.
+	HookTypeAgentStop HookType = "agentStop"
+	// Runs when the agent encounters an error.
+	HookTypeErrorOccurred HookType = "errorOccurred"
+	// Runs when the agent emits a notification.
+	HookTypeNotification HookType = "notification"
+	// Runs when the agent requests permission.
+	HookTypePermissionRequest HookType = "permissionRequest"
+	// Runs after an agent result is produced.
+	HookTypePostResult HookType = "postResult"
+	// Runs after a tool completes successfully.
+	HookTypePostToolUse HookType = "postToolUse"
+	// Runs after a tool fails.
+	HookTypePostToolUseFailure HookType = "postToolUseFailure"
+	// Runs before conversation context is compacted.
+	HookTypePreCompact HookType = "preCompact"
+	// Runs before an MCP tool is invoked.
+	HookTypePreMCPToolCall HookType = "preMcpToolCall"
+	// Runs before a pull request description is generated.
+	HookTypePrePRDescription HookType = "prePRDescription"
+	// Runs before a tool is invoked.
+	HookTypePreToolUse HookType = "preToolUse"
+	// Runs when a session ends.
+	HookTypeSessionEnd HookType = "sessionEnd"
+	// Runs when a session starts.
+	HookTypeSessionStart HookType = "sessionStart"
+	// Runs when a subagent starts.
+	HookTypeSubagentStart HookType = "subagentStart"
+	// Runs when a subagent stops.
+	HookTypeSubagentStop HookType = "subagentStop"
+	// Runs after the user submits a prompt.
+	HookTypeUserPromptSubmitted HookType = "userPromptSubmitted"
+)
+
 // Constant value. Always "github".
 type InstalledPluginSourceGitHubSource string
 
@@ -11701,6 +11787,18 @@ const (
 	MCPSetEnvValueModeDetailsDirect MCPSetEnvValueModeDetails = "direct"
 	// Treat MCP server environment values as host-side references to resolve before launch.
 	MCPSetEnvValueModeDetailsIndirect MCPSetEnvValueModeDetails = "indirect"
+)
+
+// Consumer allowed to call an MCP tool.
+// Experimental: MCPToolUIVisibility is part of an experimental API and may change or be
+// removed.
+type MCPToolUIVisibility string
+
+const (
+	// An MCP App view may call the tool.
+	MCPToolUIVisibilityApp MCPToolUIVisibility = "app"
+	// The model may call the tool.
+	MCPToolUIVisibilityModel MCPToolUIVisibility = "model"
 )
 
 // The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
@@ -15664,7 +15762,9 @@ func (a *MCPAPI) List(ctx context.Context) (*MCPServerList, error) {
 	return &result, nil
 }
 
-// ListTools lists the tools exposed by a connected MCP server on this session's host.
+// ListTools lists the tools exposed by a connected MCP server on this session's host. This
+// performs a live `tools/list` request. Tool UI metadata is returned independently of
+// whether MCP Apps rendering is enabled for the session.
 //
 // RPC method: session.mcp.listTools.
 //
@@ -19952,6 +20052,20 @@ type GitHubTelemetryHandler interface {
 	Event(request *GitHubTelemetryNotification) error
 }
 
+// Experimental: HooksHandler contains experimental APIs that may change or be removed.
+type HooksHandler interface {
+	// Invoke dispatches one SDK callback hook from the runtime to the connection that
+	// registered it. Internal transport plumbing: clients opt in through session initialization
+	// and the Rust hook processor owns ordering, policy, timeout, and callback routing.
+	//
+	// RPC method: hooks.invoke.
+	//
+	// Parameters: Runtime-owned wire payload for a server-to-client hook callback invocation.
+	//
+	// Returns: Optional output returned by an SDK callback hook.
+	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -19989,6 +20103,7 @@ type LlmInferenceHandler interface {
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry GitHubTelemetryHandler
+	Hooks           HooksHandler
 	LlmInference    LlmInferenceHandler
 }
 
@@ -20018,6 +20133,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, clientGlobalHandlerError(err)
 		}
 		return nil, nil
+	})
+	client.SetRequestHandler("hooks.invoke", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request HookInvokeRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Hooks == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
+		}
+		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest

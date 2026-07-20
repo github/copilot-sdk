@@ -209,6 +209,18 @@ async fn should_cancel_pending_mcp_oauth_request() {
 
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
 
+            // The MCP connection is kicked off by session.create, but the SDK only registers its
+            // `mcp.oauth_required` event interest once create returns. If the server's initial 401
+            // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+            // so `handler.request` is briefly `None` even after `needs-auth` is observed. A later
+            // auth retry (now that interest is registered) invokes the callback with the same
+            // `Initial` reason. Wait for the callback rather than sampling it the instant
+            // `needs-auth` first appears, which is what made this test flaky.
+            wait_for_condition("MCP OAuth request reaching the host callback", || async {
+                handler.request.lock().is_some()
+            })
+            .await;
+
             let request = handler
                 .request
                 .lock()

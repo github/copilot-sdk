@@ -232,7 +232,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var sessionId = session1.SessionId;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            Ctx.ResumeSessionAsync(Client, sessionId, new ResumeSessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             }));
@@ -251,7 +251,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
         using var newClient = Ctx.CreateClient();
-        var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(newClient, sessionId, new ResumeSessionConfig
         {
             ContinuePendingWork = true,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -287,7 +287,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
         using var newClient = Ctx.CreateClient();
-        await using var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        await using var session2 = await Ctx.ResumeSessionAsync(newClient, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnMcpAuthRequest = CancelMcpAuthAsync,
@@ -732,6 +732,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
+    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {
         var pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -922,6 +925,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Create_Session_With_Custom_Provider()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -947,6 +951,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Create_Session_With_Azure_Provider()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -976,6 +981,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Resume_Session_With_Custom_Provider()
     {
         var session = await CreateSessionAsync();

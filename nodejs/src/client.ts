@@ -830,6 +830,11 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        // `hooks.invoke` is a client-global RPC method whose payload carries a
+        // `sessionId`; route each invocation to the matching session's dispatcher.
+        handlers.hooks = {
+            invoke: async (params) => await this.handleHooksInvoke(params),
+        };
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -2794,15 +2799,6 @@ export class CopilotClient {
                 params: AutoModeSwitchRequest & { sessionId: string }
             ): Promise<{ response: AutoModeSwitchResponse }> =>
                 await this.handleAutoModeSwitchRequest(params)
-        );
-
-        this.connection.onRequest(
-            "hooks.invoke",
-            async (params: {
-                sessionId: string;
-                hookType: string;
-                input: unknown;
-            }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
         );
 
         this.connection.onRequest(

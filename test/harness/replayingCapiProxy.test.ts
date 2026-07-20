@@ -509,6 +509,47 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessages[1].content).toBe("[beta result]");
   });
 
+  test("collapses the available-tools list to a stable placeholder", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "report_intent", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content:
+            "Tool 'report_intent' does not exist. Available tools that can be called are bash, read_bash, view, read_agent, list_agents, write_agent, grep, glob, task.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    // The whole enumeration collapses so snapshots stay stable as the built-in
+    // tool set evolves (e.g. write_agent being added).
+    expect(toolMessage?.content).toBe(
+      "Tool 'report_intent' does not exist. Available tools that can be called are ${available_tools}.",
+    );
+  });
+
   test("normalizes read_agent timing metadata", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -812,6 +853,85 @@ Always include PINEAPPLE_COCONUT_42.
                 role: "tool",
                 tool_call_id: "runtime-call-id",
                 content: "ok\n<shellId: 42 completed with exit code 0>",
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches available-tools results after the built-in tool set changes", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      // Legacy snapshot recorded before write_agent was a built-in tool: the
+      // enumeration frozen on disk still contains the older tool list.
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Report intent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: { name: "report_intent", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                content:
+                  "Tool 'report_intent' does not exist. Available tools that can be called are ${shell}, view, read_agent, list_agents, grep, glob, task.",
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Report intent" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: { name: "report_intent", arguments: "{}" },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                // Newer runtime added write_agent to the built-in tool set.
+                content:
+                  "Tool 'report_intent' does not exist. Available tools that can be called are bash, read_bash, view, read_agent, list_agents, write_agent, grep, glob, task.",
               },
             ],
           },

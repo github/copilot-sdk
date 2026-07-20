@@ -28,19 +28,35 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }})"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
+      COPILOT_SDK_E2E_BACKEND: ${{ matrix.backend }}
+      DOTNET_TEST_FILTER: ${{ matrix.test-filter }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         transport: ["default", "inprocess"]
-        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows
+        backend: [capi]
+        # TODO: Re-enable after fixing in-process sqlite file locking on shutdown on Windows.
         exclude:
           - os: windows-latest
             transport: "inprocess"
+        include:
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: anthropic-messages
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-responses
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
+          - os: ubuntu-latest
+            transport: inprocess
+            backend: openai-completions
+            test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -92,4 +108,9 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: dotnet test --no-build -v n
+        run: |
+          args=(--no-build -v n)
+          if [[ -n "$DOTNET_TEST_FILTER" ]]; then
+            args+=(--filter "$DOTNET_TEST_FILTER")
+          fi
+          dotnet test "${args[@]}"

@@ -189,7 +189,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         {
             Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
-        await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(yoloClient, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -208,7 +208,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Round_Trip_Mcp_App_Host_Context()
     {
         await using var client = CreateMcpAppsClient();
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -253,7 +253,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             new Dictionary<string, string> { ["MCP_APP_RPC_VALUE"] = "from-app-rpc" };
 
         await using var client = CreateMcpAppsClient();
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             McpServers = mcpServers,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -292,7 +292,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         const string serverName = "rpc-apps-resource-server";
         await using var client = CreateMcpAppsClient();
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             McpServers = CreateTestMcpServers(serverName),
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -368,7 +368,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         {
             Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
-        await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(yoloClient, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

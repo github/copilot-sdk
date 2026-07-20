@@ -20,6 +20,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
     : E2ETestBase(fixture, "rpc_session_state_extras", output)
 {
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_List_Models_For_Session()
     {
         // model.list resolves models through the session's own auth context, which requires the
@@ -29,7 +30,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
         const string token = "rpc-session-model-list-token";
         await ConfigureAuthenticatedUserAsync(token);
         await using var client = CreateAuthenticatedClient(token);
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             Model = "claude-sonnet-4.5",
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -44,6 +45,7 @@ public class RpcSessionStateExtrasE2ETests(E2ETestFixture fixture, ITestOutputHe
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Add_Byok_Provider_And_Model_At_Runtime()
     {
         await using var session = await CreateSessionAsync();

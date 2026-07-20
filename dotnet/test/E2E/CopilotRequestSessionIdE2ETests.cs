@@ -28,13 +28,14 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
         });
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Threads_The_Session_Id_Into_A_Capi_Session_Inference_Request()
     {
         var provider = new RecordingRequestHandler();
         await using var client = CreateClientWith(provider);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -64,13 +65,14 @@ public class CopilotRequestSessionIdE2ETests(E2ETestFixture fixture, ITestOutput
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Threads_The_Session_Id_Into_A_Byok_Session_Inference_Request()
     {
         var provider = new RecordingRequestHandler();
         await using var client = CreateClientWith(provider);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             // BYOK providers require an explicit model id.

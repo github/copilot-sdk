@@ -76,7 +76,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     {
         config ??= new SessionConfig();
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
-        return Client.CreateSessionAsync(config);
+        return Ctx.CreateSessionAsync(Client, config);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         {
             Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
         });
-        return await client.ResumeSessionAsync(sessionId, config);
+        return await Ctx.ResumeSessionAsync(client, sessionId, config);
     }
 
     protected static string GetSystemMessage(ParsedHttpExchange exchange)

@@ -22,6 +22,9 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
+    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Disabled_Then_Enabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
@@ -62,6 +65,9 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages history diverged after disabling vision via SetModel. Verify
+    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Enabled_Then_Disabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
@@ -121,6 +127,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Apply_ReasoningEffort_On_Session_Create()
     {
         const string reasoningModelId = "custom-reasoning-model";
@@ -140,6 +147,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Theory]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     [InlineData("low")]
     [InlineData("medium")]
     [InlineData("high")]
@@ -162,6 +170,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Apply_ReasoningEffort_On_Session_Resume()
     {
         var originalSession = await CreateSessionAsync();
@@ -182,6 +191,9 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): The Anthropic user-agent omitted ClientName and contained only its provider SDK
+    // identifier. Determine the expected propagation for custom providers before keeping this CAPI-only.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Forward_ClientName_In_UserAgent()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -198,6 +210,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Custom_Provider_Headers_On_Create()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -217,6 +230,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Custom_Provider_Headers_On_Resume()
     {
         var session1 = await CreateSessionAsync();
@@ -239,6 +253,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Provider_Wire_Model()
     {
         // Verifies that ProviderConfig.WireModel overrides the model name sent to
@@ -270,6 +285,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Use_Provider_Model_Id_As_Wire_Model()
     {
         // ProviderConfig.ModelId drives both the runtime resolved model AND the wire model
@@ -564,13 +580,14 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Enable_Citations_For_Anthropic_File_Attachments_On_Create()
     {
         var handler = new RecordingRequestHandler();
         await using var client = CreateClientWithRequestHandler(handler);
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Model = "claude-sonnet-4.5",
@@ -595,6 +612,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Enable_Citations_For_Anthropic_File_Attachments_On_Resume()
     {
         const string connectionToken = "citation-resume-token";
@@ -604,7 +622,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             RuntimeConnection.ForTcp(connectionToken: connectionToken));
         await client.StartAsync();
 
-        var session1 = await client.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -616,7 +634,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: connectionToken),
         });
 
-        var session2 = await resumeClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(resumeClient, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Model = "claude-sonnet-4.5",
@@ -642,6 +660,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Create_Session_With_Custom_Provider_Config()
     {
         // Per the TS test (session_config.e2e.test.ts), this only verifies that a
@@ -669,6 +688,9 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
+    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {
         // Write the image to disk so the model can view it if it tries
