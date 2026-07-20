@@ -2834,6 +2834,64 @@ public struct SetModelOptions
 }
 
 /// <summary>
+/// A single configuration entry in a <see cref="CopilotExpAssignmentResponse"/>.
+/// Each entry carries an identifier and a bag of typed parameter values.
+/// </summary>
+public sealed class ExpConfigEntry
+{
+    /// <summary>Identifier of the configuration entry.</summary>
+    [JsonPropertyName("Id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Parameter values keyed by parameter name. Each value is a scalar string,
+    /// number, boolean, or <c>null</c>.
+    /// </summary>
+    [JsonPropertyName("Parameters")]
+    public IDictionary<string, JsonValue?> Parameters { get; set; } = new Dictionary<string, JsonValue?>();
+}
+
+/// <summary>
+/// ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+/// fetches from the experimentation service. Property names serialize as
+/// PascalCase (<c>Features</c>, <c>Flights</c>, ...) to match the on-the-wire
+/// contract consumed by the runtime.
+/// </summary>
+public sealed class CopilotExpAssignmentResponse
+{
+    /// <summary>Enabled feature names.</summary>
+    [JsonPropertyName("Features")]
+    public IList<string> Features { get; set; } = new List<string>();
+
+    /// <summary>Assigned flights keyed by flight name.</summary>
+    [JsonPropertyName("Flights")]
+    public IDictionary<string, string> Flights { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>Configuration entries carrying typed parameter values.</summary>
+    [JsonPropertyName("Configs")]
+    public IList<ExpConfigEntry> Configs { get; set; } = new List<ExpConfigEntry>();
+
+    /// <summary>Opaque parameter-group payload passed through untouched. Optional.</summary>
+    [JsonPropertyName("ParameterGroups")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? ParameterGroups { get; set; }
+
+    /// <summary>Version of the flighting configuration. Optional.</summary>
+    [JsonPropertyName("FlightingVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? FlightingVersion { get; set; }
+
+    /// <summary>Impression identifier for the assignment. Optional.</summary>
+    [JsonPropertyName("ImpressionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImpressionId { get; set; }
+
+    /// <summary>Assignment context string forwarded to CAPI and telemetry.</summary>
+    [JsonPropertyName("AssignmentContext")]
+    public string AssignmentContext { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -3339,7 +3397,7 @@ public abstract class SessionConfigBase
     /// completion. It is not part of the broadly advertised public surface.
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public JsonElement? ExpAssignments { get; set; }
+    public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
@@ -4041,6 +4099,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(AutoModeSwitchRequest))]
 [JsonSerializable(typeof(AutoModeSwitchResponse))]
 [JsonSerializable(typeof(CustomAgentConfig))]
+[JsonSerializable(typeof(CopilotExpAssignmentResponse))]
+[JsonSerializable(typeof(ExpConfigEntry))]
 [JsonSerializable(typeof(ExitPlanModeRequest))]
 [JsonSerializable(typeof(ExitPlanModeResult))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]

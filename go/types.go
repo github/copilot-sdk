@@ -1030,6 +1030,73 @@ type SessionFSConfig struct {
 	Capabilities *SessionFSCapabilities
 }
 
+// ExpFlagValue is a single ExP (Experiment Platform) flag value. ExP
+// assignments resolve to a string, number (float64/int), bool, or nil.
+type ExpFlagValue any
+
+// ExpConfigEntry is a single configuration entry in a
+// [CopilotExpAssignmentResponse]. Each entry carries an identifier and a bag of
+// typed parameter values.
+type ExpConfigEntry struct {
+	// ID identifies the configuration entry. Serialized on the wire as "Id".
+	ID string `json:"Id"`
+	// Parameters holds parameter values keyed by parameter name.
+	Parameters map[string]ExpFlagValue `json:"Parameters"`
+}
+
+// CopilotExpAssignmentResponse is ExP ("flight") assignment data, in the same
+// JSON shape the Copilot CLI fetches from the experimentation service. Field
+// names are PascalCase to match the on-the-wire contract consumed by the
+// runtime.
+type CopilotExpAssignmentResponse struct {
+	// Features lists the enabled feature names.
+	Features []string `json:"Features"`
+	// Flights holds the assigned flights keyed by flight name.
+	Flights map[string]string `json:"Flights"`
+	// Configs holds configuration entries carrying typed parameter values.
+	Configs []ExpConfigEntry `json:"Configs"`
+	// ParameterGroups is an opaque parameter-group payload passed through
+	// untouched. Optional.
+	ParameterGroups any `json:"ParameterGroups,omitempty"`
+	// FlightingVersion is the version of the flighting configuration. Optional.
+	FlightingVersion *int `json:"FlightingVersion,omitempty"`
+	// ImpressionID is the impression identifier for the assignment. Optional.
+	// Serialized on the wire as "ImpressionId".
+	ImpressionID *string `json:"ImpressionId,omitempty"`
+	// AssignmentContext is the assignment context string forwarded to CAPI and
+	// telemetry.
+	AssignmentContext string `json:"AssignmentContext"`
+}
+
+// MarshalJSON normalizes the required collection fields so a zero-value
+// response serializes them as JSON arrays/objects rather than null, which the
+// runtime can otherwise treat as a malformed assignment payload and drop.
+func (r CopilotExpAssignmentResponse) MarshalJSON() ([]byte, error) {
+	type wire CopilotExpAssignmentResponse
+	w := wire(r)
+	if w.Features == nil {
+		w.Features = []string{}
+	}
+	if w.Flights == nil {
+		w.Flights = map[string]string{}
+	}
+	if w.Configs == nil {
+		w.Configs = []ExpConfigEntry{}
+	}
+	return json.Marshal(w)
+}
+
+// MarshalJSON normalizes the required Parameters map so an entry serializes it
+// as a JSON object rather than null.
+func (e ExpConfigEntry) MarshalJSON() ([]byte, error) {
+	type wire ExpConfigEntry
+	w := wire(e)
+	if w.Parameters == nil {
+		w.Parameters = map[string]ExpFlagValue{}
+	}
+	return json.Marshal(w)
+}
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -1316,7 +1383,7 @@ type SessionConfig struct {
 	// Internal: ExpAssignments is part of the SDK's internal API surface,
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
-	ExpAssignments any
+	ExpAssignments *CopilotExpAssignmentResponse
 	// EnableManagedSettings, when set to true, opts the runtime into
 	// self-fetching enterprise managed settings (bypass-permissions policy) at
 	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
@@ -1765,7 +1832,7 @@ type ResumeSessionConfig struct {
 	// Internal: ExpAssignments is part of the SDK's internal API surface,
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
-	ExpAssignments any
+	ExpAssignments *CopilotExpAssignmentResponse
 	// EnableManagedSettings injects the same opt-in flag on resume. See
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
@@ -2225,7 +2292,7 @@ type createSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
-	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -2317,7 +2384,7 @@ type resumeSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
-	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`

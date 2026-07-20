@@ -21,9 +21,7 @@ on:
         required: false
 
 permissions:
-  contents: write
-  id-token: write # Required for OIDC
-  actions: write # Required to trigger changelog workflow
+  contents: read
 
 concurrency:
   group: publish
@@ -78,11 +76,21 @@ jobs:
             echo "Auto-incremented version: $VERSION" >> $GITHUB_STEP_SUMMARY
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Verify version is available on public npm
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          node scripts/npm-release.js preflight \
+            @github/copilot-sdk \
+            "$VERSION" \
+            https://registry.npmjs.org
 
-  publish-nodejs:
-    name: Publish Node.js SDK
+  package-nodejs:
+    name: Package Node.js SDK
     needs: version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./nodejs
@@ -91,8 +99,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22.x"
-      - name: Update npm for OIDC support
-        run: npm i -g "npm@11.6.3"
       - run: npm ci --ignore-scripts
       - name: Set version
         run: node scripts/set-version.js
@@ -101,21 +107,126 @@ jobs:
       - name: Build
         run: npm run build
       - name: Pack
-        run: npm pack
+        id: pack
+        run: |
+          TARBALL="$(npm pack . --json | jq -r '.[0].filename')"
+          if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
+            echo "::error::npm pack did not produce a tarball."
+            exit 1
+          fi
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.0
         with:
           name: nodejs-package
-          path: nodejs/*.tgz
-      - name: Publish to npm
-        if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
-        run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
+          path: nodejs/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+
+  publish-nodejs:
+    name: Publish Node.js SDK
+    needs: package-nodejs
+    if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+      - name: Update npm for OIDC support
+        run: npm i -g "npm@11.6.3"
+      - name: Download Node.js package
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: nodejs-package
+          path: ./dist
+      - name: Publish tarball to public npm
+        env:
+          DIST_TAG: ${{ github.event.inputs.dist-tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          TARBALLS=(./dist/*.tgz)
+          if [ "${#TARBALLS[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one Node.js package tarball, found ${#TARBALLS[@]}."
+            exit 1
+          fi
+          node nodejs/scripts/npm-release.js publish \
+            "${TARBALLS[0]}" \
+            "$DIST_TAG" \
+            https://registry.npmjs.org \
+            public
+
+  publish-nodejs-internal:
+    name: Publish Node.js SDK to internal feed
+    needs: publish-nodejs
+    environment: cicd
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      ADO_RESOURCE: 499b84ac-1321-427f-aa17-267ca6975798
+      FEED_URL: https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+      - name: Download Node.js package
+        uses: actions/download-artifact@v8.0.0
+        with:
+          name: nodejs-package
+          path: ./dist
+      - name: Azure Login (OIDC -> id-cpd-ci)
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: "${{ vars.CPD_ID_CLIENT_ID }}" # id-cpd-ci
+          tenant-id: "${{ vars.CPD_ID_TENANT_ID }}"
+          allow-no-subscriptions: true
+      - name: Configure feed auth
+        run: |
+          set -euo pipefail
+          TOKEN="$(az account get-access-token --resource "$ADO_RESOURCE" --query accessToken -o tsv)"
+          echo "::add-mask::$TOKEN"
+          FEED_AUTH_REGISTRY="${FEED_URL#https:}"
+          FEED_AUTH_BASE="${FEED_AUTH_REGISTRY%registry/}"
+          printf '%s\n' \
+            "${FEED_AUTH_REGISTRY}:_authToken=${TOKEN}" \
+            "${FEED_AUTH_BASE}:_authToken=${TOKEN}" > "$HOME/.npmrc"
+      - name: Publish tarball to internal feed
+        env:
+          DIST_TAG: ${{ github.event.inputs.dist-tag }}
+        run: |
+          set -euo pipefail
+          if [ "$FEED_URL" != "https://pkgs.dev.azure.com/devdiv/_packaging/copilot-canary/npm/registry/" ]; then
+            echo "::error::FEED_URL ('$FEED_URL') is not the expected internal feed. Refusing to publish."
+            exit 1
+          fi
+          shopt -s nullglob
+          TARBALLS=(./dist/*.tgz)
+          if [ "${#TARBALLS[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one Node.js package tarball, found ${#TARBALLS[@]}."
+            exit 1
+          fi
+          node nodejs/scripts/npm-release.js publish \
+            "${TARBALLS[0]}" \
+            "$DIST_TAG" \
+            "$FEED_URL" \
+            azure
 
   publish-dotnet:
     name: Publish .NET SDK
     if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: ./dotnet
@@ -200,6 +311,9 @@ jobs:
     if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: ./python
@@ -237,6 +351,9 @@ jobs:
     name: Publish Java SDK
     if: github.event.inputs.dist-tag != 'unstable' && github.ref == 'refs/heads/main'
     needs: version
+    permissions:
+      contents: write
+      id-token: write
     uses: ./.github/workflows/java-publish-maven.yml
     with:
       releaseVersion: ${{ needs.version.outputs.version }}
@@ -245,7 +362,15 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [version, publish-nodejs, publish-dotnet, publish-python, publish-rust, publish-java]
+    needs:
+      [
+        version,
+        publish-nodejs,
+        publish-dotnet,
+        publish-python,
+        publish-rust,
+        publish-java,
+      ]
     if: |
       always() &&
       github.ref == 'refs/heads/main' &&
@@ -256,6 +381,9 @@ jobs:
       needs.publish-python.result == 'success' &&
       needs.publish-rust.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Create GitHub Release

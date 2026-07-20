@@ -26,7 +26,7 @@ import threading
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
@@ -143,6 +143,71 @@ class CloudSessionOptions:
     """Options for creating a remote session in the cloud."""
 
     repository: CloudSessionRepository | None = None
+
+
+ExpFlagValue = str | int | float | bool | None
+"""A single ExP (Experiment Platform) flag value.
+
+ExP assignments resolve to a string, number, boolean, or ``None``.
+"""
+
+
+@dataclass
+class ExpConfigEntry:
+    """A single configuration entry in a :class:`CopilotExpAssignmentResponse`.
+
+    Each entry carries an identifier and a bag of typed parameter values.
+    """
+
+    id: str
+    """Identifier of the configuration entry."""
+    parameters: dict[str, ExpFlagValue] = field(default_factory=dict)
+    """Parameter values keyed by parameter name."""
+
+
+@dataclass
+class CopilotExpAssignmentResponse:
+    """ExP ("flight") assignment data.
+
+    Uses the same JSON shape the Copilot CLI fetches from the experimentation
+    service. Serialized on the wire with PascalCase keys to match the contract
+    consumed by the runtime.
+    """
+
+    features: list[str] = field(default_factory=list)
+    """Enabled feature names."""
+    flights: dict[str, str] = field(default_factory=dict)
+    """Assigned flights keyed by flight name."""
+    configs: list[ExpConfigEntry] = field(default_factory=list)
+    """Configuration entries carrying typed parameter values."""
+    assignment_context: str = ""
+    """Assignment context string forwarded to CAPI and telemetry."""
+    parameter_groups: Any | None = None
+    """Opaque parameter-group payload passed through untouched. Optional."""
+    flighting_version: int | None = None
+    """Version of the flighting configuration. Optional."""
+    impression_id: str | None = None
+    """Impression identifier for the assignment. Optional."""
+
+
+def _exp_assignment_response_to_dict(
+    response: CopilotExpAssignmentResponse,
+) -> dict[str, Any]:
+    wire: dict[str, Any] = {
+        "Features": list(response.features),
+        "Flights": dict(response.flights),
+        "Configs": [
+            {"Id": entry.id, "Parameters": dict(entry.parameters)} for entry in response.configs
+        ],
+        "AssignmentContext": response.assignment_context,
+    }
+    if response.parameter_groups is not None:
+        wire["ParameterGroups"] = response.parameter_groups
+    if response.flighting_version is not None:
+        wire["FlightingVersion"] = response.flighting_version
+    if response.impression_id is not None:
+        wire["ImpressionId"] = response.impression_id
+    return wire
 
 
 class CapiSessionOptions(TypedDict, total=False):
@@ -2000,7 +2065,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
@@ -2272,9 +2337,9 @@ class CopilotClient:
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
@@ -2673,7 +2738,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
@@ -2969,9 +3034,9 @@ class CopilotClient:
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:

@@ -1862,6 +1862,45 @@ export interface CapiSessionOptions {
 }
 
 /**
+ * A single ExP (Experiment Platform) flag value. ExP assignments resolve to a
+ * string, number, boolean, or `null`.
+ */
+export type ExpFlagValue = string | number | boolean | null;
+
+/**
+ * A single configuration entry in a {@link CopilotExpAssignmentResponse}. Each
+ * entry carries an identifier and a bag of typed parameter values.
+ */
+export interface ExpConfigEntry {
+    /** Identifier of the configuration entry. */
+    Id: string;
+    /** Parameter values keyed by parameter name. */
+    Parameters: Record<string, ExpFlagValue>;
+}
+
+/**
+ * ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+ * fetches from the experimentation service. Field names are PascalCase to match
+ * the on-the-wire contract consumed by the runtime.
+ */
+export interface CopilotExpAssignmentResponse {
+    /** Enabled feature names. */
+    Features: string[];
+    /** Assigned flights keyed by flight name. */
+    Flights: Record<string, string>;
+    /** Configuration entries carrying typed parameter values. */
+    Configs: ExpConfigEntry[];
+    /** Opaque parameter-group payload passed through untouched. */
+    ParameterGroups?: unknown;
+    /** Version of the flighting configuration. */
+    FlightingVersion?: number;
+    /** Impression identifier for the assignment. */
+    ImpressionId?: string;
+    /** Assignment context string forwarded to CAPI and telemetry. */
+    AssignmentContext: string;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -2428,7 +2467,7 @@ export interface SessionConfigBase {
      *
      * @internal
      */
-    expAssignments?: Record<string, unknown>;
+    expAssignments?: CopilotExpAssignmentResponse;
 }
 
 /**
