@@ -66,7 +66,7 @@ asyncio.run(main())
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
-const FOUNDRY_MODEL_URL = "https://your-resource.openai.azure.com/openai/v1/";
+const FOUNDRY_MODEL_URL = "https://<resource-name>.openai.azure.com/openai/v1/";
 
 const client = new CopilotClient();
 const session = await client.createSession({
