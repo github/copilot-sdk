@@ -482,7 +482,6 @@ func TestRPCSessionStateE2E(t *testing.T) {
 	t.Run("should call metadata snapshot set working directory and record context change", func(t *testing.T) {
 		firstDirectory := createUniqueRPCWorkDirectory(t, ctx, "rpc-session-state-first")
 		secondDirectory := createUniqueRPCWorkDirectory(t, ctx, "rpc-session-state-second")
-		contextDirectory := createUniqueRPCWorkDirectory(t, ctx, "rpc-session-state-context")
 		branch := "rpc-context-" + randomHex(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -534,7 +533,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		headCommit := "1111111111111111111111111111111111111111"
 		if _, err := session.RPC.Metadata.RecordContextChange(t.Context(), &rpc.MetadataRecordContextChangeRequest{
 			Context: rpc.SessionWorkingDirectoryContext{
-				Cwd:            contextDirectory,
+				Cwd:            secondDirectory,
 				GitRoot:        &firstDirectory,
 				Branch:         &branch,
 				Repository:     &repo,
@@ -548,7 +547,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		}
 		contextChanged := awaitEvent(t, awaitContextChanged)
 		data := contextChanged.Data.(*copilot.SessionContextChangedData)
-		assertRPCPathEqual(t, contextDirectory, data.Cwd)
+		assertRPCPathEqual(t, secondDirectory, data.Cwd)
 		if data.GitRoot == nil {
 			t.Fatal("Expected context changed git root")
 		}

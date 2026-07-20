@@ -552,7 +552,11 @@ class TestSessions:
         assert len(abort_events) > 0, "Expected an abort event in messages"
 
         # We should be able to send another message
-        answer = await session.send_and_wait("What is 2+2?")
+        wait_for_answer = asyncio.create_task(
+            get_next_event_of_type(session, "assistant.message", timeout=60.0)
+        )
+        await session.send("What is 2+2?")
+        answer = await wait_for_answer
         assert "4" in answer.data.content
 
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
