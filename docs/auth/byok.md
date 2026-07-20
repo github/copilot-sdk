@@ -334,7 +334,7 @@ Use `bearerToken` when your application already has a token:
 ```typescript
 provider: {
     type: "openai",
-    baseUrl: "https://my-custom-endpoint.example.com/v1",
+    baseUrl: "https://<resource-name>.openai.azure.com/openai/v1/",
     bearerToken: process.env.MY_BEARER_TOKEN,  // Sets Authorization header
 }
 ```
