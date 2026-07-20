@@ -26,7 +26,7 @@ import os
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
 
-FOUNDRY_MODEL_URL = "https://your-resource.openai.azure.com/openai/v1/"
+FOUNDRY_MODEL_URL = "https://<resource-name>.openai.azure.com/openai/v1/"
 # Set FOUNDRY_API_KEY environment variable
 
 async def main():
@@ -114,7 +114,7 @@ func main() {
         Model: "gpt-5.2-codex",  // Your deployment name
         Provider: &copilot.ProviderConfig{
             Type:    "openai",
-            BaseURL: "https://your-resource.openai.azure.com/openai/v1/",
+            BaseURL: "https://<resource-name>.openai.azure.com/openai/v1/",
             WireAPI: "responses",  // Use "completions" for older models
             APIKey:  os.Getenv("FOUNDRY_API_KEY"),
         },
@@ -151,7 +151,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     Provider = new ProviderConfig
     {
         Type = "openai",
-        BaseUrl = "https://your-resource.openai.azure.com/openai/v1/",
+        BaseUrl = "https://<resource-name>.openai.azure.com/openai/v1/",
         WireApi = "responses",  // Use "completions" for older models
         ApiKey = Environment.GetEnvironmentVariable("FOUNDRY_API_KEY"),
     },
@@ -181,7 +181,7 @@ var session = client.createSession(new SessionConfig()
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     .setProvider(new ProviderConfig()
         .setType("openai")
-        .setBaseUrl("https://your-resource.openai.azure.com/openai/v1/")
+        .setBaseUrl("https://<resource-name>.openai.azure.com/openai/v1/")
         .setWireApi("responses")  // Use "completions" for older models
         .setApiKey(System.getenv("FOUNDRY_API_KEY")))
 ).get();
@@ -267,7 +267,7 @@ For Azure AI Foundry deployments with `/openai/v1/` endpoints, use `type: "opena
 ```typescript
 provider: {
     type: "openai",
-    baseUrl: "https://your-resource.openai.azure.com/openai/v1/",
+    baseUrl: "https://<resource-name>.openai.azure.com/openai/v1/",
     apiKey: process.env.FOUNDRY_API_KEY,
     wireApi: "responses",  // For GPT-5 series models
 }
