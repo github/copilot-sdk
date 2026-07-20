@@ -667,6 +667,212 @@ describe("factories", () => {
         ).toHaveLength(2);
     });
 
+    it.each([
+        ["undefined", () => undefined],
+        ["NaN", () => Number.NaN],
+        ["Infinity", () => Number.POSITIVE_INFINITY],
+        ["function", () => () => undefined],
+        ["symbol", () => Symbol("invalid")],
+        ["BigInt", () => 1n],
+        [
+            "cycle",
+            () => {
+                const value: Record<string, unknown> = {};
+                value.self = value;
+                return value;
+            },
+        ],
+        ["non-plain object", () => new Date()],
+        [
+            "accessor property",
+            () => Object.defineProperty({}, "value", { enumerable: true, get: () => "hidden" }),
+        ],
+        [
+            "non-enumerable property",
+            () => Object.defineProperty({}, "value", { enumerable: false, value: "hidden" }),
+        ],
+        ["array hole", () => new Array(1)],
+        [
+            "array accessor",
+            () => Object.defineProperty([], "0", { enumerable: true, get: () => "hidden" }),
+        ],
+        ["array extra key", () => Object.assign([1], { extra: "dropped" })],
+    ])("rejects a journaled step %s result", async (_label, makeValue) => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.journal.get") {
+                return { hit: false };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-invalid-step", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "invalid-step",
+                description: "Rejects lossy step values",
+                phases: [],
+            },
+            run: async ({ step }) => {
+                await step("invalid", async () => makeValue() as never);
+                return "must-not-complete";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "invalid-step",
+                runId: "run-invalid-step",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            data: {
+                code: "factory_step_not_json",
+            },
+        });
+        expect(
+            sendRequest.mock.calls.filter(([method]) => method === "session.factory.journal.put")
+        ).toHaveLength(0);
+    });
+
+    it("validates a journaled step cache hit before replay", async () => {
+        const cached = Object.assign([1], { extra: "dropped" });
+        const producer = vi.fn(async () => "must-not-run");
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.journal.get") {
+                return { hit: true, resultJson: cached };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-invalid-step-cache", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "invalid-step-cache",
+                description: "Rejects invalid cached values",
+                phases: [],
+            },
+            run: async ({ step }) => step("cached", producer),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "invalid-step-cache",
+                runId: "run-invalid-step-cache",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            data: {
+                code: "factory_step_not_json",
+                category: "unsupported_object",
+            },
+        });
+        expect(producer).not.toHaveBeenCalled();
+    });
+
+    it("replays a journaled step value identically on resume", async () => {
+        const journal = new Map<string, unknown>();
+        const sendRequest = vi.fn(
+            async (method: string, params: { key?: string; resultJson?: unknown }) => {
+                if (method === "session.factory.journal.get") {
+                    return journal.has(params.key!)
+                        ? { hit: true, resultJson: journal.get(params.key!) }
+                        : { hit: false };
+                }
+                if (method === "session.factory.journal.put") {
+                    journal.set(params.key!, params.resultJson);
+                    return {};
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+        const producer = vi.fn(async () => ({ nested: [1, null, "same"] }));
+        const session = new CopilotSession("session-step-replay", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "step-replay",
+                description: "Replays strict JSON",
+                phases: [],
+            },
+            run: async ({ step }) => step("same", producer),
+        });
+        session.registerFactories([factory]);
+
+        const first = await session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "step-replay",
+            runId: "run-step-replay",
+            args: {},
+        });
+        const replay = await session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "step-replay",
+            runId: "run-step-replay",
+            args: {},
+        });
+
+        expect(replay).toEqual(first);
+        expect(producer).toHaveBeenCalledOnce();
+    });
+
+    it("bypasses validation and journaling for a volatile step", async () => {
+        const sendRequest = vi.fn();
+        const session = new CopilotSession("session-volatile-step", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "volatile-step",
+                description: "Allows author-opted-out volatile values",
+                phases: [],
+            },
+            run: async ({ step }) => {
+                const value = await step("volatile", async () => (() => "not JSON") as never, {
+                    volatile: true,
+                });
+                expect(typeof value).toBe("function");
+                return "completed";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "volatile-step",
+                runId: "run-volatile-step",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "completed" });
+        expect(sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("rejects a factory result array with an extra own key", async () => {
+        const factory = defineFactory({
+            meta: {
+                name: "array-extra-result",
+                description: "Rejects lossy array keys",
+                phases: [],
+            },
+            run: async () => Object.assign([1], { extra: 1n }) as never,
+        });
+        const session = new CopilotSession("session-array-extra-result", {} as never);
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "array-extra-result",
+                runId: "run-array-extra-result",
+                args: {},
+            })
+        ).rejects.toMatchObject({
+            data: {
+                code: "factory_result_not_json",
+                category: "unsupported_object",
+            },
+        });
+    });
+
     it("exposes factory getRun and forwards the run id", async () => {
         const envelope = { runId: "run-read", status: "error", error: "failed" };
         const sendRequest = vi.fn(async () => envelope);

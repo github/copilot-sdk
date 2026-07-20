@@ -1252,18 +1252,14 @@ export class CopilotSession {
                                         `step("${key}") journal returned a hit without a result`
                                     );
                                 }
+                                assertFactoryStepResult(cached.resultJson, key);
                                 return cached.resultJson;
                             }
 
                             // Producers are best-effort at-least-once across crashes or
                             // concurrent callers, so authors must make side effects idempotent.
                             const result = await producer();
-                            const resultJson = JSON.stringify(result);
-                            if (resultJson === undefined) {
-                                throw new Error(
-                                    `step("${key}") returned a value that is not JSON-serializable`
-                                );
-                            }
+                            assertFactoryStepResult(result, key);
                             await awaitFactoryOperation(
                                 self.rpc.factory.journal.put({
                                     runId: params.runId,
@@ -1891,19 +1887,29 @@ type FactoryResultValidationCategory =
     | "nested_undefined"
     | "unsupported_object";
 
-function factoryResultValidationError(
+interface StrictJsonValidationContext {
+    code: "factory_result_not_json" | "factory_step_not_json";
+    label: string;
+    allowTopLevelUndefined: boolean;
+}
+
+function strictJsonValidationError(
+    context: StrictJsonValidationContext,
     category: FactoryResultValidationCategory,
     message: string,
     path: string
 ): ResponseError<{ code: string; category: FactoryResultValidationCategory; path: string }> {
     return new ResponseError(ErrorCodes.InternalError, message, {
-        code: "factory_result_not_json",
+        code: context.code,
         category,
         path,
     });
 }
 
-function assertFactoryResult(value: unknown): asserts value is JsonValue {
+function assertStrictJson(
+    value: unknown,
+    context: StrictJsonValidationContext
+): asserts value is JsonValue | undefined {
     const ancestors = new Set<object>();
 
     const visit = (current: unknown, path: string, allowUndefined: boolean): void => {
@@ -1911,9 +1917,10 @@ function assertFactoryResult(value: unknown): asserts value is JsonValue {
             if (allowUndefined) {
                 return;
             }
-            throw factoryResultValidationError(
+            throw strictJsonValidationError(
+                context,
                 "nested_undefined",
-                `Factory result contains nested undefined at ${path}`,
+                `${context.label} contains nested undefined at ${path}`,
                 path
             );
         }
@@ -1922,9 +1929,10 @@ function assertFactoryResult(value: unknown): asserts value is JsonValue {
         }
         if (typeof current === "number") {
             if (!Number.isFinite(current)) {
-                throw factoryResultValidationError(
+                throw strictJsonValidationError(
+                    context,
                     "non_finite_number",
-                    `Factory result contains a non-finite number at ${path}`,
+                    `${context.label} contains a non-finite number at ${path}`,
                     path
                 );
             }
@@ -1935,23 +1943,26 @@ function assertFactoryResult(value: unknown): asserts value is JsonValue {
             typeof current === "symbol" ||
             typeof current === "bigint"
         ) {
-            throw factoryResultValidationError(
+            throw strictJsonValidationError(
+                context,
                 "unsupported_type",
-                `Factory result contains a function, symbol, or BigInt at ${path}`,
+                `${context.label} contains a function, symbol, or BigInt at ${path}`,
                 path
             );
         }
         if (typeof current !== "object") {
-            throw factoryResultValidationError(
+            throw strictJsonValidationError(
+                context,
                 "unsupported_type",
-                `Factory result contains a function, symbol, or BigInt at ${path}`,
+                `${context.label} contains a function, symbol, or BigInt at ${path}`,
                 path
             );
         }
         if (ancestors.has(current)) {
-            throw factoryResultValidationError(
+            throw strictJsonValidationError(
+                context,
                 "cyclic_value",
-                `Factory result contains a cyclic reference at ${path}`,
+                `${context.label} contains a cyclic reference at ${path}`,
                 path
             );
         }
@@ -1959,37 +1970,99 @@ function assertFactoryResult(value: unknown): asserts value is JsonValue {
         ancestors.add(current);
         try {
             if (Array.isArray(current)) {
+                const keys = Reflect.ownKeys(current);
+                if (
+                    keys.length !== current.length + 1 ||
+                    keys.some(
+                        (key) =>
+                            key !== "length" &&
+                            (typeof key !== "string" ||
+                                !/^(0|[1-9]\d*)$/.test(key) ||
+                                Number(key) >= current.length)
+                    )
+                ) {
+                    throw strictJsonValidationError(
+                        context,
+                        "unsupported_object",
+                        `${context.label} contains a non-JSON array property at ${path}`,
+                        path
+                    );
+                }
                 for (let index = 0; index < current.length; index++) {
-                    visit(current[index], `${path}[${index}]`, false);
+                    const descriptor = Object.getOwnPropertyDescriptor(current, String(index));
+                    if (
+                        descriptor === undefined ||
+                        !descriptor.enumerable ||
+                        !("value" in descriptor)
+                    ) {
+                        throw strictJsonValidationError(
+                            context,
+                            "unsupported_object",
+                            `${context.label} contains a non-JSON array property at ${path}[${index}]`,
+                            `${path}[${index}]`
+                        );
+                    }
+                    visit(descriptor.value, `${path}[${index}]`, false);
                 }
                 return;
             }
 
             const prototype = Object.getPrototypeOf(current);
             if (prototype !== Object.prototype && prototype !== null) {
-                throw factoryResultValidationError(
+                throw strictJsonValidationError(
+                    context,
                     "unsupported_object",
-                    `Factory result contains a non-JSON object at ${path}`,
+                    `${context.label} contains a non-JSON object at ${path}`,
                     path
                 );
             }
             for (const key of Reflect.ownKeys(current)) {
                 if (typeof key === "symbol") {
-                    throw factoryResultValidationError(
+                    throw strictJsonValidationError(
+                        context,
                         "unsupported_type",
-                        `Factory result contains a function, symbol, or BigInt at ${path}`,
+                        `${context.label} contains a function, symbol, or BigInt at ${path}`,
                         path
                     );
                 }
                 const propertyPath = /^[A-Za-z_$][\w$]*$/.test(key)
                     ? `${path}.${key}`
                     : `${path}[${JSON.stringify(key)}]`;
-                visit((current as Record<string, unknown>)[key], propertyPath, false);
+                const descriptor = Object.getOwnPropertyDescriptor(current, key);
+                if (
+                    descriptor === undefined ||
+                    !descriptor.enumerable ||
+                    !("value" in descriptor)
+                ) {
+                    throw strictJsonValidationError(
+                        context,
+                        "unsupported_object",
+                        `${context.label} contains a non-JSON property at ${propertyPath}`,
+                        propertyPath
+                    );
+                }
+                visit(descriptor.value, propertyPath, false);
             }
         } finally {
             ancestors.delete(current);
         }
     };
 
-    visit(value, "$", false);
+    visit(value, "$", context.allowTopLevelUndefined);
+}
+
+function assertFactoryResult(value: unknown): asserts value is JsonValue | undefined {
+    assertStrictJson(value, {
+        code: "factory_result_not_json",
+        label: "Factory result",
+        allowTopLevelUndefined: true,
+    });
+}
+
+function assertFactoryStepResult(value: unknown, key: string): asserts value is JsonValue {
+    assertStrictJson(value, {
+        code: "factory_step_not_json",
+        label: `Factory step "${key}" result`,
+        allowTopLevelUndefined: false,
+    });
 }
