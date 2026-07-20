@@ -4894,6 +4894,10 @@ export interface FactoryAgentRequest {
    */
   factoryRunId: string;
   /**
+   * Opaque token identifying the current factory execution attempt.
+   */
+  executionToken: string;
+  /**
    * Prompt to send to the subagent.
    */
   prompt: string;
@@ -4988,6 +4992,10 @@ export interface FactoryExecuteRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying this factory execution attempt.
+   */
+  executionToken: string;
   args: JsonValue;
 }
 /**
@@ -5055,6 +5063,10 @@ export interface FactoryJournalGetRequest {
    */
   runId: string;
   /**
+   * Opaque token identifying the current factory execution attempt.
+   */
+  executionToken: string;
+  /**
    * Namespaced journal key.
    */
   key: string;
@@ -5085,6 +5097,10 @@ export interface FactoryJournalPutRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the current factory execution attempt.
+   */
+  executionToken: string;
   /**
    * Namespaced journal key.
    */
@@ -5192,6 +5208,10 @@ export interface FactoryLogRequest {
    * Factory run identifier.
    */
   runId: string;
+  /**
+   * Opaque token identifying the current factory execution attempt.
+   */
+  executionToken: string;
   /**
    * Ordered progress lines to append.
    */

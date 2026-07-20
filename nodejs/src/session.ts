@@ -1198,7 +1198,11 @@ export class CopilotSession {
                 const controller = new AbortController();
                 self.factoryAbortControllers.set(params.runId, controller);
                 const progress = new FactoryProgressBuffer(async (lines) => {
-                    await self.rpc.factory.log({ runId: params.runId, lines });
+                    await self.rpc.factory.log({
+                        runId: params.runId,
+                        executionToken: params.executionToken,
+                        lines,
+                    });
                 });
                 try {
                     const context: FactoryContext = {
@@ -1219,6 +1223,7 @@ export class CopilotSession {
                             const response = await awaitFactoryOperation(
                                 self.rpc.factory.agent({
                                     factoryRunId: params.runId,
+                                    executionToken: params.executionToken,
                                     prompt,
                                     opts: {
                                         label: options.label,
@@ -1242,6 +1247,7 @@ export class CopilotSession {
                             const cached = await awaitFactoryOperation(
                                 self.rpc.factory.journal.get({
                                     runId: params.runId,
+                                    executionToken: params.executionToken,
                                     key,
                                 }),
                                 controller.signal
@@ -1263,6 +1269,7 @@ export class CopilotSession {
                             await awaitFactoryOperation(
                                 self.rpc.factory.journal.put({
                                     runId: params.runId,
+                                    executionToken: params.executionToken,
                                     key,
                                     resultJson: result,
                                 }),

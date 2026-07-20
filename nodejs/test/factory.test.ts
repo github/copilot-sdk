@@ -13,6 +13,7 @@ import {
     FactoryResumeError,
     FactoryRunError,
     type FactoryAgentOptions,
+    type FactoryContext,
     type FactoryDefinition,
     type JsonValue,
 } from "../src/factory.js";
@@ -51,6 +52,7 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: meta.name,
             runId: "run-1",
+            executionToken: "execution-token",
             args: { value: 42 },
         });
 
@@ -91,6 +93,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "void-result",
                 runId: "run-void-result",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({});
@@ -115,6 +118,7 @@ describe("factories", () => {
                     sessionId: session.sessionId,
                     name: "json-result",
                     runId: "run-json-result",
+                    executionToken: "execution-token",
                     args: {},
                 })
             ).resolves.toEqual({ result: factoryResult });
@@ -142,6 +146,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "unsupported-result",
                 runId: "run-unsupported-result",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -173,6 +178,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "non-finite-result",
                 runId: "run-non-finite-result",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -203,6 +209,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "cyclic-result",
                 runId: "run-cyclic-result",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -236,6 +243,7 @@ describe("factories", () => {
                     sessionId: session.sessionId,
                     name: "nested-undefined-result",
                     runId: "run-nested-undefined-result",
+                    executionToken: "execution-token",
                     args: {},
                 })
             ).rejects.toMatchObject({
@@ -474,6 +482,7 @@ describe("factories", () => {
             sessionId: joinSessionResult.sessionId,
             name: "context",
             runId: "run-context",
+            executionToken: "execution-token",
             args: { value: 42 },
         });
         const context = await contextSeen.promise;
@@ -490,6 +499,7 @@ describe("factories", () => {
         expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
             sessionId: joinSessionResult.sessionId,
             runId: "run-context",
+            executionToken: "execution-token",
             lines: [
                 { seq: 0, kind: "phase", text: "A" },
                 { seq: 1, kind: "log", text: "hi" },
@@ -517,6 +527,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "no-nesting",
                 runId: "run-no-nesting",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toThrow("nested factories are not supported");
@@ -545,12 +556,14 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "live-progress",
             runId: "run-live-progress",
+            executionToken: "execution-token",
             args: {},
         });
         await vi.waitFor(() => {
             expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
                 sessionId: session.sessionId,
                 runId: "run-live-progress",
+                executionToken: "execution-token",
                 lines: [{ seq: 0, kind: "log", text: "before await" }],
             });
         });
@@ -588,12 +601,14 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "agent",
                 runId: "run-agent",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({ result: "pong" });
         expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
             sessionId: session.sessionId,
             factoryRunId: "run-agent",
+            executionToken: "execution-token",
             prompt: "Reply with pong",
             opts: {
                 label: "Pong helper",
@@ -601,6 +616,87 @@ describe("factories", () => {
                 schema: { type: "string" },
             },
         });
+    });
+
+    it("keeps each execution token on callbacks from overlapping contexts with the same run id", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return { result: "agent result" };
+            }
+            if (method === "session.factory.journal.get") {
+                return { hit: false };
+            }
+            return {};
+        });
+        const session = new CopilotSession("session-overlapping-attempts", {
+            sendRequest,
+        } as never);
+        const contexts: FactoryContext[] = [];
+        const bodies = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+        const contextsReady = Promise.withResolvers<void>();
+        const factory = defineFactory({
+            meta: {
+                name: "overlapping-attempts",
+                description: "Execution token capture test",
+                phases: [],
+            },
+            run: async (context) => {
+                const invocation = contexts.length;
+                contexts.push(context);
+                if (contexts.length === 2) {
+                    contextsReady.resolve();
+                }
+                await bodies[invocation].promise;
+                return `attempt ${invocation + 1}`;
+            },
+        });
+        session.registerFactories([factory]);
+        const first = session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "overlapping-attempts",
+            runId: "shared-run",
+            executionToken: "old-token",
+            args: {},
+        });
+        const second = session.clientSessionApis.factory!.execute({
+            sessionId: session.sessionId,
+            name: "overlapping-attempts",
+            runId: "shared-run",
+            executionToken: "current-token",
+            args: {},
+        });
+        await contextsReady.promise;
+
+        contexts[0].log("stale log");
+        await contexts[0].agent("stale agent");
+        await contexts[0].step("stale journal", () => "stale result");
+        await contexts[1].agent("current agent");
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.factory.log",
+            expect.objectContaining({ executionToken: "old-token" })
+        );
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.factory.agent",
+            expect.objectContaining({ executionToken: "old-token", prompt: "stale agent" })
+        );
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.factory.journal.get",
+            expect.objectContaining({ executionToken: "old-token", key: "stale journal" })
+        );
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.factory.journal.put",
+            expect.objectContaining({ executionToken: "old-token", key: "stale journal" })
+        );
+        expect(sendRequest).toHaveBeenCalledWith(
+            "session.factory.agent",
+            expect.objectContaining({ executionToken: "current-token", prompt: "current agent" })
+        );
+
+        bodies[0].resolve();
+        bodies[1].resolve();
+        await expect(first).resolves.toEqual({ result: "attempt 1" });
+        await expect(second).resolves.toEqual({ result: "attempt 2" });
     });
 
     it("runs a durable step once, serves cached null, and does not cache failures", async () => {
@@ -655,6 +751,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "step",
                 runId: "run-step",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({
@@ -723,6 +820,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "invalid-step",
                 runId: "run-invalid-step",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -760,6 +858,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "invalid-step-cache",
                 runId: "run-invalid-step-cache",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -803,12 +902,14 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "step-replay",
             runId: "run-step-replay",
+            executionToken: "execution-token",
             args: {},
         });
         const replay = await session.clientSessionApis.factory!.execute({
             sessionId: session.sessionId,
             name: "step-replay",
             runId: "run-step-replay",
+            executionToken: "execution-token",
             args: {},
         });
 
@@ -840,6 +941,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "volatile-step",
                 runId: "run-volatile-step",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({ result: "completed" });
@@ -863,6 +965,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "array-extra-result",
                 runId: "run-array-extra-result",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toMatchObject({
@@ -1030,6 +1133,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "parallel-promises",
                 runId: "run-parallel-promises",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toThrow(
@@ -1075,6 +1179,7 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "pipeline",
             runId: "run-pipeline",
+            executionToken: "execution-token",
             args: {},
         });
         await secondStageStarted.promise;
@@ -1114,6 +1219,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "fanout-cap",
                 runId: "run-fanout-cap",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({
@@ -1167,6 +1273,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "nested-combinators",
                 runId: "run-nested-combinators",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({ result: [["a", "b"], ["c"]] });
@@ -1195,12 +1302,14 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "throw-progress",
                 runId: "run-throw-progress",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toThrow("body failed");
         expect(sendRequest).toHaveBeenCalledWith("session.factory.log", {
             sessionId: session.sessionId,
             runId: "run-throw-progress",
+            executionToken: "execution-token",
             lines: [{ seq: 0, kind: "log", text: "before throw" }],
         });
     });
@@ -1234,6 +1343,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "final-flush-failure",
                 runId: "run-final-flush-failure",
+                executionToken: "execution-token",
                 args: {},
             })
         ).resolves.toEqual({ result: "done" });
@@ -1274,6 +1384,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "mid-run-flush-failure",
                 runId: "run-mid-run-flush-failure",
+                executionToken: "execution-token",
                 args: {},
             })
         ).rejects.toThrow("mid-run transport failure");
@@ -1303,6 +1414,7 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "abort-signal",
             runId: "run-abort-signal",
+            executionToken: "execution-token",
             args: {},
         });
         const signal = await signalSeen.promise;
@@ -1340,6 +1452,7 @@ describe("factories", () => {
             sessionId: session.sessionId,
             name: "abort-await",
             runId: "run-abort-await",
+            executionToken: "execution-token",
             args: {},
         });
         await vi.waitFor(() =>
@@ -1385,6 +1498,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: `abort-${combinator}`,
                 runId: `run-abort-${combinator}`,
+                executionToken: "execution-token",
                 args: {},
             });
             await vi.waitFor(() =>
@@ -1433,6 +1547,7 @@ describe("factories", () => {
                 sessionId: session.sessionId,
                 name: "second",
                 runId: "run-echo",
+                executionToken: "execution-token",
                 args: { message: "hello" },
             })
         ).resolves.toEqual({
