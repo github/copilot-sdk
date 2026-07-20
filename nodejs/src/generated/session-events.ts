@@ -39,6 +39,7 @@ export type SessionEvent =
   | UserMessageEvent
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
+  | AssistantTurnRetryEvent
   | AssistantIntentEvent
   | AssistantServerToolProgressEvent
   | AssistantReasoningEvent
@@ -52,12 +53,14 @@ export type SessionEvent =
   | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
+  | ModelCallStartEvent
   | AbortEvent
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
   | ToolExecutionPartialResultEvent
   | ToolExecutionProgressEvent
   | ToolExecutionCompleteEvent
+  | ToolSearchActivatedEvent
   | SkillInvokedEvent
   | SubagentStartedEvent
   | SubagentCompletedEvent
@@ -94,6 +97,7 @@ export type SessionEvent =
   | SessionLimitsExhaustedCompletedEvent
   | AutoModeResolvedEvent
   | ManagedSettingsResolvedEvent
+  | ManagedSettingsEnforcedEvent
   | CommandsChangedEvent
   | CapabilitiesChangedEvent
   | ExitPlanModeRequestedEvent
@@ -333,6 +337,14 @@ export type ModelCallFailureBadRequestKind =
   /** The 400 response carried a structured CAPI error envelope (deterministic validation failure). */
   | "structured_error";
 /**
+ * Boundary that produced a model call failure
+ */
+export type ModelCallFailureKind =
+  /** The provider returned an API error response. */
+  | "api"
+  /** The request transport failed before a usable API response completed. */
+  | "transport";
+/**
  * Where the failed model call originated
  */
 export type ModelCallFailureSource =
@@ -342,6 +354,14 @@ export type ModelCallFailureSource =
   | "subagent"
   /** Model call from MCP sampling. */
   | "mcp_sampling";
+/**
+ * Transport used for a failed model call
+ */
+export type ModelCallFailureTransport =
+  /** HTTP transport, including SSE streams. */
+  | "http"
+  /** WebSocket transport. */
+  | "websocket";
 /**
  * Finite reason code describing why the current turn was aborted
  */
@@ -657,6 +677,26 @@ export type ManagedSettingsResolvedSource =
   | "device"
   /** No managed policy is in force (no layer contributed). */
   | "none";
+/**
+ * The category of runtime action that enterprise managed settings governed (blocked or capped)
+ */
+export type ManagedSettingsEnforcedAction =
+  /** An attempt to turn on a bypass-permissions ("yolo") escalation was refused or capped because policy disables bypass-permissions mode. */
+  "bypass_permissions_blocked";
+/**
+ * For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
+ */
+export type ManagedSettingsEnforcedEscalation =
+  /** Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs. */
+  | "allow_all"
+  /** Auto-approval of all tool permission requests. */
+  | "approve_all"
+  /** Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all. */
+  | "auto_approval"
+  /** Unrestricted filesystem access outside the session's allowed directories. */
+  | "unrestricted_paths"
+  /** Unrestricted URL fetch access. */
+  | "unrestricted_urls";
 /**
  * Exit plan mode action
  */
@@ -2156,6 +2196,12 @@ export interface UsageCheckpointEvent {
  */
 export interface UsageCheckpointData {
   /**
+   * Internal per-model prompt-cache state used to restore expiration tracking on resume
+   *
+   * @internal
+   */
+  modelCacheState?: UsageCheckpointModelCacheState[];
+  /**
    * Session-wide accumulated nano-AI units cost at checkpoint time
    */
   totalNanoAiu: number;
@@ -2165,6 +2211,26 @@ export interface UsageCheckpointData {
    * @internal
    */
   totalPremiumRequests?: number;
+}
+/**
+ * Internal prompt-cache expiration state for one model
+ */
+/** @internal */
+export interface UsageCheckpointModelCacheState {
+  /**
+   * Latest known prompt-cache expiration
+   */
+  cacheExpiresAt: string;
+  /**
+   * Retained cache lifetime in seconds, used to refresh expiration after a cache read
+   *
+   * @internal
+   */
+  cacheTtlSeconds: number;
+  /**
+   * Model identifier associated with this cache state
+   */
+  modelId: string;
 }
 /**
  * Session event "session.context_changed". Updated working directory and git context after the change
@@ -3124,6 +3190,54 @@ export interface AssistantTurnStartData {
   turnId: string;
 }
 /**
+ * Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
+ */
+/** @internal */
+export interface AssistantTurnRetryEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AssistantTurnRetryData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "assistant.turn_retry".
+   */
+  type: "assistant.turn_retry";
+}
+/**
+ * Metadata for an additional model inference attempt within an existing assistant turn
+ */
+export interface AssistantTurnRetryData {
+  /**
+   * Model identifier used for this retry, when known
+   */
+  model?: string;
+  /**
+   * Provider or runtime classification that caused the retry, when known
+   */
+  reason?: string;
+  /**
+   * Identifier of the turn whose model inference is being retried
+   */
+  turnId: string;
+}
+/**
  * Session event "assistant.intent". Agent intent description for current activity or plan
  */
 export interface AssistantIntentEvent {
@@ -3885,6 +3999,10 @@ export interface AssistantUsageData {
   apiCallId?: string;
   apiEndpoint?: AssistantUsageApiEndpoint;
   /**
+   * Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+   */
+  cacheExpiresAt?: string;
+  /**
    * Number of tokens read from prompt cache
    */
   cacheReadTokens?: number;
@@ -4111,6 +4229,7 @@ export interface ModelCallFailureData {
    * Completion ID from the model provider (e.g., chatcmpl-abc123)
    */
   apiCallId?: string;
+  apiEndpoint?: AssistantUsageApiEndpoint;
   badRequestKind?: ModelCallFailureBadRequestKind;
   /**
    * Duration of the failed API call in milliseconds
@@ -4128,10 +4247,27 @@ export interface ModelCallFailureData {
    * For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
    */
   errorType?: string;
+  failureKind?: ModelCallFailureKind;
   /**
    * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
    */
   initiator?: string;
+  /**
+   * Whether the session selected Auto mode for the failed call
+   */
+  isAuto?: boolean;
+  /**
+   * Whether the failed call used a bring-your-own-key provider
+   */
+  isByok?: boolean;
+  /**
+   * Effective maximum output-token limit for the failed call
+   */
+  maxOutputTokens?: number;
+  /**
+   * Effective maximum prompt-token limit for the failed call
+   */
+  maxPromptTokens?: number;
   /**
    * Model identifier used for the failed API call
    */
@@ -4148,6 +4284,10 @@ export interface ModelCallFailureData {
   quotaSnapshots?: {
     [k: string]: AssistantUsageQuotaSnapshot | undefined;
   };
+  /**
+   * Reasoning effort level used for the failed model call, if applicable
+   */
+  reasoningEffort?: string;
   requestFingerprint?: ModelCallFailureRequestFingerprint;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -4158,6 +4298,7 @@ export interface ModelCallFailureData {
    * HTTP status code from the failed request
    */
   statusCode?: number;
+  transport?: ModelCallFailureTransport;
 }
 /**
  * Content-free structural summary of the failing request for diagnosing malformed 4xx calls
@@ -4191,6 +4332,50 @@ export interface ModelCallFailureRequestFingerprint {
    * Number of "tool" result messages in the request
    */
   toolResultMessageCount: number;
+}
+/**
+ * Session event "model.call_start". Model API dispatch metadata for internal telemetry
+ */
+/** @internal */
+export interface ModelCallStartEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ModelCallStartData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "model.call_start".
+   */
+  type: "model.call_start";
+}
+/**
+ * Model API dispatch metadata for internal telemetry
+ */
+export interface ModelCallStartData {
+  /**
+   * Model identifier used for this API call, when known
+   */
+  model?: string;
+  /**
+   * Identifier of the assistant turn that initiated the model call
+   */
+  turnId: string;
 }
 /**
  * Session event "abort". Turn abort information including the reason for termination
@@ -5032,6 +5217,49 @@ export interface ToolExecutionCompleteToolDescriptionMetaUI {
    * Who can access this tool
    */
   visibility?: ToolExecutionCompleteToolDescriptionMetaUIVisibility[];
+}
+/**
+ * Session event "tool_search.activated". Persisted generic client-side tool activations restored when a session resumes.
+ */
+export interface ToolSearchActivatedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ToolSearchActivatedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "tool_search.activated".
+   */
+  type: "tool_search.activated";
+}
+/**
+ * Persisted generic client-side tool activations restored when a session resumes.
+ */
+export interface ToolSearchActivatedData {
+  /**
+   * Tool-search strategy that activated the definitions.
+   */
+  strategy: string;
+  /**
+   * Names of tool definitions activated by this search invocation.
+   */
+  toolNames: string[];
 }
 /**
  * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
@@ -8036,6 +8264,57 @@ export interface ManagedSettingsResolvedData {
     [k: string]: unknown | undefined;
   };
   source: ManagedSettingsResolvedSource;
+}
+/**
+ * Session event "session.managed_settings_enforced". Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
+ */
+/** @experimental */
+export interface ManagedSettingsEnforcedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ManagedSettingsEnforcedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.managed_settings_enforced".
+   */
+  type: "session.managed_settings_enforced";
+}
+/**
+ * Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
+ */
+/** @experimental */
+export interface ManagedSettingsEnforcedData {
+  action: ManagedSettingsEnforcedAction;
+  escalation?: ManagedSettingsEnforcedEscalation;
+  /**
+   * Whether the enforcement was forced by fail-closed handling (managed policy could not be determined) rather than an explicit managed setting. When true, `setting` still names the restriction that was applied.
+   */
+  failClosed: boolean;
+  /**
+   * A human-readable explanation of why the action was governed, suitable for surfacing to the user.
+   */
+  message: string;
+  /**
+   * The managed setting key responsible for the enforcement (e.g. `permissions.disableBypassPermissionsMode`).
+   */
+  setting: string;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification
