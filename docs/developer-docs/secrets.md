@@ -53,7 +53,7 @@ These secrets are used by the Java SDK Maven Central publishing workflow (`java-
 * **`JAVA_RELEASE_GITHUB_TOKEN`**: GitHub token with **workflow dispatch** (actions:write) permission on this repository and `github/copilot-sdk-java`. Used to trigger the `release-changelog.lock.yml` workflow and the documentation site deployment after a release is published.
   * Workflows: `java-publish-maven.yml`
 
-## Rust and Node.js publishing secrets
+## Rust publishing secret
 
 * **`CARGO_REGISTRY_TOKEN`**: Authentication token for publishing the Rust SDK crate to crates.io.
   * Workflows: `publish.yml`
