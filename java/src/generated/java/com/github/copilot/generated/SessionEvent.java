@@ -268,6 +268,10 @@ public abstract sealed class SessionEvent permits
     @JsonProperty("parentId")
     private UUID parentId;
 
+    /** Sub-agent instance identifier. Absent for events from the root/main agent and session-level events. */
+    @JsonProperty("agentId")
+    private String agentId;
+
     /** When true, the event is transient and not persisted to the session event log on disk. */
     @JsonProperty("ephemeral")
     private Boolean ephemeral;
@@ -287,6 +291,9 @@ public abstract sealed class SessionEvent permits
 
     public UUID getParentId() { return parentId; }
     public void setParentId(UUID parentId) { this.parentId = parentId; }
+
+    public String getAgentId() { return agentId; }
+    public void setAgentId(String agentId) { this.agentId = agentId; }
 
     public Boolean getEphemeral() { return ephemeral; }
     public void setEphemeral(Boolean ephemeral) { this.ephemeral = ephemeral; }

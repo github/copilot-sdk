@@ -438,6 +438,8 @@ By default, all custom agents are available for automatic selection (`infer: tru
 
 When a sub-agent runs, the parent session emits lifecycle events. Subscribe to these events to build UIs that visualize agent activity.
 
+Sub-agent-originated session events share the parent session stream and include envelope-level `agentId`. Root/main agent events and session-level events omit `agentId`, so renderers can keep the parent response separate from sub-agent traces by checking the event envelope.
+
 ### Event types
 
 | Event | Emitted when | Data |
