@@ -49,6 +49,22 @@ public final class ModelCallFailureEvent extends SessionEvent {
         @JsonProperty("statusCode") Long statusCode,
         /** Duration of the failed API call in milliseconds */
         @JsonProperty("durationMs") Long durationMs,
+        /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
+        @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
+        /** Transport used for the failed model call (http or websocket) */
+        @JsonProperty("transport") ModelCallFailureTransport transport,
+        /** Whether the failure originated from an API response or the request transport */
+        @JsonProperty("failureKind") ModelCallFailureKind failureKind,
+        /** Effective maximum prompt-token limit for the failed call */
+        @JsonProperty("maxPromptTokens") Long maxPromptTokens,
+        /** Effective maximum output-token limit for the failed call */
+        @JsonProperty("maxOutputTokens") Long maxOutputTokens,
+        /** Whether the failed call used a bring-your-own-key provider */
+        @JsonProperty("isByok") Boolean isByok,
+        /** Whether the session selected Auto mode for the failed call */
+        @JsonProperty("isAuto") Boolean isAuto,
+        /** Reasoning effort level used for the failed model call, if applicable */
+        @JsonProperty("reasoningEffort") String reasoningEffort,
         /** Where the failed model call originated */
         @JsonProperty("source") ModelCallFailureSource source,
         /** Raw provider/runtime error message for restricted telemetry */
