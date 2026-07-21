@@ -1,0 +1,68 @@
+# Secrets management
+
+This document covers secrets management for the github/copilot-sdk repository. It lists the GitHub Actions secrets that maintainers must keep configured and not expired.
+
+> [!WARNING]
+> If any of these secrets expire or are revoked, the corresponding workflows will fail silently or with opaque permission errors. Review this list periodically and rotate secrets before they expire.
+
+## SDK test secrets
+
+These secrets are used by the per-language SDK test workflows and the canary workflow.
+
+* **`COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY`**: HMAC key used to authenticate with the Copilot Developer CLI integration endpoint during tests. Injected as `COPILOT_HMAC_KEY` in test environments.
+  * Workflows: `nodejs-sdk-tests.yml`, `python-sdk-tests.yml`, `go-sdk-tests.yml`, `dotnet-sdk-tests.yml`, `rust-sdk-tests.yml`, `sdk-canary.yml`
+
+## Agentic workflow secrets
+
+These secrets power the GitHub Agentic Workflows (gh-aw) used for issue triage, code generation, and release automation.
+
+* **`COPILOT_GITHUB_TOKEN`**: GitHub token used by agentic workflow agents for repository access (reading code, creating PRs, running checks).
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-check.yml`, `java-codegen-fix.lock.yml`, `java-smoke-test.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
+
+* **`GH_AW_GITHUB_TOKEN`**: GitHub token used by the gh-aw runtime for workflow orchestration.
+  * Workflows: same as `COPILOT_GITHUB_TOKEN` above
+
+* **`GH_AW_GITHUB_MCP_SERVER_TOKEN`**: Token used by the GitHub MCP server container within agentic workflows.
+  * Workflows: same as `COPILOT_GITHUB_TOKEN` above
+
+* **`GH_AW_CI_TRIGGER_TOKEN`**: Token used to trigger CI workflows from within agentic workflow runs.
+  * Workflows: `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`
+
+* **`RUNTIME_TRIAGE_TOKEN`**: Token with read access to `github/copilot-agent-runtime`. Used to clone that repository for cross-repo issue analysis.
+  * Workflows: `cross-repo-issue-analysis.lock.yml`
+
+## Java publishing secrets
+
+These secrets are used by the Java SDK Maven Central publishing workflow (`java-publish-maven.yml`) and the snapshot publishing workflow (`java-publish-snapshot.yml`).
+
+* **`JAVA_MAVEN_CENTRAL_USERNAME`**: Username for Maven Central (Sonatype OSSRH) authentication.
+  * Workflows: `java-publish-maven.yml`, `java-publish-snapshot.yml`
+
+* **`JAVA_MAVEN_CENTRAL_PASSWORD`**: Password or token for Maven Central (Sonatype OSSRH) authentication.
+  * Workflows: `java-publish-maven.yml`, `java-publish-snapshot.yml`
+
+* **`JAVA_GPG_SECRET_KEY`**: GPG private key used to sign Java release artifacts for Maven Central.
+  * Workflows: `java-publish-maven.yml`
+
+* **`JAVA_GPG_PASSPHRASE`**: Passphrase for the GPG signing key.
+  * Workflows: `java-publish-maven.yml`
+
+* **`JAVA_RELEASE_TOKEN`**: GitHub token with **push** permission on the repository. Used by the release workflow for `actions/checkout`, pushing release commits and tags to `main`, and running `mvn release:prepare -DpushChanges=true`.
+  * Workflows: `java-publish-maven.yml`
+
+* **`JAVA_RELEASE_GITHUB_TOKEN`**: GitHub token with **workflow dispatch** (actions:write) permission. Used to trigger the `release-changelog.lock.yml` workflow after a release is published.
+  * Workflows: `java-publish-maven.yml`
+
+## Rust and Node.js publishing secrets
+
+* **`CARGO_REGISTRY_TOKEN`**: Authentication token for publishing the Rust SDK crate to crates.io.
+  * Workflows: `publish.yml`
+
+## Secrets not managed in this repository
+
+* **`GITHUB_TOKEN`**: Automatically provided by GitHub Actions. No manual management required.
+
+## Further reading
+
+* [GitHub docs: Using secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)
+* [Repository secrets settings](https://github.com/github/copilot-sdk/settings/secrets/actions) (maintainer access required)
