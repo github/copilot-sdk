@@ -26,7 +26,7 @@ Do not use `**bold**` or `*italic*` markers inside headings. The heading level p
 * Acronyms: MCP, BYOK, MAF, SDK, CLI, API, HMAC, CI/CD, SaaS, ISV, FAQ, LLM, AI, EMU, ID, UI, PNG
 * Tools (keep canonical casing): npm, npx, stdio
 * Code identifiers in headings: SessionConfig, MessageOptions, TelemetryConfig, ProviderConfig, CopilotClient
-* Multi-word proper names: GitHub App, GitHub Actions, GitHub OAuth, Foundry Local, Azure AD, Container Instances
+* Multi-word proper names: GitHub App, GitHub Actions, GitHub OAuth, Foundry Local, Managed Identity, Container Instances
 
 ## Callouts
 
