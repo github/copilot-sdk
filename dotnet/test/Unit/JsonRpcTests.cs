@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Xunit;
@@ -93,6 +94,41 @@ public class JsonRpcTests
         await Assert.ThrowsAnyAsync<ObjectDisposedException>(() => pending);
     }
 
+    [Fact]
+    public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
+    {
+        using var receiveStream = new FrameThenEofStream(CreateResponseFrame(2 * 1024 * 1024));
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+
+        rpc.StartListening();
+
+        var completed = await Task.WhenAny(
+            receiveStream.PostFrameReadBufferSize,
+            Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(receiveStream.PostFrameReadBufferSize, completed);
+        Assert.InRange(await receiveStream.PostFrameReadBufferSize, 1, 1024 * 1024);
+    }
+
+    private static byte[] CreateResponseFrame(int payloadLength)
+    {
+        using var bodyStream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(bodyStream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("jsonrpc", "2.0");
+            writer.WriteNumber("id", long.MaxValue);
+            writer.WriteString("result", new string('x', payloadLength));
+            writer.WriteEndObject();
+        }
+
+        var body = bodyStream.ToArray();
+        var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
+        var frame = new byte[header.Length + body.Length];
+        header.CopyTo(frame, 0);
+        body.CopyTo(frame, header.Length);
+        return frame;
+    }
+
     private static int GetRemoteErrorCode(Exception exception)
     {
         var property = exception.GetType().GetProperty("ErrorCode", BindingFlags.Instance | BindingFlags.Public);
@@ -170,12 +206,17 @@ public class JsonRpcTests
         private readonly object _instance;
 
         public JsonRpcReflection(Stream stream)
+            : this(stream, stream)
+        {
+        }
+
+        public JsonRpcReflection(Stream sendStream, Stream receiveStream)
         {
             _instance = Activator.CreateInstance(
                 JsonRpcType,
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
                 binder: null,
-                args: [stream, stream, SerializerOptions, null],
+                args: [sendStream, receiveStream, SerializerOptions, null],
                 culture: null)!;
         }
 
@@ -196,6 +237,63 @@ public class JsonRpcTests
         }
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
+    }
+
+    private sealed class FrameThenEofStream(byte[] frame) : Stream
+    {
+        private readonly TaskCompletionSource<int> _postFrameReadBufferSize =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _offset;
+
+        public Task<int> PostFrameReadBufferSize => _postFrameReadBufferSize.Task;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            ReadCore(buffer.AsMemory(offset, count));
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            Task.FromResult(ReadCore(buffer.AsMemory(offset, count)));
+
+#if NET8_0_OR_GREATER
+        public override
+#else
+        internal
+#endif
+        ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default) =>
+            new(ReadCore(destination));
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        private int ReadCore(Memory<byte> destination)
+        {
+            if (_offset >= frame.Length)
+            {
+                _postFrameReadBufferSize.TrySetResult(destination.Length);
+                return 0;
+            }
+
+            var bytesRead = Math.Min(destination.Length, frame.Length - _offset);
+            frame.AsMemory(_offset, bytesRead).CopyTo(destination);
+            _offset += bytesRead;
+            return bytesRead;
+        }
     }
 
     private sealed class InMemoryDuplexStream : Stream
