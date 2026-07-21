@@ -1,0 +1,31 @@
+name: Trigger docs sync
+
+# Automatically triggers the docs-internal SDK sync workflow
+# whenever documentation source files change on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+
+jobs:
+  notify-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch sync to docs-internal
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          # TODO: Create a repository secret named DOCS_INTERNAL_PAT
+          # with a PAT that has contents:write access to github/docs-internal.
+          # Alternatively, use a GitHub App token for better security
+          # (see: actions/create-github-app-token@v1).
+          token: ${{ secrets.DOCS_INTERNAL_PAT }}
+          repository: github/docs-internal
+          event-type: sync-sdk-docs
+          client-payload: >-
+            {
+              "ref": "${{ github.sha }}",
+              "sender": "${{ github.actor }}"
+            }
+
