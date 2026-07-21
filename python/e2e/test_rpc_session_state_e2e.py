@@ -303,6 +303,9 @@ class TestRpcSessionState:
 
             unsubscribe = session.on(on_event)
             try:
+                # For local sessions the CLI treats the session cwd as authoritative, so a
+                # record_context_change that reports a divergent cwd is ignored and emits
+                # no event. Report the current working directory (second_dir) to observe it.
                 result = await session.rpc.metadata.record_context_change(
                     MetadataRecordContextChangeRequest(
                         context=SessionWorkingDirectoryContext(

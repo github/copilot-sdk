@@ -531,6 +531,9 @@ func TestRPCSessionStateE2E(t *testing.T) {
 		hostType := rpc.SessionWorkingDirectoryContextHostTypeGitHub
 		baseCommit := "0000000000000000000000000000000000000000"
 		headCommit := "1111111111111111111111111111111111111111"
+		// For local sessions the CLI treats the session cwd as authoritative, so a
+		// RecordContextChange that reports a divergent cwd is ignored and emits no event.
+		// Report the current working directory (secondDirectory) to observe the change.
 		if _, err := session.RPC.Metadata.RecordContextChange(t.Context(), &rpc.MetadataRecordContextChangeRequest{
 			Context: rpc.SessionWorkingDirectoryContext{
 				Cwd:            secondDirectory,

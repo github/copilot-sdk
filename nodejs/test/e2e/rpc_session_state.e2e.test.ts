@@ -352,6 +352,9 @@ describe("Session-scoped RPC", async () => {
                 "session.context_changed event"
             );
 
+            // For local sessions the CLI treats the session cwd as authoritative, so a
+            // recordContextChange that reports a divergent cwd is ignored and emits no event.
+            // Report the current working directory (secondDirectory) to observe the change.
             const context = {
                 cwd: secondDirectory,
                 gitRoot: firstDirectory,
