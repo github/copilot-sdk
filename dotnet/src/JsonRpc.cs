@@ -29,6 +29,8 @@ internal sealed partial class JsonRpc : IDisposable
 {
     private const int ErrorCodeMethodNotFound = -32601;
     private const int ErrorCodeInternalError = -32603;
+    private const int InitialReadBufferSize = 256;
+    private const int MaximumRetainedReadBufferSize = 1024 * 1024;
 
     private readonly Stream _sendStream;
     private readonly Stream _receiveStream;
@@ -259,7 +261,7 @@ internal sealed partial class JsonRpc : IDisposable
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
     {
-        var buffer = new byte[256];
+        var buffer = new byte[InitialReadBufferSize];
         int carried = 0; // bytes in buffer carried over from previous read
         try
         {
@@ -296,6 +298,17 @@ internal sealed partial class JsonRpc : IDisposable
                 if (carried > 0)
                 {
                     Buffer.BlockCopy(buffer, contentLength, buffer, 0, carried);
+                }
+
+                if (buffer.Length > MaximumRetainedReadBufferSize)
+                {
+                    var retainedBuffer = new byte[Math.Max(InitialReadBufferSize, carried)];
+                    if (carried > 0)
+                    {
+                        Buffer.BlockCopy(buffer, 0, retainedBuffer, 0, carried);
+                    }
+
+                    buffer = retainedBuffer;
                 }
 
                 if (message is not { } parsed)
