@@ -16,19 +16,19 @@ These secrets are used by the per-language SDK test workflows and the canary wor
 
 These secrets power the GitHub Agentic Workflows (gh-aw) used for issue triage, code generation, and release automation.
 
-* **`COPILOT_GITHUB_TOKEN`**: GitHub token used by agentic workflow agents for repository access (reading code, creating PRs, running checks).
+* **`COPILOT_GITHUB_TOKEN`**: GitHub OAuth token consumed by the Copilot CLI for AI authentication. Required by all agentic workflows when invoking `copilot` for AI inference.
   * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-check.yml`, `java-codegen-fix.lock.yml`, `java-smoke-test.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
-* **`GH_AW_GITHUB_TOKEN`**: GitHub token used by the gh-aw runtime for workflow orchestration.
-  * Workflows: same as `COPILOT_GITHUB_TOKEN` above
+* **`GH_AW_GITHUB_TOKEN`**: GitHub token used by gh-aw agents for repository operations (reading code, creating pull requests, making GitHub API calls).
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
 * **`GH_AW_GITHUB_MCP_SERVER_TOKEN`**: Token used by the GitHub MCP server container within agentic workflows.
-  * Workflows: same as `COPILOT_GITHUB_TOKEN` above
+  * Workflows: `issue-triage.lock.yml`, `issue-classification.lock.yml`, `handle-bug.lock.yml`, `handle-enhancement.lock.yml`, `handle-question.lock.yml`, `handle-documentation.lock.yml`, `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`, `sdk-consistency-review.lock.yml`, `cross-repo-issue-analysis.lock.yml`
 
 * **`GH_AW_CI_TRIGGER_TOKEN`**: Token used to trigger CI workflows from within agentic workflow runs.
   * Workflows: `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`
 
-* **`RUNTIME_TRIAGE_TOKEN`**: Token with read access to `github/copilot-agent-runtime`. Used to clone that repository for cross-repo issue analysis.
+* **`RUNTIME_TRIAGE_TOKEN`**: Token with read access to `github/copilot-agent-runtime`. Used to clone that repository and make GitHub API calls for cross-repo issue analysis.
   * Workflows: `cross-repo-issue-analysis.lock.yml`
 
 ## Java publishing secrets
@@ -50,7 +50,7 @@ These secrets are used by the Java SDK Maven Central publishing workflow (`java-
 * **`JAVA_RELEASE_TOKEN`**: GitHub token with **push** permission on the repository. Used by the release workflow for `actions/checkout`, pushing release commits and tags to `main`, and running `mvn release:prepare -DpushChanges=true`.
   * Workflows: `java-publish-maven.yml`
 
-* **`JAVA_RELEASE_GITHUB_TOKEN`**: GitHub token with **workflow dispatch** (actions:write) permission. Used to trigger the `release-changelog.lock.yml` workflow after a release is published.
+* **`JAVA_RELEASE_GITHUB_TOKEN`**: GitHub token with **workflow dispatch** (actions:write) permission on this repository and `github/copilot-sdk-java`. Used to trigger the `release-changelog.lock.yml` workflow and the documentation site deployment after a release is published.
   * Workflows: `java-publish-maven.yml`
 
 ## Rust and Node.js publishing secrets
