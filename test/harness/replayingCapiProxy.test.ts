@@ -348,9 +348,9 @@ describe("ReplayingCapiProxy", () => {
   });
 
   test("normalizes task completion notification wording", async () => {
-    const unreadNotification = [
+    const idleNotification = [
       "<system_notification>",
-      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve unread results.',
+      'Agent "sdk-background-agent" (general-purpose) has finished processing and is now idle. Use read_agent with agent_id "sdk-background-agent" to read the results, or write_agent to send follow-up messages.',
       "</system_notification>",
     ].join("\n");
     const fullNotification = [
@@ -363,7 +363,7 @@ describe("ReplayingCapiProxy", () => {
       messages: [
         {
           role: "user",
-          content: unreadNotification,
+          content: idleNotification,
         },
       ],
     });
@@ -509,7 +509,7 @@ Always include PINEAPPLE_COCONUT_42.
     expect(toolMessages[1].content).toBe("[beta result]");
   });
 
-  test("collapses the available-tools list to a stable placeholder", async () => {
+  test("removes the runtime-specific available-tools list", async () => {
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -543,14 +543,48 @@ Always include PINEAPPLE_COCONUT_42.
     const toolMessage = result.conversations[0].messages.find(
       (m) => m.role === "tool",
     );
-    // The whole enumeration collapses so snapshots stay stable as the built-in
-    // tool set evolves (e.g. write_agent being added).
-    expect(toolMessage?.content).toBe(
-      "Tool 'report_intent' does not exist. Available tools that can be called are ${available_tools}.",
-    );
+    expect(toolMessage?.content).toBe("Tool 'report_intent' does not exist.");
   });
 
-  test("normalizes read_agent timing metadata", async () => {
+  test("removes runtime advisories from background agent start results", async () => {
+    const stableResult =
+      "Agent started in background with agent_id: read-file. You'll be notified when it completes. Tell the user you're waiting and end your response, or continue unrelated work until notified.";
+    const requestBody = JSON.stringify({
+      messages: [
+        { role: "user", content: "Help me" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "tc1",
+              type: "function",
+              function: { name: "task", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "tc1",
+          content: `${stableResult} The agent supports multi-turn conversations.`,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    const toolMessage = result.conversations[0].messages.find(
+      (m) => m.role === "tool",
+    );
+    expect(toolMessage?.content).toBe(stableResult);
+  });
+
+  test("normalizes read_agent result metadata", async () => {
     const requestBody = JSON.stringify({
       messages: [
         { role: "user", content: "Help me" },
@@ -571,7 +605,7 @@ Always include PINEAPPLE_COCONUT_42.
           role: "tool",
           tool_call_id: "tc1",
           content:
-            "Agent completed. agent_id: read-file, agent_type: explore, status: completed, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 0, duration: 2s\n\nDone.",
+            "Agent is idle (waiting for messages). agent_id: read-file, agent_type: explore, status: idle, description: Reading subagent-test.txt, elapsed: 1.25s, total_turns: 1\n\n[Turn 0]\nDone.",
         },
       ],
     });
@@ -1075,6 +1109,11 @@ Always include PINEAPPLE_COCONUT_42.
         'Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve unread results.',
         "</system_notification>",
       ].join("\n");
+      const idleNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has finished processing and is now idle. Use read_agent with agent_id "read-file" to read the results, or write_agent to send follow-up messages.',
+        "</system_notification>",
+      ].join("\n");
 
       const cacheContent = yaml.stringify({
         models: ["test-model"],
@@ -1107,7 +1146,7 @@ Always include PINEAPPLE_COCONUT_42.
               { role: "system", content: "Be helpful" },
               { role: "user", content: "Hello" },
               { role: "assistant", content: "Hi!" },
-              { role: "user", content: unreadNotification },
+              { role: "user", content: idleNotification },
             ],
           },
         });

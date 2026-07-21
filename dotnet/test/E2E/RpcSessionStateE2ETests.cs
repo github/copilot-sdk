@@ -278,7 +278,6 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var firstDirectory = CreateUniqueDirectory();
         var secondDirectory = CreateUniqueDirectory();
-        var contextDirectory = CreateUniqueDirectory();
         var branch = $"rpc-context-{Guid.NewGuid():N}";
         await using var session = await CreateSessionAsync(new SessionConfig
         {
@@ -324,7 +323,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         var context = new SessionWorkingDirectoryContext
         {
-            Cwd = contextDirectory,
+            Cwd = secondDirectory,
             GitRoot = firstDirectory,
             Branch = branch,
             Repository = "github/copilot-sdk-e2e",
@@ -338,8 +337,8 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotNull(recordResult);
 
         var contextChanged = await contextChangedTask;
-        Assert.True(PathEquals(contextDirectory, contextChanged.Data.Cwd),
-            $"Expected context cwd '{contextDirectory}', actual '{contextChanged.Data.Cwd}'.");
+        Assert.True(PathEquals(secondDirectory, contextChanged.Data.Cwd),
+            $"Expected context cwd '{secondDirectory}', actual '{contextChanged.Data.Cwd}'.");
         Assert.True(PathEquals(firstDirectory, contextChanged.Data.GitRoot),
             $"Expected context git root '{firstDirectory}', actual '{contextChanged.Data.GitRoot}'.");
         Assert.Equal(branch, contextChanged.Data.Branch);

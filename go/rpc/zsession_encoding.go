@@ -107,6 +107,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantTurnRetry:
+		var d AssistantTurnRetryData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantTurnStart:
 		var d AssistantTurnStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -265,6 +271,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeModelCallFailure:
 		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallStart:
+		var d ModelCallStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -433,6 +445,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionLimitsExhaustedRequested:
 		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionManagedSettingsEnforced:
+		var d SessionManagedSettingsEnforcedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -661,6 +679,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeToolExecutionStart:
 		var d ToolExecutionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolSearchActivated:
+		var d ToolSearchActivatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

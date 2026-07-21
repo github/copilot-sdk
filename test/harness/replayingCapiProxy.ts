@@ -127,7 +127,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "*", normalizer: normalizeAvailableToolNames },
-    { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
+    { toolName: "*", normalizer: normalizeBackgroundAgentStartMessage },
+    { toolName: "read_agent", normalizer: normalizeReadAgentResult },
   ];
 
   /**
@@ -1223,7 +1224,10 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
-    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
+    .replace(
+      taskCompletionNotificationPattern,
+      taskCompletionNotificationReplacement,
+    )
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1237,9 +1241,9 @@ function normalizeUserMessage(content: string): string {
 }
 
 const taskCompletionNotificationPattern =
-  /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g;
+  /Agent "([^"]+)" \(([^)]+)\) (?:has completed successfully|has finished processing and is now idle)\. Use read_agent with agent_id "[^"]+" to (?:retrieve (?:unread results|the full results)|read the results, or write_agent to send follow-up messages)\./g;
 const taskCompletionNotificationReplacement =
-  'Use read_agent with agent_id "$1" to retrieve the full results.';
+  'Agent "$1" ($2) has completed successfully. Use read_agent with agent_id "$1" to retrieve the full results.';
 
 function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
@@ -1299,17 +1303,15 @@ function coalesceMessages(
   return result;
 }
 
-// Re-normalizes the built-in tool enumeration in stored tool results at load
-// time. Snapshots recorded before normalizeAvailableToolNames collapsed the
-// whole list (or recorded against an older tool set) still contain the literal
-// enumeration on disk; the result normalizers only run against live requests,
-// so without this the stored side would keep the stale list and never match a
-// request whose tool set has since changed.
+// Apply runtime-dependent tool result normalization to snapshots recorded by
+// older CLI versions as well as to live requests.
 function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
     for (const message of conversation.messages) {
       if (message.role === "tool" && typeof message.content === "string") {
         message.content = normalizeAvailableToolNames(message.content);
+        message.content = normalizeBackgroundAgentStartMessage(message.content);
+        message.content = normalizeReadAgentResult(message.content);
       }
     }
   }
@@ -1399,27 +1401,41 @@ function normalizeGh401AuthMessages(result: string): string {
   return changed ? normalizedLines.join("\n") : result;
 }
 
-function normalizeReadAgentTimings(result: string): string {
-  return result
+function normalizeReadAgentResult(result: string): string {
+  const normalized = result
+    .replace(
+      /^Agent is idle \(waiting for messages\)\./,
+      "Agent completed.",
+    )
+    .replace(/^Agent completed\. (.*), status: idle,/, "Agent completed. $1, status: completed,")
+    .replace(
+      /, total_turns: \d+(?=\r?\n|$)/,
+      ", total_turns: 0, duration: 0s",
+    )
+    .replace(/\r?\n\r?\n\[Turn \d+\]\r?\n/, "\n\n");
+
+  return normalized
     .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
-
-// Stable placeholder for the built-in tool enumeration the runtime emits when a
-// nonexistent tool is called (see normalizeAvailableToolNames).
-export const availableToolsPlaceholder = "${available_tools}";
 
 // When a model calls a tool that doesn't exist (e.g., the removed report_intent
 // tool), the runtime replies with "Available tools that can be called are <list>."
 // That enumeration is both platform-specific (shell tool family names differ
 // across OSes) and runtime-version-specific (built-in tools such as write_agent
-// are added or removed over time), so any test that trips this path would break
-// whenever the tool set changes. Collapse the whole list to a stable placeholder
-// so snapshots keep matching as the built-in tool set evolves.
+// are added or removed over time). Some runtime builds omit the enumeration
+// entirely, so remove the optional suffix and retain only the stable error.
 function normalizeAvailableToolNames(result: string): string {
   return result.replace(
-    /(Available tools that can be called are )[^.]*/g,
-    (_full, prefix: string) => prefix + availableToolsPlaceholder,
+    /(Tool '[^']+' does not exist\.) Available tools that can be called are [^.]*\./g,
+    "$1",
+  );
+}
+
+function normalizeBackgroundAgentStartMessage(result: string): string {
+  return result.replace(
+    /^(Agent started in background with agent_id: .*?\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
+    "$1",
   );
 }
 

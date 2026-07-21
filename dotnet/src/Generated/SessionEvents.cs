@@ -36,6 +36,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
 [JsonDerivedType(typeof(AssistantToolCallDeltaEvent), "assistant.tool_call_delta")]
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
+[JsonDerivedType(typeof(AssistantTurnRetryEvent), "assistant.turn_retry")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
 [JsonDerivedType(typeof(AutoModeSwitchCompletedEvent), "auto_mode_switch.completed")]
@@ -63,6 +64,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(McpResourcesListChangedEvent), "mcp.resources.list_changed")]
 [JsonDerivedType(typeof(McpToolsListChangedEvent), "mcp.tools.list_changed")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
+[JsonDerivedType(typeof(ModelCallStartEvent), "model.call_start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
@@ -91,6 +93,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
+[JsonDerivedType(typeof(SessionManagedSettingsEnforcedEvent), "session.managed_settings_enforced")]
 [JsonDerivedType(typeof(SessionManagedSettingsResolvedEvent), "session.managed_settings_resolved")]
 [JsonDerivedType(typeof(SessionMcpServerStatusChangedEvent), "session.mcp_server_status_changed")]
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
@@ -125,6 +128,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SubagentStartedEvent), "subagent.started")]
 [JsonDerivedType(typeof(SystemMessageEvent), "system.message")]
 [JsonDerivedType(typeof(SystemNotificationEvent), "system.notification")]
+[JsonDerivedType(typeof(ToolSearchActivatedEvent), "tool_search.activated")]
 [JsonDerivedType(typeof(ToolExecutionCompleteEvent), "tool.execution_complete")]
 [JsonDerivedType(typeof(ToolExecutionPartialResultEvent), "tool.execution_partial_result")]
 [JsonDerivedType(typeof(ToolExecutionProgressEvent), "tool.execution_progress")]
@@ -591,6 +595,19 @@ public sealed partial class AssistantTurnStartEvent : SessionEvent
     public required AssistantTurnStartData Data { get; set; }
 }
 
+/// <summary>Metadata for an additional model inference attempt within an existing assistant turn.</summary>
+/// <remarks>Represents the <c>assistant.turn_retry</c> event.</remarks>
+public sealed partial class AssistantTurnRetryEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "assistant.turn_retry";
+
+    /// <summary>The <c>assistant.turn_retry</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AssistantTurnRetryData Data { get; set; }
+}
+
 /// <summary>Agent intent description for current activity or plan.</summary>
 /// <remarks>Represents the <c>assistant.intent</c> event.</remarks>
 public sealed partial class AssistantIntentEvent : SessionEvent
@@ -760,6 +777,19 @@ public sealed partial class ModelCallFailureEvent : SessionEvent
     public required ModelCallFailureData Data { get; set; }
 }
 
+/// <summary>Model API dispatch metadata for internal telemetry.</summary>
+/// <remarks>Represents the <c>model.call_start</c> event.</remarks>
+public sealed partial class ModelCallStartEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "model.call_start";
+
+    /// <summary>The <c>model.call_start</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ModelCallStartData Data { get; set; }
+}
+
 /// <summary>Turn abort information including the reason for termination.</summary>
 /// <remarks>Represents the <c>abort</c> event.</remarks>
 public sealed partial class AbortEvent : SessionEvent
@@ -836,6 +866,19 @@ public sealed partial class ToolExecutionCompleteEvent : SessionEvent
     /// <summary>The <c>tool.execution_complete</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required ToolExecutionCompleteData Data { get; set; }
+}
+
+/// <summary>Persisted generic client-side tool activations restored when a session resumes.</summary>
+/// <remarks>Represents the <c>tool_search.activated</c> event.</remarks>
+public sealed partial class ToolSearchActivatedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "tool_search.activated";
+
+    /// <summary>The <c>tool_search.activated</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required ToolSearchActivatedData Data { get; set; }
 }
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
@@ -1307,6 +1350,20 @@ public sealed partial class SessionManagedSettingsResolvedEvent : SessionEvent
     /// <summary>The <c>session.managed_settings_resolved</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionManagedSettingsResolvedData Data { get; set; }
+}
+
+/// <summary>Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <remarks>Represents the <c>session.managed_settings_enforced</c> event.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionManagedSettingsEnforcedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.managed_settings_enforced";
+
+    /// <summary>The <c>session.managed_settings_enforced</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionManagedSettingsEnforcedData Data { get; set; }
 }
 
 /// <summary>SDK command registration change notification.</summary>
@@ -2231,6 +2288,12 @@ public sealed partial class SessionShutdownData
 /// <summary>Durable session usage checkpoint for reconstructing aggregate accounting on resume.</summary>
 public sealed partial class SessionUsageCheckpointData
 {
+    /// <summary>Internal per-model prompt-cache state used to restore expiration tracking on resume.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("modelCacheState")]
+    internal UsageCheckpointModelCacheState[]? ModelCacheState { get; set; }
+
     /// <summary>Session-wide accumulated nano-AI units cost at checkpoint time.</summary>
     [JsonPropertyName("totalNanoAiu")]
     public required double TotalNanoAiu { get; set; }
@@ -2533,6 +2596,24 @@ public sealed partial class AssistantTurnStartData
     public required string TurnId { get; set; }
 }
 
+/// <summary>Metadata for an additional model inference attempt within an existing assistant turn.</summary>
+public sealed partial class AssistantTurnRetryData
+{
+    /// <summary>Model identifier used for this retry, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Provider or runtime classification that caused the retry, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>Identifier of the turn whose model inference is being retried.</summary>
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; set; }
+}
+
 /// <summary>Agent intent description for current activity or plan.</summary>
 public sealed partial class AssistantIntentData
 {
@@ -2782,6 +2863,11 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("apiEndpoint")]
     public AssistantUsageApiEndpoint? ApiEndpoint { get; set; }
 
+    /// <summary>Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cacheExpiresAt")]
+    public DateTimeOffset? CacheExpiresAt { get; set; }
+
     /// <summary>Number of tokens read from prompt cache.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheReadTokens")]
@@ -2894,6 +2980,11 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("apiCallId")]
     public string? ApiCallId { get; set; }
 
+    /// <summary>API endpoint used for this model call, matching CAPI supported_endpoints vocabulary.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("apiEndpoint")]
+    public AssistantUsageApiEndpoint? ApiEndpoint { get; set; }
+
     /// <summary>For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("badRequestKind")]
@@ -2920,10 +3011,35 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("errorType")]
     public string? ErrorType { get; set; }
 
+    /// <summary>Whether the failure originated from an API response or the request transport.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("failureKind")]
+    public ModelCallFailureKind? FailureKind { get; set; }
+
     /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("initiator")]
     public string? Initiator { get; set; }
+
+    /// <summary>Whether the session selected Auto mode for the failed call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isAuto")]
+    public bool? IsAuto { get; set; }
+
+    /// <summary>Whether the failed call used a bring-your-own-key provider.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("isByok")]
+    public bool? IsByok { get; set; }
+
+    /// <summary>Effective maximum output-token limit for the failed call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxOutputTokens")]
+    public long? MaxOutputTokens { get; set; }
+
+    /// <summary>Effective maximum prompt-token limit for the failed call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxPromptTokens")]
+    public long? MaxPromptTokens { get; set; }
 
     /// <summary>Model identifier used for the failed API call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2940,6 +3056,11 @@ public sealed partial class ModelCallFailureData
     [JsonInclude]
     [JsonPropertyName("quotaSnapshots")]
     internal IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
+
+    /// <summary>Reasoning effort level used for the failed model call, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2959,6 +3080,24 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
     public int? StatusCode { get; set; }
+
+    /// <summary>Transport used for the failed model call (http or websocket).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("transport")]
+    public ModelCallFailureTransport? Transport { get; set; }
+}
+
+/// <summary>Model API dispatch metadata for internal telemetry.</summary>
+public sealed partial class ModelCallStartData
+{
+    /// <summary>Model identifier used for this API call, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Identifier of the assistant turn that initiated the model call.</summary>
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; set; }
 }
 
 /// <summary>Turn abort information including the reason for termination.</summary>
@@ -3141,6 +3280,18 @@ public sealed partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("turnId")]
     public string? TurnId { get; set; }
+}
+
+/// <summary>Persisted generic client-side tool activations restored when a session resumes.</summary>
+public sealed partial class ToolSearchActivatedData
+{
+    /// <summary>Tool-search strategy that activated the definitions.</summary>
+    [JsonPropertyName("strategy")]
+    public required string Strategy { get; set; }
+
+    /// <summary>Names of tool definitions activated by this search invocation.</summary>
+    [JsonPropertyName("toolNames")]
+    public required string[] ToolNames { get; set; }
 }
 
 /// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
@@ -3934,6 +4085,32 @@ public sealed partial class SessionManagedSettingsResolvedData
     public required ManagedSettingsResolvedSource Source { get; set; }
 }
 
+/// <summary>Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed partial class SessionManagedSettingsEnforcedData
+{
+    /// <summary>The category of runtime action that managed policy governed.</summary>
+    [JsonPropertyName("action")]
+    public required ManagedSettingsEnforcedAction Action { get; set; }
+
+    /// <summary>For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused. Absent for actions without a specific escalation primitive.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("escalation")]
+    public ManagedSettingsEnforcedEscalation? Escalation { get; set; }
+
+    /// <summary>Whether the enforcement was forced by fail-closed handling (managed policy could not be determined) rather than an explicit managed setting. When true, `setting` still names the restriction that was applied.</summary>
+    [JsonPropertyName("failClosed")]
+    public required bool FailClosed { get; set; }
+
+    /// <summary>A human-readable explanation of why the action was governed, suitable for surfacing to the user.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>The managed setting key responsible for the enforcement (e.g. `permissions.disableBypassPermissionsMode`).</summary>
+    [JsonPropertyName("setting")]
+    public required string Setting { get; set; }
+}
+
 /// <summary>SDK command registration change notification.</summary>
 public sealed partial class CommandsChangedData
 {
@@ -4459,6 +4636,24 @@ public sealed partial class ShutdownTokenDetail
     /// <summary>Accumulated token count for this token type.</summary>
     [JsonPropertyName("tokenCount")]
     public required long TokenCount { get; set; }
+}
+
+/// <summary>Internal prompt-cache expiration state for one model.</summary>
+/// <remarks>Nested data type for <c>UsageCheckpointModelCacheState</c>.</remarks>
+internal sealed partial class UsageCheckpointModelCacheState
+{
+    /// <summary>Latest known prompt-cache expiration.</summary>
+    [JsonPropertyName("cacheExpiresAt")]
+    public required DateTimeOffset CacheExpiresAt { get; set; }
+
+    /// <summary>Retained cache lifetime in seconds, used to refresh expiration after a cache read.</summary>
+    [JsonInclude]
+    [JsonPropertyName("cacheTtlSeconds")]
+    internal required long CacheTtlSeconds { get; set; }
+
+    /// <summary>Model identifier associated with this cache state.</summary>
+    [JsonPropertyName("modelId")]
+    public required string ModelId { get; set; }
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
@@ -9234,6 +9429,67 @@ public readonly struct ModelCallFailureBadRequestKind : IEquatable<ModelCallFail
     }
 }
 
+/// <summary>Boundary that produced a model call failure.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallFailureKind : IEquatable<ModelCallFailureKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallFailureKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallFailureKind"/>.</param>
+    [JsonConstructor]
+    public ModelCallFailureKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallFailureKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The provider returned an API error response.</summary>
+    public static ModelCallFailureKind Api { get; } = new("api");
+
+    /// <summary>The request transport failed before a usable API response completed.</summary>
+    public static ModelCallFailureKind Transport { get; } = new("transport");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallFailureKind left, ModelCallFailureKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallFailureKind left, ModelCallFailureKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallFailureKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallFailureKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallFailureKind}"/> for serializing <see cref="ModelCallFailureKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallFailureKind>
+    {
+        /// <inheritdoc />
+        public override ModelCallFailureKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallFailureKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureKind));
+        }
+    }
+}
+
 /// <summary>Where the failed model call originated.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -9294,6 +9550,67 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
         public override void Write(Utf8JsonWriter writer, ModelCallFailureSource value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureSource));
+        }
+    }
+}
+
+/// <summary>Transport used for a failed model call.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCallFailureTransport : IEquatable<ModelCallFailureTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCallFailureTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCallFailureTransport"/>.</param>
+    [JsonConstructor]
+    public ModelCallFailureTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCallFailureTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>HTTP transport, including SSE streams.</summary>
+    public static ModelCallFailureTransport Http { get; } = new("http");
+
+    /// <summary>WebSocket transport.</summary>
+    public static ModelCallFailureTransport Websocket { get; } = new("websocket");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCallFailureTransport left, ModelCallFailureTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCallFailureTransport left, ModelCallFailureTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCallFailureTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCallFailureTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCallFailureTransport}"/> for serializing <see cref="ModelCallFailureTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCallFailureTransport>
+    {
+        /// <inheritdoc />
+        public override ModelCallFailureTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCallFailureTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureTransport));
         }
     }
 }
@@ -10869,6 +11186,134 @@ public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSetting
     }
 }
 
+/// <summary>The category of runtime action that enterprise managed settings governed (blocked or capped).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedSettingsEnforcedAction : IEquatable<ManagedSettingsEnforcedAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedSettingsEnforcedAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedSettingsEnforcedAction"/>.</param>
+    [JsonConstructor]
+    public ManagedSettingsEnforcedAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedSettingsEnforcedAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>An attempt to turn on a bypass-permissions ("yolo") escalation was refused or capped because policy disables bypass-permissions mode.</summary>
+    public static ManagedSettingsEnforcedAction BypassPermissionsBlocked { get; } = new("bypass_permissions_blocked");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsEnforcedAction"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedSettingsEnforcedAction left, ManagedSettingsEnforcedAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsEnforcedAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedSettingsEnforcedAction left, ManagedSettingsEnforcedAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedSettingsEnforcedAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedSettingsEnforcedAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedSettingsEnforcedAction}"/> for serializing <see cref="ManagedSettingsEnforcedAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedSettingsEnforcedAction>
+    {
+        /// <inheritdoc />
+        public override ManagedSettingsEnforcedAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedSettingsEnforcedAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedSettingsEnforcedAction));
+        }
+    }
+}
+
+/// <summary>For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ManagedSettingsEnforcedEscalation : IEquatable<ManagedSettingsEnforcedEscalation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ManagedSettingsEnforcedEscalation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ManagedSettingsEnforcedEscalation"/>.</param>
+    [JsonConstructor]
+    public ManagedSettingsEnforcedEscalation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ManagedSettingsEnforcedEscalation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.</summary>
+    public static ManagedSettingsEnforcedEscalation AllowAll { get; } = new("allow_all");
+
+    /// <summary>Auto-approval of all tool permission requests.</summary>
+    public static ManagedSettingsEnforcedEscalation ApproveAll { get; } = new("approve_all");
+
+    /// <summary>Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.</summary>
+    public static ManagedSettingsEnforcedEscalation AutoApproval { get; } = new("auto_approval");
+
+    /// <summary>Unrestricted filesystem access outside the session's allowed directories.</summary>
+    public static ManagedSettingsEnforcedEscalation UnrestrictedPaths { get; } = new("unrestricted_paths");
+
+    /// <summary>Unrestricted URL fetch access.</summary>
+    public static ManagedSettingsEnforcedEscalation UnrestrictedUrls { get; } = new("unrestricted_urls");
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsEnforcedEscalation"/> instances are equivalent.</summary>
+    public static bool operator ==(ManagedSettingsEnforcedEscalation left, ManagedSettingsEnforcedEscalation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsEnforcedEscalation"/> instances are not equivalent.</summary>
+    public static bool operator !=(ManagedSettingsEnforcedEscalation left, ManagedSettingsEnforcedEscalation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ManagedSettingsEnforcedEscalation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ManagedSettingsEnforcedEscalation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ManagedSettingsEnforcedEscalation}"/> for serializing <see cref="ManagedSettingsEnforcedEscalation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ManagedSettingsEnforcedEscalation>
+    {
+        /// <inheritdoc />
+        public override ManagedSettingsEnforcedEscalation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ManagedSettingsEnforcedEscalation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ManagedSettingsEnforcedEscalation));
+        }
+    }
+}
+
 /// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -11384,6 +11829,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AssistantToolCallDeltaEvent))]
 [JsonSerializable(typeof(AssistantTurnEndData))]
 [JsonSerializable(typeof(AssistantTurnEndEvent))]
+[JsonSerializable(typeof(AssistantTurnRetryData))]
+[JsonSerializable(typeof(AssistantTurnRetryEvent))]
 [JsonSerializable(typeof(AssistantTurnStartData))]
 [JsonSerializable(typeof(AssistantTurnStartEvent))]
 [JsonSerializable(typeof(AssistantUsageCopilotUsage))]
@@ -11497,6 +11944,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ModelCallFailureData))]
 [JsonSerializable(typeof(ModelCallFailureEvent))]
 [JsonSerializable(typeof(ModelCallFailureRequestFingerprint))]
+[JsonSerializable(typeof(ModelCallStartData))]
+[JsonSerializable(typeof(ModelCallStartEvent))]
 [JsonSerializable(typeof(OmittedBinaryResult))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
@@ -11596,6 +12045,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedData))]
 [JsonSerializable(typeof(SessionLimitsExhaustedRequestedEvent))]
 [JsonSerializable(typeof(SessionLimitsExhaustedResponse))]
+[JsonSerializable(typeof(SessionManagedSettingsEnforcedData))]
+[JsonSerializable(typeof(SessionManagedSettingsEnforcedEvent))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedData))]
 [JsonSerializable(typeof(SessionManagedSettingsResolvedEvent))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
@@ -11715,8 +12166,11 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionStartToolDescription))]
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMeta))]
 [JsonSerializable(typeof(ToolExecutionStartToolDescriptionMetaUI))]
+[JsonSerializable(typeof(ToolSearchActivatedData))]
+[JsonSerializable(typeof(ToolSearchActivatedEvent))]
 [JsonSerializable(typeof(ToolUserRequestedData))]
 [JsonSerializable(typeof(ToolUserRequestedEvent))]
+[JsonSerializable(typeof(UsageCheckpointModelCacheState))]
 [JsonSerializable(typeof(UserInputCompletedData))]
 [JsonSerializable(typeof(UserInputCompletedEvent))]
 [JsonSerializable(typeof(UserInputRequestedData))]

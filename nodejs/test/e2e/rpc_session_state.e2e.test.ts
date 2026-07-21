@@ -312,7 +312,6 @@ describe("Session-scoped RPC", async () => {
     it("should call metadata snapshot, setWorkingDirectory, and recordContextChange", async () => {
         const firstDirectory = createUniqueDirectory(workDir, "rpc-session-state-first");
         const secondDirectory = createUniqueDirectory(workDir, "rpc-session-state-second");
-        const contextDirectory = createUniqueDirectory(workDir, "rpc-session-state-context");
         const branch = `rpc-context-${randomUUID()}`;
         const session = await client.createSession({
             onPermissionRequest: approveAll,
@@ -354,7 +353,7 @@ describe("Session-scoped RPC", async () => {
             );
 
             const context = {
-                cwd: contextDirectory,
+                cwd: secondDirectory,
                 gitRoot: firstDirectory,
                 branch,
                 repository: "github/copilot-sdk-e2e",
@@ -366,7 +365,7 @@ describe("Session-scoped RPC", async () => {
             await session.rpc.metadata.recordContextChange({ context });
 
             const event = await contextChanged;
-            expect(pathsEqual(event.data.cwd, contextDirectory)).toBe(true);
+            expect(pathsEqual(event.data.cwd, secondDirectory)).toBe(true);
             expect(pathsEqual(event.data.gitRoot ?? "", firstDirectory)).toBe(true);
             expect(event.data.branch).toBe(branch);
             expect(event.data.repository).toBe("github/copilot-sdk-e2e");

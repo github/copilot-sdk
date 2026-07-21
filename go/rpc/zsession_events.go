@@ -65,6 +65,7 @@ const (
 	SessionEventTypeAssistantStreamingDelta     SessionEventType = "assistant.streaming_delta"
 	SessionEventTypeAssistantToolCallDelta      SessionEventType = "assistant.tool_call_delta"
 	SessionEventTypeAssistantTurnEnd            SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnRetry          SessionEventType = "assistant.turn_retry"
 	SessionEventTypeAssistantTurnStart          SessionEventType = "assistant.turn_start"
 	SessionEventTypeAssistantUsage              SessionEventType = "assistant.usage"
 	SessionEventTypeAutoModeSwitchCompleted     SessionEventType = "auto_mode_switch.completed"
@@ -92,6 +93,7 @@ const (
 	SessionEventTypeMCPResourcesListChanged     SessionEventType = "mcp.resources.list_changed"
 	SessionEventTypeMCPToolsListChanged         SessionEventType = "mcp.tools.list_changed"
 	SessionEventTypeModelCallFailure            SessionEventType = "model.call_failure"
+	SessionEventTypeModelCallStart              SessionEventType = "model.call_start"
 	SessionEventTypePendingMessagesModified     SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted         SessionEventType = "permission.completed"
 	SessionEventTypePermissionRequested         SessionEventType = "permission.requested"
@@ -136,6 +138,9 @@ const (
 	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
 	SessionEventTypeSessionLimitsExhaustedCompleted    SessionEventType = "session_limits_exhausted.completed"
 	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
+	// Experimental: SessionEventTypeSessionManagedSettingsEnforced identifies an experimental
+	// event that may change or be removed.
+	SessionEventTypeSessionManagedSettingsEnforced SessionEventType = "session.managed_settings_enforced"
 	// Experimental: SessionEventTypeSessionManagedSettingsResolved identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsResolved SessionEventType = "session.managed_settings_resolved"
@@ -176,6 +181,7 @@ const (
 	SessionEventTypeToolExecutionPartialResult     SessionEventType = "tool.execution_partial_result"
 	SessionEventTypeToolExecutionProgress          SessionEventType = "tool.execution_progress"
 	SessionEventTypeToolExecutionStart             SessionEventType = "tool.execution_start"
+	SessionEventTypeToolSearchActivated            SessionEventType = "tool_search.activated"
 	SessionEventTypeToolUserRequested              SessionEventType = "tool.user_requested"
 	SessionEventTypeUserInputCompleted             SessionEventType = "user_input.completed"
 	SessionEventTypeUserInputRequested             SessionEventType = "user_input.requested"
@@ -501,6 +507,9 @@ func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTy
 
 // Durable session usage checkpoint for reconstructing aggregate accounting on resume
 type SessionUsageCheckpointData struct {
+	// Internal per-model prompt-cache state used to restore expiration tracking on resume
+	// Internal: ModelCacheState is part of the SDK's internal API surface and is not intended for external use.
+	ModelCacheState []UsageCheckpointModelCacheState `json:"modelCacheState,omitzero"`
 	// Session-wide accumulated nano-AI units cost at checkpoint time
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 	// Total number of premium API requests used at checkpoint time
@@ -689,6 +698,8 @@ func (*ExternalToolRequestedData) Type() SessionEventType {
 type ModelCallFailureData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
+	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
 	// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
 	BadRequestKind *ModelCallFailureBadRequestKind `json:"badRequestKind,omitempty"`
 	// Duration of the failed API call in milliseconds
@@ -699,8 +710,18 @@ type ModelCallFailureData struct {
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 	// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
 	ErrorType *string `json:"errorType,omitempty"`
+	// Whether the failure originated from an API response or the request transport
+	FailureKind *ModelCallFailureKind `json:"failureKind,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
+	// Whether the session selected Auto mode for the failed call
+	IsAuto *bool `json:"isAuto,omitempty"`
+	// Whether the failed call used a bring-your-own-key provider
+	IsByok *bool `json:"isByok,omitempty"`
+	// Effective maximum output-token limit for the failed call
+	MaxOutputTokens *int64 `json:"maxOutputTokens,omitempty"`
+	// Effective maximum prompt-token limit for the failed call
+	MaxPromptTokens *int64 `json:"maxPromptTokens,omitempty"`
 	// Model identifier used for the failed API call
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
@@ -708,6 +729,8 @@ type ModelCallFailureData struct {
 	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
 	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitzero"`
+	// Reasoning effort level used for the failed model call, if applicable
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -716,6 +739,8 @@ type ModelCallFailureData struct {
 	Source ModelCallFailureSource `json:"source"`
 	// HTTP status code from the failed request
 	StatusCode *int32 `json:"statusCode,omitempty"`
+	// Transport used for the failed model call (http or websocket)
+	Transport *ModelCallFailureTransport `json:"transport,omitempty"`
 }
 
 func (*ModelCallFailureData) sessionEventData()      {}
@@ -772,6 +797,8 @@ type AssistantUsageData struct {
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
+	// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Number of tokens read from prompt cache
 	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Number of tokens written to prompt cache
@@ -881,6 +908,30 @@ func (*MCPHeadersRefreshCompletedData) sessionEventData() {}
 func (*MCPHeadersRefreshCompletedData) Type() SessionEventType {
 	return SessionEventTypeMCPHeadersRefreshCompleted
 }
+
+// Metadata for an additional model inference attempt within an existing assistant turn
+type AssistantTurnRetryData struct {
+	// Model identifier used for this retry, when known
+	Model *string `json:"model,omitempty"`
+	// Provider or runtime classification that caused the retry, when known
+	Reason *string `json:"reason,omitempty"`
+	// Identifier of the turn whose model inference is being retried
+	TurnID string `json:"turnId"`
+}
+
+func (*AssistantTurnRetryData) sessionEventData()      {}
+func (*AssistantTurnRetryData) Type() SessionEventType { return SessionEventTypeAssistantTurnRetry }
+
+// Model API dispatch metadata for internal telemetry
+type ModelCallStartData struct {
+	// Model identifier used for this API call, when known
+	Model *string `json:"model,omitempty"`
+	// Identifier of the assistant turn that initiated the model call
+	TurnID string `json:"turnId"`
+}
+
+func (*ModelCallStartData) sessionEventData()      {}
+func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeModelCallStart }
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
@@ -1220,6 +1271,17 @@ func (*SessionPermissionsChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionPermissionsChanged
 }
 
+// Persisted generic client-side tool activations restored when a session resumes.
+type ToolSearchActivatedData struct {
+	// Tool-search strategy that activated the definitions.
+	Strategy string `json:"strategy"`
+	// Names of tool definitions activated by this search invocation.
+	ToolNames []string `json:"toolNames"`
+}
+
+func (*ToolSearchActivatedData) sessionEventData()      {}
+func (*ToolSearchActivatedData) Type() SessionEventType { return SessionEventTypeToolSearchActivated }
+
 // Plan approval request with plan content and available user actions
 type ExitPlanModeRequestedData struct {
 	// Available actions the user can take
@@ -1301,6 +1363,26 @@ type CommandExecuteData struct {
 
 func (*CommandExecuteData) sessionEventData()      {}
 func (*CommandExecuteData) Type() SessionEventType { return SessionEventTypeCommandExecute }
+
+// Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
+// Experimental: SessionManagedSettingsEnforcedData is part of an experimental API and may change or be removed.
+type SessionManagedSettingsEnforcedData struct {
+	// The category of runtime action that managed policy governed.
+	Action ManagedSettingsEnforcedAction `json:"action"`
+	// For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused. Absent for actions without a specific escalation primitive.
+	Escalation *ManagedSettingsEnforcedEscalation `json:"escalation,omitempty"`
+	// Whether the enforcement was forced by fail-closed handling (managed policy could not be determined) rather than an explicit managed setting. When true, `setting` still names the restriction that was applied.
+	FailClosed bool `json:"failClosed"`
+	// A human-readable explanation of why the action was governed, suitable for surfacing to the user.
+	Message string `json:"message"`
+	// The managed setting key responsible for the enforcement (e.g. `permissions.disableBypassPermissionsMode`).
+	Setting string `json:"setting"`
+}
+
+func (*SessionManagedSettingsEnforcedData) sessionEventData() {}
+func (*SessionManagedSettingsEnforcedData) Type() SessionEventType {
+	return SessionEventTypeSessionManagedSettingsEnforced
+}
 
 // SDK command registration change notification
 type CommandsChangedData struct {
@@ -3670,6 +3752,18 @@ type ToolExecutionStartToolDescriptionMetaUI struct {
 	Visibility []ToolExecutionStartToolDescriptionMetaUIVisibility `json:"visibility,omitzero"`
 }
 
+// Internal prompt-cache expiration state for one model
+// Internal: UsageCheckpointModelCacheState is an internal SDK API and is not part of the public surface.
+type UsageCheckpointModelCacheState struct {
+	// Latest known prompt-cache expiration
+	CacheExpiresAt time.Time `json:"cacheExpiresAt"`
+	// Retained cache lifetime in seconds, used to refresh expiration after a cache read
+	// Internal: CacheTtlSeconds is part of the SDK's internal API surface and is not intended for external use.
+	CacheTtlSeconds int64 `json:"cacheTtlSeconds"`
+	// Model identifier associated with this cache state
+	ModelID string `json:"modelId"`
+}
+
 // Working directory and git context at session start
 type WorkingDirectoryContext struct {
 	// Base commit of current git branch at session start time
@@ -3903,6 +3997,30 @@ const (
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
+// The category of runtime action that enterprise managed settings governed (blocked or capped)
+type ManagedSettingsEnforcedAction string
+
+const (
+	// An attempt to turn on a bypass-permissions ("yolo") escalation was refused or capped because policy disables bypass-permissions mode.
+	ManagedSettingsEnforcedActionBypassPermissionsBlocked ManagedSettingsEnforcedAction = "bypass_permissions_blocked"
+)
+
+// For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
+type ManagedSettingsEnforcedEscalation string
+
+const (
+	// Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.
+	ManagedSettingsEnforcedEscalationAllowAll ManagedSettingsEnforcedEscalation = "allow_all"
+	// Auto-approval of all tool permission requests.
+	ManagedSettingsEnforcedEscalationApproveAll ManagedSettingsEnforcedEscalation = "approve_all"
+	// Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.
+	ManagedSettingsEnforcedEscalationAutoApproval ManagedSettingsEnforcedEscalation = "auto_approval"
+	// Unrestricted filesystem access outside the session's allowed directories.
+	ManagedSettingsEnforcedEscalationUnrestrictedPaths ManagedSettingsEnforcedEscalation = "unrestricted_paths"
+	// Unrestricted URL fetch access.
+	ManagedSettingsEnforcedEscalationUnrestrictedURLs ManagedSettingsEnforcedEscalation = "unrestricted_urls"
+)
+
 // Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
 type ManagedSettingsResolvedSource string
 
@@ -3994,6 +4112,16 @@ const (
 	ModelCallFailureBadRequestKindStructuredError ModelCallFailureBadRequestKind = "structured_error"
 )
 
+// Boundary that produced a model call failure
+type ModelCallFailureKind string
+
+const (
+	// The provider returned an API error response.
+	ModelCallFailureKindAPI ModelCallFailureKind = "api"
+	// The request transport failed before a usable API response completed.
+	ModelCallFailureKindTransport ModelCallFailureKind = "transport"
+)
+
 // Where the failed model call originated
 type ModelCallFailureSource string
 
@@ -4004,6 +4132,16 @@ const (
 	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
 	// Model call from the top-level agent.
 	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
+)
+
+// Transport used for a failed model call
+type ModelCallFailureTransport string
+
+const (
+	// HTTP transport, including SSE streams.
+	ModelCallFailureTransportHTTP ModelCallFailureTransport = "http"
+	// WebSocket transport.
+	ModelCallFailureTransportWebsocket ModelCallFailureTransport = "websocket"
 )
 
 // Binary result type discriminator. Use "image" for images and "resource" for other binary data.
