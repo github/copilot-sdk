@@ -168,6 +168,12 @@ interface OutboundCallback extends Callback {
 
 **Resolution:**
 
+1. **Interface with default methods.** `NativeBinding` is a Java `interface`, not an abstract class. An interface is the natural seam for swapping implementations (JNA today, FFM later) and avoids committing to a class hierarchy. Any shared validation logic (e.g., checking handle != 0) can live in `default` methods on the interface or in the transport class that calls it, rather than in an abstract base class. This mirrors DJL's `EngineProvider` which is also a plain interface.
+
+2. **Direct instantiation.** The transport class (e.g., `FfiTransport`) instantiates the JNA-backed `NativeBinding` implementation directly — no `ServiceLoader` indirection. Rationale: `ServiceLoader` solves a *user-selectable* swappability problem (DJL uses it because a consumer chooses between PyTorch, TensorFlow, etc. by changing classpath dependencies). Our binding swap is *JDK-version-determined*, not user-chosen, which is exactly what multi-release JARs already handle. When a future FFM implementation ships (ADR-007 defers this), it goes in `META-INF/versions/25/` and the multi-release JAR mechanism itself selects the right class at load time — the same pattern the SDK already uses for `InternalExecutorProvider`. No `ServiceLoader` needed.
+
+3. **Package: `com.github.copilot.ffi`.** New package, separate from the public API surface in `com.github.copilot`. Contains `NativeBinding`, `OutboundCallback`, the JNA implementation class, and the platform-detection/library-extraction logic. All classes are package-private or `@InternalApi`; consumers never reference them directly.
+
 ### 3.4 — JNA callback threading and lifecycle
 
 **Question:** How should the native outbound callback (Rust → Java) be handled in JNA, particularly regarding thread safety and callback lifetime?
