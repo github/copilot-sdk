@@ -3041,8 +3041,9 @@ public abstract class SessionConfigBase
     /// <see cref="McpServers"/> and <see cref="SkillDirectories"/>, with explicit
     /// values taking precedence on name collision.
     /// <para>
-    /// Custom instruction files (<c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>, etc.)
-    /// are always loaded from the working directory regardless of this setting.
+    /// Agent discovery (e.g. <c>.github/agents/</c>) is only performed when this is
+    /// <see langword="true"/>. Use <see cref="SkipCustomInstructions"/> to control
+    /// loading of custom instruction files independently.
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
