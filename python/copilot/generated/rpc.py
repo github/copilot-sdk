@@ -2923,6 +2923,15 @@ class LlmInferenceHTTPRequestChunkRequest:
     request_id: str
     """Matches the requestId from the originating httpRequestStart frame."""
 
+    agent_invocation_id: str | None = None
+    """Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching
+    the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent
+    transport can attribute successive turns correctly: when a WebSocket connection is reused
+    across turns, the httpRequestStart identity reflects only the turn that opened the
+    connection, so each later turn stamps its own invocation id here. Absent when the runtime
+    has no invocation context for the request, or on the plain-HTTP transport where every
+    request has its own httpRequestStart.
+    """
     binary: bool | None = None
     """When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text."""
 
@@ -2943,16 +2952,19 @@ class LlmInferenceHTTPRequestChunkRequest:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         request_id = from_str(obj.get("requestId"))
+        agent_invocation_id = from_union([from_str, from_none], obj.get("agentInvocationId"))
         binary = from_union([from_bool, from_none], obj.get("binary"))
         cancel = from_union([from_bool, from_none], obj.get("cancel"))
         cancel_reason = from_union([from_str, from_none], obj.get("cancelReason"))
         end = from_union([from_bool, from_none], obj.get("end"))
-        return LlmInferenceHTTPRequestChunkRequest(data, request_id, binary, cancel, cancel_reason, end)
+        return LlmInferenceHTTPRequestChunkRequest(data, request_id, agent_invocation_id, binary, cancel, cancel_reason, end)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data"] = from_str(self.data)
         result["requestId"] = from_str(self.request_id)
+        if self.agent_invocation_id is not None:
+            result["agentInvocationId"] = from_union([from_str, from_none], self.agent_invocation_id)
         if self.binary is not None:
             result["binary"] = from_union([from_bool, from_none], self.binary)
         if self.cancel is not None:

@@ -5894,6 +5894,10 @@ export interface LlmInferenceHttpRequestChunkRequest {
    * Optional human-readable reason for the cancellation, propagated for logging.
    */
   cancelReason?: string;
+  /**
+   * Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent transport can attribute successive turns correctly: when a WebSocket connection is reused across turns, the httpRequestStart identity reflects only the turn that opened the connection, so each later turn stamps its own invocation id here. Absent when the runtime has no invocation context for the request, or on the plain-HTTP transport where every request has its own httpRequestStart.
+   */
+  agentInvocationId?: string;
 }
 /**
  * Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
