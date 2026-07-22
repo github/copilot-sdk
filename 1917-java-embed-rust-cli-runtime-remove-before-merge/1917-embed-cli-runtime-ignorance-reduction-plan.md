@@ -85,6 +85,40 @@ ADR-007 specifies publishing `copilot-sdk-java-runtime:VERSION:<classifier>` art
 
 **Resolution:**
 
+Option B is the clear winner. When it comes to the implementation phase for this item, do create the classifier jars for all these binaries
+
+| Platform label | npm package name | Tarball example |
+|---|---|---|
+| `linux-x64` | `@github/copilot-linux-x64` | `copilot-linux-x64-1.0.69-2.tgz` |
+| `linux-arm64` | `@github/copilot-linux-arm64` | `copilot-linux-arm64-1.0.69-2.tgz` |
+| `linuxmusl-x64` | `@github/copilot-linuxmusl-x64` | `copilot-linuxmusl-x64-1.0.69-2.tgz` |
+| `linuxmusl-arm64` | `@github/copilot-linuxmusl-arm64` | `copilot-linuxmusl-arm64-1.0.69-2.tgz` |
+| `darwin-x64` | `@github/copilot-darwin-x64` | `copilot-darwin-x64-1.0.69-2.tgz` |
+| `darwin-arm64` | `@github/copilot-darwin-arm64` | `copilot-darwin-arm64-1.0.69-2.tgz` |
+| `win32-x64` | `@github/copilot-win32-x64` | `copilot-win32-x64-1.0.69-2.tgz` |
+| `win32-arm64` | `@github/copilot-win32-arm64` | `copilot-win32-arm64-1.0.69-2.tgz` |
+
+
+But they are just stubs at this point. Use this content in the `maven-jar-plugin` configuration for each of them, updating the `manifestEntries` accordingly.
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-jar-plugin</artifactId>
+    <configuration>
+        <archive>
+            <manifestEntries>
+                <Copilot-Runtime-Platform>darwin-arm64</Copilot-Runtime-Platform>
+                <Copilot-Runtime-Version>${project.version}</Copilot-Runtime-Version>
+                <Copilot-Runtime-Library>runtime.node</Copilot-Runtime-Library>
+            </manifestEntries>
+        </archive>
+    </configuration>
+</plugin>
+```
+
+At this stage, the jars don't have the content. Just the `MANIFEST.MF`.
+
 ### 3.2 — How do native binaries enter the build?
 
 **Question:** Where do the `runtime.node` binaries come from during the Maven build, and how are they placed into the classifier JARs?
