@@ -28,7 +28,7 @@ These secrets power the GitHub Agentic Workflows (gh-aw) used for issue triage, 
 * **`GH_AW_CI_TRIGGER_TOKEN`**: Token used to trigger CI workflows from within agentic workflow runs.
   * Workflows: `java-codegen-fix.lock.yml`, `java-adapt-handwritten-code-to-accept-upgrade-changes.lock.yml`, `release-changelog.lock.yml`
 
-* **`RUNTIME_TRIAGE_TOKEN`**: Token with read access to `github/copilot-agent-runtime`. Used to clone that repository and make GitHub API calls for cross-repo issue analysis.
+* **`RUNTIME_TRIAGE_TOKEN`**: GitHub token with issue write access to both `github/copilot-sdk` and `github/copilot-agent-runtime`, and read access to `github/copilot-agent-runtime` contents. Used to clone that repository, add labels to the source issue, create linked runtime issues, and make GitHub API calls.
   * Workflows: `cross-repo-issue-analysis.lock.yml`
 
 ## Java publishing secrets
