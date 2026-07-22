@@ -359,7 +359,47 @@ if (connection instanceof InProcessRuntimeConnection) {
 }
 ```
 
-**Resolution (3.5.3):** _(pending)_
+**Resolution (3.5.3 — How does `JsonRpcClient` connect to the FFI streams?):**
+
+No spike needed — the 3.4 spike already proved the hard part, and the remaining piece is trivial.
+
+`JsonRpcClient` accepts a plain `InputStream` + `OutputStream` in its private constructor (see `JsonRpcClient.java` lines 55–57). It currently has two factory methods: `fromProcess(Process)` (stdio) and `fromSocket(Socket)` (TCP). Add a third:
+
+```java
+public static JsonRpcClient fromStreams(InputStream in, OutputStream out) {
+    return new JsonRpcClient(in, out, null, null);
+}
+```
+
+The two stream implementations:
+
+**Read side (`InputStream` ← native callback):** This is the `QueueInputStream` proven in the 3.4 spike (`spike-3-4-jna-callback-and-threading/java-program-that-invokes-rust-dll-mr-jar-17-25/`). The JNA `on_outbound` callback pushes `byte[]` chunks into a `BlockingQueue<byte[]>`; `QueueInputStream.read()` drains them. Verified on both JDK 17.0.18 and JDK 25.0.2. The 3.4 spike also proved that `PipedInputStream` does NOT work here (JNA creates a new short-lived thread per callback invocation, and `PipedInputStream` checks `writeSide.isAlive()` → "Write end dead").
+
+**Write side (`OutputStream` → `connection_write`):** A trivial `FfiOutputStream` that delegates `write()` to the JNA `copilot_runtime_connection_write(connectionId, data, len)` binding. The native side copies the buffer synchronously before returning (documented in the C ABI table above), so no lifecycle concern. Implementation:
+
+```java
+class FfiOutputStream extends OutputStream {
+    private final CopilotRuntimeLibrary lib;
+    private final int connectionId;
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        byte[] slice = (off == 0 && len == b.length) ? b : Arrays.copyOfRange(b, off, off + len);
+        if (!lib.copilot_runtime_connection_write(connectionId, slice, new NativeSize(len))) {
+            throw new IOException("copilot_runtime_connection_write failed");
+        }
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+        write(new byte[]{(byte) b}, 0, 1);
+    }
+}
+```
+
+**Cleanup:** `JsonRpcClient.close()` already handles null `socket` and null `process` — when constructed via `fromStreams()`, both are null, so cleanup just closes the streams. The native lifecycle (`connection_close`, `host_shutdown`) is owned by `FfiRuntimeHost`, not by `JsonRpcClient`.
+
+**Package:** `FfiOutputStream` in `com.github.copilot.ffi` (alongside `QueueInputStream` and `NativeBindingProvider`). `JsonRpcClient.fromStreams()` is a one-line addition to the existing `com.github.copilot.JsonRpcClient`.
 
 ### 3.6 — Platform detection implementation
 
