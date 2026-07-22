@@ -443,6 +443,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 // existing event-only behavior and let session.idle or the timeout win.
                 LogRuntimeCompletionFallbackUnavailable(ex, SessionId);
             }
+            catch (IOException ex) when (ex.InnerException is RemoteRpcException
+            {
+                ErrorCode: RemoteRpcException.MethodNotFoundErrorCode
+            })
+            {
+                // Generated RPC methods surface remote errors through CopilotClient,
+                // which wraps them in IOException. Treat an older runtime's missing
+                // fallback methods the same as a direct method-not-found response.
+                LogRuntimeCompletionFallbackUnavailable(ex, SessionId);
+            }
             catch (OperationCanceledException) when (waitCancellationToken.IsCancellationRequested)
             {
                 // The timeout/caller-cancellation registration completes tcs.

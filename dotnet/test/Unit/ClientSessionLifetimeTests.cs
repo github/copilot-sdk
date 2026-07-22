@@ -436,6 +436,26 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task SendAndWaitAsync_Preserves_Event_Completion_When_Legacy_Runtime_Lacks_Fallback_Rpcs()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureLegacyRuntimeCompletion();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var response = await session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "complete from delayed legacy idle" },
+            timeout: TimeSpan.FromSeconds(3));
+
+        Assert.NotNull(response);
+        Assert.Equal("completed response", response.Data.Content);
+        Assert.Contains(server.Requests, request => request.Method == "session.tasks.waitForPending");
+    }
+
+    [Fact]
     public async Task SendAndWaitAsync_DroppedIdle_Fallback_Flushes_Preceding_Event_Handlers()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -624,6 +644,8 @@ public sealed class ClientSessionLifetimeTests
         private bool _failRuntimeShutdown;
         private bool _emitCompletionWithoutIdle;
         private bool _delayCompletionEvents;
+        private bool _emitDelayedIdle;
+        private bool _fallbackMethodsUnavailable;
         private bool _reactivateDuringFinalBarrier;
         private bool _hasActiveWork;
         private int _activityRequestCount;
@@ -700,6 +722,13 @@ public sealed class ClientSessionLifetimeTests
             {
                 _allowCompletionEvents.TrySetResult();
             }
+        }
+
+        public void ConfigureLegacyRuntimeCompletion()
+        {
+            ConfigureDroppedIdleCompletion();
+            _emitDelayedIdle = true;
+            _fallbackMethodsUnavailable = true;
         }
 
         public void ReleaseCompletionEvents()
@@ -784,6 +813,22 @@ public sealed class ClientSessionLifetimeTests
             lock (_requestsLock)
             {
                 _requests.Add(new RpcRequestRecord(method!, paramsElement));
+            }
+
+            if (_fallbackMethodsUnavailable
+                && method is "session.tasks.waitForPending" or "session.metadata.activity")
+            {
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = id,
+                    ["error"] = new Dictionary<string, object?>
+                    {
+                        ["code"] = -32601,
+                        ["message"] = $"Method not found: {method}"
+                    }
+                }, cancellationToken);
+                return;
             }
 
             var activityRequestNumber = 0;
@@ -926,6 +971,27 @@ public sealed class ClientSessionLifetimeTests
                     }
                 }
             }, cancellationToken);
+
+            if (_emitDelayedIdle)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                await WriteMessageAsync(stream, new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["method"] = "session.event",
+                    ["params"] = new Dictionary<string, object?>
+                    {
+                        ["sessionId"] = _lastSessionId,
+                        ["event"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "session.idle",
+                            ["id"] = Guid.NewGuid().ToString(),
+                            ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                            ["data"] = new Dictionary<string, object?>()
+                        }
+                    }
+                }, cancellationToken);
+            }
         }
 
         private Dictionary<string, object?> CreateSessionResult(JsonElement request)
