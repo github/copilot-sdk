@@ -1440,14 +1440,27 @@ fn spawn_event_loop(
             loop {
                 // `mpsc::UnboundedReceiver::recv` and
                 // `CancellationToken::cancelled` are both cancel-safe per
-                // RFD 400. The selected branch's `await`'d handler is
-                // *not* mid-cancelled by the select — once a branch fires
-                // it runs to completion within the loop's iteration.
-                // Spawned child tasks inside `handle_notification`
-                // (permission/tool/elicitation callbacks) intentionally
-                // outlive the parent loop and own their own cleanup;
-                // this is RFD 400's "spawn background tasks to perform
-                // cancel-unsafe operations" pattern and is correct as-is.
+                // RFD 400.
+                //
+                // Inbound JSON-RPC *requests* are dispatched fire-and-forget:
+                // each `handle_request` runs in its own spawned task that
+                // awaits the handler and sends that request's response. This
+                // mirrors the other Copilot SDKs and moves concurrency to the
+                // request-dispatch boundary, so any slow handler — not just
+                // `userInput.request` (which can stay pending for the full
+                // input backstop of several minutes), but also `exitPlanMode`,
+                // `autoModeSwitch`, hooks, transforms, or canvas/session-FS
+                // providers — cannot park the reader loop and starve sibling
+                // requests or co-emitted notifications. JSON-RPC permits
+                // concurrent requests and out-of-order responses, so the SDK
+                // does not serialize them.
+                //
+                // `handle_notification` is awaited inline because it only
+                // performs fast dispatch work; its slow interactive callbacks
+                // (permission/tool/elicitation) are themselves spawned as child
+                // tasks. All of these spawned tasks intentionally outlive the
+                // parent loop and own their own cleanup — RFD 400's "spawn
+                // background tasks to perform cancel-unsafe operations" pattern.
                 tokio::select! {
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
@@ -1456,16 +1469,33 @@ fn spawn_event_loop(
                         ).await;
                     }
                     Some(request) = requests.recv() => {
-                        let ctx = RequestDispatchContext {
-                            client: &client,
-                            handlers: &handlers,
-                            hooks: hooks.as_deref(),
-                            transforms: transforms.as_deref(),
-                            canvas_handler: canvas_handler.as_ref(),
-                            session_fs_provider: session_fs_provider.as_ref(),
-                            bearer_token_providers: &bearer_token_providers,
-                        };
-                        handle_request(&session_id, ctx, request).await;
+                        // Clone the Arc-backed dispatch context into the task so
+                        // the spawned `handle_request` future is `'static`. All
+                        // clones are cheap (Arc refcount bumps / small maps).
+                        let span = tracing::error_span!("session_request_handler", session_id = %session_id);
+                        let session_id = session_id.clone();
+                        let client = client.clone();
+                        let handlers = handlers.clone();
+                        let hooks = hooks.clone();
+                        let transforms = transforms.clone();
+                        let canvas_handler = canvas_handler.clone();
+                        let session_fs_provider = session_fs_provider.clone();
+                        let bearer_token_providers = bearer_token_providers.clone();
+                        tokio::spawn(
+                            async move {
+                                let ctx = RequestDispatchContext {
+                                    client: &client,
+                                    handlers: &handlers,
+                                    hooks: hooks.as_deref(),
+                                    transforms: transforms.as_deref(),
+                                    canvas_handler: canvas_handler.as_ref(),
+                                    session_fs_provider: session_fs_provider.as_ref(),
+                                    bearer_token_providers: &bearer_token_providers,
+                                };
+                                handle_request(&session_id, ctx, request).await;
+                            }
+                            .instrument(span),
+                        );
                     }
                     else => break,
                 }
