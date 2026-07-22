@@ -212,9 +212,9 @@ The spike at `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-4-jna
 
 - `rust-dll/` — A Rust `cdylib` crate exporting 5 `extern "C"` functions that simulate the real `runtime.node` C ABI (`host_start`, `host_shutdown`, `connection_open`, `connection_write`, `connection_close`). The `connection_open` function spawns a **new native thread** that invokes the callback multiple times, reproducing the real runtime's threading behavior. All functions are heavily instrumented with `println!` logging showing thread IDs at entry/exit.
 
-- `java-program-that-invokes-rust-dll-jdk17/` — The initial JNA-only spike (JDK 17 baseline). Demonstrates the working `QueueInputStream` approach and documents the `PipedInputStream` failure.
+- `java-program-that-invokes-rust-dll-jdk17/` — The initial JNA-only spike (JDK 17 baseline). Demonstrates the working `QueueInputStream` approach and documents the `PipedInputStream` failure. ❌❌❌Do not adopt this approach. This is just for illustration.❌❌❌
 
-- `java-program-that-invokes-rust-dll-mr-jar-17-25/` — The multi-release JAR spike. A single `java -jar` that automatically selects a platform thread reader (JDK 17) or virtual thread reader (JDK 25) via the MR-JAR mechanism, matching the existing `InternalExecutorProvider` pattern. Both JDK versions use JNA for the native binding (FFM is deferred per ADR-007). Verified on JDK 17.0.18 and JDK 25.0.2.
+- `java-program-that-invokes-rust-dll-mr-jar-17-25/` — The multi-release JAR spike. A single `java -jar` that automatically selects a platform thread reader (JDK 17) or virtual thread reader (JDK 25) via the MR-JAR mechanism, matching the existing `InternalExecutorProvider` pattern. Both JDK versions use JNA for the native binding (FFM is deferred per ADR-007). Verified on JDK 17.0.18 and JDK 25.0.2. ✅✅✅This is the approach we will use.✅✅✅
 
 **Answers to the open questions:**
 
