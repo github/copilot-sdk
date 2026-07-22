@@ -269,7 +269,62 @@ public CopilotClientOptions setTransport(Transport transport) { ... }
 
 **Recommendation:** Add a `Transport` enum and `setTransport()` on `CopilotClientOptions`. Create a new `FfiRuntimeHost` class (not extend `CliServerManager`). Provide `InputStream`/`OutputStream` wrappers over the FFI callback and `connection_write`.
 
-**Resolution:**
+**Resolution (3.5.1 — How is InProcess transport selected?):**
+
+**RECOMMENDATION SUPERSEDED.** The `Transport` enum approach is rejected. Instead, adopt the .NET `RuntimeConnection` type hierarchy pattern via a new `setConnection(RuntimeConnection)` field on `CopilotClientOptions`.
+
+**Rationale:** The existing Java options API (`setUseStdio(boolean)`, `setCliUrl(String)`, `setCliPath(String)`) is already messy — two interacting flags that implicitly select from three transport modes. Adding another boolean (`setUseInProcess`) would make it worse. An enum (`Transport.CLI`, `Transport.IN_PROCESS`) doesn't carry per-transport config (path, port, connection token) without the existing fields. The .NET SDK solved this cleanly with a sealed `RuntimeConnection` class hierarchy where each subclass carries only its own config, and `CopilotClientOptions.Connection` selects the transport.
+
+**Design:** Add a sealed `RuntimeConnection` class with factory methods, mirroring .NET 1:1:
+
+```java
+public abstract sealed class RuntimeConnection
+    permits StdioRuntimeConnection, TcpRuntimeConnection,
+            UriRuntimeConnection, InProcessRuntimeConnection {
+
+    RuntimeConnection() {} // package-private — only factory methods create instances
+
+    public static StdioRuntimeConnection forStdio() { return new StdioRuntimeConnection(); }
+    public static StdioRuntimeConnection forStdio(String path) { return new StdioRuntimeConnection().setPath(path); }
+    public static TcpRuntimeConnection forTcp() { return new TcpRuntimeConnection(); }
+    public static UriRuntimeConnection forUri(String url) { return new UriRuntimeConnection(url); }
+    public static InProcessRuntimeConnection forInProcess() { return new InProcessRuntimeConnection(); }
+}
+```
+
+Four concrete sealed subtypes:
+
+| Java subclass                | .NET equivalent              | Transport                       | Config fields                             |
+| ---------------------------- | ---------------------------- | ------------------------------- | ----------------------------------------- |
+| `StdioRuntimeConnection`     | `StdioRuntimeConnection`     | stdin/stdout pipe to subprocess | `path`, `args`                            |
+| `TcpRuntimeConnection`       | `TcpRuntimeConnection`       | TCP socket to subprocess        | `path`, `port`, `connectionToken`, `args` |
+| `UriRuntimeConnection`       | `UriRuntimeConnection`       | TCP to external server          | `url` (required), `connectionToken`       |
+| `InProcessRuntimeConnection` | `InProcessRuntimeConnection` | FFI via JNA C ABI               | _(none — uses bundled native library)_    |
+
+**Usage for all transport choices:**
+
+```java
+// 1. Stdio subprocess (same as today's default useStdio=true)
+new CopilotClientOptions().setConnection(RuntimeConnection.forStdio("/usr/local/bin/copilot"));
+
+// 2. TCP subprocess (same as today's setUseStdio(false))
+new CopilotClientOptions().setConnection(RuntimeConnection.forTcp().setPath("/usr/local/bin/copilot"));
+
+// 3. External server (same as today's setCliUrl())
+new CopilotClientOptions().setConnection(RuntimeConnection.forUri("localhost:3000"));
+
+// 4. In-process FFI (NEW)
+new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess());
+
+// 5. Backward compat — no connection set, infers from legacy fields
+new CopilotClientOptions().setCliPath("/usr/local/bin/copilot"); // works exactly as today
+```
+
+**Backward compatibility:** The `connection` field on `CopilotClientOptions` is nullable (default `null`). When null, existing `useStdio`/`cliUrl`/`cliPath` logic runs unchanged. When non-null, `connection` takes precedence. If both `connection` and legacy fields are set, `CopilotClient` throws `IllegalArgumentException` at construction time.
+
+**Package:** `com.github.copilot.rpc` (alongside `CopilotClientOptions`).
+
+**Resolution (3.5.2 and 3.5.3):** _(pending)_
 
 ### 3.6 — Platform detection implementation
 
