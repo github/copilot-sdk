@@ -8,7 +8,6 @@ import {
   CanonicalToolCall,
   formatSseEvent,
   functionToolCalls,
-  isObject,
   JsonObject,
 } from "./modelProtocolAdapterShared";
 
@@ -22,17 +21,23 @@ type CanonicalContentPart =
       file: { file_data: string; filename?: string };
     };
 
+type AnthropicMediaBlock = {
+  type: "image" | "document";
+  source?: { type?: string; media_type?: string; data?: string };
+};
+
+type AnthropicToolResultBlock =
+  | { type?: "text"; text?: string }
+  | AnthropicMediaBlock;
+
 type AnthropicContentBlock =
   | { type: "text"; text: string; citations?: null }
-  | {
-      type: "image" | "document";
-      source?: { type?: string; media_type?: string; data?: string };
-    }
+  | AnthropicMediaBlock
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | {
       type: "tool_result";
       tool_use_id?: string;
-      content?: string | Array<{ type?: string; text?: string }>;
+      content?: string | AnthropicToolResultBlock[];
     };
 
 type AnthropicMessageParam = {
@@ -187,27 +192,20 @@ function convertAnthropicUserMessage(
   for (const block of normalizeContent(message.content)) {
     if (block.type === "text") {
       contentParts.push({ type: "text", text: block.text });
-    } else if (
-      (block.type === "image" || block.type === "document") &&
-      block.source?.type === "base64" &&
-      block.source.data
-    ) {
-      const dataUrl = `data:${
-        block.source.media_type ??
-        (block.type === "image" ? "image/png" : "application/pdf")
-      };base64,${block.source.data}`;
-      contentParts.push(
-        block.type === "image"
-          ? { type: "image_url", image_url: { url: dataUrl } }
-          : { type: "file", file: { file_data: dataUrl } },
-      );
+    } else if (block.type === "image" || block.type === "document") {
+      const contentPart = anthropicMediaContentPart(block);
+      if (contentPart) contentParts.push(contentPart);
     } else if (block.type === "tool_result") {
       flushUserContent();
+      const toolResult = anthropicToolResultContent(block.content);
       result.push({
         role: "tool",
         tool_call_id: block.tool_use_id ?? "",
-        content: anthropicToolResultContent(block.content),
+        content: toolResult.text,
       });
+      if (toolResult.media.length) {
+        result.push({ role: "user", content: toolResult.media });
+      }
     }
   }
 
@@ -244,15 +242,37 @@ function convertAnthropicAssistantMessage(
   ];
 }
 
-function anthropicToolResultContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) =>
-      isObject(part) && typeof part.text === "string" ? part.text : "",
-    )
-    .filter(Boolean)
-    .join("\n");
+function anthropicMediaContentPart(
+  block: AnthropicMediaBlock,
+): CanonicalContentPart | undefined {
+  if (block.source?.type !== "base64" || !block.source.data) return undefined;
+
+  const dataUrl = `data:${
+    block.source.media_type ??
+    (block.type === "image" ? "image/png" : "application/pdf")
+  };base64,${block.source.data}`;
+  return block.type === "image"
+    ? { type: "image_url", image_url: { url: dataUrl } }
+    : { type: "file", file: { file_data: dataUrl } };
+}
+
+function anthropicToolResultContent(
+  content: string | AnthropicToolResultBlock[] | undefined,
+): { text: string; media: CanonicalContentPart[] } {
+  if (typeof content === "string") return { text: content, media: [] };
+  if (!Array.isArray(content)) return { text: "", media: [] };
+
+  const text: string[] = [];
+  const media: CanonicalContentPart[] = [];
+  for (const part of content) {
+    if (part.type === "text" && typeof part.text === "string") {
+      text.push(part.text);
+    } else if (part.type === "image" || part.type === "document") {
+      const contentPart = anthropicMediaContentPart(part);
+      if (contentPart) media.push(contentPart);
+    }
+  }
+  return { text: text.join("\n"), media };
 }
 
 function convertToolChoice(

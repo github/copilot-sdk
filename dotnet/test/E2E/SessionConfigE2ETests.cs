@@ -22,9 +22,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
-    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Disabled_Then_Enabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
@@ -65,9 +62,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages history diverged after disabling vision via SetModel. Verify
-    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Enabled_Then_Disabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
