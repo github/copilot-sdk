@@ -185,9 +185,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    // TODO(BYOK): The Anthropic user-agent omitted ClientName and contained only its provider SDK
-    // identifier. Determine the expected propagation for custom providers before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Forward_ClientName_In_UserAgent()
     {
         var session = await CreateSessionAsync(new SessionConfig
