@@ -5388,8 +5388,9 @@ impl InputFormat {
 pub use crate::generated::api_types::{
     Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
     ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    ModelCapabilitiesSupports, ModelList, ModelPickerCategory, ModelPolicy, ModelPolicyState,
+    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.
