@@ -67,7 +67,7 @@ The outbound callback signature: `void on_outbound(void* user_data, const uint8_
 
 This phase eliminates unknowns. Each item is a question or spike. Resolve these **before** writing production code.
 
-### 3.1 — Maven module structure for per-platform classifier JARs
+### 3.1 — ✅ Maven module structure for per-platform classifier JARs
 
 **Question:** How should the Maven project be structured to produce the coordination artifact plus 8 classifier JARs?
 
@@ -108,7 +108,7 @@ Key design decisions:
 - No dependency from `copilot-sdk-java` to `copilot-sdk-java-runtime` — consumer declares both manually. This matches the DJL precedent (`pytorch-engine` does not depend on `pytorch-native-cpu`). The runtime SDK code handles the absence gracefully: throws `UnsupportedOperationException` if `Transport.IN_PROCESS` was explicitly requested but no native binary is found, or silently falls back to subprocess transport if `Transport.DEFAULT` is in effect.
 - A Gradle Module Metadata (`.module`) file is generated and published alongside the POM, declaring 8 variants with `org.gradle.native.operatingSystem` and `org.gradle.native.architecture` attributes. This enables Gradle consumers to resolve the correct classifier JAR via variant-aware resolution without a `ComponentMetadataRule`. Musl variants use a custom `com.github.copilot.libc` attribute. A convenience Gradle plugin is deferred until demand warrants it.
 
-### 3.2 — How do native binaries enter the build?
+### 3.2 — ✅ How do native binaries enter the build?
 
 **Question:** Where do the `runtime.node` binaries come from during the Maven build, and how are they placed into the classifier JARs?
 
@@ -136,7 +136,7 @@ Node.js is required to build the `copilot-native` module but **not** the main `c
 
 For CI/publishing, the workflow may optionally pre-stage binaries to skip the `npm pack` step, but the same module supports both paths.
 
-### 3.3 — JNA binding interface design
+### 3.3 — ✅ JNA binding interface design
 
 **Question:** What does the internal abstraction layer look like that isolates the JNA-specific code from the transport logic?
 
@@ -174,7 +174,7 @@ interface OutboundCallback extends Callback {
 
 3. **Package: `com.github.copilot.ffi`.** New package, separate from the public API surface in `com.github.copilot`. Contains `NativeBinding`, `OutboundCallback`, the JNA implementation class, and the platform-detection/library-extraction logic. All classes are package-private or `@InternalApi`; consumers never reference them directly.
 
-### 3.4 — JNA callback threading and lifecycle
+### 3.4 — ✅ JNA callback threading and lifecycle
 
 **Question:** How should the native outbound callback (Rust → Java) be handled in JNA, particularly regarding thread safety and callback lifetime?
 
@@ -231,7 +231,7 @@ The spike at `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-4-jna
 - `NativeBindingProvider` (or `JnaNativeBinding`) — JNA binding class. **Not** a MR-JAR swap point; JNA is used on all JDK versions. FFM is deferred per ADR-007.
 - The `OutboundCallback` lambda must use `Pointer.getByteArray(0, len)` to copy the native buffer — the pointer is only valid for the duration of the callback invocation.
 
-### 3.5 — Transport integration with `CopilotClient`
+### 3.5 — ✅ Transport integration with `CopilotClient`
 
 **Question:** How does the InProcess transport fit into the existing `CopilotClient` architecture?
 
@@ -545,7 +545,7 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 
 ---
 
-### 3.15 Additional human generated questions while reviewing the first draft of this plan, committed in 292a9036aa
+### 3.15 ✅ Additional human generated questions while reviewing the first draft of this plan, committed in 292a9036aa
 
 1. Is the set of C ABI entry points listed in the table at "C ABI entry points to bind" sufficient? I thought ypou said there were "12 `extern "C"` entry points? That table only has 5.
 
