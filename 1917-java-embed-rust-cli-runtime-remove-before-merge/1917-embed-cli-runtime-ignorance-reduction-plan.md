@@ -1,9 +1,10 @@
 # Implementation plan: Embed Rust-based Copilot CLI runtime in the Java SDK (issue #1917)
 
-Human DRI: Ed Burns  
-ADR: `java/docs/adr/adr-007-native-bundling-strategy.md`  
-Epic: https://github.com/github/copilot-sdk/issues/1917  
+Human DRI: Ed Burns
+ADR: `java/docs/adr/adr-007-native-bundling-strategy.md`
+Epic: https://github.com/github/copilot-sdk/issues/1917
 Reference PRs:
+
 - https://github.com/github/copilot-sdk/pull/1901 — .NET in-process FFI transport (`FfiRuntimeHost.cs`)
 - https://github.com/github/copilot-sdk/pull/1915 — Rust SDK in-process FFI transport (`ffi.rs`)
 
@@ -17,29 +18,29 @@ Embed the Copilot runtime (`runtime.node` cdylib) directly into the Java SDK so 
 
 1. Ship per-platform classifier JARs containing the `runtime.node` binary for each of the 8 platform targets (Option 2).
 2. Support uber-jar assembly via `maven-assembly-plugin` that merges all (or a subset of) platform JARs into a single distributable artifact (Option 1 compatibility).
-3. Detect the current platform at runtime, extract the matching native binary, and load it via JNA to call the ~12 `extern "C"` entry points of the runtime's C ABI front door.
+3. Detect the current platform at runtime, extract the matching native binary, and load it via JNA to call the 5 `extern "C"` entry points of the runtime's C ABI front door.
 4. Bridge bidirectional JSON-RPC transport over the FFI boundary (Java → native downcalls, native → Java upcall callbacks).
 
 ### C ABI entry points to bind (from .NET PR #1901 and Rust PR #1915)
 
-| Entry point | Signature (C) | Purpose |
-|-------------|---------------|---------|
-| `copilot_runtime_host_start` | `(const uint8_t* entrypoint, size_t len, const uint8_t* args, size_t args_len) → uint32_t` | Start the runtime host; returns server handle |
-| `copilot_runtime_host_shutdown` | `(uint32_t server) → bool` | Shut down the host |
-| `copilot_runtime_connection_open` | `(uint32_t server, callback, user_data) → uint32_t` | Open a connection; registers outbound callback |
-| `copilot_runtime_connection_write` | `(uint32_t conn, const uint8_t* data, size_t len) → bool` | Write JSON-RPC frame to the runtime |
-| `copilot_runtime_connection_close` | `(uint32_t conn) → bool` | Close a connection |
+| Entry point                        | Signature (C)                                                                                                                                                                                                                                                              | Purpose                                                                                                                                                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `copilot_runtime_host_start`       | `(const uint8_t* argv_json, size_t argv_json_len, const uint8_t* env_json, size_t env_json_len) → uint32_t`                                                                                                                                                                | Start the runtime host; `argv_json` is a JSON array (e.g., `["copilot","--embedded-host"]`), `env_json` is an optional JSON object of environment overrides. Returns server handle (0 = failure).                |
+| `copilot_runtime_host_shutdown`    | `(uint32_t server_id) → bool`                                                                                                                                                                                                                                              | Shut down the runtime host identified by `server_id`.                                                                                                                                                            |
+| `copilot_runtime_connection_open`  | `(uint32_t server_id, void(*on_outbound)(void* user_data, const uint8_t* data, size_t len), void* user_data, const uint8_t* ext_source, size_t ext_source_len, const uint8_t* ext_name, size_t ext_name_len, const uint8_t* conn_token, size_t conn_token_len) → uint32_t` | Open a bidirectional connection; registers `on_outbound` callback for runtime→Java data delivery. `ext_source`, `ext_name`, `conn_token` are nullable metadata buffers. Returns connection handle (0 = failure). |
+| `copilot_runtime_connection_write` | `(uint32_t connection_id, const uint8_t* data, size_t len) → bool`                                                                                                                                                                                                         | Write a JSON-RPC frame from Java into the runtime. Native side copies the buffer synchronously before returning.                                                                                                 |
+| `copilot_runtime_connection_close` | `(uint32_t connection_id) → bool`                                                                                                                                                                                                                                          | Close a connection.                                                                                                                                                                                              |
 
-The outbound callback signature: `void callback(void* user_data, const uint8_t* data, size_t len)` — invoked by native code on native threads to deliver JSON-RPC responses/notifications back to Java.
+The outbound callback signature: `void on_outbound(void* user_data, const uint8_t* data, size_t len)` — invoked by native code (potentially on native threads) to deliver JSON-RPC responses and notifications back to Java.
 
 ### Technology choices (decided in ADR-007)
 
-| Concern | Decision |
-|---------|----------|
+| Concern            | Decision                                                               |
+| ------------------ | ---------------------------------------------------------------------- |
 | Binding technology | JNA (not Panama FFM) — supports Java 17 baseline, zero consumer config |
-| Distribution | Per-platform classifier JARs (DJL-style) + uber-jar composition |
-| Platform detection | `os.name` + `os.arch` + ELF PT_INTERP for musl detection |
-| Cache location | `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node` |
+| Distribution       | Per-platform classifier JARs (DJL-style) + uber-jar composition        |
+| Platform detection | `os.name` + `os.arch` + ELF PT_INTERP for musl detection               |
+| Cache location     | `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`         |
 
 ---
 
@@ -72,11 +73,11 @@ This phase eliminates unknowns. Each item is a question or spike. Resolve these 
 
 ADR-007 specifies publishing `copilot-sdk-java-runtime:VERSION:<classifier>` artifacts alongside the existing `copilot-sdk-java` coordination artifact. Options:
 
-| Option | Structure | Trade-off |
-|--------|-----------|-----------|
-| A | Single `pom.xml` with Maven Assembly Plugin producing classifier JARs as attached artifacts | Simpler build, but classifier JARs are secondary artifacts of the main module. Maven Central treats them as the same artifact — consumers declare `<classifier>linux-x64</classifier>` on the same `copilot-sdk-java` GAV. |
-| B | Multi-module reactor: parent `pom.xml` → `copilot-sdk-java` (existing) + `copilot-sdk-java-runtime` (new module producing classifier JARs) | Cleaner separation, DJL-style. The runtime module has its own GAV. But adds build complexity and the monorepo's `java/` directory currently has a single `pom.xml`. |
-| C | Single module, classifiers produced by a custom Maven plugin or build-helper-maven-plugin to attach additional artifacts | Middle ground. The classifier JARs are attached artifacts of a new `copilot-sdk-java-runtime` artifact built by its own `pom.xml` adjacent to the main SDK pom. |
+| Option | Structure                                                                                                                                  | Trade-off                                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A      | Single `pom.xml` with Maven Assembly Plugin producing classifier JARs as attached artifacts                                                | Simpler build, but classifier JARs are secondary artifacts of the main module. Maven Central treats them as the same artifact — consumers declare `<classifier>linux-x64</classifier>` on the same `copilot-sdk-java` GAV. |
+| B      | Multi-module reactor: parent `pom.xml` → `copilot-sdk-java` (existing) + `copilot-sdk-java-runtime` (new module producing classifier JARs) | Cleaner separation, DJL-style. The runtime module has its own GAV. But adds build complexity and the monorepo's `java/` directory currently has a single `pom.xml`.                                                        |
+| C      | Single module, classifiers produced by a custom Maven plugin or build-helper-maven-plugin to attach additional artifacts                   | Middle ground. The classifier JARs are attached artifacts of a new `copilot-sdk-java-runtime` artifact built by its own `pom.xml` adjacent to the main SDK pom.                                                            |
 
 **Spike needed:** Look at how DJL's `pytorch-native` module produces classifier JARs. Verify whether `maven-assembly-plugin` or `build-helper-maven-plugin` is the right tool for attaching pre-built native binaries as classifier artifacts.
 
@@ -90,11 +91,11 @@ ADR-007 specifies publishing `copilot-sdk-java-runtime:VERSION:<classifier>` art
 
 The .NET PR uses MSBuild targets to copy `runtime.node` from `runtimes/<rid>/native/`. The Rust PR uses a `build.rs` script that downloads/extracts from npm package tarballs. For Java, options:
 
-| Option | Mechanism | Trade-off |
-|--------|-----------|-----------|
-| A | Maven downloads pre-built tarballs from GitHub Releases during `generate-resources` phase | Requires network access at build time; must handle version pinning and integrity verification. |
-| B | A CI workflow pre-stages the binaries into a known directory before `mvn` runs; Maven just copies them into JARs | Simpler POM; CI does the heavy lifting. Matches how the publish pipeline already works. |
-| C | npm-based download (similar to the Rust SDK's approach) via `exec-maven-plugin` calling a Node.js script | Leverages existing `test/harness` Node.js infrastructure in the monorepo. But adds a Node.js build dependency for the main artifact. |
+| Option | Mechanism                                                                                                        | Trade-off                                                                                                                            |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| A      | Maven downloads pre-built tarballs from GitHub Releases during `generate-resources` phase                        | Requires network access at build time; must handle version pinning and integrity verification.                                       |
+| B      | A CI workflow pre-stages the binaries into a known directory before `mvn` runs; Maven just copies them into JARs | Simpler POM; CI does the heavy lifting. Matches how the publish pipeline already works.                                              |
+| C      | npm-based download (similar to the Rust SDK's approach) via `exec-maven-plugin` calling a Node.js script         | Leverages existing `test/harness` Node.js infrastructure in the monorepo. But adds a Node.js build dependency for the main artifact. |
 
 **Spike needed:** Examine the `copilot-agent-runtime` publish pipeline (`publish-cli.yml`) to understand what artifacts are produced and how other SDKs consume them.
 
@@ -138,9 +139,12 @@ interface OutboundCallback extends Callback {
 
 **Question:** How should the native outbound callback (Rust → Java) be handled in JNA, particularly regarding thread safety and callback lifetime?
 
+**Important constraint:** The entire JNA/callback/stream-bridging machinery described in this section is **conditionally instantiated** — it only exists when the user selects the InProcess transport (see 3.5). When the subprocess transport is selected (the default), none of this code runs. The existing subprocess path via `CliServerManager` remains completely unchanged.
+
 The Rust FFI implementation (`ffi.rs` in PR #1915) uses a `CallbackState` with `AtomicUsize` tracking active callbacks, and waits for all active callbacks to drain before freeing the state. The .NET implementation uses a `GCHandle`-pinned delegate.
 
 In JNA:
+
 - `Callback` instances must remain reachable (not GC'd) for the duration of native use. If GC'd, the function pointer becomes dangling → JVM crash.
 - JNA attaches the native thread to the JVM automatically when the callback is invoked.
 - The callback is invoked on the native thread, not the Java thread that initiated the call.
@@ -166,6 +170,8 @@ In JNA:
 ### 3.5 — Transport integration with `CopilotClient`
 
 **Question:** How does the InProcess transport fit into the existing `CopilotClient` architecture?
+
+**Key design principle:** The existing subprocess transport path via `CliServerManager` remains the **default and is completely unchanged**. The InProcess transport is strictly opt-in. `CopilotClient` must support both paths coexisting in the same codebase, with transport selection determining which path is instantiated at construction time. `FfiRuntimeHost` is a **parallel** class to `CliServerManager`, not a replacement — mirroring the .NET PR's approach where `if (_connection is InProcessRuntimeConnection)` takes the FFI path, else the existing subprocess/TCP path runs exactly as before.
 
 Currently, `CopilotClient` uses `CliServerManager` to spawn a subprocess and connects via TCP JSON-RPC. The .NET PR adds `InProcessRuntimeConnection` as a new connection type alongside `StdioRuntimeConnection` and `TcpRuntimeConnection`. The Rust PR adds `Transport::InProcess` and `Transport::Default`.
 
@@ -284,7 +290,7 @@ The C ABI functions return `uint32_t` handles or `bool` success flags. When they
 
 **Question:** How should E2E tests exercise the InProcess transport?
 
-The existing Java E2E tests use `E2ETestContext` which starts a replay proxy (Node.js-based `CapiProxy`). The .NET PR adds `Should_Start_And_Connect_Over_InProcess_Ffi`. The Rust PR adds `inprocess.rs` E2E test.
+The existing Java E2E tests use `E2ETestContext` which starts a replay proxy (Node.js-based `CapiProxy`). The .NET PR adds `Should_Start_And_Connect_Over_InProcess_Ffi`. The Rust PR adds `inprocess.rs` E2E test. Notably, the Rust PR runs the **entire** existing E2E suite with `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` set, exercising the full test matrix over the in-process transport — not just a single smoke test.
 
 For Java:
 
@@ -292,10 +298,11 @@ For Java:
 2. Should InProcess E2E tests use a **real** `runtime.node` binary? This would require the binary to be available in CI.
 3. How do we mock/stub the native library for unit testing the JNA binding layer without a real `runtime.node`?
 4. Should InProcess E2E tests reuse existing YAML snapshots, or do they need separate snapshots?
+5. **Should the entire existing E2E test suite be run with each valid transport (subprocess and InProcess)?** The Rust PR does this — the same E2E tests run in a separate CI job with `COPILOT_SDK_DEFAULT_CONNECTION=inprocess`, providing confidence that both transport paths produce identical behavior. The researcher should determine whether the Java E2E suite can be structured the same way (e.g., a separate Maven profile or CI matrix entry that sets the transport to InProcess and re-runs the full suite).
 
-**Spike needed:** Determine whether the replay proxy can be adapted to work with InProcess transport, or if InProcess tests must use the real runtime binary.
+**Spike needed:** Determine whether the replay proxy can be adapted to work with InProcess transport, or if InProcess tests must use the real runtime binary. Determine whether the full E2E suite can run under both transports, or if certain tests are inherently transport-specific.
 
-**Recommendation:** InProcess E2E tests use the real `runtime.node` binary (not the replay proxy). They run only in CI environments where the binary is available, gated by a Maven profile or system property. Existing YAML snapshots are orthogonal (they're for the replay proxy). Unit tests for the binding layer use a test `.so`/`.dylib` with a minimal C ABI surface.
+**Recommendation:** InProcess E2E tests use the real `runtime.node` binary (not the replay proxy). They run only in CI environments where the binary is available, gated by a Maven profile or system property. Existing YAML snapshots are orthogonal (they're for the replay proxy). Unit tests for the binding layer use a test `.so`/`.dylib` with a minimal C ABI surface. The full E2E suite should be run under both subprocess and InProcess transports in CI, mirroring the Rust PR's approach.
 
 **Resolution:**
 
@@ -348,14 +355,32 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 
 After Phase 3 questions are resolved, implement in this order. Each step should be a separately testable commit.
 
+### TDD discipline for all implementation steps
+
+Every implementation step in this phase **must** follow this test-driven workflow:
+
+1. **Write tests first.** Before writing or modifying production code for a step, write the unit tests (and integration tests where specified) that define the expected behavior. Tests should initially fail (red).
+2. **Implement until green.** Write the minimum production code to make all tests pass.
+3. **Refactor.** Clean up the implementation while keeping tests green. Run `mvn spotless:apply` to ensure formatting compliance.
+4. **Gate before proceeding.** All tests from the current step **and all prior steps** must pass (`mvn verify`) before moving to the next step. Do not proceed with a step if any prior step's tests are broken.
+5. **Coverage expectations per step:**
+   - Every public method must have at least one test exercising the success path and one test exercising the primary failure/edge-case path.
+   - Error handling paths (e.g., missing native binary, failed `host_start`, callback on closed connection) must have explicit tests — do not assume "it would throw."
+   - Platform-specific behavior (OS/arch detection, library naming) must be tested with parameterized tests covering all 8 platform combinations where feasible, using mocked system properties.
+   - Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
+6. **Test isolation.** Each step's tests must be runnable independently of whether a real `runtime.node` binary is present. Unit tests must use mocks, test doubles, or minimal test native libraries — never depend on the real runtime binary. Only E2E integration tests (step 4.7) require the real binary.
+7. **No skipping tests.** Do not annotate tests with `@Disabled` or `@Ignore` to work around failures. If a test cannot pass, fix the production code or fix the test.
+
 ### 4.1 — Platform detection utility
 
 **What:** `PlatformDetector` class that determines `os`, `arch`, `libc` and produces the classifier string.
 
 **Files to create:**
+
 - `java/src/main/java/com/github/copilot/ffi/PlatformDetector.java`
 
 **Tests:** Unit tests with mocked system properties, test ELF binary fragments for PT_INTERP parsing.
+
 - `java/src/test/java/com/github/copilot/ffi/PlatformDetectorTest.java`
 
 **Gating criteria:** Correct classifier output for all 8 platform combinations. Musl detection works against a test ELF binary.
@@ -365,9 +390,11 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** `NativeRuntimeLoader` class that locates `runtime.node` on the classpath, extracts to cache, and returns the filesystem path.
 
 **Files to create:**
+
 - `java/src/main/java/com/github/copilot/ffi/NativeRuntimeLoader.java`
 
 **Tests:** Unit tests with classpath resources, temp directory extraction, atomic rename behavior.
+
 - `java/src/test/java/com/github/copilot/ffi/NativeRuntimeLoaderTest.java`
 
 **Gating criteria:** Extracts binary to `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`. Handles concurrent extraction safely.
@@ -377,12 +404,14 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** `NativeBinding` interface, `JnaNativeBinding` implementation, JNA `Callback` for outbound data.
 
 **Files to create:**
+
 - `java/src/main/java/com/github/copilot/ffi/NativeBinding.java`
 - `java/src/main/java/com/github/copilot/ffi/JnaNativeBinding.java`
 - `java/src/main/java/com/github/copilot/ffi/OutboundCallback.java`
 - `java/src/main/java/com/github/copilot/ffi/FfiTransportException.java`
 
 **Tests:** Unit tests using a test native library with minimal C ABI (or mock/spy on JNA calls).
+
 - `java/src/test/java/com/github/copilot/ffi/JnaNativeBindingTest.java`
 
 **Gating criteria:** Can load a native library, call functions, receive callbacks. Error cases wrapped in `FfiTransportException`.
@@ -392,9 +421,11 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** `FfiRuntimeHost` class that manages the full lifecycle: `host_start` → `connection_open` → duplex stream bridging → `connection_close` → `host_shutdown`. Provides `InputStream`/`OutputStream` compatible with `JsonRpcClient`.
 
 **Files to create:**
+
 - `java/src/main/java/com/github/copilot/ffi/FfiRuntimeHost.java`
 
 **Tests:**
+
 - `java/src/test/java/com/github/copilot/ffi/FfiRuntimeHostTest.java`
 
 **Gating criteria:** Full lifecycle works with a test native library. Callback data flows through `InputStream`. Write data reaches `connection_write`. Shutdown drains active callbacks.
@@ -404,13 +435,16 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** `Transport` enum, `setTransport()` on `CopilotClientOptions`, InProcess code path in `CopilotClient` that uses `FfiRuntimeHost` instead of `CliServerManager`.
 
 **Files to modify:**
+
 - `java/src/main/java/com/github/copilot/rpc/CopilotClientOptions.java` — add `transport` field
 - `java/src/main/java/com/github/copilot/CopilotClient.java` — InProcess connection path
 
 **Files to create:**
+
 - `java/src/main/java/com/github/copilot/ffi/Transport.java`
 
 **Tests:** Unit test that InProcess transport selection uses `FfiRuntimeHost`.
+
 - `java/src/test/java/com/github/copilot/CopilotClientTransportTest.java`
 
 **Gating criteria:** `new CopilotClientOptions().setTransport(Transport.IN_PROCESS)` routes through FFI host. `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` env var works. CLI transport unchanged.
@@ -420,6 +454,7 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** New `copilot-sdk-java-runtime` Maven module that packages `runtime.node` binaries into classifier JARs.
 
 **Files to create:**
+
 - `java/copilot-sdk-java-runtime/pom.xml`
 - Assembly descriptors for classifier JAR packaging
 - `native/<classifier>/platform.properties` metadata files
@@ -431,6 +466,7 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** Failsafe IT that exercises InProcess transport with a real `runtime.node` binary.
 
 **Files to create:**
+
 - `java/src/test/java/com/github/copilot/e2e/InProcessTransportIT.java`
 
 **Snapshot files:** Reuse existing snapshots or create new ones as needed.
@@ -442,6 +478,7 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 **What:** Modify `java-sdk-tests.yml` to add InProcess test jobs.
 
 **Files to modify:**
+
 - `.github/workflows/java-sdk-tests.yml`
 
 **Gating criteria:** CI runs InProcess E2E tests on linux-x64 and darwin-arm64. Tests are skipped gracefully when `runtime.node` is not available.
@@ -459,12 +496,12 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 
 ## Cross-cutting concerns
 
-| Concern | Notes |
-|---------|-------|
-| **Java 17 baseline** | JNA works on Java 17. No Panama FFM. No `--enable-native-access` needed. |
-| **GraalVM native-image** | Verify JNA callback pattern works under native-image. Add reachability metadata if needed. |
-| **Windows path handling** | `runtime.node` on Windows is `copilot_runtime.dll`. Path separators, temp directory behavior differ. |
-| **Thread safety** | `FfiRuntimeHost` must be thread-safe. Callback invocations come from native threads. |
-| **Memory management** | JNA `Callback` instances must not be GC'd while native holds the function pointer. `Pointer`/`Memory` objects must be freed correctly. |
-| **Graceful degradation** | If `runtime.node` is not on the classpath and no CLI path is configured, the SDK should produce a clear error message, not a `ClassNotFoundException` from JNA. |
-| **Spotless/Checkstyle** | All new code must pass `mvn spotless:check` and Checkstyle. Javadoc required on public APIs. |
+| Concern                   | Notes                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Java 17 baseline**      | JNA works on Java 17. No Panama FFM. No `--enable-native-access` needed.                                                                                        |
+| **GraalVM native-image**  | Verify JNA callback pattern works under native-image. Add reachability metadata if needed.                                                                      |
+| **Windows path handling** | `runtime.node` on Windows is `copilot_runtime.dll`. Path separators, temp directory behavior differ.                                                            |
+| **Thread safety**         | `FfiRuntimeHost` must be thread-safe. Callback invocations come from native threads.                                                                            |
+| **Memory management**     | JNA `Callback` instances must not be GC'd while native holds the function pointer. `Pointer`/`Memory` objects must be freed correctly.                          |
+| **Graceful degradation**  | If `runtime.node` is not on the classpath and no CLI path is configured, the SDK should produce a clear error message, not a `ClassNotFoundException` from JNA. |
+| **Spotless/Checkstyle**   | All new code must pass `mvn spotless:check` and Checkstyle. Javadoc required on public APIs.                                                                    |
