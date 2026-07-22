@@ -3193,6 +3193,79 @@ describe("CopilotClient", () => {
                 output: { additionalContext: "context from failure hook" },
             });
         });
+
+        it("dispatches agentStop to onAgentStop and returns a block decision", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onAgentStop: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { decision: "block", reason: "2 vulnerabilities found; please fix" };
+                    },
+                },
+            });
+
+            const result = await (session as any)._handleHooksInvoke("agentStop", {
+                stopReason: "end_turn",
+                transcriptPath: "/tmp/transcript.jsonl",
+                timestamp: 1700000000000,
+                cwd: "/repo",
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                stopReason: "end_turn",
+                transcriptPath: "/tmp/transcript.jsonl",
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/repo",
+            });
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            expect(result).toEqual({
+                decision: "block",
+                reason: "2 vulnerabilities found; please fix",
+            });
+        });
+
+        it("routes agentStop hooks.invoke JSON-RPC requests to onAgentStop", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const received: { input: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onAgentStop: async (input) => {
+                        received.push({ input });
+                        // Returning nothing lets the agent stop normally.
+                    },
+                },
+            });
+
+            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+                sessionId: session.sessionId,
+                hookType: "agentStop",
+                input: {
+                    stopReason: "end_turn",
+                    timestamp: 1700000000000,
+                    cwd: "/repo",
+                },
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                stopReason: "end_turn",
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/repo",
+            });
+            // No decision returned — the SDK forwards an empty output envelope.
+            expect(response).toEqual({ output: undefined });
+        });
     });
 
     describe("shutdown", () => {

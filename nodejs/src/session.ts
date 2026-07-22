@@ -1258,6 +1258,7 @@ export class CopilotSession {
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
+            agentStop: this.hooks.onAgentStop as GenericHandler | undefined,
         };
 
         const handler = handlerMap[hookType];

@@ -1476,6 +1476,49 @@ export type ErrorOccurredHandler = (
 ) => Promise<ErrorOccurredHookOutput | void> | ErrorOccurredHookOutput | void;
 
 /**
+ * Input for the agent-stop hook.
+ *
+ * Fires for the top-level (main) agent when it reaches a natural terminal stop
+ * — i.e. the agent has gone idle without a pending non-terminal tool call and
+ * was not aborted or blocked by a rejected tool. (For sub-agents, the runtime
+ * fires a separate sub-agent stop lifecycle.)
+ */
+export interface AgentStopHookInput extends BaseHookInput {
+    /** Why the agent stopped (for example, `"end_turn"`). */
+    stopReason?: string;
+    /** Path to the on-disk session transcript, when available. */
+    transcriptPath?: string;
+    /**
+     * True when this stop is a re-entry triggered by a previous agent-stop
+     * `block` decision (Claude-compatible `stop_hook_active` semantics). Lets a
+     * handler avoid blocking indefinitely.
+     */
+    stopHookActive?: boolean;
+}
+
+/**
+ * Output for the agent-stop hook.
+ *
+ * Return `{ decision: "block", reason }` to keep the agent running: the
+ * `reason` is enqueued as a follow-up user message so the agent continues
+ * working (for example, to remediate findings surfaced by the hook). The
+ * runtime caps consecutive blocks to prevent runaway loops. Returning nothing
+ * (or omitting `decision`) lets the agent stop normally.
+ */
+export interface AgentStopHookOutput {
+    decision?: "block";
+    reason?: string;
+}
+
+/**
+ * Handler for the agent-stop hook.
+ */
+export type AgentStopHandler = (
+    input: AgentStopHookInput,
+    invocation: { sessionId: string }
+) => Promise<AgentStopHookOutput | void> | AgentStopHookOutput | void;
+
+/**
  * Configuration for session hooks
  */
 export interface SessionHooks {
@@ -1525,6 +1568,16 @@ export interface SessionHooks {
      * Called when an error occurs
      */
     onErrorOccurred?: ErrorOccurredHandler;
+
+    /**
+     * Called when the top-level agent reaches a natural terminal stop (it went
+     * idle without pending work and was not aborted). Return
+     * `{ decision: "block", reason }` to keep the agent running with `reason`
+     * enqueued as a follow-up message — for example, to have the agent
+     * remediate findings the handler surfaced. Returning nothing lets the
+     * agent stop.
+     */
+    onAgentStop?: AgentStopHandler;
 }
 
 // ============================================================================
