@@ -7,6 +7,7 @@ using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Reflection;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -107,6 +108,16 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     protected static List<string> GetToolNames(ParsedHttpExchange exchange)
     {
         return exchange.Request.Tools?.Select(t => t.Function.Name).ToList() ?? [];
+    }
+
+    protected static bool HasImageUrlContent(IEnumerable<ChatCompletionMessage> messages)
+    {
+        return messages
+            .Where(m => m.Role == "user" && m.Content is { ValueKind: JsonValueKind.Array })
+            .Any(m => m.Content!.Value.EnumerateArray().Any(part =>
+                part.TryGetProperty("type", out var typeProp) &&
+                typeProp.ValueKind == JsonValueKind.String &&
+                typeProp.GetString() == "image_url"));
     }
 
     protected async Task<List<ParsedHttpExchange>> WaitForExchangesAsync(int minimumCount = 1)
