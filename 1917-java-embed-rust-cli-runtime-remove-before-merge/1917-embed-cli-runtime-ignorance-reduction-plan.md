@@ -351,6 +351,33 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 
 ---
 
+
+### 3.15 Additional human generated questions while reviewing the first draft of this plan, committed in 292a9036aa
+
+1. Is the set of C ABI entry points listed in the table at "C ABI entry points to bind" sufficient? I thought ypou said there were "12 `extern "C"` entry points? That table only has 5.
+
+**Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
+
+2. Don't I need instructions for installing the rust toolchain in my dev environment? In order to do the bundling, won't I need to build the rust binaries? Or are they available in some artifact repository of some kind? I could add the Copilot CLI codebase to this VS Code workspace if that helps. This overlaps with question 3.2:
+
+   > The .NET PR uses MSBuild targets to copy `runtime.node` from `runtimes/<rid>/native/`. The Rust PR uses a `build.rs` script that downloads/extracts from npm package tarballs.
+
+   Where is this `runtimes` direcory? Is it committed to `git`? I doubt that. Is it in `~/.copilot`?
+   
+**Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
+
+4. I heard the engineers working on other Copilot SDK languages talk about their language bindings being able to communicate in-proc or out of proc. This leads me to think they have some kind of configurable switch. If the other languages do this, then Java should probably also do it. And if so, this impacts the answer to questions 3.4 and 3.5, no?
+
+**Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
+
+5. For the Copilot SDK language bindings that have already made the transition to embedding the Copilot CLI runtime, did they completely abandon the old practice of allowing the use of the system-installed Copilot CLI runtime? Or is this configurable? I expect they abandoned it. This is related to questions 3.8, 3.13 and 3.14. I thought we didn't need a COPILOT_CLI_PATH any more with this approach. I thought that was the entire point of embedding the CLI. 
+
+**Resolution:** Answered by answer to previous question.
+
+6. What, if any, is the TDD-style guidance given to the agents during the implementation phases? I don't see this in the plan. We need to make sure there is very good test coverage.
+
+**Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
+
 ## Phase 4 — Implementation (the build order)
 
 After Phase 3 questions are resolved, implement in this order. Each step should be a separately testable commit.
