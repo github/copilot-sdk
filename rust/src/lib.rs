@@ -111,6 +111,7 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+const MANAGED_SETTINGS_READ_METHOD: &str = "managedSettings.read";
 
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
@@ -2179,6 +2180,16 @@ impl Client {
             .call("auth.getStatus", Some(serde_json::json!({})))
             .await?;
         Ok(serde_json::from_value(result)?)
+    }
+
+    /// Read validated, canonical device managed settings from the runtime.
+    ///
+    /// This is a server-scoped RPC and does not create or require an agent
+    /// session. The SDK returns the runtime-owned payload as opaque JSON so
+    /// callers receive exactly the canonical data the runtime produced.
+    pub async fn read_managed_settings(&self) -> Result<ManagedSettings> {
+        self.call(MANAGED_SETTINGS_READ_METHOD, Some(serde_json::json!({})))
+            .await
     }
 
     /// List available models.
