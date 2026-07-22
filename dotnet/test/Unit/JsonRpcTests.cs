@@ -97,32 +97,48 @@ public class JsonRpcTests
     [Fact]
     public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
     {
-        using var receiveStream = new FrameThenEofStream(CreateResponseFrame(2 * 1024 * 1024));
+        var oversizedFrame = CreateResponseFrame(
+            long.MaxValue,
+            "ignored",
+            headerPaddingLength: 1024 * 1024);
+        var carriedFrame = CreateResponseFrame(1, "carried");
+        using var receiveStream = new CoalescedFramesThenWaitStream(oversizedFrame, carriedFrame);
         using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
 
+        var carriedResponse = rpc.InvokeAsync<string>("pending", args: null);
         rpc.StartListening();
 
-        var completed = await Task.WhenAny(
+        var responseCompleted = await Task.WhenAny(
+            carriedResponse,
+            Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(carriedResponse, responseCompleted);
+        Assert.Equal("carried", await carriedResponse);
+        Assert.True(receiveStream.FramesWereCoalesced);
+
+        var readCompleted = await Task.WhenAny(
             receiveStream.PostFrameReadBufferSize,
             Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.Same(receiveStream.PostFrameReadBufferSize, completed);
+        Assert.Same(receiveStream.PostFrameReadBufferSize, readCompleted);
         Assert.InRange(await receiveStream.PostFrameReadBufferSize, 1, 1024 * 1024);
     }
 
-    private static byte[] CreateResponseFrame(int payloadLength)
+    private static byte[] CreateResponseFrame(long id, string result, int headerPaddingLength = 0)
     {
         using var bodyStream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(bodyStream))
         {
             writer.WriteStartObject();
             writer.WriteString("jsonrpc", "2.0");
-            writer.WriteNumber("id", long.MaxValue);
-            writer.WriteString("result", new string('x', payloadLength));
+            writer.WriteNumber("id", id);
+            writer.WriteString("result", result);
             writer.WriteEndObject();
         }
 
         var body = bodyStream.ToArray();
-        var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
+        var paddingHeader = headerPaddingLength > 0
+            ? $"X-Padding: {new string('x', headerPaddingLength)}\r\n"
+            : string.Empty;
+        var header = Encoding.ASCII.GetBytes($"{paddingHeader}Content-Length: {body.Length}\r\n\r\n");
         var frame = new byte[header.Length + body.Length];
         header.CopyTo(frame, 0);
         body.CopyTo(frame, header.Length);
@@ -239,11 +255,23 @@ public class JsonRpcTests
         public void Dispose() => ((IDisposable)_instance).Dispose();
     }
 
-    private sealed class FrameThenEofStream(byte[] frame) : Stream
+    private sealed class CoalescedFramesThenWaitStream : Stream
     {
         private readonly TaskCompletionSource<int> _postFrameReadBufferSize =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly byte[] _frames;
+        private readonly int _firstFrameLength;
         private int _offset;
+
+        public CoalescedFramesThenWaitStream(byte[] firstFrame, byte[] secondFrame)
+        {
+            _firstFrameLength = firstFrame.Length;
+            _frames = new byte[firstFrame.Length + secondFrame.Length];
+            firstFrame.CopyTo(_frames, 0);
+            secondFrame.CopyTo(_frames, firstFrame.Length);
+        }
+
+        public bool FramesWereCoalesced { get; private set; }
 
         public Task<int> PostFrameReadBufferSize => _postFrameReadBufferSize.Task;
 
@@ -257,11 +285,10 @@ public class JsonRpcTests
 
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
-        public override int Read(byte[] buffer, int offset, int count) =>
-            ReadCore(buffer.AsMemory(offset, count));
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            Task.FromResult(ReadCore(buffer.AsMemory(offset, count)));
+            ReadCoreAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
 #if NET8_0_OR_GREATER
         public override
@@ -269,7 +296,7 @@ public class JsonRpcTests
         internal
 #endif
         ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default) =>
-            new(ReadCore(destination));
+            ReadCoreAsync(destination, cancellationToken);
 
         public override void Flush()
         {
@@ -281,18 +308,26 @@ public class JsonRpcTests
 
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
-        private int ReadCore(Memory<byte> destination)
+        private ValueTask<int> ReadCoreAsync(Memory<byte> destination, CancellationToken cancellationToken)
         {
-            if (_offset >= frame.Length)
+            if (_offset >= _frames.Length)
             {
                 _postFrameReadBufferSize.TrySetResult(destination.Length);
-                return 0;
+                return new ValueTask<int>(WaitForCancellationAsync(cancellationToken));
             }
 
-            var bytesRead = Math.Min(destination.Length, frame.Length - _offset);
-            frame.AsMemory(_offset, bytesRead).CopyTo(destination);
+            var startingOffset = _offset;
+            var bytesRead = Math.Min(destination.Length, _frames.Length - _offset);
+            _frames.AsMemory(_offset, bytesRead).CopyTo(destination);
             _offset += bytesRead;
-            return bytesRead;
+            FramesWereCoalesced |= startingOffset < _firstFrameLength && _offset == _frames.Length;
+            return new ValueTask<int>(bytesRead);
+        }
+
+        private static async Task<int> WaitForCancellationAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return 0;
         }
     }
 
