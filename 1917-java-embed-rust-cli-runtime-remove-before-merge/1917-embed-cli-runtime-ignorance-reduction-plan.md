@@ -206,6 +206,31 @@ In JNA:
 
 **Resolution:**
 
+The spike at `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-4-jna-callback-and-threading/` contains three proven artifacts an implementer must study before writing production code:
+
+**Spike structure:**
+
+- `rust-dll/` — A Rust `cdylib` crate exporting 5 `extern "C"` functions that simulate the real `runtime.node` C ABI (`host_start`, `host_shutdown`, `connection_open`, `connection_write`, `connection_close`). The `connection_open` function spawns a **new native thread** that invokes the callback multiple times, reproducing the real runtime's threading behavior. All functions are heavily instrumented with `println!` logging showing thread IDs at entry/exit.
+
+- `java-program-that-invokes-rust-dll-jdk17/` — The initial JNA-only spike (JDK 17 baseline). Demonstrates the working `QueueInputStream` approach and documents the `PipedInputStream` failure.
+
+- `java-program-that-invokes-rust-dll-mr-jar-17-25/` — The multi-release JAR spike. A single `java -jar` that automatically selects a platform thread reader (JDK 17) or virtual thread reader (JDK 25) via the MR-JAR mechanism, matching the existing `InternalExecutorProvider` pattern. Both JDK versions use JNA for the native binding (FFM is deferred per ADR-007). Verified on JDK 17.0.18 and JDK 25.0.2.
+
+**Answers to the open questions:**
+
+1. **How to pipe callback data into Java:** Use `QueueInputStream` — a `BlockingQueue<byte[]>`-backed `InputStream`. **`PipedInputStream`/`PipedOutputStream` is REJECTED.** JNA creates a new short-lived Java thread for each callback invocation (observed as Thread-0, Thread-1, Thread-2... with different thread IDs). `PipedInputStream` tracks `writeSide` (the last thread that wrote) and checks `writeSide.isAlive()`. When a JNA callback thread terminates after returning, subsequent reads fail with `IOException: Write end dead`. This was discovered and reproduced in the spike. `QueueInputStream` has no thread-affinity checks and works correctly from any thread. On JDK 25, the reader thread consuming from `QueueInputStream` is a virtual thread (via `ReaderThreadFactory` MR-JAR overlay using `Thread.ofVirtual()`), which unmounts from its carrier while blocked on `queue.take()`, freeing the OS thread. On JDK 17, it is a platform thread.
+
+2. **Callback GC protection:** Hold the JNA `Callback` instance as a strong-reference field in the transport class (e.g., `FfiRuntimeHost.callbackRef`). If this reference is GC'd, the native function pointer becomes dangling and the JVM will crash. There is no Java equivalent of .NET's `GCHandle`; a strong field reference is the correct pattern.
+
+3. **Active callback tracking:** Use `AtomicInteger` to track the count of currently active callbacks, mirroring Rust's `AtomicUsize` in `CallbackState`. Drain (wait for count to reach zero) before calling `connection_close` / `host_shutdown` to ensure no callback is in-flight when the native resources are freed.
+
+**Key implementation details for the production `com.github.copilot.ffi` package:**
+
+- `QueueInputStream` — shared by both JDK 17 and JDK 25 paths. Lives in the base source tree.
+- `ReaderThreadFactory` — MR-JAR swap point. Baseline at `src/main/java/.../ffi/ReaderThreadFactory.java` (platform thread), overlay at `src/main/java25/.../ffi/ReaderThreadFactory.java` (virtual thread). Same pattern as `InternalExecutorProvider`.
+- `NativeBindingProvider` (or `JnaNativeBinding`) — JNA binding class. **Not** a MR-JAR swap point; JNA is used on all JDK versions. FFM is deferred per ADR-007.
+- The `OutboundCallback` lambda must use `Pointer.getByteArray(0, len)` to copy the native buffer — the pointer is only valid for the duration of the callback invocation.
+
 ### 3.5 — Transport integration with `CopilotClient`
 
 **Question:** How does the InProcess transport fit into the existing `CopilotClient` architecture?
