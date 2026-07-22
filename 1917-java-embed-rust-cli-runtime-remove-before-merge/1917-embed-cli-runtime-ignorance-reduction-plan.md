@@ -83,8 +83,30 @@ ADR-007 specifies publishing `copilot-sdk-java-runtime:VERSION:<classifier>` art
 
 **Recommendation:** Option B — a new `copilot-sdk-java-runtime` module with its own `pom.xml` that produces 8 classifier JARs. The main `copilot-sdk-java` artifact declares an optional dependency on the runtime module. This matches the DJL pattern and keeps the existing build untouched.
 
-**Resolution:**
+**Resolution:** Option B — hybrid multi-module reactor, refined by the DJL `pytorch-native` pattern (one module produces all classifier JARs, not one module per platform).
 
+Reactor structure:
+
+```
+java/
+├── pom.xml                          (parent, packaging=pom, new GAV: com.github:copilot-sdk-java-parent)
+├── sdk/
+│   └── pom.xml                      (existing SDK, KEEPS GAV: com.github:copilot-sdk-java)
+├── copilot-native/
+│   └── pom.xml                      (new GAV: com.github:copilot-sdk-java-runtime)
+├── copilot-native-all/
+│   └── pom.xml                      (optional monolithic: com.github:copilot-sdk-java-runtime-all)
+```
+
+Key design decisions:
+
+- The existing `copilot-sdk-java` GAV is preserved — no breaking change for consumers.
+- The parent POM (`copilot-sdk-java-parent`) is `packaging=pom` and internal-only.
+- The `copilot-native` module uses multiple `maven-jar-plugin` executions (one per platform) to produce 8 classifier JARs as attached artifacts under a single GAV (`copilot-sdk-java-runtime`). Plus a placeholder primary JAR (like DJL's `placeholder=true` pattern) to satisfy Maven Central validation.
+- The `copilot-native-all` module uses `maven-assembly-plugin` with `jar-with-dependencies` to merge all 8 classifier JARs into a monolithic JAR, satisfying the ADR's "Option 1 + Option 2" decision outcome.
+- `central-publishing-maven-plugin` publishes all classifier JARs atomically under the single `copilot-sdk-java-runtime` GAV — one staging repo, one GPG key, one atomic publish.
+- No dependency from `copilot-sdk-java` to `copilot-sdk-java-runtime` — consumer declares both manually. This matches the DJL precedent (`pytorch-engine` does not depend on `pytorch-native-cpu`). The runtime SDK code handles the absence gracefully: throws `UnsupportedOperationException` if `Transport.IN_PROCESS` was explicitly requested but no native binary is found, or silently falls back to subprocess transport if `Transport.DEFAULT` is in effect.
+- A Gradle Module Metadata (`.module`) file is generated and published alongside the POM, declaring 8 variants with `org.gradle.native.operatingSystem` and `org.gradle.native.architecture` attributes. This enables Gradle consumers to resolve the correct classifier JAR via variant-aware resolution without a `ComponentMetadataRule`. Musl variants use a custom `com.github.copilot.libc` attribute. A convenience Gradle plugin is deferred until demand warrants it.
 
 ### 3.2 — How do native binaries enter the build?
 
@@ -102,7 +124,17 @@ The .NET PR uses MSBuild targets to copy `runtime.node` from `runtimes/<rid>/nat
 
 **Recommendation:** Option B for CI/publishing (the workflow stages binaries, Maven packages them). For local development, provide a script that fetches the binaries, but the main `mvn clean verify` should work without native binaries present (InProcess transport is optional).
 
-**Resolution:**
+**Resolution:** Option C variant — `npm pack` per-platform via `exec-maven-plugin`, with SHA-512 integrity verification.
+
+The `package.json`-as-dependency-manifest approach was ruled out by experiment: `npm install` returns `EBADPLATFORM` for cross-platform packages, and `npm install --force` disables all npm safety checks. `npm pack` downloads the tarball without any platform check and does not require `--force`.
+
+The `copilot-native` module's `generate-resources` phase runs `npm pack @github/copilot-<platform>@${project.version}` for each of the 8 platforms. This produces `.tgz` tarballs, which are then extracted with `tar` to stage the `runtime.node` binary at `target/native-staging/<classifier>/native/<classifier>/runtime.node`. The version comes from `${project.version}` — the SDK and npm package versions are identical, so no separate version property is needed.
+
+Integrity verification: a build step reads the `integrity` field (SHA-512) from the monorepo's `nodejs/package-lock.json` for each `@github/copilot-<platform>` package and verifies the downloaded `.tgz` against it, mirroring Rust's `resolve_version_and_integrity` → `cached_download` → verify pattern in `build/in_process.rs`.
+
+Node.js is required to build the `copilot-native` module but **not** the main `copilot-sdk-java` artifact. Node.js is already required for Java E2E tests (replay proxy), so this introduces no new build dependency. The `copilot-native` module can be skipped entirely (`mvn -pl sdk`) for developers working only on the SDK's Java code.
+
+For CI/publishing, the workflow may optionally pre-stage binaries to skip the `npm pack` step, but the same module supports both paths.
 
 ### 3.3 — JNA binding interface design
 
@@ -352,7 +384,6 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 
 ---
 
-
 ### 3.15 Additional human generated questions while reviewing the first draft of this plan, committed in 292a9036aa
 
 1. Is the set of C ABI entry points listed in the table at "C ABI entry points to bind" sufficient? I thought ypou said there were "12 `extern "C"` entry points? That table only has 5.
@@ -364,14 +395,14 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
    > The .NET PR uses MSBuild targets to copy `runtime.node` from `runtimes/<rid>/native/`. The Rust PR uses a `build.rs` script that downloads/extracts from npm package tarballs.
 
    Where is this `runtimes` direcory? Is it committed to `git`? I doubt that. Is it in `~/.copilot`?
-   
+
 **Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
 
 4. I heard the engineers working on other Copilot SDK languages talk about their language bindings being able to communicate in-proc or out of proc. This leads me to think they have some kind of configurable switch. If the other languages do this, then Java should probably also do it. And if so, this impacts the answer to questions 3.4 and 3.5, no?
 
 **Resolution:** Answered out of band. Changes made accordingly. No further action necessary.
 
-5. For the Copilot SDK language bindings that have already made the transition to embedding the Copilot CLI runtime, did they completely abandon the old practice of allowing the use of the system-installed Copilot CLI runtime? Or is this configurable? I expect they abandoned it. This is related to questions 3.8, 3.13 and 3.14. I thought we didn't need a COPILOT_CLI_PATH any more with this approach. I thought that was the entire point of embedding the CLI. 
+5. For the Copilot SDK language bindings that have already made the transition to embedding the Copilot CLI runtime, did they completely abandon the old practice of allowing the use of the system-installed Copilot CLI runtime? Or is this configurable? I expect they abandoned it. This is related to questions 3.8, 3.13 and 3.14. I thought we didn't need a COPILOT_CLI_PATH any more with this approach. I thought that was the entire point of embedding the CLI.
 
 **Resolution:** Answered by answer to previous question.
 
