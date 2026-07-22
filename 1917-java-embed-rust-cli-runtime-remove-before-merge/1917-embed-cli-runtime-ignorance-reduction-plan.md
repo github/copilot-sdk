@@ -508,17 +508,72 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 **Gating criteria:** `new CopilotClientOptions().setTransport(Transport.IN_PROCESS)` routes through FFI host. `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` env var works. CLI transport unchanged.
 
-### 4.6 — Maven module for per-platform classifier JARs
+### 4.6 — Multi-module reactor restructure and per-platform classifier JARs
 
-**What:** New `copilot-sdk-java-runtime` Maven module that packages `runtime.node` binaries into classifier JARs.
+This step has three sub-steps that must be done in order.
+
+#### 4.6a — Parent POM restructure
+
+**What:** Convert the single-module `java/pom.xml` into a multi-module reactor. Move the existing SDK code into a `sdk/` subdirectory while preserving its GAV (`com.github:copilot-sdk-java`).
 
 **Files to create:**
 
-- `java/copilot-sdk-java-runtime/pom.xml`
-- Assembly descriptors for classifier JAR packaging
-- `native/<classifier>/platform.properties` metadata files
+- `java/pom.xml` — new parent POM (`com.github:copilot-sdk-java-parent`, `packaging=pom`). Declares `<modules>` for `sdk`, `copilot-native`, and `copilot-native-all`. Centralizes shared properties, plugin versions, and `copilot.sdk.root` path.
 
-**Gating criteria:** `mvn package` produces 8 classifier JARs with correct resource paths (`native/<classifier>/runtime.node`).
+**Files to move:**
+
+- Existing `java/pom.xml` → `java/sdk/pom.xml` (with `<parent>` added pointing to `copilot-sdk-java-parent`; existing GAV `com.github:copilot-sdk-java` preserved)
+- Existing `java/src/` → `java/sdk/src/`
+- Existing `java/config/` → `java/sdk/config/` (or kept at `java/config/` and referenced via `${project.parent.basedir}/config/`)
+
+**Files to update:**
+
+- `justfile` — update `java/` paths to `java/sdk/` where needed
+- `.github/workflows/java-sdk-tests.yml` — update working directory references
+- `.github/workflows/` — any other workflows referencing `java/pom.xml`
+
+**Gating criteria:** `mvn clean verify` from `java/` runs the full reactor. `mvn -pl sdk clean verify` builds and tests the SDK exactly as before. All existing tests pass. CI workflows work with the new directory structure.
+
+#### 4.6b — Native binary download and classifier JAR module
+
+**What:** New `copilot-native/` module (`com.github:copilot-sdk-java-runtime`) that downloads `runtime.node` binaries via `npm pack` and packages them into 8 classifier JARs.
+
+**Files to create:**
+
+- `java/copilot-native/pom.xml` — module POM with:
+  - `exec-maven-plugin` executions in `generate-resources` phase: one `npm pack @github/copilot-<platform>@${project.version}` per platform, followed by `tar` extraction to `target/native-staging/<classifier>/native/<classifier>/runtime.node`
+  - A build step that reads `integrity` (SHA-512) from `${copilot.sdk.root}/nodejs/package-lock.json` and verifies each downloaded `.tgz`
+  - Default `maven-jar-plugin` execution producing a placeholder primary JAR (contains only `native/lib/copilot-runtime.properties` with `placeholder=true`)
+  - 8 additional `maven-jar-plugin` executions, each with `<classifier>` (e.g., `linux-x64`, `darwin-arm64`), each packaging from `target/native-staging/<classifier>/`
+  - `build-helper-maven-plugin` to attach the generated Gradle Module Metadata (`.module`) file
+- `java/copilot-native/src/main/resources/native/lib/copilot-runtime.properties` — placeholder properties (`placeholder=true`, `version=${project.version}`)
+- `java/copilot-native/gmm-template.json` — GMM template with `${project.version}` and classifier placeholders, declaring 8 variants with `org.gradle.native.operatingSystem`, `org.gradle.native.architecture`, and (for musl) `com.github.copilot.libc` attributes
+
+**Resource path convention per classifier JAR:**
+
+```
+native/<classifier>/runtime.node
+native/<classifier>/platform.properties
+```
+
+Where `platform.properties` contains:
+
+```properties
+classifier=darwin-arm64
+version=${project.version}
+```
+
+**Gating criteria:** `mvn package -pl copilot-native` produces 8 classifier JARs with correct resource paths. Each classifier JAR contains exactly one `runtime.node` binary at `native/<classifier>/runtime.node`. The placeholder primary JAR contains no native binaries. The `.module` GMM file is attached as an artifact. SHA-512 verification passes for all downloaded tarballs.
+
+#### 4.6c — Monolithic uber-JAR module (optional)
+
+**What:** New `copilot-native-all/` module (`com.github:copilot-sdk-java-runtime-all`) that merges all 8 classifier JARs into a single JAR via `maven-assembly-plugin`.
+
+**Files to create:**
+
+- `java/copilot-native-all/pom.xml` — declares all 8 classifier JARs as dependencies, uses `maven-assembly-plugin` with `jar-with-dependencies` descriptor and `appendAssemblyId=false`
+
+**Gating criteria:** The assembled JAR contains all 8 `native/<classifier>/runtime.node` resource paths. `NativeRuntimeLoader.loadRuntime()` can locate any platform's binary from the merged classpath.
 
 ### 4.7 — E2E integration test
 
