@@ -324,7 +324,42 @@ new CopilotClientOptions().setCliPath("/usr/local/bin/copilot"); // works exactl
 
 **Package:** `com.github.copilot.rpc` (alongside `CopilotClientOptions`).
 
-**Resolution (3.5.2 and 3.5.3):** _(pending)_
+**Resolution (3.5.2 — What replaces `CliServerManager` for InProcess?):**
+
+New `FfiRuntimeHost` class, parallel to `CliServerManager` — not an extension of it. This mirrors the .NET SDK's `FfiRuntimeHost.cs` exactly.
+
+**Rationale:** `CliServerManager` is entirely about subprocess lifecycle (`ProcessBuilder`, command-line construction, `waitForPortAnnouncement`, stderr pumping, `Process` cleanup). `FfiRuntimeHost` is entirely about FFI lifecycle (`host_start` → `connection_open` → duplex streams via `QueueInputStream`/`connection_write` → `connection_close` → `host_shutdown`). Zero overlap in mechanics. Combining them would violate SRP, make the name misleading ("CliServerManager" doesn't manage a server when running in-process), and increase change risk to the stable subprocess path.
+
+**Lifecycle managed by `FfiRuntimeHost`:**
+
+1. Load native library (from classpath-extracted cache path)
+2. `copilot_runtime_host_start(argv_json, env_json)` → `serverId`
+3. `copilot_runtime_connection_open(serverId, callback, ...)` → `connectionId` + `QueueInputStream` fed by callback
+4. Expose `getReceiveStream()` (the `QueueInputStream`) and `getSendStream()` (wraps `connection_write`)
+5. `copilot_runtime_connection_close(connectionId)` on shutdown
+6. `copilot_runtime_host_shutdown(serverId)` on shutdown
+
+**Shared arg/env building:** Both `CliServerManager` and `FfiRuntimeHost` need to build argument arrays and environment maps from `CopilotClientOptions` (auth tokens, telemetry config, `--embedded-host`, `--no-auto-update`, etc.). If the duplication becomes non-trivial, extract a shared static helper (e.g., `RuntimeArgs.buildArgv(options)` / `RuntimeArgs.buildEnv(options)`). Defer this extraction until implementation reveals the actual overlap.
+
+**Package:** `com.github.copilot.ffi` (alongside `NativeBindingProvider` and `QueueInputStream`).
+
+**`CopilotClient.startCoreBody()` dispatch:**
+
+```java
+if (connection instanceof InProcessRuntimeConnection) {
+    ffiHost = new FfiRuntimeHost(...);
+    ffiHost.start();
+    rpc = JsonRpcClient.fromStreams(ffiHost.getReceiveStream(), ffiHost.getSendStream());
+} else if (optionsHost != null) {
+    rpc = serverManager.connectToServer(null, optionsHost, optionsPort);
+} else {
+    // existing subprocess path — unchanged
+    ProcessInfo processInfo = serverManager.startCliServer();
+    ...
+}
+```
+
+**Resolution (3.5.3):** _(pending)_
 
 ### 3.6 — Platform detection implementation
 
