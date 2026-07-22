@@ -174,6 +174,7 @@ function convertAnthropicUserMessage(
 ): CanonicalMessage[] {
   const result: CanonicalMessage[] = [];
   const contentParts: CanonicalContentPart[] = [];
+  const toolResultMedia: CanonicalContentPart[] = [];
 
   const flushUserContent = () => {
     if (contentParts.length === 0) return;
@@ -203,13 +204,14 @@ function convertAnthropicUserMessage(
         tool_call_id: block.tool_use_id ?? "",
         content: toolResult.text,
       });
-      if (toolResult.media.length) {
-        result.push({ role: "user", content: toolResult.media });
-      }
+      toolResultMedia.push(...toolResult.media);
     }
   }
 
   flushUserContent();
+  if (toolResultMedia.length) {
+    result.push({ role: "user", content: toolResultMedia });
+  }
   return result;
 }
 

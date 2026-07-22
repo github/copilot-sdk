@@ -250,6 +250,12 @@ describe("Anthropic Messages adapter", () => {
                   name: "view",
                   input: { path: "test.png" },
                 },
+                {
+                  type: "tool_use",
+                  id: "call-2",
+                  name: "inspect",
+                  input: { path: "test.pdf" },
+                },
               ],
             },
             {
@@ -278,6 +284,11 @@ describe("Anthropic Messages adapter", () => {
                     },
                   ],
                 },
+                {
+                  type: "tool_result",
+                  tool_use_id: "call-2",
+                  content: "Inspected document successfully.",
+                },
               ],
             },
           ],
@@ -298,12 +309,25 @@ describe("Anthropic Messages adapter", () => {
               arguments: '{"path":"test.png"}',
             },
           },
+          {
+            id: "call-2",
+            type: "function",
+            function: {
+              name: "inspect",
+              arguments: '{"path":"test.pdf"}',
+            },
+          },
         ],
       },
       {
         role: "tool",
         tool_call_id: "call-1",
         content: "Viewed image successfully.",
+      },
+      {
+        role: "tool",
+        tool_call_id: "call-2",
+        content: "Inspected document successfully.",
       },
       {
         role: "user",
