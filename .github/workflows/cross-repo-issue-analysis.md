@@ -46,6 +46,7 @@ safe-outputs:
     labels: [upstream-from-sdk, ai-triaged]
     target-repo: "github/copilot-agent-runtime"
     max: 1
+    issue-intent: true
 timeout-minutes: 20
 ---
 
