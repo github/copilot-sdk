@@ -47,4 +47,22 @@ public @interface CopilotToolParam {
 
     /** Optional default value when the argument is omitted. */
     String defaultValue() default "";
+
+    /**
+     * Optional explicit JSON Schema for this parameter as a JSON string literal.
+     * When non-empty, bypasses automatic schema generation from the parameter type.
+     * The value must be a valid JSON object string.
+     *
+     * <p>
+     * Example:
+     *
+     * <pre>
+     * &#64;CopilotTool("Schedule meeting")
+     * public String schedule(
+     * 		&#64;CopilotToolParam(value = "When to meet", schema = "{\"type\":\"string\",\"format\":\"date-time\"}") MyCustomDateTime when) {
+     * 	// ...
+     * }
+     * </pre>
+     */
+    String schema() default "";
 }

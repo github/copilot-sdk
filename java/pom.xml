@@ -76,6 +76,8 @@
             require npm or network access.
         -->
         <skip.cli.install>${skip.test.harness}</skip.cli.install>
+        <!-- Override with -Dnpm.loglevel=verbose when troubleshooting npm. -->
+        <npm.loglevel>notice</npm.loglevel>
         <!-- Extra JVM args for Surefire; overridden by the jdk21+ profile -->
         <surefire.jvm.args />
         <!--
@@ -213,6 +215,8 @@
                             <workingDirectory>${copilot.sdk.root}/test/harness</workingDirectory>
                             <arguments>
                                 <argument>ci</argument>
+                                <argument>--loglevel</argument>
+                                <argument>${npm.loglevel}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -235,6 +239,8 @@
                             <arguments>
                                 <argument>ci</argument>
                                 <argument>--ignore-scripts</argument>
+                                <argument>--loglevel</argument>
+                                <argument>${npm.loglevel}</argument>
                             </arguments>
                         </configuration>
                     </execution>
