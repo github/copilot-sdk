@@ -1121,15 +1121,19 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
 
         private void requireDigit(String part) {
-            if (pos >= input.length() || !Character.isDigit(input.charAt(pos))) {
+            if (pos >= input.length() || !isAsciiDigit(input.charAt(pos))) {
                 throw new IllegalArgumentException("Expected digit in number " + part + " at position " + pos);
             }
         }
 
         private void consumeDigits() {
-            while (pos < input.length() && Character.isDigit(input.charAt(pos))) {
+            while (pos < input.length() && isAsciiDigit(input.charAt(pos))) {
                 pos++;
             }
+        }
+
+        private boolean isAsciiDigit(char c) {
+            return c >= '0' && c <= '9';
         }
 
         private boolean isDigitOneToNine(char c) {
@@ -1137,9 +1141,13 @@ public class CopilotToolProcessor extends AbstractProcessor {
         }
 
         private void skipWhitespace() {
-            while (pos < input.length() && Character.isWhitespace(input.charAt(pos))) {
+            while (pos < input.length() && isJsonWhitespace(input.charAt(pos))) {
                 pos++;
             }
+        }
+
+        private boolean isJsonWhitespace(char c) {
+            return c == ' ' || c == '\t' || c == '\r' || c == '\n';
         }
 
         private char peek() {

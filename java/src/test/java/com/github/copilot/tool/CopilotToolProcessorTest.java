@@ -15,6 +15,7 @@ import java.io.FilterWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ import javax.tools.ToolProvider;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolInvocation;
 
 /**
  * Tests that {@link CopilotToolProcessor} correctly generates
@@ -240,6 +244,53 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void generatedSchemaOverride_supportsCustomTypeHandlerInvocation() throws Exception {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class AnnotationSchemaTools {
+                    public static class CustomDateTime {
+                        public String value;
+                    }
+                    @CopilotTool("Schedule meeting")
+                    public String schedule(@CopilotToolParam(value = "Meeting time",
+                        schema = "{\\"type\\":\\"object\\",\\"properties\\":{\\"value\\":{\\"type\\":\\"string\\"}}}") CustomDateTime when) {
+                        return "scheduled " + when.value;
+                    }
+                }
+                """;
+
+        CompilationResult compilation = compileWithProcessor(
+                List.of(inMemorySource("test.AnnotationSchemaTools", source)));
+        assertNoErrors(compilation);
+
+        try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{compilation.outputDir.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class<?> toolsClass = loader.loadClass("test.AnnotationSchemaTools");
+            Object tools = toolsClass.getConstructor().newInstance();
+            Class<?> providerClass = loader.loadClass("test.AnnotationSchemaTools$$CopilotToolMeta");
+            @SuppressWarnings("unchecked")
+            CopilotToolMetadataProvider<Object> provider = (CopilotToolMetadataProvider<Object>) providerClass
+                    .getConstructor().newInstance();
+            ToolDefinition tool = provider.definitions(tools, new com.fasterxml.jackson.databind.ObjectMapper()).get(0);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> schema = (Map<String, Object>) tool.parameters();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> whenSchema = (Map<String, Object>) properties.get("when");
+            assertEquals("object", whenSchema.get("type"));
+
+            var arguments = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+            arguments.putObject("when").put("value", "2026-07-23T22:00:00Z");
+            Object result = tool.handler().invoke(new ToolInvocation().setArguments(arguments)).get();
+            assertEquals("scheduled 2026-07-23T22:00:00Z", result);
+        }
+    }
+
+    @Test
     void emitsError_forSchemaWithDefaultValue() {
         String source = """
                 package test;
@@ -340,6 +391,10 @@ class CopilotToolProcessorTest {
         IllegalArgumentException numberError = assertThrows(IllegalArgumentException.class,
                 () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1.}"));
         assertTrue(numberError.getMessage().contains("Expected digit in number fraction"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1\u0662}"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\f\"type\":\"string\"}"));
     }
 
     // ── Test: Blank @CopilotToolParam description validation ────────────────────

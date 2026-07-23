@@ -225,6 +225,17 @@ class ParamSchemaTest {
         assertFalse(titleSchema.containsKey("format"));
     }
 
+    @Test
+    void buildSchema_withSchemaOverride_rejectsTrailingJson() {
+        Param<String> param = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\"} {\"type\":\"integer\"}");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> ParamSchema.buildSchema("schedule", MAPPER, param));
+
+        assertTrue(error.getMessage().contains("Invalid schema JSON"));
+    }
+
     // ── forType: primitive and boxed integer types ───────────────────────────────
 
     @Test

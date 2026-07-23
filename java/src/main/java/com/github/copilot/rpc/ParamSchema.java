@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.tool.Param;
 
@@ -88,7 +89,8 @@ class ParamSchema {
             if (!param.schema().isEmpty()) {
                 try {
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> parsed = mapper.readValue(param.schema(), Map.class);
+                    Map<String, Object> parsed = mapper.readerFor(Map.class)
+                            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(param.schema());
                     typeSchema = parsed;
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Invalid schema JSON for parameter '" + param.name()
