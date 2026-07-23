@@ -76,9 +76,9 @@ jobs:
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        uses: github/gh-aw/actions/setup-cli@0feed75a980b06f247abbbf80127f8eb2c19e2c5 # v0.74.8
+        uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
         with:
-          version: v0.74.4
+          version: v0.82.10
 
       # Enable repository pre-commit hooks (Spotless checks for Java source changes)
       - name: Enable pre-commit hooks

@@ -503,8 +503,10 @@ describe("Sessions", () => {
         expect(messages.some((m) => m.type === "abort")).toBe(true);
 
         // We should be able to send another message
-        const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
-        expect(answer?.data.content).toContain("4");
+        const nextAssistantMessage = getNextEventOfType(session, "assistant.message");
+        await session.send({ prompt: "What is 2+2?" });
+        const answer = await nextAssistantMessage;
+        expect(answer.data.content).toContain("4");
     });
 
     it("should receive session events", async () => {

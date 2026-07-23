@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -37,7 +38,9 @@ public final class SessionUsageCheckpointEvent extends SessionEvent {
         /** Session-wide accumulated nano-AI units cost at checkpoint time */
         @JsonProperty("totalNanoAiu") Double totalNanoAiu,
         /** Total number of premium API requests used at checkpoint time */
-        @JsonProperty("totalPremiumRequests") Double totalPremiumRequests
+        @JsonProperty("totalPremiumRequests") Double totalPremiumRequests,
+        /** Internal per-model prompt-cache state used to restore expiration tracking on resume */
+        @JsonProperty("modelCacheState") List<UsageCheckpointModelCacheState> modelCacheState
     ) {
     }
 }

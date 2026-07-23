@@ -272,7 +272,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			RequestExtensions:     copilot.Bool(true),
 			ExtensionSDKPath:      &extensionSDKPath,
 			ExtensionInfo:         &copilot.ExtensionInfo{Source: "github-app", Name: "go-e2e-extension"},
-			ExpAssignments:        map[string]any{"feature": "enabled"},
+			ExpAssignments:        &copilot.CopilotExpAssignmentResponse{Flights: map[string]string{"feature": "enabled"}, AssignmentContext: "ctx"},
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
@@ -342,7 +342,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		if canvas["id"] != "canvas" || canvas["displayName"] != "Canvas" || canvas["description"] != "Canvas description" {
 			t.Fatalf("Expected canvas declaration to be forwarded, got %#v", canvas)
 		}
-		if params["expAssignments"].(map[string]any)["feature"] != "enabled" {
+		if params["expAssignments"].(map[string]any)["Flights"].(map[string]any)["feature"] != "enabled" {
 			t.Fatalf("Expected expAssignments to be forwarded, got %#v", params["expAssignments"])
 		}
 	})
@@ -460,7 +460,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			RequestExtensions:     copilot.Bool(true),
 			ExtensionSDKPath:      &extensionSDKPath,
 			ExtensionInfo:         &copilot.ExtensionInfo{Source: "github-app", Name: "go-e2e-extension"},
-			ExpAssignments:        map[string]any{"resumeFeature": "enabled"},
+			ExpAssignments:        &copilot.CopilotExpAssignmentResponse{Flights: map[string]string{"resumeFeature": "enabled"}, AssignmentContext: "ctx"},
 		})
 		if err != nil {
 			t.Fatalf("ResumeSession failed: %v", err)
@@ -503,7 +503,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		if extensionInfo["source"] != "github-app" || extensionInfo["name"] != "go-e2e-extension" {
 			t.Fatalf("Expected extensionInfo on resume, got %#v", extensionInfo)
 		}
-		if params["expAssignments"].(map[string]any)["resumeFeature"] != "enabled" {
+		if params["expAssignments"].(map[string]any)["Flights"].(map[string]any)["resumeFeature"] != "enabled" {
 			t.Fatalf("Expected resume expAssignments to be forwarded, got %#v", params["expAssignments"])
 		}
 	})

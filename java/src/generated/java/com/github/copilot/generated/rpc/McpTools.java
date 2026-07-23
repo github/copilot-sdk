@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP tool metadata with tool name and optional description.
+ * MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery metadata.
  *
  * @since 1.0.0
  */
@@ -24,6 +24,8 @@ public record McpTools(
     /** Tool name. */
     @JsonProperty("name") String name,
     /** Tool description, when provided. */
-    @JsonProperty("description") String description
+    @JsonProperty("description") String description,
+    /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
+    @JsonProperty("ui") McpToolUi ui
 ) {
 }

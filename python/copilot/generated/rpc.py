@@ -2088,6 +2088,335 @@ class KindEnum(Enum):
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class FactoryAbortRequest:
+    """Parameters for cooperatively aborting a factory body."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryAbortRequest':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        session_id = from_str(obj.get("sessionId"))
+        return FactoryAbortRequest(run_id, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryACKResult:
+    """Acknowledgement that a factory request was accepted."""
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryACKResult':
+        assert isinstance(obj, dict)
+        return FactoryACKResult()
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryAgentOptions:
+    """Options for one factory-scoped subagent call.
+
+    Subagent execution options.
+    """
+    label: str | None = None
+    """Optional label distinguishing otherwise identical memoized agent calls."""
+
+    model: str | None = None
+    """Optional model identifier for the subagent."""
+
+    schema: Any = None
+    """Optional JSON Schema for structured agent output."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryAgentOptions':
+        assert isinstance(obj, dict)
+        label = from_union([from_str, from_none], obj.get("label"))
+        model = from_union([from_str, from_none], obj.get("model"))
+        schema = obj.get("schema")
+        return FactoryAgentOptions(label, model, schema)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.label is not None:
+            result["label"] = from_union([from_str, from_none], self.label)
+        if self.model is not None:
+            result["model"] = from_union([from_str, from_none], self.model)
+        if self.schema is not None:
+            result["schema"] = self.schema
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryAgentResult:
+    """Result of one factory-scoped subagent call."""
+
+    result: Any = None
+    """Agent result, omitted when the agent produced no result."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryAgentResult':
+        assert isinstance(obj, dict)
+        result = obj.get("result")
+        return FactoryAgentResult(result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.result is not None:
+            result["result"] = self.result
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryCancelRequest:
+    """Parameters for cancelling a factory run."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryCancelRequest':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        return FactoryCancelRequest(run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryExecuteRequest:
+    """Parameters sent to the owning extension to execute a factory closure."""
+
+    args: Any
+    """Factory input value."""
+
+    name: str
+    """Registered factory name."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryExecuteRequest':
+        assert isinstance(obj, dict)
+        args = obj.get("args")
+        name = from_str(obj.get("name"))
+        run_id = from_str(obj.get("runId"))
+        session_id = from_str(obj.get("sessionId"))
+        return FactoryExecuteRequest(args, name, run_id, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["args"] = self.args
+        result["name"] = from_str(self.name)
+        result["runId"] = from_str(self.run_id)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryExecuteResult:
+    """Result returned by an extension factory closure."""
+
+    result: Any
+    """Factory result value."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryExecuteResult':
+        assert isinstance(obj, dict)
+        result = obj.get("result")
+        return FactoryExecuteResult(result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["result"] = self.result
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryGetRunRequest:
+    """Parameters for retrieving a factory run."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryGetRunRequest':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        return FactoryGetRunRequest(run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryJournalGetRequest:
+    """Parameters for reading a factory journal entry."""
+
+    key: str
+    """Namespaced journal key."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryJournalGetRequest':
+        assert isinstance(obj, dict)
+        key = from_str(obj.get("key"))
+        run_id = from_str(obj.get("runId"))
+        return FactoryJournalGetRequest(key, run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["key"] = from_str(self.key)
+        result["runId"] = from_str(self.run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryJournalGetResult:
+    """Result of reading a factory journal entry."""
+
+    hit: bool
+    """Whether the journal contained the requested key."""
+
+    result_json: Any = None
+    """Cached JSON result. The hit field distinguishes a cached JSON null from a miss."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryJournalGetResult':
+        assert isinstance(obj, dict)
+        hit = from_bool(obj.get("hit"))
+        result_json = obj.get("resultJson")
+        return FactoryJournalGetResult(hit, result_json)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hit"] = from_bool(self.hit)
+        if self.result_json is not None:
+            result["resultJson"] = self.result_json
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryJournalPutRequest:
+    """Parameters for storing a factory journal entry."""
+
+    key: str
+    """Namespaced journal key."""
+
+    result_json: Any
+    """JSON result to memoize."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryJournalPutRequest':
+        assert isinstance(obj, dict)
+        key = from_str(obj.get("key"))
+        result_json = obj.get("resultJson")
+        run_id = from_str(obj.get("runId"))
+        return FactoryJournalPutRequest(key, result_json, run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["key"] = from_str(self.key)
+        result["resultJson"] = self.result_json
+        result["runId"] = from_str(self.run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class FactoryLogLineKind(Enum):
+    """Progress line kind.
+
+    Kind of factory progress line.
+    """
+    LOG = "log"
+    PHASE = "phase"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class FactoryRunFailureKind(Enum):
+    """Resource ceiling that stopped the run.
+
+    Cumulative resource ceiling that stopped a factory run.
+    """
+    MAX_TOTAL_SUBAGENTS = "maxTotalSubagents"
+    TIMEOUT = "timeout"
+
+class FactoryRunFailureType(Enum):
+    FACTORY_LIMIT_REACHED = "factory_limit_reached"
+    FACTORY_RESUME_DECLINED = "factory_resume_declined"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryRunLimits:
+    """Wire-only per-invocation factory resource ceiling overrides.
+
+    Per-invocation resource ceiling overrides.
+    """
+    max_concurrent_subagents: int | None = None
+    """Maximum number of factory subagents that may run concurrently."""
+
+    max_total_subagents: int | None = None
+    """Maximum total number of factory subagents that may be admitted."""
+
+    timeout: float | None = None
+    """Factory active-run timeout in milliseconds."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryRunLimits':
+        assert isinstance(obj, dict)
+        max_concurrent_subagents = from_union([from_int, from_none], obj.get("maxConcurrentSubagents"))
+        max_total_subagents = from_union([from_int, from_none], obj.get("maxTotalSubagents"))
+        timeout = from_union([from_float, from_none], obj.get("timeout"))
+        return FactoryRunLimits(max_concurrent_subagents, max_total_subagents, timeout)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_concurrent_subagents is not None:
+            result["maxConcurrentSubagents"] = from_union([from_int, from_none], self.max_concurrent_subagents)
+        if self.max_total_subagents is not None:
+            result["maxTotalSubagents"] = from_union([from_int, from_none], self.max_total_subagents)
+        if self.timeout is not None:
+            result["timeout"] = from_union([to_float, from_none], self.timeout)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class FactoryRunStatus(Enum):
+    """Current or terminal factory run status.
+
+    Current or terminal state of a factory run.
+    """
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    ERROR = "error"
+    HALTED = "halted"
+    PENDING = "pending"
+    RUNNING = "running"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class FleetStartRequest:
     """Optional user prompt to combine with the fleet orchestration instructions."""
 
@@ -2446,6 +2775,47 @@ class HistoryTruncateResult:
 class HMACAuthInfoType(Enum):
     HMAC = "hmac"
 
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _HookType(Enum):
+    """Hook event name dispatched through the SDK callback transport."""
+
+    AGENT_STOP = "agentStop"
+    ERROR_OCCURRED = "errorOccurred"
+    NOTIFICATION = "notification"
+    PERMISSION_REQUEST = "permissionRequest"
+    POST_RESULT = "postResult"
+    POST_TOOL_USE = "postToolUse"
+    POST_TOOL_USE_FAILURE = "postToolUseFailure"
+    PRE_COMPACT = "preCompact"
+    PRE_MCP_TOOL_CALL = "preMcpToolCall"
+    PRE_PR_DESCRIPTION = "prePRDescription"
+    PRE_TOOL_USE = "preToolUse"
+    SESSION_END = "sessionEnd"
+    SESSION_START = "sessionStart"
+    SUBAGENT_START = "subagentStart"
+    SUBAGENT_STOP = "subagentStop"
+    USER_PROMPT_SUBMITTED = "userPromptSubmitted"
+    USER_PROMPT_TRANSFORMED = "userPromptTransformed"
+
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _HookInvokeResponse:
+    """Optional output returned by an SDK callback hook."""
+
+    output: Any = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_HookInvokeResponse':
+        assert isinstance(obj, dict)
+        output = obj.get("output")
+        return _HookInvokeResponse(output)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.output is not None:
+            result["output"] = self.output
+        return result
+
 class PurpleSource(Enum):
     GITHUB = "github"
     LOCAL = "local"
@@ -2553,6 +2923,15 @@ class LlmInferenceHTTPRequestChunkRequest:
     request_id: str
     """Matches the requestId from the originating httpRequestStart frame."""
 
+    agent_invocation_id: str | None = None
+    """Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching
+    the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent
+    transport can attribute successive turns correctly: when a WebSocket connection is reused
+    across turns, the httpRequestStart identity reflects only the turn that opened the
+    connection, so each later turn stamps its own invocation id here. Absent when the runtime
+    has no invocation context for the request, or on the plain-HTTP transport where every
+    request has its own httpRequestStart.
+    """
     binary: bool | None = None
     """When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text."""
 
@@ -2573,16 +2952,19 @@ class LlmInferenceHTTPRequestChunkRequest:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         request_id = from_str(obj.get("requestId"))
+        agent_invocation_id = from_union([from_str, from_none], obj.get("agentInvocationId"))
         binary = from_union([from_bool, from_none], obj.get("binary"))
         cancel = from_union([from_bool, from_none], obj.get("cancel"))
         cancel_reason = from_union([from_str, from_none], obj.get("cancelReason"))
         end = from_union([from_bool, from_none], obj.get("end"))
-        return LlmInferenceHTTPRequestChunkRequest(data, request_id, binary, cancel, cancel_reason, end)
+        return LlmInferenceHTTPRequestChunkRequest(data, request_id, agent_invocation_id, binary, cancel, cancel_reason, end)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data"] = from_str(self.data)
         result["requestId"] = from_str(self.request_id)
+        if self.agent_invocation_id is not None:
+            result["agentInvocationId"] = from_union([from_str, from_none], self.agent_invocation_id)
         if self.binary is not None:
             result["binary"] = from_union([from_bool, from_none], self.binary)
         if self.cancel is not None:
@@ -3586,6 +3968,13 @@ class MCPListToolsRequest:
         result["serverName"] = from_str(self.server_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+class MCPToolUIVisibility(Enum):
+    """Consumer allowed to call an MCP tool."""
+
+    APP = "app"
+    MODEL = "model"
+
 class MCPOauthPendingRequestResponseKind(Enum):
     CANCELLED = "cancelled"
     TOKEN = "token"
@@ -4106,7 +4495,10 @@ class MetadataRecordContextChangeResult:
     """Notify the session that its working directory context has changed. Emits a
     `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline
     UI) can react. Use this when the host has detected a cwd/branch/repo change outside the
-    session's normal lifecycle (e.g., after a shell command in interactive mode).
+    session's normal lifecycle (e.g., after a shell command in interactive mode). For a local
+    session, a report whose `cwd` diverges from the session's current working directory is
+    ignored (the call still succeeds but records nothing and emits no event); move a local
+    session's working directory via `metadata.setWorkingDirectory` instead.
     """
     @staticmethod
     def from_dict(obj: Any) -> 'MetadataRecordContextChangeResult':
@@ -7537,33 +7929,6 @@ class SessionLoadDeferredRepoHooksResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class SessionModelList:
-    """The list of models available to this session."""
-
-    list: list[Any]
-    """Available models, ordered with the most preferred default first. Includes both Copilot
-    (CAPI) models and any registry BYOK models; a BYOK model appears under its
-    provider-qualified selection id (`provider/id`).
-    """
-    quota_snapshots: dict[str, Any] | None = None
-    """Per-quota snapshots returned alongside the model list, keyed by quota type."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionModelList':
-        assert isinstance(obj, dict)
-        list = from_list(lambda x: x, obj.get("list"))
-        quota_snapshots = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("quotaSnapshots"))
-        return SessionModelList(list, quota_snapshots)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["list"] = from_list(lambda x: x, self.list)
-        if self.quota_snapshots is not None:
-            result["quotaSnapshots"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.quota_snapshots)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource:
     """Source descriptor for a `sessions.open` content-exclusion rule, with source name and type."""
 
@@ -8013,15 +8378,21 @@ class SessionUpdateOptionsResult:
     success: bool
     """Whether the operation succeeded"""
 
+    plugin_hook_count: int | None = None
+    """Number of hooks loaded from installed plugins, returned when installedPlugins is updated"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'SessionUpdateOptionsResult':
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
-        return SessionUpdateOptionsResult(success)
+        plugin_hook_count = from_union([from_int, from_none], obj.get("pluginHookCount"))
+        return SessionUpdateOptionsResult(success, plugin_hook_count)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["success"] = from_bool(self.success)
+        if self.plugin_hook_count is not None:
+            result["pluginHookCount"] = from_union([from_int, from_none], self.plugin_hook_count)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -11579,6 +11950,136 @@ class SlashCommandTextResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class FactoryAgentRequest:
+    """Parameters for one factory-scoped subagent call."""
+
+    factory_run_id: str
+    """Factory run identifier that owns the subagent."""
+
+    opts: FactoryAgentOptions
+    """Subagent execution options."""
+
+    prompt: str
+    """Prompt to send to the subagent."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryAgentRequest':
+        assert isinstance(obj, dict)
+        factory_run_id = from_str(obj.get("factoryRunId"))
+        opts = FactoryAgentOptions.from_dict(obj.get("opts"))
+        prompt = from_str(obj.get("prompt"))
+        return FactoryAgentRequest(factory_run_id, opts, prompt)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["factoryRunId"] = from_str(self.factory_run_id)
+        result["opts"] = to_class(FactoryAgentOptions, self.opts)
+        result["prompt"] = from_str(self.prompt)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryLogLine:
+    """One ordered factory progress line."""
+
+    kind: FactoryLogLineKind
+    """Progress line kind."""
+
+    seq: int
+    """Monotonic sequence number within the factory run."""
+
+    text: str
+    """Progress text."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryLogLine':
+        assert isinstance(obj, dict)
+        kind = FactoryLogLineKind(obj.get("kind"))
+        seq = from_int(obj.get("seq"))
+        text = from_str(obj.get("text"))
+        return FactoryLogLine(kind, seq, text)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(FactoryLogLineKind, self.kind)
+        result["seq"] = from_int(self.seq)
+        result["text"] = from_str(self.text)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryRunFailure:
+    """Machine-readable factory run failure.
+
+    Machine-readable failure details for an errored run.
+    """
+    run_id: str
+    """Factory run identifier.
+
+    Factory run identifier whose changed limits were declined.
+    """
+    type: FactoryRunFailureType
+    kind: FactoryRunFailureKind | None = None
+    """Resource ceiling that stopped the run."""
+
+    value: float | None = None
+    """Approved effective ceiling that was reached."""
+
+    reason: str | None = None
+    """Human-readable reason the resume did not proceed."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryRunFailure':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        type = FactoryRunFailureType(obj.get("type"))
+        kind = from_union([FactoryRunFailureKind, from_none], obj.get("kind"))
+        value = from_union([from_float, from_none], obj.get("value"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        return FactoryRunFailure(run_id, type, kind, value, reason)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        result["type"] = to_enum(FactoryRunFailureType, self.type)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_enum(FactoryRunFailureKind, x), from_none], self.kind)
+        if self.value is not None:
+            result["value"] = from_union([to_float, from_none], self.value)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class RunOptions:
+    """Factory invocation options.
+
+    Options controlling factory invocation.
+    """
+    limits: FactoryRunLimits | None = None
+    """Per-invocation resource ceiling overrides."""
+
+    resume_from_run_id: str | None = None
+    """Run identifier whose journal and progress should seed this resumed run."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'RunOptions':
+        assert isinstance(obj, dict)
+        limits = from_union([FactoryRunLimits.from_dict, from_none], obj.get("limits"))
+        resume_from_run_id = from_union([from_str, from_none], obj.get("resumeFromRunId"))
+        return RunOptions(limits, resume_from_run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.limits is not None:
+            result["limits"] = from_union([lambda x: to_class(FactoryRunLimits, x), from_none], self.limits)
+        if self.resume_from_run_id is not None:
+            result["resumeFromRunId"] = from_union([from_str, from_none], self.resume_from_run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class HistoryCompactResult:
     """Compaction outcome with the number of tokens and messages removed, summary text, and the
     resulting context window breakdown.
@@ -11619,6 +12120,30 @@ class HistoryCompactResult:
             result["contextWindow"] = from_union([lambda x: to_class(HistoryCompactContextWindow, x), from_none], self.context_window)
         if self.summary_content is not None:
             result["summaryContent"] = from_union([from_str, from_none], self.summary_content)
+        return result
+
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _HookInvokeRequest:
+    """Runtime-owned wire payload for a server-to-client hook callback invocation."""
+
+    hook_type: _HookType
+    input: Any
+    session_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_HookInvokeRequest':
+        assert isinstance(obj, dict)
+        hook_type = _HookType(obj.get("hookType"))
+        input = obj.get("input")
+        session_id = from_str(obj.get("sessionId"))
+        return _HookInvokeRequest(hook_type, input, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["hookType"] = to_enum(_HookType, self.hook_type)
+        result["input"] = self.input
+        result["sessionId"] = from_str(self.session_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -11976,16 +12501,18 @@ class LlmInferenceHTTPRequestStartRequest:
     """Absolute request URL."""
 
     agent_id: str | None = None
-    """Stable per-agent-instance id attributing this request to a specific agent trajectory.
-    Present when the request originates from an agent turn; absent for requests issued
-    outside any agent context (e.g. some SDK callers). A request with an `agentId` but no
-    `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced
-    from the runtime's per-request agent context and surfaced on the envelope independently
-    of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider
-    requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header
-    from this same context. Consumers routing each provider call to a training trajectory
-    should key on this rather than on lifecycle events, since it is available on the request
-    path before sampling.
+    """Stable identity of the agent trajectory that issued this request. Present when the
+    request originates from an agent turn; absent for requests outside any agent context.
+    This is the same identity used by lifecycle and bridged session events and remains
+    constant across turns and retries.
+    """
+    agent_invocation_id: str | None = None
+    """Identity of the agent invocation (one agentic loop) that issued this request. It remains
+    fixed across physical retries within the invocation and is distinct from the stable
+    trajectory `agentId`. A caller-supplied invocation id always takes precedence (this
+    covers auxiliary calls that have no model call id). Otherwise, first-party CAPI requests
+    fall back to the runtime's agent task id — the same value the runtime emits as the
+    `X-Agent-Task-Id` header — while custom-provider requests fall back to the model call id.
     """
     interaction_type: str | None = None
     """Coarse classification of the interaction that produced this request. Open string for
@@ -11997,12 +12524,9 @@ class LlmInferenceHTTPRequestStartRequest:
     header from this same context.
     """
     parent_agent_id: str | None = None
-    """Id of the parent agent that spawned the agent issuing this request. Present only for
-    subagent requests; absent for root-agent requests and non-agent requests. Combined with
-    `agentId`, this lets consumers attribute a call to a child trajectory versus the root.
-    Like `agentId`, it comes from the runtime's per-request agent context independently of
-    transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id`
-    header from this same context.
+    """Stable identity of the immediate parent trajectory. Present for child trajectories such
+    as subagents and conversation-sampling requests; absent for root-agent and non-agent
+    requests.
     """
     session_id: str | None = None
     """Id of the runtime session that triggered this request, when one is in scope. Absent for
@@ -12027,11 +12551,12 @@ class LlmInferenceHTTPRequestStartRequest:
         request_id = from_str(obj.get("requestId"))
         url = from_str(obj.get("url"))
         agent_id = from_union([from_str, from_none], obj.get("agentId"))
+        agent_invocation_id = from_union([from_str, from_none], obj.get("agentInvocationId"))
         interaction_type = from_union([from_str, from_none], obj.get("interactionType"))
         parent_agent_id = from_union([from_str, from_none], obj.get("parentAgentId"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         transport = from_union([LlmInferenceHTTPRequestStartTransport, from_none], obj.get("transport"))
-        return LlmInferenceHTTPRequestStartRequest(headers, method, request_id, url, agent_id, interaction_type, parent_agent_id, session_id, transport)
+        return LlmInferenceHTTPRequestStartRequest(headers, method, request_id, url, agent_id, agent_invocation_id, interaction_type, parent_agent_id, session_id, transport)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -12041,6 +12566,8 @@ class LlmInferenceHTTPRequestStartRequest:
         result["url"] = from_str(self.url)
         if self.agent_id is not None:
             result["agentId"] = from_union([from_str, from_none], self.agent_id)
+        if self.agent_invocation_id is not None:
+            result["agentInvocationId"] = from_union([from_str, from_none], self.agent_invocation_id)
         if self.interaction_type is not None:
             result["interactionType"] = from_union([from_str, from_none], self.interaction_type)
         if self.parent_agent_id is not None:
@@ -13364,6 +13891,27 @@ class ModelCapabilitiesLimits:
             result["max_prompt_tokens"] = from_union([from_int, from_none], self.max_prompt_tokens)
         if self.vision is not None:
             result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsVision, x), from_none], self.vision)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionModelPriceCategory:
+    """Cost-category metadata for a CAPI model."""
+
+    id: str
+    price_category: ModelPickerPriceCategory
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionModelPriceCategory':
+        assert isinstance(obj, dict)
+        id = from_str(obj.get("id"))
+        price_category = ModelPickerPriceCategory(obj.get("priceCategory"))
+        return SessionModelPriceCategory(id, price_category)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["priceCategory"] = to_enum(ModelPickerPriceCategory, self.price_category)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -16209,15 +16757,23 @@ class ServerSkillList:
     skills: list[ServerSkill]
     """All discovered skills across all sources"""
 
+    errors: list[str] | None = None
+    """Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills
+    are excluded so host-local paths are not disclosed to multitenant callers.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'ServerSkillList':
         assert isinstance(obj, dict)
         skills = from_list(ServerSkill.from_dict, obj.get("skills"))
-        return ServerSkillList(skills)
+        errors = from_union([lambda x: from_list(from_str, x), from_none], obj.get("errors"))
+        return ServerSkillList(skills, errors)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["skills"] = from_list(lambda x: to_class(ServerSkill, x), self.skills)
+        if self.errors is not None:
+            result["errors"] = from_union([lambda x: from_list(from_str, x), from_none], self.errors)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -17155,27 +17711,32 @@ class MCPAppsCallToolRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPTools:
-    """MCP tool metadata with tool name and optional description."""
+class MCPToolUI:
+    """Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui`
+    block was present without recognized fields.
 
-    name: str
-    """Tool name."""
-
-    description: str | None = None
-    """Tool description, when provided."""
+    Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
+    """
+    resource_uri: str | None = None
+    """URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use
+    `session.mcp.resources.read` to fetch its HTML and resource metadata.
+    """
+    visibility: list[MCPToolUIVisibility] | None = None
+    """Tool visibility advertised by the server. When absent, MCP Apps defaults apply."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPTools':
+    def from_dict(obj: Any) -> 'MCPToolUI':
         assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        description = from_union([from_str, from_none], obj.get("description"))
-        return MCPTools(name, description)
+        resource_uri = from_union([from_str, from_none], obj.get("resourceUri"))
+        visibility = from_union([lambda x: from_list(MCPToolUIVisibility, x), from_none], obj.get("visibility"))
+        return MCPToolUI(resource_uri, visibility)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["name"] = from_str(self.name)
-        if self.description is not None:
-            result["description"] = from_union([from_str, from_none], self.description)
+        if self.resource_uri is not None:
+            result["resourceUri"] = from_union([from_str, from_none], self.resource_uri)
+        if self.visibility is not None:
+            result["visibility"] = from_union([lambda x: from_list(lambda x: to_enum(MCPToolUIVisibility, x), x), from_none], self.visibility)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -17877,6 +18438,10 @@ class UsageMetricsModelMetric:
     usage: UsageMetricsModelMetricUsage
     """Token usage metrics for this model"""
 
+    cache_expires_at: datetime | None = None
+    """Latest known prompt-cache expiration for this model. A timestamp in the past indicates
+    that the observed cache has expired.
+    """
     token_details: dict[str, UsageMetricsModelMetricTokenDetail] | None = None
     """Token count details per type"""
 
@@ -17888,14 +18453,17 @@ class UsageMetricsModelMetric:
         assert isinstance(obj, dict)
         requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
         usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
+        cache_expires_at = from_union([from_datetime, from_none], obj.get("cacheExpiresAt"))
         token_details = from_union([lambda x: from_dict(UsageMetricsModelMetricTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
         total_nano_aiu = from_union([from_float, from_none], obj.get("totalNanoAiu"))
-        return UsageMetricsModelMetric(requests, usage, token_details, total_nano_aiu)
+        return UsageMetricsModelMetric(requests, usage, cache_expires_at, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["requests"] = to_class(UsageMetricsModelMetricRequests, self.requests)
         result["usage"] = to_class(UsageMetricsModelMetricUsage, self.usage)
+        if self.cache_expires_at is not None:
+            result["cacheExpiresAt"] = from_union([lambda x: x.isoformat(), from_none], self.cache_expires_at)
         if self.token_details is not None:
             result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsModelMetricTokenDetail, x), x), from_none], self.token_details)
         if self.total_nano_aiu is not None:
@@ -18574,6 +19142,114 @@ class ExternalToolTextResultForLlmContentResourceLink:
             result["size"] = from_union([from_int, from_none], self.size)
         if self.title is not None:
             result["title"] = from_union([from_str, from_none], self.title)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryLogRequest:
+    """Parameters for recording factory progress."""
+
+    lines: list[FactoryLogLine]
+    """Ordered progress lines to append."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryLogRequest':
+        assert isinstance(obj, dict)
+        lines = from_list(FactoryLogLine.from_dict, obj.get("lines"))
+        run_id = from_str(obj.get("runId"))
+        return FactoryLogRequest(lines, run_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["lines"] = from_list(lambda x: to_class(FactoryLogLine, x), self.lines)
+        result["runId"] = from_str(self.run_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryRunResult:
+    """Complete current or terminal factory run envelope."""
+
+    run_id: str
+    """Factory run identifier."""
+
+    status: FactoryRunStatus
+    """Current or terminal factory run status."""
+
+    error: str | None = None
+    """Error message for an errored run."""
+
+    failure: FactoryRunFailure | None = None
+    """Machine-readable failure details for an errored run."""
+
+    reason: str | None = None
+    """Reason for a halted or cancelled run."""
+
+    result: Any = None
+    """Completed factory result."""
+
+    snapshot: Any = None
+    """Partial journal and progress snapshot for a halted, cancelled, or errored run."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryRunResult':
+        assert isinstance(obj, dict)
+        run_id = from_str(obj.get("runId"))
+        status = FactoryRunStatus(obj.get("status"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        failure = from_union([FactoryRunFailure.from_dict, from_none], obj.get("failure"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        result = obj.get("result")
+        snapshot = obj.get("snapshot")
+        return FactoryRunResult(run_id, status, error, failure, reason, result, snapshot)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["runId"] = from_str(self.run_id)
+        result["status"] = to_enum(FactoryRunStatus, self.status)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.failure is not None:
+            result["failure"] = from_union([lambda x: to_class(FactoryRunFailure, x), from_none], self.failure)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        if self.result is not None:
+            result["result"] = self.result
+        if self.snapshot is not None:
+            result["snapshot"] = self.snapshot
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FactoryRunRequest:
+    """Parameters for invoking a registered factory."""
+
+    args: Any
+    """Factory input value."""
+
+    name: str
+    """Registered factory name."""
+
+    options: RunOptions | None = None
+    """Factory invocation options."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FactoryRunRequest':
+        assert isinstance(obj, dict)
+        args = obj.get("args")
+        name = from_str(obj.get("name"))
+        options = from_union([RunOptions.from_dict, from_none], obj.get("options"))
+        return FactoryRunRequest(args, name, options)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["args"] = self.args
+        result["name"] = from_str(self.name)
+        if self.options is not None:
+            result["options"] = from_union([lambda x: to_class(RunOptions, x), from_none], self.options)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -19491,6 +20167,40 @@ class ModelBilling:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SessionModelList:
+    """The list of models available to this session."""
+
+    list: list[Any]
+    """Available models, ordered with the most preferred default first. Includes both Copilot
+    (CAPI) models and any registry BYOK models; a BYOK model appears under its
+    provider-qualified selection id (`provider/id`).
+    """
+    model_price_categories: list[SessionModelPriceCategory] | None = None
+    """Cost categories for the full CAPI catalog, including picker-disabled models that Auto may
+    select. Metadata only; entries absent from `list` are not manually selectable.
+    """
+    quota_snapshots: dict[str, Any] | None = None
+    """Per-quota snapshots returned alongside the model list, keyed by quota type."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionModelList':
+        assert isinstance(obj, dict)
+        list = from_list(lambda x: x, obj.get("list"))
+        model_price_categories = from_union([lambda x: from_list(SessionModelPriceCategory.from_dict, x), from_none], obj.get("modelPriceCategories"))
+        quota_snapshots = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("quotaSnapshots"))
+        return SessionModelList(list, model_price_categories, quota_snapshots)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["list"] = from_list(lambda x: x, self.list)
+        if self.model_price_categories is not None:
+            result["modelPriceCategories"] = from_union([lambda x: from_list(lambda x: to_class(SessionModelPriceCategory, x), x), from_none], self.model_price_categories)
+        if self.quota_snapshots is not None:
+            result["quotaSnapshots"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.quota_snapshots)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class ModelCapabilitiesOverride:
     """Optional capability overrides (vision, tool_calls, reasoning, etc.).
 
@@ -20306,21 +21016,36 @@ class TasksGetProgressResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class MCPListToolsResult:
-    """Tools exposed by the connected MCP server. Throws when the server is not connected."""
+class MCPTools:
+    """MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery
+    metadata.
+    """
+    name: str
+    """Tool name."""
 
-    tools: list[MCPTools]
-    """Tools exposed by the server."""
+    description: str | None = None
+    """Tool description, when provided."""
+
+    ui: MCPToolUI | None = None
+    """Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui`
+    block was present without recognized fields.
+    """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPListToolsResult':
+    def from_dict(obj: Any) -> 'MCPTools':
         assert isinstance(obj, dict)
-        tools = from_list(MCPTools.from_dict, obj.get("tools"))
-        return MCPListToolsResult(tools)
+        name = from_str(obj.get("name"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        ui = from_union([MCPToolUI.from_dict, from_none], obj.get("ui"))
+        return MCPTools(name, description, ui)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["tools"] = from_list(lambda x: to_class(MCPTools, x), self.tools)
+        result["name"] = from_str(self.name)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.ui is not None:
+            result["ui"] = from_union([lambda x: to_class(MCPToolUI, x), from_none], self.ui)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -21423,6 +22148,15 @@ class SandboxConfig:
     add_current_working_directory: bool | None = None
     """Whether to auto-add the current working directory to readwritePaths. Default: true."""
 
+    gh_auth: bool | None = None
+    """Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the
+    OS keyring the sandbox blocks. Default: false (opt-in).
+    """
+    git_auth: bool | None = None
+    """Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so
+    authenticated HTTPS git works inside the sandbox without the shell-based credential
+    helper the sandbox blocks. Default: false (opt-in).
+    """
     user_policy: SandboxConfigUserPolicy | None = None
     """User-managed sandbox policy fragment merged into the auto-discovered base policy."""
 
@@ -21431,16 +22165,41 @@ class SandboxConfig:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         add_current_working_directory = from_union([from_bool, from_none], obj.get("addCurrentWorkingDirectory"))
+        gh_auth = from_union([from_bool, from_none], obj.get("ghAuth"))
+        git_auth = from_union([from_bool, from_none], obj.get("gitAuth"))
         user_policy = from_union([SandboxConfigUserPolicy.from_dict, from_none], obj.get("userPolicy"))
-        return SandboxConfig(enabled, add_current_working_directory, user_policy)
+        return SandboxConfig(enabled, add_current_working_directory, gh_auth, git_auth, user_policy)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["enabled"] = from_bool(self.enabled)
         if self.add_current_working_directory is not None:
             result["addCurrentWorkingDirectory"] = from_union([from_bool, from_none], self.add_current_working_directory)
+        if self.gh_auth is not None:
+            result["ghAuth"] = from_union([from_bool, from_none], self.gh_auth)
+        if self.git_auth is not None:
+            result["gitAuth"] = from_union([from_bool, from_none], self.git_auth)
         if self.user_policy is not None:
             result["userPolicy"] = from_union([lambda x: to_class(SandboxConfigUserPolicy, x), from_none], self.user_policy)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class MCPListToolsResult:
+    """Tools exposed by the connected MCP server. Throws when the server is not connected."""
+
+    tools: list[MCPTools]
+    """Tools exposed by the server."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPListToolsResult':
+        assert isinstance(obj, dict)
+        tools = from_list(MCPTools.from_dict, obj.get("tools"))
+        return MCPListToolsResult(tools)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tools"] = from_list(lambda x: to_class(MCPTools, x), self.tools)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -24345,6 +25104,27 @@ class RPC:
     external_tool_text_result_for_llm_content_shell_exit: ExternalToolTextResultForLlmContentShellExit
     external_tool_text_result_for_llm_content_terminal: ExternalToolTextResultForLlmContentTerminal
     external_tool_text_result_for_llm_content_text: ExternalToolTextResultForLlmContentText
+    factory_abort_request: FactoryAbortRequest
+    factory_ack_result: FactoryACKResult
+    factory_agent_options: FactoryAgentOptions
+    factory_agent_request: FactoryAgentRequest
+    factory_agent_result: FactoryAgentResult
+    factory_cancel_request: FactoryCancelRequest
+    factory_execute_request: FactoryExecuteRequest
+    factory_execute_result: FactoryExecuteResult
+    factory_get_run_request: FactoryGetRunRequest
+    factory_journal_get_request: FactoryJournalGetRequest
+    factory_journal_get_result: FactoryJournalGetResult
+    factory_journal_put_request: FactoryJournalPutRequest
+    factory_log_line: FactoryLogLine
+    factory_log_line_kind: FactoryLogLineKind
+    factory_log_request: FactoryLogRequest
+    factory_run_failure: FactoryRunFailure
+    factory_run_failure_kind: FactoryRunFailureKind
+    factory_run_limits: FactoryRunLimits
+    factory_run_request: FactoryRunRequest
+    factory_run_result: FactoryRunResult
+    factory_run_status: FactoryRunStatus
     filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode
     fleet_start_request: FleetStartRequest
     fleet_start_result: FleetStartResult
@@ -24366,6 +25146,9 @@ class RPC:
     history_truncate_request: HistoryTruncateRequest
     history_truncate_result: HistoryTruncateResult
     hmac_auth_info: HMACAuthInfo
+    hook_invoke_request: _HookInvokeRequest
+    hook_invoke_response: _HookInvokeResponse
+    hook_type: _HookType
     installed_plugin: InstalledPlugin
     installed_plugin_info: InstalledPluginInfo
     installed_plugin_source: InstalledPluginSource | str
@@ -24497,6 +25280,8 @@ class RPC:
     mcp_start_servers_result: MCPStartServersResult
     mcp_stop_server_request: MCPStopServerRequest
     mcp_tools: MCPTools
+    mcp_tool_ui: MCPToolUI
+    mcp_tool_ui_visibility: MCPToolUIVisibility
     mcp_unregister_external_client_request: MCPUnregisterExternalClientRequest
     memory_configuration: MemoryConfiguration
     metadata_context_attribution_result: MetadataContextAttributionResult
@@ -24746,6 +25531,7 @@ class RPC:
     remote_session_metadata_value: RemoteSessionMetadataValue
     remote_session_mode: RemoteSessionMode
     remote_session_repository: RemoteSessionRepository
+    run_options: RunOptions
     sandbox_config: SandboxConfig
     sandbox_config_user_policy: SandboxConfigUserPolicy
     sandbox_config_user_policy_experimental: SandboxConfigUserPolicyExperimental
@@ -24821,6 +25607,7 @@ class RPC:
     session_metadata_snapshot: SessionMetadataSnapshot
     session_mode: SessionMode
     session_model_list: SessionModelList
+    session_model_price_category: SessionModelPriceCategory
     session_open_options: SessionOpenOptions
     session_open_options_additional_content_exclusion_policy: SessionOpenOptionsAdditionalContentExclusionPolicy
     session_open_options_additional_content_exclusion_policy_rule: SessionOpenOptionsAdditionalContentExclusionPolicyRule
@@ -25190,6 +25977,27 @@ class RPC:
         external_tool_text_result_for_llm_content_shell_exit = ExternalToolTextResultForLlmContentShellExit.from_dict(obj.get("ExternalToolTextResultForLlmContentShellExit"))
         external_tool_text_result_for_llm_content_terminal = ExternalToolTextResultForLlmContentTerminal.from_dict(obj.get("ExternalToolTextResultForLlmContentTerminal"))
         external_tool_text_result_for_llm_content_text = ExternalToolTextResultForLlmContentText.from_dict(obj.get("ExternalToolTextResultForLlmContentText"))
+        factory_abort_request = FactoryAbortRequest.from_dict(obj.get("FactoryAbortRequest"))
+        factory_ack_result = FactoryACKResult.from_dict(obj.get("FactoryAckResult"))
+        factory_agent_options = FactoryAgentOptions.from_dict(obj.get("FactoryAgentOptions"))
+        factory_agent_request = FactoryAgentRequest.from_dict(obj.get("FactoryAgentRequest"))
+        factory_agent_result = FactoryAgentResult.from_dict(obj.get("FactoryAgentResult"))
+        factory_cancel_request = FactoryCancelRequest.from_dict(obj.get("FactoryCancelRequest"))
+        factory_execute_request = FactoryExecuteRequest.from_dict(obj.get("FactoryExecuteRequest"))
+        factory_execute_result = FactoryExecuteResult.from_dict(obj.get("FactoryExecuteResult"))
+        factory_get_run_request = FactoryGetRunRequest.from_dict(obj.get("FactoryGetRunRequest"))
+        factory_journal_get_request = FactoryJournalGetRequest.from_dict(obj.get("FactoryJournalGetRequest"))
+        factory_journal_get_result = FactoryJournalGetResult.from_dict(obj.get("FactoryJournalGetResult"))
+        factory_journal_put_request = FactoryJournalPutRequest.from_dict(obj.get("FactoryJournalPutRequest"))
+        factory_log_line = FactoryLogLine.from_dict(obj.get("FactoryLogLine"))
+        factory_log_line_kind = FactoryLogLineKind(obj.get("FactoryLogLineKind"))
+        factory_log_request = FactoryLogRequest.from_dict(obj.get("FactoryLogRequest"))
+        factory_run_failure = FactoryRunFailure.from_dict(obj.get("FactoryRunFailure"))
+        factory_run_failure_kind = FactoryRunFailureKind(obj.get("FactoryRunFailureKind"))
+        factory_run_limits = FactoryRunLimits.from_dict(obj.get("FactoryRunLimits"))
+        factory_run_request = FactoryRunRequest.from_dict(obj.get("FactoryRunRequest"))
+        factory_run_result = FactoryRunResult.from_dict(obj.get("FactoryRunResult"))
+        factory_run_status = FactoryRunStatus(obj.get("FactoryRunStatus"))
         filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode], obj.get("FilterMapping"))
         fleet_start_request = FleetStartRequest.from_dict(obj.get("FleetStartRequest"))
         fleet_start_result = FleetStartResult.from_dict(obj.get("FleetStartResult"))
@@ -25211,6 +26019,9 @@ class RPC:
         history_truncate_request = HistoryTruncateRequest.from_dict(obj.get("HistoryTruncateRequest"))
         history_truncate_result = HistoryTruncateResult.from_dict(obj.get("HistoryTruncateResult"))
         hmac_auth_info = HMACAuthInfo.from_dict(obj.get("HMACAuthInfo"))
+        hook_invoke_request = _HookInvokeRequest.from_dict(obj.get("HookInvokeRequest"))
+        hook_invoke_response = _HookInvokeResponse.from_dict(obj.get("HookInvokeResponse"))
+        hook_type = _HookType(obj.get("HookType"))
         installed_plugin = InstalledPlugin.from_dict(obj.get("InstalledPlugin"))
         installed_plugin_info = InstalledPluginInfo.from_dict(obj.get("InstalledPluginInfo"))
         installed_plugin_source = from_union([InstalledPluginSource.from_dict, from_str], obj.get("InstalledPluginSource"))
@@ -25342,6 +26153,8 @@ class RPC:
         mcp_start_servers_result = MCPStartServersResult.from_dict(obj.get("McpStartServersResult"))
         mcp_stop_server_request = MCPStopServerRequest.from_dict(obj.get("McpStopServerRequest"))
         mcp_tools = MCPTools.from_dict(obj.get("McpTools"))
+        mcp_tool_ui = MCPToolUI.from_dict(obj.get("McpToolUi"))
+        mcp_tool_ui_visibility = MCPToolUIVisibility(obj.get("McpToolUiVisibility"))
         mcp_unregister_external_client_request = MCPUnregisterExternalClientRequest.from_dict(obj.get("McpUnregisterExternalClientRequest"))
         memory_configuration = MemoryConfiguration.from_dict(obj.get("MemoryConfiguration"))
         metadata_context_attribution_result = MetadataContextAttributionResult.from_dict(obj.get("MetadataContextAttributionResult"))
@@ -25591,6 +26404,7 @@ class RPC:
         remote_session_metadata_value = RemoteSessionMetadataValue.from_dict(obj.get("RemoteSessionMetadataValue"))
         remote_session_mode = RemoteSessionMode(obj.get("RemoteSessionMode"))
         remote_session_repository = RemoteSessionRepository.from_dict(obj.get("RemoteSessionRepository"))
+        run_options = RunOptions.from_dict(obj.get("RunOptions"))
         sandbox_config = SandboxConfig.from_dict(obj.get("SandboxConfig"))
         sandbox_config_user_policy = SandboxConfigUserPolicy.from_dict(obj.get("SandboxConfigUserPolicy"))
         sandbox_config_user_policy_experimental = SandboxConfigUserPolicyExperimental.from_dict(obj.get("SandboxConfigUserPolicyExperimental"))
@@ -25666,6 +26480,7 @@ class RPC:
         session_metadata_snapshot = SessionMetadataSnapshot.from_dict(obj.get("SessionMetadataSnapshot"))
         session_mode = SessionMode(obj.get("SessionMode"))
         session_model_list = SessionModelList.from_dict(obj.get("SessionModelList"))
+        session_model_price_category = SessionModelPriceCategory.from_dict(obj.get("SessionModelPriceCategory"))
         session_open_options = SessionOpenOptions.from_dict(obj.get("SessionOpenOptions"))
         session_open_options_additional_content_exclusion_policy = SessionOpenOptionsAdditionalContentExclusionPolicy.from_dict(obj.get("SessionOpenOptionsAdditionalContentExclusionPolicy"))
         session_open_options_additional_content_exclusion_policy_rule = SessionOpenOptionsAdditionalContentExclusionPolicyRule.from_dict(obj.get("SessionOpenOptionsAdditionalContentExclusionPolicyRule"))
@@ -25892,7 +26707,7 @@ class RPC:
         subagent_settings = from_union([SubagentSettings.from_dict, from_none], obj.get("SubagentSettings"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agents_get_discovery_paths_request, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, capi_session_options, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_register_external_client_request, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_tools, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_allow_all_mode, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_list, plugin_list_result, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, sandbox_config, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_seatbelt, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_auth_status, session_bulk_delete_result, session_capability, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, shell_cancel_user_requested_request, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_all_users, account_get_all_users_result, account_get_current_auth_result, account_get_quota_request, account_get_quota_result, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_discover_request, agent_select_request, agent_select_result, agents_get_discovery_paths_request, allow_all_permission_set_result, allow_all_permission_state, api_key_auth_info, auth_info, auth_info_type, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_session_context, capi_session_options, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, discovered_canvas, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, factory_abort_request, factory_ack_result, factory_agent_options, factory_agent_request, factory_agent_result, factory_cancel_request, factory_execute_request, factory_execute_result, factory_get_run_request, factory_journal_get_request, factory_journal_get_result, factory_journal_put_request, factory_log_line, factory_log_line_kind, factory_log_request, factory_run_failure, factory_run_failure_kind, factory_run_limits, factory_run_request, factory_run_result, factory_run_status, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_type, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instruction_source, instruction_source_location, instruction_source_type, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, log_request, log_result, lsp_initialize_request, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_register_external_client_request, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_unregister_external_client_request, memory_configuration, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_list_request, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_allow_all_mode, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_get_allow_all_request, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_allow_all_request, permissions_set_allow_all_source, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_install_result, plugin_list, plugin_list_result, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_transport, provider_config_type, provider_config_wire_api, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_token_acquire_request, provider_token_acquire_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, register_extension_tools_params, register_extension_tools_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, run_options, sandbox_config, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_seatbelt, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_auth_status, session_bulk_delete_result, session_capability, session_completion_item, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_mcp_apps_call_tool_result, session_metadata_snapshot, session_mode, session_model_list, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_register_extension_tools_on_session_options, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_visibility_status, session_working_directory_context, session_working_directory_context_host_type, shell_cancel_user_requested_request, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, subagent_settings_entry, subagent_settings_entry_context_tier, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_get_current_metadata_result, tools_initialize_and_validate_result, tools_list_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, update_subagent_settings_request, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_get_result, user_settings_set_request, user_settings_set_result, visibility_get_result, visibility_set_request, visibility_set_result, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_checkpoints, workspaces_create_file_request, workspaces_diff_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -26035,6 +26850,27 @@ class RPC:
         result["ExternalToolTextResultForLlmContentShellExit"] = to_class(ExternalToolTextResultForLlmContentShellExit, self.external_tool_text_result_for_llm_content_shell_exit)
         result["ExternalToolTextResultForLlmContentTerminal"] = to_class(ExternalToolTextResultForLlmContentTerminal, self.external_tool_text_result_for_llm_content_terminal)
         result["ExternalToolTextResultForLlmContentText"] = to_class(ExternalToolTextResultForLlmContentText, self.external_tool_text_result_for_llm_content_text)
+        result["FactoryAbortRequest"] = to_class(FactoryAbortRequest, self.factory_abort_request)
+        result["FactoryAckResult"] = to_class(FactoryACKResult, self.factory_ack_result)
+        result["FactoryAgentOptions"] = to_class(FactoryAgentOptions, self.factory_agent_options)
+        result["FactoryAgentRequest"] = to_class(FactoryAgentRequest, self.factory_agent_request)
+        result["FactoryAgentResult"] = to_class(FactoryAgentResult, self.factory_agent_result)
+        result["FactoryCancelRequest"] = to_class(FactoryCancelRequest, self.factory_cancel_request)
+        result["FactoryExecuteRequest"] = to_class(FactoryExecuteRequest, self.factory_execute_request)
+        result["FactoryExecuteResult"] = to_class(FactoryExecuteResult, self.factory_execute_result)
+        result["FactoryGetRunRequest"] = to_class(FactoryGetRunRequest, self.factory_get_run_request)
+        result["FactoryJournalGetRequest"] = to_class(FactoryJournalGetRequest, self.factory_journal_get_request)
+        result["FactoryJournalGetResult"] = to_class(FactoryJournalGetResult, self.factory_journal_get_result)
+        result["FactoryJournalPutRequest"] = to_class(FactoryJournalPutRequest, self.factory_journal_put_request)
+        result["FactoryLogLine"] = to_class(FactoryLogLine, self.factory_log_line)
+        result["FactoryLogLineKind"] = to_enum(FactoryLogLineKind, self.factory_log_line_kind)
+        result["FactoryLogRequest"] = to_class(FactoryLogRequest, self.factory_log_request)
+        result["FactoryRunFailure"] = to_class(FactoryRunFailure, self.factory_run_failure)
+        result["FactoryRunFailureKind"] = to_enum(FactoryRunFailureKind, self.factory_run_failure_kind)
+        result["FactoryRunLimits"] = to_class(FactoryRunLimits, self.factory_run_limits)
+        result["FactoryRunRequest"] = to_class(FactoryRunRequest, self.factory_run_request)
+        result["FactoryRunResult"] = to_class(FactoryRunResult, self.factory_run_result)
+        result["FactoryRunStatus"] = to_enum(FactoryRunStatus, self.factory_run_status)
         result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x)], self.filter_mapping)
         result["FleetStartRequest"] = to_class(FleetStartRequest, self.fleet_start_request)
         result["FleetStartResult"] = to_class(FleetStartResult, self.fleet_start_result)
@@ -26056,6 +26892,9 @@ class RPC:
         result["HistoryTruncateRequest"] = to_class(HistoryTruncateRequest, self.history_truncate_request)
         result["HistoryTruncateResult"] = to_class(HistoryTruncateResult, self.history_truncate_result)
         result["HMACAuthInfo"] = to_class(HMACAuthInfo, self.hmac_auth_info)
+        result["HookInvokeRequest"] = to_class(_HookInvokeRequest, self.hook_invoke_request)
+        result["HookInvokeResponse"] = to_class(_HookInvokeResponse, self.hook_invoke_response)
+        result["HookType"] = to_enum(_HookType, self.hook_type)
         result["InstalledPlugin"] = to_class(InstalledPlugin, self.installed_plugin)
         result["InstalledPluginInfo"] = to_class(InstalledPluginInfo, self.installed_plugin_info)
         result["InstalledPluginSource"] = from_union([lambda x: to_class(InstalledPluginSource, x), from_str], self.installed_plugin_source)
@@ -26187,6 +27026,8 @@ class RPC:
         result["McpStartServersResult"] = to_class(MCPStartServersResult, self.mcp_start_servers_result)
         result["McpStopServerRequest"] = to_class(MCPStopServerRequest, self.mcp_stop_server_request)
         result["McpTools"] = to_class(MCPTools, self.mcp_tools)
+        result["McpToolUi"] = to_class(MCPToolUI, self.mcp_tool_ui)
+        result["McpToolUiVisibility"] = to_enum(MCPToolUIVisibility, self.mcp_tool_ui_visibility)
         result["McpUnregisterExternalClientRequest"] = to_class(MCPUnregisterExternalClientRequest, self.mcp_unregister_external_client_request)
         result["MemoryConfiguration"] = to_class(MemoryConfiguration, self.memory_configuration)
         result["MetadataContextAttributionResult"] = to_class(MetadataContextAttributionResult, self.metadata_context_attribution_result)
@@ -26436,6 +27277,7 @@ class RPC:
         result["RemoteSessionMetadataValue"] = to_class(RemoteSessionMetadataValue, self.remote_session_metadata_value)
         result["RemoteSessionMode"] = to_enum(RemoteSessionMode, self.remote_session_mode)
         result["RemoteSessionRepository"] = to_class(RemoteSessionRepository, self.remote_session_repository)
+        result["RunOptions"] = to_class(RunOptions, self.run_options)
         result["SandboxConfig"] = to_class(SandboxConfig, self.sandbox_config)
         result["SandboxConfigUserPolicy"] = to_class(SandboxConfigUserPolicy, self.sandbox_config_user_policy)
         result["SandboxConfigUserPolicyExperimental"] = to_class(SandboxConfigUserPolicyExperimental, self.sandbox_config_user_policy_experimental)
@@ -26511,6 +27353,7 @@ class RPC:
         result["SessionMetadataSnapshot"] = to_class(SessionMetadataSnapshot, self.session_metadata_snapshot)
         result["SessionMode"] = to_enum(SessionMode, self.session_mode)
         result["SessionModelList"] = to_class(SessionModelList, self.session_model_list)
+        result["SessionModelPriceCategory"] = to_class(SessionModelPriceCategory, self.session_model_price_category)
         result["SessionOpenOptions"] = to_class(SessionOpenOptions, self.session_open_options)
         result["SessionOpenOptionsAdditionalContentExclusionPolicy"] = to_class(SessionOpenOptionsAdditionalContentExclusionPolicy, self.session_open_options_additional_content_exclusion_policy)
         result["SessionOpenOptionsAdditionalContentExclusionPolicyRule"] = to_class(SessionOpenOptionsAdditionalContentExclusionPolicyRule, self.session_open_options_additional_content_exclusion_policy_rule)
@@ -27637,6 +28480,63 @@ class CanvasApi:
 
 
 # Experimental: this API group is experimental and may change or be removed.
+class FactoryJournalApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def get(self, params: FactoryJournalGetRequest, *, timeout: float | None = None) -> FactoryJournalGetResult:
+        "Reads a memoized factory journal entry.\n\nArgs:\n    params: Parameters for reading a factory journal entry.\n\nReturns:\n    Result of reading a factory journal entry."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryJournalGetResult.from_dict(await self._client.request("session.factory.journal.get", params_dict, **_timeout_kwargs(timeout)))
+
+    async def put(self, params: FactoryJournalPutRequest, *, timeout: float | None = None) -> FactoryACKResult:
+        "Stores a memoized factory journal entry.\n\nArgs:\n    params: Parameters for storing a factory journal entry.\n\nReturns:\n    Acknowledgement that a factory request was accepted."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryACKResult.from_dict(await self._client.request("session.factory.journal.put", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class FactoryApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+        self.journal = FactoryJournalApi(client, session_id)
+
+    async def run(self, params: FactoryRunRequest, *, timeout: float | None = None) -> FactoryRunResult:
+        "Runs a registered factory by name at the top level.\n\nArgs:\n    params: Parameters for invoking a registered factory.\n\nReturns:\n    Complete current or terminal factory run envelope."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryRunResult.from_dict(await self._client.request("session.factory.run", params_dict, **_timeout_kwargs(timeout)))
+
+    async def get_run(self, params: FactoryGetRunRequest, *, timeout: float | None = None) -> FactoryRunResult:
+        "Gets the current or settled envelope for a factory run.\n\nArgs:\n    params: Parameters for retrieving a factory run.\n\nReturns:\n    Complete current or terminal factory run envelope."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryRunResult.from_dict(await self._client.request("session.factory.getRun", params_dict, **_timeout_kwargs(timeout)))
+
+    async def cancel(self, params: FactoryCancelRequest, *, timeout: float | None = None) -> FactoryRunResult:
+        "Requests cancellation of a factory run and returns its run envelope.\n\nArgs:\n    params: Parameters for cancelling a factory run.\n\nReturns:\n    Complete current or terminal factory run envelope."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryRunResult.from_dict(await self._client.request("session.factory.cancel", params_dict, **_timeout_kwargs(timeout)))
+
+    async def log(self, params: FactoryLogRequest, *, timeout: float | None = None) -> FactoryACKResult:
+        "Records a batch of ordered factory progress lines.\n\nArgs:\n    params: Parameters for recording factory progress.\n\nReturns:\n    Acknowledgement that a factory request was accepted."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryACKResult.from_dict(await self._client.request("session.factory.log", params_dict, **_timeout_kwargs(timeout)))
+
+    async def agent(self, params: FactoryAgentRequest, *, timeout: float | None = None) -> FactoryAgentResult:
+        "Runs one factory-scoped subagent and returns its result.\n\nArgs:\n    params: Parameters for one factory-scoped subagent call.\n\nReturns:\n    Result of one factory-scoped subagent call."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FactoryAgentResult.from_dict(await self._client.request("session.factory.agent", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
 class ModelApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -28064,7 +28964,7 @@ class McpApi:
         return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def list_tools(self, params: MCPListToolsRequest, *, timeout: float | None = None) -> MCPListToolsResult:
-        "Lists the tools exposed by a connected MCP server on this session's host.\n\nArgs:\n    params: Server name whose tool list should be returned.\n\nReturns:\n    Tools exposed by the connected MCP server. Throws when the server is not connected."
+        "Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.\n\nArgs:\n    params: Server name whose tool list should be returned.\n\nReturns:\n    Tools exposed by the connected MCP server. Throws when the server is not connected."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MCPListToolsResult.from_dict(await self._client.request("session.mcp.listTools", params_dict, **_timeout_kwargs(timeout)))
@@ -28571,7 +29471,7 @@ class MetadataApi:
         return MetadataContextHeaviestMessagesResult.from_dict(await self._client.request("session.metadata.getContextHeaviestMessages", params_dict, **_timeout_kwargs(timeout)))
 
     async def record_context_change(self, params: MetadataRecordContextChangeRequest, *, timeout: float | None = None) -> MetadataRecordContextChangeResult:
-        "Records a working-directory/git context change and emits a `session.context_changed` event.\n\nArgs:\n    params: Updated working-directory/git context to record on the session.\n\nReturns:\n    Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode)."
+        "Records a working-directory/git context change and emits a `session.context_changed` event. For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event): a local session's working directory is authoritative and is moved via `metadata.setWorkingDirectory` (or an SDK `session.resume` that supplies a `workingDirectory`), not by this method.\n\nArgs:\n    params: Updated working-directory/git context to record on the session.\n\nReturns:\n    Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode). For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event); move a local session's working directory via `metadata.setWorkingDirectory` instead."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return MetadataRecordContextChangeResult.from_dict(await self._client.request("session.metadata.recordContextChange", params_dict, **_timeout_kwargs(timeout)))
@@ -28775,6 +29675,7 @@ class SessionRpc:
         self.git_hub_auth = GitHubAuthApi(client, session_id)
         self.debug = DebugApi(client, session_id)
         self.canvas = CanvasApi(client, session_id)
+        self.factory = FactoryApi(client, session_id)
         self.model = ModelApi(client, session_id)
         self.mode = ModeApi(client, session_id)
         self.name = NameApi(client, session_id)
@@ -28906,6 +29807,15 @@ class ProviderTokenHandler(Protocol):
         pass
 
 # Experimental: this API group is experimental and may change or be removed.
+class FactoryHandler(Protocol):
+    async def execute(self, params: FactoryExecuteRequest) -> FactoryExecuteResult:
+        "Asks the owning extension connection to execute a registered factory closure.\n\nArgs:\n    params: Parameters sent to the owning extension to execute a factory closure.\n\nReturns:\n    Result returned by an extension factory closure."
+        pass
+    async def abort(self, params: FactoryAbortRequest) -> FactoryACKResult:
+        "Asks the owning extension connection to abort a running factory cooperatively.\n\nArgs:\n    params: Parameters for cooperatively aborting a factory body.\n\nReturns:\n    Acknowledgement that a factory request was accepted."
+        pass
+
+# Experimental: this API group is experimental and may change or be removed.
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileRequest) -> SessionFSReadFileResult:
         "Reads a file from the client-provided session filesystem.\n\nArgs:\n    params: Path of the file to read from the client-provided session filesystem.\n\nReturns:\n    File content as a UTF-8 string, or a filesystem error if the read failed."
@@ -28959,6 +29869,7 @@ class CanvasHandler(Protocol):
 @dataclass
 class ClientSessionApiHandlers:
     provider_token: ProviderTokenHandler | None = None
+    factory: FactoryHandler | None = None
     session_fs: SessionFsHandler | None = None
     canvas: CanvasHandler | None = None
 
@@ -28974,6 +29885,20 @@ def register_client_session_api_handlers(
         result = await handler.get_token(request)
         return result.to_dict()
     client.set_request_handler("providerToken.getToken", handle_provider_token_get_token)
+    async def handle_factory_execute(params: dict) -> dict | None:
+        request = FactoryExecuteRequest.from_dict(params)
+        handler = get_handlers(request.session_id).factory
+        if handler is None: raise RuntimeError(f"No factory handler registered for session: {request.session_id}")
+        result = await handler.execute(request)
+        return result.to_dict()
+    client.set_request_handler("factory.execute", handle_factory_execute)
+    async def handle_factory_abort(params: dict) -> dict | None:
+        request = FactoryAbortRequest.from_dict(params)
+        handler = get_handlers(request.session_id).factory
+        if handler is None: raise RuntimeError(f"No factory handler registered for session: {request.session_id}")
+        result = await handler.abort(request)
+        return result.to_dict()
+    client.set_request_handler("factory.abort", handle_factory_abort)
     async def handle_session_fs_read_file(params: dict) -> dict | None:
         request = SessionFSReadFileRequest.from_dict(params)
         handler = get_handlers(request.session_id).session_fs
@@ -29081,6 +30006,12 @@ def register_client_session_api_handlers(
     client.set_request_handler("canvas.action.invoke", handle_canvas_action_invoke)
 
 # Experimental: this API group is experimental and may change or be removed.
+class HooksHandler(Protocol):
+    async def invoke(self, params: _HookInvokeRequest) -> _HookInvokeResponse:
+        "Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.\n\nArgs:\n    params: Runtime-owned wire payload for a server-to-client hook callback invocation.\n\nReturns:\n    Optional output returned by an SDK callback hook."
+        pass
+
+# Experimental: this API group is experimental and may change or be removed.
 class LlmInferenceHandler(Protocol):
     async def http_request_start(self, params: LlmInferenceHTTPRequestStartRequest) -> LlmInferenceHTTPRequestStartResult:
         "Announces an outbound model-layer HTTP request the runtime wants the SDK client to service. Carries the request head only; the body always follows as one or more httpRequestChunk frames keyed by the same requestId, even when the body is empty (a single chunk with end=true).\n\nArgs:\n    params: The head of an outbound model-layer HTTP request.\n\nReturns:\n    Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed."
@@ -29097,6 +30028,7 @@ class GitHubTelemetryHandler(Protocol):
 
 @dataclass
 class ClientGlobalApiHandlers:
+    hooks: HooksHandler | None = None
     llm_inference: LlmInferenceHandler | None = None
     git_hub_telemetry: GitHubTelemetryHandler | None = None
 
@@ -29110,6 +30042,13 @@ def register_client_global_api_handlers(
     session_id dispatch key; a single set of handlers serves the entire
     connection.
     """
+    async def handle_hooks_invoke(params: dict) -> dict | None:
+        request = _HookInvokeRequest.from_dict(params)
+        handler = handlers.hooks
+        if handler is None: raise RuntimeError("No hooks client-global handler registered")
+        result = await handler.invoke(request)
+        return result.to_dict()
+    client.set_request_handler("hooks.invoke", handle_hooks_invoke)
     async def handle_llm_inference_http_request_start(params: dict) -> dict | None:
         request = LlmInferenceHTTPRequestStartRequest.from_dict(params)
         handler = handlers.llm_inference
@@ -29300,6 +30239,31 @@ __all__ = [
     "ExternalToolTextResultForLlmContentTerminalType",
     "ExternalToolTextResultForLlmContentText",
     "ExternalToolTextResultForLlmContentType",
+    "FactoryACKResult",
+    "FactoryAbortRequest",
+    "FactoryAgentOptions",
+    "FactoryAgentRequest",
+    "FactoryAgentResult",
+    "FactoryApi",
+    "FactoryCancelRequest",
+    "FactoryExecuteRequest",
+    "FactoryExecuteResult",
+    "FactoryGetRunRequest",
+    "FactoryHandler",
+    "FactoryJournalApi",
+    "FactoryJournalGetRequest",
+    "FactoryJournalGetResult",
+    "FactoryJournalPutRequest",
+    "FactoryLogLine",
+    "FactoryLogLineKind",
+    "FactoryLogRequest",
+    "FactoryRunFailure",
+    "FactoryRunFailureKind",
+    "FactoryRunFailureType",
+    "FactoryRunLimits",
+    "FactoryRunRequest",
+    "FactoryRunResult",
+    "FactoryRunStatus",
     "FilterMapping",
     "FleetApi",
     "FleetStartRequest",
@@ -29328,6 +30292,7 @@ __all__ = [
     "HistorySummarizeForHandoffResult",
     "HistoryTruncateRequest",
     "HistoryTruncateResult",
+    "HooksHandler",
     "Host",
     "HostType",
     "InstalledPlugin",
@@ -29449,6 +30414,8 @@ __all__ = [
     "MCPStartServerRequest",
     "MCPStartServersResult",
     "MCPStopServerRequest",
+    "MCPToolUI",
+    "MCPToolUIVisibility",
     "MCPTools",
     "MCPUnregisterExternalClientRequest",
     "MarketplaceAddResult",
@@ -29790,6 +30757,7 @@ __all__ = [
     "RemoteSessionMetadataValue",
     "RemoteSessionMode",
     "RemoteSessionRepository",
+    "RunOptions",
     "SandboxConfig",
     "SandboxConfigUserPolicy",
     "SandboxConfigUserPolicyExperimental",
@@ -29890,6 +30858,7 @@ __all__ = [
     "SessionMcpAppsCallToolResult",
     "SessionMetadataSnapshot",
     "SessionModelList",
+    "SessionModelPriceCategory",
     "SessionOpenOptions",
     "SessionOpenOptionsAdditionalContentExclusionPolicy",
     "SessionOpenOptionsAdditionalContentExclusionPolicyRule",

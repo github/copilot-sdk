@@ -1062,6 +1062,99 @@ func unmarshalExternalToolResult(data []byte) (ExternalToolResult, error) {
 	return nil, errors.New("data did not match any union variant for ExternalToolResult")
 }
 
+func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Type FactoryRunFailureType `json:"type"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case FactoryRunFailureTypeFactoryLimitReached:
+		var d FactoryRunFailureFactoryLimitReached
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case FactoryRunFailureTypeFactoryResumeDeclined:
+		var d FactoryRunFailureFactoryResumeDeclined
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawFactoryRunFailureData{Discriminator: raw.Type, Raw: data}, nil
+	}
+}
+
+func (r RawFactoryRunFailureData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r FactoryRunFailureFactoryLimitReached) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryLimitReached
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryResumeDeclined
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
+	type rawFactoryRunResult struct {
+		Error    *string          `json:"error,omitempty"`
+		Failure  json.RawMessage  `json:"failure,omitempty"`
+		Reason   *string          `json:"reason,omitempty"`
+		Result   any              `json:"result,omitempty"`
+		RunID    string           `json:"runId"`
+		Snapshot any              `json:"snapshot,omitempty"`
+		Status   FactoryRunStatus `json:"status"`
+	}
+	var raw rawFactoryRunResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	if raw.Failure != nil {
+		value, err := unmarshalFactoryRunFailure(raw.Failure)
+		if err != nil {
+			return err
+		}
+		r.Failure = value
+	}
+	r.Reason = raw.Reason
+	r.Result = raw.Result
+	r.RunID = raw.RunID
+	r.Snapshot = raw.Snapshot
+	r.Status = raw.Status
+	return nil
+}
+
 func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	if string(data) == "null" {
 		return nil, nil

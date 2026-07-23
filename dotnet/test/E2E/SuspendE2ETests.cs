@@ -58,7 +58,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         string sessionId;
         await using (var client1 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) }))
         {
-            var session1 = await client1.CreateSessionAsync(new SessionConfig
+            var session1 = await Ctx.CreateSessionAsync(client1, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             });
@@ -78,7 +78,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         // A different client should be able to pick the session back up. The previous
         // turn was completed before suspend, so there is no pending work to continue.
         await using var client2 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) });
-        var session2 = await client2.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(client2, sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

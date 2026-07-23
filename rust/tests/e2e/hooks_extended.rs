@@ -36,7 +36,7 @@ async fn should_invoke_onsessionstart_hook_on_new_session() {
                 session.send_and_wait("Say hi").await.expect("send");
                 let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
                 assert_eq!(input.source, "new");
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
@@ -68,7 +68,7 @@ async fn should_invoke_onuserpromptsubmitted_hook_when_sending_a_message() {
                 session.send_and_wait("Say hello").await.expect("send");
                 let input = recv_with_timeout(&mut rx, "userPromptSubmitted hook").await;
                 assert!(input.prompt.contains("Say hello"));
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
@@ -100,7 +100,7 @@ async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
                 session.send_and_wait("Say hi").await.expect("send");
                 session.disconnect().await.expect("disconnect session");
                 let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 client.stop().await.expect("stop client");
@@ -237,7 +237,7 @@ async fn should_invoke_sessionend_hook() {
             session.send_and_wait("Say bye").await.expect("send");
             session.disconnect().await.expect("disconnect session");
             let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
-            assert!(input.timestamp > 0);
+            assert!(input.timestamp > 0.0);
 
             client.stop().await.expect("stop client");
         })
@@ -412,7 +412,7 @@ async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
                         .as_str()
                         .is_some_and(|path| path.contains("missing.txt"))
                 );
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
                 assert!(
                     assistant_message_content(&answer).contains("HOOK_FAILURE_GUIDANCE_APPLIED")

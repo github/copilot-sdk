@@ -82,7 +82,7 @@ public class CloneTests
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
-            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
+            CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5", ReasoningEffort = "high" }],
             Agent = "agent1",
             Capi = new CapiSessionOptions { EnableWebSocketResponses = false },
             Cloud = new CloudSessionOptions
@@ -128,6 +128,7 @@ public class CloneTests
         Assert.Equal(original.McpOAuthTokenStorage, clone.McpOAuthTokenStorage);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
+        Assert.Equal(original.CustomAgents[0].ReasoningEffort, clone.CustomAgents[0].ReasoningEffort);
         Assert.Equal(original.Agent, clone.Agent);
         Assert.Same(original.Capi, clone.Capi);
         Assert.Same(original.Cloud, clone.Cloud);

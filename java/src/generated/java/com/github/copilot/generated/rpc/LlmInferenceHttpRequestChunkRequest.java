@@ -32,6 +32,8 @@ public record LlmInferenceHttpRequestChunkRequest(
     /** When true, the runtime is cancelling the in-flight request (e.g. upstream consumer aborted). `data` is ignored. Implies end-of-request. */
     @JsonProperty("cancel") Boolean cancel,
     /** Optional human-readable reason for the cancellation, propagated for logging. */
-    @JsonProperty("cancelReason") String cancelReason
+    @JsonProperty("cancelReason") String cancelReason,
+    /** Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent transport can attribute successive turns correctly: when a WebSocket connection is reused across turns, the httpRequestStart identity reflects only the turn that opened the connection, so each later turn stamps its own invocation id here. Absent when the runtime has no invocation context for the request, or on the plain-HTTP transport where every request has its own httpRequestStart. */
+    @JsonProperty("agentInvocationId") String agentInvocationId
 ) {
 }

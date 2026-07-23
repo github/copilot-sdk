@@ -2214,6 +2214,233 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
+// Parameters for cooperatively aborting a factory body.
+// Experimental: FactoryAbortRequest is part of an experimental API and may change or be
+// removed.
+type FactoryAbortRequest struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Acknowledgement that a factory request was accepted.
+// Experimental: FactoryAckResult is part of an experimental API and may change or be
+// removed.
+type FactoryAckResult struct {
+}
+
+// Options for one factory-scoped subagent call.
+// Experimental: FactoryAgentOptions is part of an experimental API and may change or be
+// removed.
+type FactoryAgentOptions struct {
+	// Optional label distinguishing otherwise identical memoized agent calls.
+	Label *string `json:"label,omitempty"`
+	// Optional model identifier for the subagent.
+	Model *string `json:"model,omitempty"`
+	// Optional JSON Schema for structured agent output.
+	Schema any `json:"schema,omitempty"`
+}
+
+// Parameters for one factory-scoped subagent call.
+// Experimental: FactoryAgentRequest is part of an experimental API and may change or be
+// removed.
+type FactoryAgentRequest struct {
+	// Factory run identifier that owns the subagent.
+	FactoryRunID string `json:"factoryRunId"`
+	// Subagent execution options.
+	Opts FactoryAgentOptions `json:"opts"`
+	// Prompt to send to the subagent.
+	Prompt string `json:"prompt"`
+}
+
+// Result of one factory-scoped subagent call.
+// Experimental: FactoryAgentResult is part of an experimental API and may change or be
+// removed.
+type FactoryAgentResult struct {
+	// Agent result, omitted when the agent produced no result.
+	Result any `json:"result,omitempty"`
+}
+
+// Parameters for cancelling a factory run.
+// Experimental: FactoryCancelRequest is part of an experimental API and may change or be
+// removed.
+type FactoryCancelRequest struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters sent to the owning extension to execute a factory closure.
+// Experimental: FactoryExecuteRequest is part of an experimental API and may change or be
+// removed.
+type FactoryExecuteRequest struct {
+	// Factory input value.
+	Args any `json:"args"`
+	// Registered factory name.
+	Name string `json:"name"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Result returned by an extension factory closure.
+// Experimental: FactoryExecuteResult is part of an experimental API and may change or be
+// removed.
+type FactoryExecuteResult struct {
+	// Factory result value.
+	Result any `json:"result"`
+}
+
+// Parameters for retrieving a factory run.
+// Experimental: FactoryGetRunRequest is part of an experimental API and may change or be
+// removed.
+type FactoryGetRunRequest struct {
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Parameters for reading a factory journal entry.
+// Experimental: FactoryJournalGetRequest is part of an experimental API and may change or
+// be removed.
+type FactoryJournalGetRequest struct {
+	// Namespaced journal key.
+	Key string `json:"key"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Result of reading a factory journal entry.
+// Experimental: FactoryJournalGetResult is part of an experimental API and may change or be
+// removed.
+type FactoryJournalGetResult struct {
+	// Whether the journal contained the requested key.
+	Hit bool `json:"hit"`
+	// Cached JSON result. The hit field distinguishes a cached JSON null from a miss.
+	ResultJSON any `json:"resultJson,omitempty"`
+}
+
+// Parameters for storing a factory journal entry.
+// Experimental: FactoryJournalPutRequest is part of an experimental API and may change or
+// be removed.
+type FactoryJournalPutRequest struct {
+	// Namespaced journal key.
+	Key string `json:"key"`
+	// JSON result to memoize.
+	ResultJSON any `json:"resultJson"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// One ordered factory progress line.
+// Experimental: FactoryLogLine is part of an experimental API and may change or be removed.
+type FactoryLogLine struct {
+	// Progress line kind.
+	Kind FactoryLogLineKind `json:"kind"`
+	// Monotonic sequence number within the factory run.
+	Seq int64 `json:"seq"`
+	// Progress text.
+	Text string `json:"text"`
+}
+
+// Parameters for recording factory progress.
+// Experimental: FactoryLogRequest is part of an experimental API and may change or be
+// removed.
+type FactoryLogRequest struct {
+	// Ordered progress lines to append.
+	Lines []FactoryLogLine `json:"lines"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+// Machine-readable factory run failure.
+// Experimental: FactoryRunFailure is part of an experimental API and may change or be
+// removed.
+type FactoryRunFailure interface {
+	factoryRunFailure()
+	Type() FactoryRunFailureType
+}
+
+type RawFactoryRunFailureData struct {
+	Discriminator FactoryRunFailureType
+	Raw           json.RawMessage
+}
+
+func (RawFactoryRunFailureData) factoryRunFailure() {}
+func (r RawFactoryRunFailureData) Type() FactoryRunFailureType {
+	return r.Discriminator
+}
+
+type FactoryRunFailureFactoryLimitReached struct {
+	// Resource ceiling that stopped the run.
+	Kind FactoryRunFailureKind `json:"kind"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Approved effective ceiling that was reached.
+	Value float64 `json:"value"`
+}
+
+func (FactoryRunFailureFactoryLimitReached) factoryRunFailure() {}
+func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
+	return FactoryRunFailureTypeFactoryLimitReached
+}
+
+type FactoryRunFailureFactoryResumeDeclined struct {
+	// Human-readable reason the resume did not proceed.
+	Reason string `json:"reason"`
+	// Factory run identifier whose changed limits were declined.
+	RunID string `json:"runId"`
+}
+
+func (FactoryRunFailureFactoryResumeDeclined) factoryRunFailure() {}
+func (FactoryRunFailureFactoryResumeDeclined) Type() FactoryRunFailureType {
+	return FactoryRunFailureTypeFactoryResumeDeclined
+}
+
+// Wire-only per-invocation factory resource ceiling overrides.
+// Experimental: FactoryRunLimits is part of an experimental API and may change or be
+// removed.
+type FactoryRunLimits struct {
+	// Maximum number of factory subagents that may run concurrently.
+	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
+	// Maximum total number of factory subagents that may be admitted.
+	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
+	// Factory active-run timeout in milliseconds.
+	Timeout *float64 `json:"timeout,omitempty"`
+}
+
+// Parameters for invoking a registered factory.
+// Experimental: FactoryRunRequest is part of an experimental API and may change or be
+// removed.
+type FactoryRunRequest struct {
+	// Factory input value.
+	Args any `json:"args"`
+	// Registered factory name.
+	Name string `json:"name"`
+	// Factory invocation options.
+	Options *RunOptions `json:"options,omitempty"`
+}
+
+// Complete current or terminal factory run envelope.
+// Experimental: FactoryRunResult is part of an experimental API and may change or be
+// removed.
+type FactoryRunResult struct {
+	// Error message for an errored run.
+	Error *string `json:"error,omitempty"`
+	// Machine-readable failure details for an errored run.
+	Failure FactoryRunFailure `json:"failure,omitempty"`
+	// Reason for a halted or cancelled run.
+	Reason *string `json:"reason,omitempty"`
+	// Completed factory result.
+	Result any `json:"result,omitempty"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Partial journal and progress snapshot for a halted, cancelled, or errored run.
+	Snapshot any `json:"snapshot,omitempty"`
+	// Current or terminal factory run status.
+	Status FactoryRunStatus `json:"status"`
+}
+
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
 // Experimental: FilterMapping is part of an experimental API and may change or be removed.
@@ -2463,6 +2690,26 @@ type HistoryTruncateResult struct {
 	EventsRemoved int64 `json:"eventsRemoved"`
 }
 
+// Runtime-owned wire payload for a server-to-client hook callback invocation.
+// Experimental: HookInvokeRequest is part of an experimental API and may change or be
+// removed.
+// Internal: HookInvokeRequest is an internal SDK API and is not part of the public surface.
+type HookInvokeRequest struct {
+	// Internal: HookType is part of the SDK's internal API surface and is not intended for
+	// external use.
+	HookType  HookType `json:"hookType"`
+	Input     any      `json:"input"`
+	SessionID string   `json:"sessionId"`
+}
+
+// Optional output returned by an SDK callback hook.
+// Experimental: HookInvokeResponse is part of an experimental API and may change or be
+// removed.
+// Internal: HookInvokeResponse is an internal SDK API and is not part of the public surface.
+type HookInvokeResponse struct {
+	Output any `json:"output,omitempty"`
+}
+
 // Installed plugin record from global state, with marketplace, version, install time,
 // enabled state, cache path, and source.
 // Experimental: InstalledPlugin is part of an experimental API and may change or be removed.
@@ -2646,6 +2893,14 @@ type LlmInferenceHeaders map[string][]string
 // Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
 // change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
+	// Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching
+	// the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent
+	// transport can attribute successive turns correctly: when a WebSocket connection is reused
+	// across turns, the httpRequestStart identity reflects only the turn that opened the
+	// connection, so each later turn stamps its own invocation id here. Absent when the runtime
+	// has no invocation context for the request, or on the plain-HTTP transport where every
+	// request has its own httpRequestStart.
+	AgentInvocationID *string `json:"agentInvocationId,omitempty"`
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
 	// When true, the runtime is cancelling the in-flight request (e.g. upstream consumer
@@ -2674,18 +2929,19 @@ type LlmInferenceHTTPRequestChunkResult struct {
 // Experimental: LlmInferenceHTTPRequestStartRequest is part of an experimental API and may
 // change or be removed.
 type LlmInferenceHTTPRequestStartRequest struct {
-	// Stable per-agent-instance id attributing this request to a specific agent trajectory.
-	// Present when the request originates from an agent turn; absent for requests issued
-	// outside any agent context (e.g. some SDK callers). A request with an `agentId` but no
-	// `parentAgentId` is a root-agent request; one carrying both is a subagent request. Sourced
-	// from the runtime's per-request agent context and surfaced on the envelope independently
-	// of transport, so it is available for both first-party (CAPI) and BYOK/custom-provider
-	// requests; on the CAPI transport the runtime derives the upstream `X-Agent-Task-Id` header
-	// from this same context. Consumers routing each provider call to a training trajectory
-	// should key on this rather than on lifecycle events, since it is available on the request
-	// path before sampling.
-	AgentID *string             `json:"agentId,omitempty"`
-	Headers map[string][]string `json:"headers"`
+	// Stable identity of the agent trajectory that issued this request. Present when the
+	// request originates from an agent turn; absent for requests outside any agent context.
+	// This is the same identity used by lifecycle and bridged session events and remains
+	// constant across turns and retries.
+	AgentID *string `json:"agentId,omitempty"`
+	// Identity of the agent invocation (one agentic loop) that issued this request. It remains
+	// fixed across physical retries within the invocation and is distinct from the stable
+	// trajectory `agentId`. A caller-supplied invocation id always takes precedence (this
+	// covers auxiliary calls that have no model call id). Otherwise, first-party CAPI requests
+	// fall back to the runtime's agent task id — the same value the runtime emits as the
+	// `X-Agent-Task-Id` header — while custom-provider requests fall back to the model call id.
+	AgentInvocationID *string             `json:"agentInvocationId,omitempty"`
+	Headers           map[string][]string `json:"headers"`
 	// Coarse classification of the interaction that produced this request. Open string for
 	// forward-compatibility; known values include `conversation-agent`,
 	// `conversation-subagent`, `conversation-sampling`, `conversation-background`,
@@ -2696,12 +2952,9 @@ type LlmInferenceHTTPRequestStartRequest struct {
 	InteractionType *string `json:"interactionType,omitempty"`
 	// HTTP method, e.g. GET, POST.
 	Method string `json:"method"`
-	// Id of the parent agent that spawned the agent issuing this request. Present only for
-	// subagent requests; absent for root-agent requests and non-agent requests. Combined with
-	// `agentId`, this lets consumers attribute a call to a child trajectory versus the root.
-	// Like `agentId`, it comes from the runtime's per-request agent context independently of
-	// transport; on the CAPI transport the runtime derives the upstream `X-Parent-Agent-Id`
-	// header from this same context.
+	// Stable identity of the immediate parent trajectory. Present for child trajectories such
+	// as subagents and conversation-sampling requests; absent for root-agent and non-agent
+	// requests.
 	ParentAgentID *string `json:"parentAgentId,omitempty"`
 	// Opaque runtime-minted id, unique per in-flight request. The SDK uses this to correlate
 	// httpRequestChunk frames and to address its httpResponseStart / httpResponseChunk replies
@@ -3978,13 +4231,27 @@ type MCPStopServerRequest struct {
 	ServerName string `json:"serverName"`
 }
 
-// MCP tool metadata with tool name and optional description.
+// MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery
+// metadata.
 // Experimental: MCPTools is part of an experimental API and may change or be removed.
 type MCPTools struct {
 	// Tool description, when provided.
 	Description *string `json:"description,omitempty"`
 	// Tool name.
 	Name string `json:"name"`
+	// Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui`
+	// block was present without recognized fields.
+	UI *MCPToolUI `json:"ui,omitempty"`
+}
+
+// Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
+// Experimental: MCPToolUI is part of an experimental API and may change or be removed.
+type MCPToolUI struct {
+	// URI of the tool's MCP App resource, typically a `ui://` resource identifier. Use
+	// `session.mcp.resources.read` to fetch its HTML and resource metadata.
+	ResourceURI *string `json:"resourceUri,omitempty"`
+	// Tool visibility advertised by the server. When absent, MCP Apps defaults apply.
+	Visibility []MCPToolUIVisibility `json:"visibility,omitzero"`
 }
 
 // Server name identifying the external client to remove.
@@ -4102,7 +4369,10 @@ type MetadataRecordContextChangeRequest struct {
 // Notify the session that its working directory context has changed. Emits a
 // `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline
 // UI) can react. Use this when the host has detected a cwd/branch/repo change outside the
-// session's normal lifecycle (e.g., after a shell command in interactive mode).
+// session's normal lifecycle (e.g., after a shell command in interactive mode). For a local
+// session, a report whose `cwd` diverges from the session's current working directory is
+// ignored (the call still succeeds but records nothing and emits no event); move a local
+// session's working directory via `metadata.setWorkingDirectory` instead.
 // Experimental: MetadataRecordContextChangeResult is part of an experimental API and may
 // change or be removed.
 type MetadataRecordContextChangeResult struct {
@@ -6900,6 +7170,15 @@ type RemoteSessionRepository struct {
 	Owner string `json:"owner"`
 }
 
+// Options controlling factory invocation.
+// Experimental: RunOptions is part of an experimental API and may change or be removed.
+type RunOptions struct {
+	// Per-invocation resource ceiling overrides.
+	Limits *FactoryRunLimits `json:"limits,omitempty"`
+	// Run identifier whose journal and progress should seed this resumed run.
+	ResumeFromRunID *string `json:"resumeFromRunId,omitempty"`
+}
+
 // Experimental: RuntimeShutdownResult is part of an experimental API and may change or be
 // removed.
 type RuntimeShutdownResult struct {
@@ -6912,6 +7191,13 @@ type SandboxConfig struct {
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
+	// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the
+	// OS keyring the sandbox blocks. Default: false (opt-in).
+	GhAuth *bool `json:"ghAuth,omitempty"`
+	// Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so
+	// authenticated HTTPS git works inside the sandbox without the shell-based credential
+	// helper the sandbox blocks. Default: false (opt-in).
+	GitAuth *bool `json:"gitAuth,omitempty"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
 	UserPolicy *SandboxConfigUserPolicy `json:"userPolicy,omitempty"`
 }
@@ -7221,6 +7507,9 @@ type ServerSkill struct {
 // Skills discovered across global and project sources.
 // Experimental: ServerSkillList is part of an experimental API and may change or be removed.
 type ServerSkillList struct {
+	// Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills
+	// are excluded so host-local paths are not disclosed to multitenant callers.
+	Errors []string `json:"errors,omitzero"`
 	// All discovered skills across all sources
 	Skills []ServerSkill `json:"skills"`
 }
@@ -7958,8 +8247,19 @@ type SessionModelList struct {
 	// (CAPI) models and any registry BYOK models; a BYOK model appears under its
 	// provider-qualified selection id (`provider/id`).
 	List []any `json:"list"`
+	// Cost categories for the full CAPI catalog, including picker-disabled models that Auto may
+	// select. Metadata only; entries absent from `list` are not manually selectable.
+	ModelPriceCategories []SessionModelPriceCategory `json:"modelPriceCategories,omitzero"`
 	// Per-quota snapshots returned alongside the model list, keyed by quota type.
 	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitzero"`
+}
+
+// Cost-category metadata for a CAPI model.
+// Experimental: SessionModelPriceCategory is part of an experimental API and may change or
+// be removed.
+type SessionModelPriceCategory struct {
+	ID            string                   `json:"id"`
+	PriceCategory ModelPickerPriceCategory `json:"priceCategory"`
 }
 
 // Experimental: SessionModeSetResult is part of an experimental API and may change or be
@@ -9061,6 +9361,8 @@ type SessionUpdateOptionsParams struct {
 // Experimental: SessionUpdateOptionsResult is part of an experimental API and may change or
 // be removed.
 type SessionUpdateOptionsResult struct {
+	// Number of hooks loaded from installed plugins, returned when installedPlugins is updated
+	PluginHookCount *int64 `json:"pluginHookCount,omitempty"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
 }
@@ -10398,6 +10700,9 @@ type UsageMetricsCodeChanges struct {
 // Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
 // removed.
 type UsageMetricsModelMetric struct {
+	// Latest known prompt-cache expiration for this model. A timestamp in the past indicates
+	// that the observed cache has expired.
+	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
 	// Token count details per type
@@ -11349,11 +11654,105 @@ const (
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
 
+// Kind of factory progress line.
+// Experimental: FactoryLogLineKind is part of an experimental API and may change or be
+// removed.
+type FactoryLogLineKind string
+
+const (
+	// A narrator log line.
+	FactoryLogLineKindLog FactoryLogLineKind = "log"
+	// A named factory phase marker.
+	FactoryLogLineKindPhase FactoryLogLineKind = "phase"
+)
+
+// Cumulative resource ceiling that stopped a factory run.
+// Experimental: FactoryRunFailureKind is part of an experimental API and may change or be
+// removed.
+type FactoryRunFailureKind string
+
+const (
+	// The run admitted the approved maximum total number of subagents.
+	FactoryRunFailureKindMaxTotalSubagents FactoryRunFailureKind = "maxTotalSubagents"
+	// The run reached the approved timeout deadline.
+	FactoryRunFailureKindTimeout FactoryRunFailureKind = "timeout"
+)
+
+// Type discriminator for FactoryRunFailure.
+type FactoryRunFailureType string
+
+const (
+	FactoryRunFailureTypeFactoryLimitReached   FactoryRunFailureType = "factory_limit_reached"
+	FactoryRunFailureTypeFactoryResumeDeclined FactoryRunFailureType = "factory_resume_declined"
+)
+
+// Current or terminal state of a factory run.
+// Experimental: FactoryRunStatus is part of an experimental API and may change or be
+// removed.
+type FactoryRunStatus string
+
+const (
+	// The run was cancelled before completion.
+	FactoryRunStatusCancelled FactoryRunStatus = "cancelled"
+	// The run completed successfully.
+	FactoryRunStatusCompleted FactoryRunStatus = "completed"
+	// The factory body failed or reached a cumulative resource ceiling.
+	FactoryRunStatusError FactoryRunStatus = "error"
+	// The run was interrupted while resource budget remained.
+	FactoryRunStatusHalted FactoryRunStatus = "halted"
+	// The run was minted and is awaiting approval.
+	FactoryRunStatusPending FactoryRunStatus = "pending"
+	// The run is executing.
+	FactoryRunStatusRunning FactoryRunStatus = "running"
+)
+
 // Authentication host. HMAC auth always targets the public GitHub host.
 type HMACAuthInfoHost string
 
 const (
 	HMACAuthInfoHostHTTPSGitHubCom HMACAuthInfoHost = "https://github.com"
+)
+
+// Hook event name dispatched through the SDK callback transport.
+// Experimental: HookType is part of an experimental API and may change or be removed.
+type HookType string
+
+const (
+	// Runs when the agent stops.
+	HookTypeAgentStop HookType = "agentStop"
+	// Runs when the agent encounters an error.
+	HookTypeErrorOccurred HookType = "errorOccurred"
+	// Runs when the agent emits a notification.
+	HookTypeNotification HookType = "notification"
+	// Runs when the agent requests permission.
+	HookTypePermissionRequest HookType = "permissionRequest"
+	// Runs after an agent result is produced.
+	HookTypePostResult HookType = "postResult"
+	// Runs after a tool completes successfully.
+	HookTypePostToolUse HookType = "postToolUse"
+	// Runs after a tool fails.
+	HookTypePostToolUseFailure HookType = "postToolUseFailure"
+	// Runs before conversation context is compacted.
+	HookTypePreCompact HookType = "preCompact"
+	// Runs before an MCP tool is invoked.
+	HookTypePreMCPToolCall HookType = "preMcpToolCall"
+	// Runs before a pull request description is generated.
+	HookTypePrePRDescription HookType = "prePRDescription"
+	// Runs before a tool is invoked.
+	HookTypePreToolUse HookType = "preToolUse"
+	// Runs when a session ends.
+	HookTypeSessionEnd HookType = "sessionEnd"
+	// Runs when a session starts.
+	HookTypeSessionStart HookType = "sessionStart"
+	// Runs when a subagent starts.
+	HookTypeSubagentStart HookType = "subagentStart"
+	// Runs when a subagent stops.
+	HookTypeSubagentStop HookType = "subagentStop"
+	// Runs after the user submits a prompt.
+	HookTypeUserPromptSubmitted HookType = "userPromptSubmitted"
+	// Runs after the runtime transforms the submitted prompt for the model, before it is added
+	// to session history.
+	HookTypeUserPromptTransformed HookType = "userPromptTransformed"
 )
 
 // Constant value. Always "github".
@@ -11701,6 +12100,18 @@ const (
 	MCPSetEnvValueModeDetailsDirect MCPSetEnvValueModeDetails = "direct"
 	// Treat MCP server environment values as host-side references to resolve before launch.
 	MCPSetEnvValueModeDetailsIndirect MCPSetEnvValueModeDetails = "indirect"
+)
+
+// Consumer allowed to call an MCP tool.
+// Experimental: MCPToolUIVisibility is part of an experimental API and may change or be
+// removed.
+type MCPToolUIVisibility string
+
+const (
+	// An MCP App view may call the tool.
+	MCPToolUIVisibilityApp MCPToolUIVisibility = "app"
+	// The model may call the tool.
+	MCPToolUIVisibilityModel MCPToolUIVisibility = "model"
 )
 
 // The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
@@ -15279,6 +15690,188 @@ func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *Se
 	return &result, nil
 }
 
+// Experimental: FactoryAPI contains experimental APIs that may change or be removed.
+type FactoryAPI sessionAPI
+
+// Agent runs one factory-scoped subagent and returns its result.
+//
+// RPC method: session.factory.agent.
+//
+// Parameters: Parameters for one factory-scoped subagent call.
+//
+// Returns: Result of one factory-scoped subagent call.
+func (a *FactoryAPI) Agent(ctx context.Context, params *FactoryAgentRequest) (*FactoryAgentResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["factoryRunId"] = params.FactoryRunID
+		req["opts"] = params.Opts
+		req["prompt"] = params.Prompt
+	}
+	raw, err := a.client.Request(ctx, "session.factory.agent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryAgentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancel requests cancellation of a factory run and returns its run envelope.
+//
+// RPC method: session.factory.cancel.
+//
+// Parameters: Parameters for cancelling a factory run.
+//
+// Returns: Complete current or terminal factory run envelope.
+func (a *FactoryAPI) Cancel(ctx context.Context, params *FactoryCancelRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.cancel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRun gets the current or settled envelope for a factory run.
+//
+// RPC method: session.factory.getRun.
+//
+// Parameters: Parameters for retrieving a factory run.
+//
+// Returns: Complete current or terminal factory run envelope.
+func (a *FactoryAPI) GetRun(ctx context.Context, params *FactoryGetRunRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.getRun", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Log records a batch of ordered factory progress lines.
+//
+// RPC method: session.factory.log.
+//
+// Parameters: Parameters for recording factory progress.
+//
+// Returns: Acknowledgement that a factory request was accepted.
+func (a *FactoryAPI) Log(ctx context.Context, params *FactoryLogRequest) (*FactoryAckResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["lines"] = params.Lines
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.log", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryAckResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Runs a registered factory by name at the top level.
+//
+// RPC method: session.factory.run.
+//
+// Parameters: Parameters for invoking a registered factory.
+//
+// Returns: Complete current or terminal factory run envelope.
+func (a *FactoryAPI) Run(ctx context.Context, params *FactoryRunRequest) (*FactoryRunResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["args"] = params.Args
+		req["name"] = params.Name
+		if params.Options != nil {
+			req["options"] = *params.Options
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.factory.run", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryRunResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: FactoryJournalAPI contains experimental APIs that may change or be removed.
+type FactoryJournalAPI sessionAPI
+
+// Get reads a memoized factory journal entry.
+//
+// RPC method: session.factory.journal.get.
+//
+// Parameters: Parameters for reading a factory journal entry.
+//
+// Returns: Result of reading a factory journal entry.
+func (a *FactoryJournalAPI) Get(ctx context.Context, params *FactoryJournalGetRequest) (*FactoryJournalGetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["key"] = params.Key
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.journal.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryJournalGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Put stores a memoized factory journal entry.
+//
+// RPC method: session.factory.journal.put.
+//
+// Parameters: Parameters for storing a factory journal entry.
+//
+// Returns: Acknowledgement that a factory request was accepted.
+func (a *FactoryJournalAPI) Put(ctx context.Context, params *FactoryJournalPutRequest) (*FactoryAckResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["key"] = params.Key
+		req["resultJson"] = params.ResultJSON
+		req["runId"] = params.RunID
+	}
+	raw, err := a.client.Request(ctx, "session.factory.journal.put", req)
+	if err != nil {
+		return nil, err
+	}
+	var result FactoryAckResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Journal returns experimental APIs that may change or be removed.
+func (s *FactoryAPI) Journal() *FactoryJournalAPI {
+	return (*FactoryJournalAPI)(s)
+}
+
 // Experimental: FleetAPI contains experimental APIs that may change or be removed.
 type FleetAPI sessionAPI
 
@@ -15664,7 +16257,9 @@ func (a *MCPAPI) List(ctx context.Context) (*MCPServerList, error) {
 	return &result, nil
 }
 
-// ListTools lists the tools exposed by a connected MCP server on this session's host.
+// ListTools lists the tools exposed by a connected MCP server on this session's host. This
+// performs a live `tools/list` request. Tool UI metadata is returned independently of
+// whether MCP Apps rendering is enabled for the session.
 //
 // RPC method: session.mcp.listTools.
 //
@@ -16330,7 +16925,11 @@ func (a *MetadataAPI) RecomputeContextTokens(ctx context.Context, params *Metada
 }
 
 // RecordContextChange records a working-directory/git context change and emits a
-// `session.context_changed` event.
+// `session.context_changed` event. For a local session, a report whose `cwd` diverges from
+// the session's current working directory is ignored (the call still succeeds but records
+// nothing and emits no event): a local session's working directory is authoritative and is
+// moved via `metadata.setWorkingDirectory` (or an SDK `session.resume` that supplies a
+// `workingDirectory`), not by this method.
 //
 // RPC method: session.metadata.recordContextChange.
 //
@@ -16339,7 +16938,10 @@ func (a *MetadataAPI) RecomputeContextTokens(ctx context.Context, params *Metada
 // Returns: Notify the session that its working directory context has changed. Emits a
 // `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline
 // UI) can react. Use this when the host has detected a cwd/branch/repo change outside the
-// session's normal lifecycle (e.g., after a shell command in interactive mode).
+// session's normal lifecycle (e.g., after a shell command in interactive mode). For a local
+// session, a report whose `cwd` diverges from the session's current working directory is
+// ignored (the call still succeeds but records nothing and emits no event); move a local
+// session's working directory via `metadata.setWorkingDirectory` instead.
 func (a *MetadataAPI) RecordContextChange(ctx context.Context, params *MetadataRecordContextChangeRequest) (*MetadataRecordContextChangeResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -18950,6 +19552,7 @@ type SessionRPC struct {
 	Debug        *DebugAPI
 	EventLog     *EventLogAPI
 	Extensions   *ExtensionsAPI
+	Factory      *FactoryAPI
 	Fleet        *FleetAPI
 	GitHubAuth   *GitHubAuthAPI
 	History      *HistoryAPI
@@ -19216,6 +19819,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Debug = (*DebugAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
+	r.Factory = (*FactoryAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
 	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)
@@ -19469,6 +20073,26 @@ type CanvasHandler interface {
 	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
 }
 
+// Experimental: FactoryHandler contains experimental APIs that may change or be removed.
+type FactoryHandler interface {
+	// Abort asks the owning extension connection to abort a running factory cooperatively.
+	//
+	// RPC method: factory.abort.
+	//
+	// Parameters: Parameters for cooperatively aborting a factory body.
+	//
+	// Returns: Acknowledgement that a factory request was accepted.
+	Abort(request *FactoryAbortRequest) (*FactoryAckResult, error)
+	// Execute asks the owning extension connection to execute a registered factory closure.
+	//
+	// RPC method: factory.execute.
+	//
+	// Parameters: Parameters sent to the owning extension to execute a factory closure.
+	//
+	// Returns: Result returned by an extension factory closure.
+	Execute(request *FactoryExecuteRequest) (*FactoryExecuteResult, error)
+}
+
 // Experimental: ProviderTokenHandler contains experimental APIs that may change or be
 // removed.
 type ProviderTokenHandler interface {
@@ -19612,6 +20236,7 @@ type SessionFSHandler interface {
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
 	Canvas        CanvasHandler
+	Factory       FactoryHandler
 	ProviderToken ProviderTokenHandler
 	SessionFS     SessionFSHandler
 }
@@ -19678,6 +20303,44 @@ func RegisterClientSessionAPIHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.Canvas.Open(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("factory.abort", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request FactoryAbortRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Factory == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Factory.Abort(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("factory.execute", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request FactoryExecuteRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Factory == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No factory handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Factory.Execute(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
@@ -19952,6 +20615,20 @@ type GitHubTelemetryHandler interface {
 	Event(request *GitHubTelemetryNotification) error
 }
 
+// Experimental: HooksHandler contains experimental APIs that may change or be removed.
+type HooksHandler interface {
+	// Invoke dispatches one SDK callback hook from the runtime to the connection that
+	// registered it. Internal transport plumbing: clients opt in through session initialization
+	// and the Rust hook processor owns ordering, policy, timeout, and callback routing.
+	//
+	// RPC method: hooks.invoke.
+	//
+	// Parameters: Runtime-owned wire payload for a server-to-client hook callback invocation.
+	//
+	// Returns: Optional output returned by an SDK callback hook.
+	Invoke(request *HookInvokeRequest) (*HookInvokeResponse, error)
+}
+
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -19989,6 +20666,7 @@ type LlmInferenceHandler interface {
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry GitHubTelemetryHandler
+	Hooks           HooksHandler
 	LlmInference    LlmInferenceHandler
 }
 
@@ -20018,6 +20696,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, clientGlobalHandlerError(err)
 		}
 		return nil, nil
+	})
+	client.SetRequestHandler("hooks.invoke", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request HookInvokeRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Hooks == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No hooks client-global handler registered"}
+		}
+		result, err := handlers.Hooks.Invoke(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest

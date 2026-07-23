@@ -306,7 +306,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var permissionRequests = new List<PermissionRequest>();
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(Client, new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringForPermission, "encrypt_string")],
             OnPermissionRequest = (request, invocation) =>
@@ -340,7 +340,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var toolHandlerCalled = false;
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(Client, new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
             OnPermissionRequest = async (request, invocation) => PermissionDecision.Reject(),

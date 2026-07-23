@@ -26,7 +26,7 @@ import threading
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
@@ -73,6 +73,8 @@ from .generated.rpc import (
     RemoteSessionMode,
     ServerRpc,
     _ConnectResult,
+    _HookInvokeRequest,
+    _HookInvokeResponse,
     from_datetime,
     register_client_global_api_handlers,
     register_client_session_api_handlers,
@@ -141,6 +143,71 @@ class CloudSessionOptions:
     """Options for creating a remote session in the cloud."""
 
     repository: CloudSessionRepository | None = None
+
+
+ExpFlagValue = str | int | float | bool | None
+"""A single ExP (Experiment Platform) flag value.
+
+ExP assignments resolve to a string, number, boolean, or ``None``.
+"""
+
+
+@dataclass
+class ExpConfigEntry:
+    """A single configuration entry in a :class:`CopilotExpAssignmentResponse`.
+
+    Each entry carries an identifier and a bag of typed parameter values.
+    """
+
+    id: str
+    """Identifier of the configuration entry."""
+    parameters: dict[str, ExpFlagValue] = field(default_factory=dict)
+    """Parameter values keyed by parameter name."""
+
+
+@dataclass
+class CopilotExpAssignmentResponse:
+    """ExP ("flight") assignment data.
+
+    Uses the same JSON shape the Copilot CLI fetches from the experimentation
+    service. Serialized on the wire with PascalCase keys to match the contract
+    consumed by the runtime.
+    """
+
+    features: list[str] = field(default_factory=list)
+    """Enabled feature names."""
+    flights: dict[str, str] = field(default_factory=dict)
+    """Assigned flights keyed by flight name."""
+    configs: list[ExpConfigEntry] = field(default_factory=list)
+    """Configuration entries carrying typed parameter values."""
+    assignment_context: str = ""
+    """Assignment context string forwarded to CAPI and telemetry."""
+    parameter_groups: Any | None = None
+    """Opaque parameter-group payload passed through untouched. Optional."""
+    flighting_version: int | None = None
+    """Version of the flighting configuration. Optional."""
+    impression_id: str | None = None
+    """Impression identifier for the assignment. Optional."""
+
+
+def _exp_assignment_response_to_dict(
+    response: CopilotExpAssignmentResponse,
+) -> dict[str, Any]:
+    wire: dict[str, Any] = {
+        "Features": list(response.features),
+        "Flights": dict(response.flights),
+        "Configs": [
+            {"Id": entry.id, "Parameters": dict(entry.parameters)} for entry in response.configs
+        ],
+        "AssignmentContext": response.assignment_context,
+    }
+    if response.parameter_groups is not None:
+        wire["ParameterGroups"] = response.parameter_groups
+    if response.flighting_version is not None:
+        wire["FlightingVersion"] = response.flighting_version
+    if response.impression_id is not None:
+        wire["ImpressionId"] = response.impression_id
+    return wire
 
 
 class CapiSessionOptions(TypedDict, total=False):
@@ -477,6 +544,25 @@ class _GitHubTelemetryAdapter:
                 await result
         except Exception:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
+
+
+class _HooksAdapter:
+    """Adapts session-scoped hook dispatch to the generated ``HooksHandler`` protocol.
+
+    ``hooks.invoke`` is a client-global RPC method whose payload carries a
+    ``sessionId``. This adapter routes each invocation to the matching session's
+    registered hook handlers.
+    """
+
+    def __init__(self, get_session: Callable[[str], CopilotSession | None]) -> None:
+        self._get_session = get_session
+
+    async def invoke(self, params: _HookInvokeRequest) -> _HookInvokeResponse:
+        session = self._get_session(params.session_id)
+        if session is None:
+            raise ValueError(f"unknown session {params.session_id}")
+        output = await session._handle_hooks_invoke(params.hook_type.value, params.input)
+        return _HookInvokeResponse(output=output)
 
 
 @dataclass
@@ -1979,7 +2065,7 @@ class CopilotClient:
         extension_info: ExtensionInfo | None = None,
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
@@ -2251,9 +2337,9 @@ class CopilotClient:
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
@@ -2652,7 +2738,7 @@ class CopilotClient:
         canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
@@ -2948,9 +3034,9 @@ class CopilotClient:
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
 
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
@@ -3740,6 +3826,8 @@ class CopilotClient:
             wire_agent["skills"] = agent["skills"]
         if "model" in agent:
             wire_agent["model"] = agent["model"]
+        if "reasoning_effort" in agent:
+            wire_agent["reasoningEffort"] = agent["reasoning_effort"]
         return wire_agent
 
     def _convert_default_agent_to_wire_format(
@@ -4072,7 +4160,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -4192,7 +4279,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -4282,15 +4368,18 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
-        if llm_inference_adapter is None and github_telemetry_adapter is None:
-            return
         register_client_global_api_handlers(
             self._client,
             ClientGlobalApiHandlers(
+                hooks=_HooksAdapter(self._get_session),
                 llm_inference=llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
             ),
         )
+
+    def _get_session(self, session_id: str) -> CopilotSession | None:
+        with self._sessions_lock:
+            return self._sessions.get(session_id)
 
     async def _set_llm_inference_provider(self) -> None:
         if self._request_handler is None or self._rpc is None:
@@ -4363,34 +4452,6 @@ class CopilotClient:
 
         response = await session._handle_auto_mode_switch_request(params)
         return {"response": response}
-
-    async def _handle_hooks_invoke(self, params: dict) -> dict:
-        """
-        Handle a hooks invocation from the CLI server.
-
-        Args:
-            params: The hooks invocation parameters from the server.
-
-        Returns:
-            A dict containing the hook output.
-
-        Raises:
-            ValueError: If the request payload is invalid.
-        """
-        session_id = params.get("sessionId")
-        hook_type = params.get("hookType")
-        input_data = params.get("input")
-
-        if not session_id or not hook_type:
-            raise ValueError("invalid hooks invoke payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
-        output = await session._handle_hooks_invoke(hook_type, input_data)
-        return {"output": output}
 
     async def _handle_system_message_transform(self, params: dict) -> dict:
         """Handle a systemMessage.transform request from the CLI server."""

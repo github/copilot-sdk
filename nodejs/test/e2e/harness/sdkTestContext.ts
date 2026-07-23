@@ -293,7 +293,15 @@ export async function createSdkTestContext({
     afterAll(async () => {
         await copilotClient.stop();
         await openAiEndpoint.stop(anyTestFailed);
-        await rmDir("remove e2e test copilotHomeDir", copilotHomeDir);
+        // On Windows, this Vitest worker can retain the in-process runtime's session.db
+        // lock until the worker exits. Retrying from its afterAll hook cannot succeed:
+        // the hook waits for the lock, while the lock cannot clear until the hook returns
+        // and lets the worker exit.
+        await rmDir(
+            "remove e2e test copilotHomeDir",
+            copilotHomeDir,
+            isInProcess && process.platform === "win32" ? 1 : 30
+        );
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
     });
@@ -320,14 +328,14 @@ function getTrafficCapturePath(testContext: TestContext): string {
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
 
-async function rmDir(message: string, path: string): Promise<void> {
+async function rmDir(message: string, path: string, maxTries = 30): Promise<void> {
     // Use longer retries to tolerate Windows holding SQLite session-store.db
     // open briefly after the CLI subprocess exits. If the temp dir still can't
     // be removed (e.g. CLI background writer racing with cleanup), warn and
     // continue rather than failing the whole test run — the OS / CI runner
     // will reclaim the temp dir on shutdown.
     try {
-        await retry(message, () => rm(path, { recursive: true, force: true }), 30, 1000);
+        await retry(message, () => rm(path, { recursive: true, force: true }), maxTries, 1000);
     } catch (error) {
         console.warn(
             `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`

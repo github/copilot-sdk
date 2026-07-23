@@ -46,7 +46,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await isolatedCtx.ConfigureForTestAsync("rpc_session_state", nameof(Should_Call_Session_Rpc_Model_SwitchTo));
         var isolatedClient = isolatedCtx.CreateClient();
 
-        await using var session = await isolatedClient.CreateSessionAsync(new SessionConfig
+        await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient, new SessionConfig
         {
             Model = "claude-sonnet-4.5",
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -278,7 +278,6 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var firstDirectory = CreateUniqueDirectory();
         var secondDirectory = CreateUniqueDirectory();
-        var contextDirectory = CreateUniqueDirectory();
         var branch = $"rpc-context-{Guid.NewGuid():N}";
         await using var session = await CreateSessionAsync(new SessionConfig
         {
@@ -322,9 +321,12 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             TimeSpan.FromSeconds(15),
             timeoutDescription: "session.context_changed event after metadata.recordContextChange");
 
+        // For local sessions the CLI treats the session cwd as authoritative, so a
+        // recordContextChange that reports a divergent cwd is ignored and emits no event.
+        // Report the current working directory (secondDirectory) to observe the change.
         var context = new SessionWorkingDirectoryContext
         {
-            Cwd = contextDirectory,
+            Cwd = secondDirectory,
             GitRoot = firstDirectory,
             Branch = branch,
             Repository = "github/copilot-sdk-e2e",
@@ -338,8 +340,8 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotNull(recordResult);
 
         var contextChanged = await contextChangedTask;
-        Assert.True(PathEquals(contextDirectory, contextChanged.Data.Cwd),
-            $"Expected context cwd '{contextDirectory}', actual '{contextChanged.Data.Cwd}'.");
+        Assert.True(PathEquals(secondDirectory, contextChanged.Data.Cwd),
+            $"Expected context cwd '{secondDirectory}', actual '{contextChanged.Data.Cwd}'.");
         Assert.True(PathEquals(firstDirectory, contextChanged.Data.GitRoot),
             $"Expected context git root '{firstDirectory}', actual '{contextChanged.Data.GitRoot}'.");
         Assert.Equal(branch, contextChanged.Data.Branch);
@@ -443,7 +445,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Set_Auth_Credentials()
     {
         await using var client = Ctx.CreateClient();
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

@@ -58,7 +58,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         await Ctx.ConfigureForTestAsync("multi_client", _testName);
 
         // Trigger connection so we can read the port
-        var initSession = await Client1.CreateSessionAsync(new SessionConfig
+        var initSession = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -96,13 +96,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     {
         var tool = AIFunctionFactory.Create(MagicNumber, "magic_number");
 
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Tools = [tool],
         });
 
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -148,7 +148,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     {
         var client1PermissionRequests = new List<PermissionRequest>();
 
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = (request, _) =>
             {
@@ -158,7 +158,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         });
 
         // Client 2 resumes — its handler never completes, so only client 1's approval takes effect
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
@@ -200,13 +200,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     [Fact]
     public async Task One_Client_Rejects_Permission_And_Both_See_The_Result()
     {
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.Reject()),
         });
 
         // Client 2 resumes — its handler never completes
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
@@ -252,13 +252,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var toolA = AIFunctionFactory.Create(CityLookup, "city_lookup");
         var toolB = AIFunctionFactory.Create(CurrencyLookup, "currency_lookup");
 
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Tools = [toolA],
         });
 
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Tools = [toolB],
@@ -294,13 +294,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var toolA = AIFunctionFactory.Create(StableTool, "stable_tool");
         var toolB = AIFunctionFactory.Create(EphemeralTool, "ephemeral_tool");
 
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Tools = [toolA],
         });
 
-        await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Tools = [toolB],

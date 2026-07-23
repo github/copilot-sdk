@@ -204,13 +204,13 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
     {
         await using var oauthServer = await OAuthMcpServer.StartAsync(ExpectedToken);
         var serverName = "oauth-cancelled-mcp";
-        McpAuthContext? observedRequest = null;
+        var authRequest = new TaskCompletionSource<McpAuthContext>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             OnMcpAuthRequest = request =>
             {
-                observedRequest = request;
+                authRequest.TrySetResult(request);
                 return Task.FromResult<McpAuthResult?>(McpAuthResult.Cancel());
             },
             McpServers = new Dictionary<string, McpServerConfig>
@@ -225,9 +225,16 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
 
         await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.NeedsAuth);
 
-        Assert.NotNull(observedRequest);
-        Assert.NotEmpty(observedRequest!.RequestId);
-        Assert.Equal(serverName, observedRequest!.ServerName);
+        // The MCP connection is kicked off by session.create, but the SDK only registers its
+        // `mcp.oauth_required` event interest once create returns. If the server's initial 401
+        // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+        // so the callback fires only on a later auth retry (now that interest is registered),
+        // with the same `Initial` reason. Await the callback rather than sampling it the instant
+        // `needs-auth` first appears, which is what made this test flaky.
+        var observedRequest = await authRequest.Task.WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.NotEmpty(observedRequest.RequestId);
+        Assert.Equal(serverName, observedRequest.ServerName);
         Assert.Equal(McpOauthRequestReason.Initial, observedRequest.Reason);
     }
 

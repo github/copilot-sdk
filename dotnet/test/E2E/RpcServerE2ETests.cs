@@ -160,6 +160,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Call_Rpc_Models_List_With_Typed_Result()
     {
         const string token = "rpc-models-token";
@@ -175,6 +176,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Call_Rpc_Account_GetQuota_When_Authenticated()
     {
         const string token = "rpc-quota-token";
@@ -256,7 +258,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var missingTaskId = $"missing-task-{Guid.NewGuid():N}";
         var missingSessionId = Guid.NewGuid().ToString();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = sessionId,
             WorkingDirectory = workingDirectory,
@@ -308,7 +310,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var sessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-enrich");
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = sessionId,
             WorkingDirectory = workingDirectory,
@@ -353,7 +355,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         await using var client = CreateAuthenticatedClient(token);
         var sessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-close");
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = sessionId,
             WorkingDirectory = workingDirectory,
@@ -378,7 +380,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var sessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-in-use");
         await using var otherClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForStdio() });
-        await using var otherSession = await otherClient.CreateSessionAsync(new SessionConfig
+        await using var otherSession = await Ctx.CreateSessionAsync(otherClient, new SessionConfig
         {
             SessionId = sessionId,
             WorkingDirectory = workingDirectory,
@@ -419,7 +421,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var missingSessionId = Guid.NewGuid().ToString();
         var workingDirectory = CreateUniqueWorkDirectory("server-rpc-delete");
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = sessionId,
             WorkingDirectory = workingDirectory,

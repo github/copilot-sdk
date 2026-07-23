@@ -2640,6 +2640,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.factory.*` sub-namespace.
+    pub fn factory(&self) -> SessionRpcFactory<'a> {
+        SessionRpcFactory {
+            session: self.session,
+        }
+    }
+
     /// `session.fleet.*` sub-namespace.
     pub fn fleet(&self) -> SessionRpcFleet<'a> {
         SessionRpcFleet {
@@ -3925,6 +3932,242 @@ impl<'a> SessionRpcExtensions<'a> {
     }
 }
 
+/// `session.factory.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcFactory<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcFactory<'a> {
+    /// `session.factory.journal.*` sub-namespace.
+    pub fn journal(&self) -> SessionRpcFactoryJournal<'a> {
+        SessionRpcFactoryJournal {
+            session: self.session,
+        }
+    }
+
+    /// Runs a registered factory by name at the top level.
+    ///
+    /// Wire method: `session.factory.run`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for invoking a registered factory.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn run(&self, params: FactoryRunRequest) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_RUN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets the current or settled envelope for a factory run.
+    ///
+    /// Wire method: `session.factory.getRun`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for retrieving a factory run.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_run(&self, params: FactoryGetRunRequest) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_GETRUN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Requests cancellation of a factory run and returns its run envelope.
+    ///
+    /// Wire method: `session.factory.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for cancelling a factory run.
+    ///
+    /// # Returns
+    ///
+    /// Complete current or terminal factory run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel(&self, params: FactoryCancelRequest) -> Result<FactoryRunResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Records a batch of ordered factory progress lines.
+    ///
+    /// Wire method: `session.factory.log`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for recording factory progress.
+    ///
+    /// # Returns
+    ///
+    /// Acknowledgement that a factory request was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn log(&self, params: FactoryLogRequest) -> Result<FactoryAckResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_LOG, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Runs one factory-scoped subagent and returns its result.
+    ///
+    /// Wire method: `session.factory.agent`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for one factory-scoped subagent call.
+    ///
+    /// # Returns
+    ///
+    /// Result of one factory-scoped subagent call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn agent(&self, params: FactoryAgentRequest) -> Result<FactoryAgentResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_AGENT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.factory.journal.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcFactoryJournal<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcFactoryJournal<'a> {
+    /// Reads a memoized factory journal entry.
+    ///
+    /// Wire method: `session.factory.journal.get`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for reading a factory journal entry.
+    ///
+    /// # Returns
+    ///
+    /// Result of reading a factory journal entry.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get(
+        &self,
+        params: FactoryJournalGetRequest,
+    ) -> Result<FactoryJournalGetResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_JOURNAL_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Stores a memoized factory journal entry.
+    ///
+    /// Wire method: `session.factory.journal.put`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for storing a factory journal entry.
+    ///
+    /// # Returns
+    ///
+    /// Acknowledgement that a factory request was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn put(&self, params: FactoryJournalPutRequest) -> Result<FactoryAckResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_JOURNAL_PUT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.fleet.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcFleet<'a> {
@@ -4349,7 +4592,7 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Lists the tools exposed by a connected MCP server on this session's host.
+    /// Lists the tools exposed by a connected MCP server on this session's host. This performs a live `tools/list` request. Tool UI metadata is returned independently of whether MCP Apps rendering is enabled for the session.
     ///
     /// Wire method: `session.mcp.listTools`.
     ///
@@ -5437,7 +5680,7 @@ impl<'a> SessionRpcMetadata<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Records a working-directory/git context change and emits a `session.context_changed` event.
+    /// Records a working-directory/git context change and emits a `session.context_changed` event. For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event): a local session's working directory is authoritative and is moved via `metadata.setWorkingDirectory` (or an SDK `session.resume` that supplies a `workingDirectory`), not by this method.
     ///
     /// Wire method: `session.metadata.recordContextChange`.
     ///
@@ -5447,7 +5690,7 @@ impl<'a> SessionRpcMetadata<'a> {
     ///
     /// # Returns
     ///
-    /// Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode).
+    /// Notify the session that its working directory context has changed. Emits a `session.context_changed` event so consumers (telemetry, OTel tracker, ACP, the timeline UI) can react. Use this when the host has detected a cwd/branch/repo change outside the session's normal lifecycle (e.g., after a shell command in interactive mode). For a local session, a report whose `cwd` diverges from the session's current working directory is ignored (the call still succeeds but records nothing and emits no event); move a local session's working directory via `metadata.setWorkingDirectory` instead.
     ///
     /// <div class="warning">
     ///

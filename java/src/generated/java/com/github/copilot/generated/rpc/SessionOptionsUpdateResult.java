@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionOptionsUpdateResult(
     /** Whether the operation succeeded */
-    @JsonProperty("success") Boolean success
+    @JsonProperty("success") Boolean success,
+    /** Number of hooks loaded from installed plugins, returned when installedPlugins is updated */
+    @JsonProperty("pluginHookCount") Long pluginHookCount
 ) {
 }

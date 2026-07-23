@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -45,6 +46,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("cacheReadTokens") Long cacheReadTokens,
         /** Number of tokens written to prompt cache */
         @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
+        /** Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state. */
+        @JsonProperty("cacheExpiresAt") OffsetDateTime cacheExpiresAt,
         /** Number of output tokens used for reasoning (e.g., chain-of-thought) */
         @JsonProperty("reasoningTokens") Long reasoningTokens,
         /** Model multiplier cost for billing purposes */

@@ -13,7 +13,7 @@ import type {
     ToolResultObject,
 } from "../../src/index.js";
 import { approveAll, defineTool } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Permission callbacks", async () => {
@@ -408,7 +408,7 @@ describe("Permission callbacks", async () => {
         await session.disconnect();
     });
 
-    it("should deny permission with noresult kind", async () => {
+    it.skipIf(isInProcessTransport)("should deny permission with noresult kind", async () => {
         // With no-result, the TypeScript SDK does not send any response to the CLI's permission
         // request, leaving the tool execution pending. We verify the permission handler fires.
         let resolvePermissionCalled!: () => void;

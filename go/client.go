@@ -2290,7 +2290,6 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
-	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
@@ -2301,21 +2300,25 @@ func (c *Client) setupNotificationHandler() {
 		}
 		return session.clientSessionAPIs
 	})
-	if c.options.RequestHandler != nil || c.options.OnGitHubTelemetry != nil {
-		handlers := &rpc.ClientGlobalAPIHandlers{}
-		if c.options.RequestHandler != nil {
-			handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
-				if c.RPC == nil {
-					return nil
-				}
-				return c.RPC.LlmInference
-			})
-		}
-		if c.options.OnGitHubTelemetry != nil {
-			handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
-		}
-		rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
+	// hooks.invoke is a client-global RPC method: one connection-level handler
+	// receives every hook callback and routes to the owning session via the
+	// payload's sessionId. Always register the global handlers so the generated
+	// hooks.invoke handler is wired to our dispatcher.
+	handlers := &rpc.ClientGlobalAPIHandlers{
+		Hooks: &hooksAdapter{client: c},
 	}
+	if c.options.RequestHandler != nil {
+		handlers.LlmInference = newCopilotRequestAdapter(c.options.RequestHandler, func() *rpc.ServerLlmInferenceAPI {
+			if c.RPC == nil {
+				return nil
+			}
+			return c.RPC.LlmInference
+		})
+	}
+	if c.options.OnGitHubTelemetry != nil {
+		handlers.GitHubTelemetry = &gitHubTelemetryAdapter{callback: c.options.OnGitHubTelemetry}
+	}
+	rpc.RegisterClientGlobalAPIHandlers(c.client, handlers)
 }
 
 // gitHubTelemetryAdapter adapts the OnGitHubTelemetry option to the generated
@@ -2423,7 +2426,8 @@ func (c *Client) handleAutoModeSwitchRequest(req autoModeSwitchRequest) (*autoMo
 	return &autoModeSwitchResponse{Response: response}, nil
 }
 
-// handleHooksInvoke handles a hooks invocation from the CLI server.
+// handleHooksInvoke routes a hook callback to its owning session, keyed by the
+// payload's sessionId.
 func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jsonrpc2.Error) {
 	if req.SessionID == "" || req.Type == "" {
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid hooks invoke payload"}
@@ -2446,6 +2450,34 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
+}
+
+// hooksAdapter implements the generated rpc.HooksHandler, delegating to the
+// client's per-session hook dispatcher.
+type hooksAdapter struct {
+	client *Client
+}
+
+func (a *hooksAdapter) Invoke(request *rpc.HookInvokeRequest) (*rpc.HookInvokeResponse, error) {
+	rawInput, err := json.Marshal(request.Input)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("invalid hooks invoke payload: %v", err)}
+	}
+
+	result, rpcErr := a.client.handleHooksInvoke(hooksInvokeRequest{
+		SessionID: request.SessionID,
+		Type:      string(request.HookType),
+		Input:     rawInput,
+	})
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	response := &rpc.HookInvokeResponse{}
+	if result != nil {
+		response.Output = result["output"]
+	}
+	return response, nil
 }
 
 // handleSystemMessageTransform handles a system message transform request from the CLI server.
