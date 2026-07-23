@@ -15,6 +15,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -349,16 +350,49 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 if (_connection is InProcessRuntimeConnection)
                 {
-                    // In-process FFI hosting: load the Rust cdylib and let it spawn
-                    // the CLI worker, instead of the SDK launching a CLI child process.
-                    // The worker reads its configuration (telemetry export, etc.) from
-                    // the environment passed here, so apply the same telemetry-derived
-                    // vars the child-process path sets on its startInfo.Environment.
-                    var ffiEnvironment = _options.Environment?.ToDictionary(kvp => kvp.Key, kvp => (string?)kvp.Value)
-                        ?? new Dictionary<string, string?>();
-                    ApplyTelemetryEnvironment(ffiEnvironment, _options.Telemetry);
-                    var resolvedFfiEnvironment = ffiEnvironment.ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
-                    var ffiHost = FfiRuntimeHost.Create(ResolveCliPathForFfi(), GetNapiPrebuildsFolderOrThrow(), resolvedFfiEnvironment, _logger);
+                    var ffiEnvironment = new Dictionary<string, string>();
+                    if (!string.IsNullOrEmpty(_options.GitHubToken))
+                    {
+                        ffiEnvironment["COPILOT_SDK_AUTH_TOKEN"] = _options.GitHubToken!;
+                    }
+                    if (!string.IsNullOrEmpty(_options.BaseDirectory))
+                    {
+                        ffiEnvironment["COPILOT_HOME"] = _options.BaseDirectory!;
+                    }
+                    if (_options.Mode == CopilotClientMode.Empty)
+                    {
+                        ffiEnvironment["COPILOT_DISABLE_KEYTAR"] = "1";
+                    }
+
+                    var ffiArgs = new List<string>();
+                    if (_options.LogLevel is { } logLevel && !string.IsNullOrEmpty(logLevel.Value))
+                    {
+                        ffiArgs.AddRange(["--log-level", logLevel.Value]);
+                    }
+                    if (!string.IsNullOrEmpty(_options.GitHubToken))
+                    {
+                        ffiArgs.AddRange(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"]);
+                    }
+                    var useLoggedInUser = _options.UseLoggedInUser ?? string.IsNullOrEmpty(_options.GitHubToken);
+                    if (!useLoggedInUser)
+                    {
+                        ffiArgs.Add("--no-auto-login");
+                    }
+                    if (_options.SessionIdleTimeoutSeconds is > 0)
+                    {
+                        ffiArgs.AddRange(["--session-idle-timeout", _options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
+                    }
+                    if (_options.EnableRemoteSessions)
+                    {
+                        ffiArgs.Add("--remote");
+                    }
+
+                    var ffiHost = FfiRuntimeHost.Create(
+                        ResolveCliPathForFfi(),
+                        GetNapiPrebuildsFolderOrThrow(),
+                        ffiEnvironment,
+                        ffiArgs,
+                        _logger);
                     _ffiHost = ffiHost;
                     await ffiHost.StartAsync(ct);
                     connection = await ConnectToServerAsync(null, null, null, null, ct, ffiHost);
@@ -2214,7 +2248,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         string os;
         if (OperatingSystem.IsWindows()) os = "win";
-        else if (OperatingSystem.IsLinux()) os = "linux";
+        else if (OperatingSystem.IsLinux())
+        {
+            os = RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
+                ? "linux-musl"
+                : "linux";
+        }
         else if (OperatingSystem.IsMacOS()) os = "osx";
         else return null;
 
@@ -2261,7 +2300,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         string platform;
         if (OperatingSystem.IsWindows()) platform = "win32";
-        else if (OperatingSystem.IsLinux()) platform = "linux";
+        else if (OperatingSystem.IsLinux())
+        {
+            platform = RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
+                ? "linuxmusl"
+                : "linux";
+        }
         else if (OperatingSystem.IsMacOS()) platform = "darwin";
         else return null;
 
@@ -2714,7 +2758,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
@@ -2725,17 +2769,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonElement Parameters, /* JSON schema */
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null,
-        CopilotToolDefer? Defer = null)
+        CopilotToolDefer? Defer = null,
+        IDictionary<string, JsonNode?>? Metadata = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
             var overrides = function.AdditionalProperties.TryGetValue(CopilotTool.OverridesBuiltInToolKey, out var val) && val is true;
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
             var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
+            var metadata = function.AdditionalProperties.TryGetValue(CopilotTool.MetadataKey, out var metaVal) && metaVal is IDictionary<string, JsonNode?> m ? m : null;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null,
-                defer);
+                defer,
+                metadata);
         }
     }
 
@@ -2817,7 +2864,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001

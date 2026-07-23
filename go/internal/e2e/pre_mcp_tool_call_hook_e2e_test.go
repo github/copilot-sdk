@@ -15,7 +15,7 @@ func TestPreMCPToolCallHookE2E(t *testing.T) {
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
-	testHarnessDir, _ := filepath.Abs("../../../test/harness")
+	testHarnessDir := testharness.RepoPath("test", "harness")
 	metaEchoServer := filepath.Join(testHarnessDir, "test-mcp-meta-echo-server.mjs")
 
 	metaEchoConfig := func() map[string]copilot.MCPServerConfig {

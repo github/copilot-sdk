@@ -793,6 +793,7 @@ func TestSession_Capabilities(t *testing.T) {
 				CanvasID:      "counter",
 				InstanceID:    "counter-1",
 				Title:         ptr("Counter"),
+				Icon:          ptr("beaker"),
 				Status:        ptr("ready"),
 				URL:           ptr("https://example.test/counter"),
 				Input:         map[string]any{"seed": float64(1)},
@@ -822,6 +823,7 @@ func TestSession_Capabilities(t *testing.T) {
 				CanvasID:      "counter",
 				InstanceID:    "counter-1",
 				Title:         ptr("Counter Updated"),
+				Icon:          ptr("beaker-filled"),
 				Status:        ptr("reconnected"),
 				URL:           ptr("https://example.test/counter-updated"),
 				Input:         map[string]any{"seed": float64(2)},
@@ -837,6 +839,9 @@ func TestSession_Capabilities(t *testing.T) {
 		}
 		if open[0].Title == nil || *open[0].Title != "Counter Updated" {
 			t.Fatalf("expected updated title, got %+v", open[0].Title)
+		}
+		if open[0].Icon == nil || *open[0].Icon != "beaker-filled" {
+			t.Fatalf("expected updated icon, got %+v", open[0].Icon)
 		}
 		if open[0].Status == nil || *open[0].Status != "reconnected" {
 			t.Fatalf("expected updated status, got %+v", open[0].Status)

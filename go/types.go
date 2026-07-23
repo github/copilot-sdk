@@ -20,12 +20,21 @@ const (
 
 // RuntimeConnection describes how a [Client] connects to the Copilot runtime.
 //
-// Construct one with a [StdioConnection], [TCPConnection], or [URIConnection]
-// literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
-// is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
-// runtime and communicates over stdin/stdout).
+// Construct one with a [StdioConnection], [TCPConnection], [URIConnection], or
+// [InProcessConnection] literal and pass it via [ClientOptions.Connection]. When
+// [ClientOptions.Connection] is nil, COPILOT_SDK_DEFAULT_CONNECTION may select
+// "inprocess" or "stdio"; when unset, the default is an empty [StdioConnection].
 type RuntimeConnection interface {
 	runtimeConnection()
+}
+
+// childProcessConnection is implemented by the connection types that spawn a
+// runtime child process ([StdioConnection] and [TCPConnection]). It exposes the
+// per-connection environment so the client can resolve and validate it uniformly
+// regardless of the specific child-process transport.
+type childProcessConnection interface {
+	RuntimeConnection
+	connEnv() []string
 }
 
 // StdioConnection spawns a runtime child process and communicates over its
@@ -35,9 +44,16 @@ type StdioConnection struct {
 	Path string
 	// Args are extra command-line arguments inserted before SDK-managed args.
 	Args []string
+	// Env are the environment variables for the runtime process, each of the
+	// form "KEY=VALUE". When set, these take precedence over
+	// [ClientOptions.Env]; setting both is rejected. When nil, the client-level
+	// env (or the current process environment) is used.
+	Env []string
 }
 
 func (StdioConnection) runtimeConnection() {}
+
+func (c StdioConnection) connEnv() []string { return c.Env }
 
 // TCPConnection spawns a runtime child process that listens on a TCP socket
 // and connects to it.
@@ -54,9 +70,16 @@ type TCPConnection struct {
 	Path string
 	// Args are extra command-line arguments inserted before SDK-managed args.
 	Args []string
+	// Env are the environment variables for the runtime process, each of the
+	// form "KEY=VALUE". When set, these take precedence over
+	// [ClientOptions.Env]; setting both is rejected. When nil, the client-level
+	// env (or the current process environment) is used.
+	Env []string
 }
 
 func (TCPConnection) runtimeConnection() {}
+
+func (c TCPConnection) connEnv() []string { return c.Env }
 
 // URIConnection connects to an already-running runtime at the given URL.
 // The SDK does not spawn a process in this mode.
@@ -71,11 +94,29 @@ type URIConnection struct {
 
 func (URIConnection) runtimeConnection() {}
 
+// InProcessConnection hosts the Copilot runtime in-process by loading its native
+// runtime library (a Rust cdylib) and driving JSON-RPC over the library's C ABI,
+// instead of spawning a runtime child process.
+//
+// Because the runtime is loaded into the calling process, per-client
+// environment, working directory, and telemetry cannot be represented and are
+// rejected by [NewClient] (see [ClientOptions]). Set those via the host process
+// environment instead, or use a child-process transport ([StdioConnection] /
+// [TCPConnection]).
+//
+// Experimental: the in-process transport is experimental and its API and
+// behavior may change in a future release. Build the application with the
+// copilot_inprocess build tag to enable this transport.
+type InProcessConnection struct {
+}
+
+func (InProcessConnection) runtimeConnection() {}
+
 // ClientOptions configures the [Client].
 type ClientOptions struct {
 	// Connection describes how to connect to the Copilot runtime. When nil,
-	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
-	// stdio).
+	// COPILOT_SDK_DEFAULT_CONNECTION may select "inprocess" or "stdio";
+	// when unset, defaults to an empty [StdioConnection].
 	Connection RuntimeConnection
 	// WorkingDirectory is the working directory for the runtime process.
 	// If empty, inherits the current process's working directory.
@@ -95,6 +136,12 @@ type ClientOptions struct {
 	// Env are the environment variables for the runtime process (default:
 	// inherits from current process). Each entry is of the form "KEY=VALUE".
 	// If Env contains duplicate keys, only the last value for each key is used.
+	//
+	// For child-process transports ([StdioConnection] / [TCPConnection]) the
+	// per-connection Env, when set, takes precedence over this field; setting
+	// both is rejected. Env is not supported with [InProcessConnection] (the
+	// runtime shares this process's single environment block) and is rejected
+	// by [NewClient].
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the runtime via environment
@@ -902,6 +949,10 @@ type CustomAgentConfig struct {
 	// When set, the runtime will attempt to use this model for the agent,
 	// falling back to the parent session model if unavailable.
 	Model string `json:"model,omitempty"`
+	// ReasoningEffort is the reasoning effort level for this agent's model.
+	// When empty, no per-agent override is sent and the backend chooses its
+	// default. The parent session effort is not inherited.
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 }
 
 // DefaultAgentConfig configures the default agent (the built-in agent that handles turns when no custom agent is selected).
@@ -977,6 +1028,73 @@ type SessionFSConfig struct {
 	Conventions rpc.SessionFSSetProviderConventions
 	// Capabilities declares optional provider capabilities such as SQLite support.
 	Capabilities *SessionFSCapabilities
+}
+
+// ExpFlagValue is a single ExP (Experiment Platform) flag value. ExP
+// assignments resolve to a string, number (float64/int), bool, or nil.
+type ExpFlagValue any
+
+// ExpConfigEntry is a single configuration entry in a
+// [CopilotExpAssignmentResponse]. Each entry carries an identifier and a bag of
+// typed parameter values.
+type ExpConfigEntry struct {
+	// ID identifies the configuration entry. Serialized on the wire as "Id".
+	ID string `json:"Id"`
+	// Parameters holds parameter values keyed by parameter name.
+	Parameters map[string]ExpFlagValue `json:"Parameters"`
+}
+
+// CopilotExpAssignmentResponse is ExP ("flight") assignment data, in the same
+// JSON shape the Copilot CLI fetches from the experimentation service. Field
+// names are PascalCase to match the on-the-wire contract consumed by the
+// runtime.
+type CopilotExpAssignmentResponse struct {
+	// Features lists the enabled feature names.
+	Features []string `json:"Features"`
+	// Flights holds the assigned flights keyed by flight name.
+	Flights map[string]string `json:"Flights"`
+	// Configs holds configuration entries carrying typed parameter values.
+	Configs []ExpConfigEntry `json:"Configs"`
+	// ParameterGroups is an opaque parameter-group payload passed through
+	// untouched. Optional.
+	ParameterGroups any `json:"ParameterGroups,omitempty"`
+	// FlightingVersion is the version of the flighting configuration. Optional.
+	FlightingVersion *int `json:"FlightingVersion,omitempty"`
+	// ImpressionID is the impression identifier for the assignment. Optional.
+	// Serialized on the wire as "ImpressionId".
+	ImpressionID *string `json:"ImpressionId,omitempty"`
+	// AssignmentContext is the assignment context string forwarded to CAPI and
+	// telemetry.
+	AssignmentContext string `json:"AssignmentContext"`
+}
+
+// MarshalJSON normalizes the required collection fields so a zero-value
+// response serializes them as JSON arrays/objects rather than null, which the
+// runtime can otherwise treat as a malformed assignment payload and drop.
+func (r CopilotExpAssignmentResponse) MarshalJSON() ([]byte, error) {
+	type wire CopilotExpAssignmentResponse
+	w := wire(r)
+	if w.Features == nil {
+		w.Features = []string{}
+	}
+	if w.Flights == nil {
+		w.Flights = map[string]string{}
+	}
+	if w.Configs == nil {
+		w.Configs = []ExpConfigEntry{}
+	}
+	return json.Marshal(w)
+}
+
+// MarshalJSON normalizes the required Parameters map so an entry serializes it
+// as a JSON object rather than null.
+func (e ExpConfigEntry) MarshalJSON() ([]byte, error) {
+	type wire ExpConfigEntry
+	w := wire(e)
+	if w.Parameters == nil {
+		w.Parameters = map[string]ExpFlagValue{}
+	}
+	return json.Marshal(w)
 }
 
 // SessionConfig configures a new session
@@ -1265,7 +1383,7 @@ type SessionConfig struct {
 	// Internal: ExpAssignments is part of the SDK's internal API surface,
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
-	ExpAssignments any
+	ExpAssignments *CopilotExpAssignmentResponse
 	// EnableManagedSettings, when set to true, opts the runtime into
 	// self-fetching enterprise managed settings (bypass-permissions policy) at
 	// session bootstrap using the session's GitHubToken. Requires GitHubToken to
@@ -1294,6 +1412,11 @@ type Tool struct {
 	// Defer controls whether the tool may be deferred (loaded lazily via tool
 	// search) rather than always pre-loaded. When empty, the runtime decides.
 	Defer ToolDefer `json:"defer,omitempty"`
+	// Metadata is opaque, host-defined metadata associated with the tool
+	// definition. Keys are namespaced and not part of the stable public API;
+	// values are not interpreted and may be recognized to inform host-specific
+	// behavior. Unknown keys are preserved and round-tripped untouched.
+	Metadata map[string]any `json:"metadata,omitempty"`
 	// Handler is optional. When nil, the SDK exposes the tool declaration but does
 	// not automatically invoke it.
 	Handler ToolHandler `json:"-"`
@@ -1709,7 +1832,7 @@ type ResumeSessionConfig struct {
 	// Internal: ExpAssignments is part of the SDK's internal API surface,
 	// intended for trusted out-of-process integrators, and is not intended for
 	// general external use.
-	ExpAssignments any
+	ExpAssignments *CopilotExpAssignmentResponse
 	// EnableManagedSettings injects the same opt-in flag on resume. See
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
@@ -2169,7 +2292,7 @@ type createSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
-	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -2261,7 +2384,7 @@ type resumeSessionRequest struct {
 	ExtensionSDKPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
-	ExpAssignments                     any                                    `json:"expAssignments,omitempty"`
+	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`

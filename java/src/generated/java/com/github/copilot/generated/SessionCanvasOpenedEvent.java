@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+ * Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -42,6 +42,8 @@ public final class SessionCanvasOpenedEvent extends SessionEvent {
         @JsonProperty("extensionName") String extensionName,
         /** Provider-local canvas identifier */
         @JsonProperty("canvasId") String canvasId,
+        /** Host-local PNG path for the canvas icon, when supplied */
+        @JsonProperty("icon") String icon,
         /** Rendered title */
         @JsonProperty("title") String title,
         /** Provider-supplied status text */

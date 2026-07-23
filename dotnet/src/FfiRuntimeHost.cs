@@ -44,6 +44,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private readonly string _cliEntrypoint;
     private readonly string _libraryPath;
     private readonly IReadOnlyDictionary<string, string>? _environment;
+    private readonly IReadOnlyList<string> _args;
 
     private readonly CallbackReceiveStream _receiveStream = new();
     private CallbackSendStream? _sendStream;
@@ -52,11 +53,12 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     private uint _connectionId;
     private bool _disposed;
 
-    private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, ILogger logger)
+    private FfiRuntimeHost(string libraryPath, string cliEntrypoint, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
         _libraryPath = libraryPath;
         _cliEntrypoint = cliEntrypoint;
         _environment = environment;
+        _args = args;
         _logger = logger;
     }
 
@@ -79,7 +81,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
     /// <paramref name="prebuildsFolder"/> is the napi-rs
     /// <c>&lt;node-platform&gt;-&lt;arch&gt;</c> folder name (e.g. <c>win32-x64</c>).
     /// </summary>
-    public static FfiRuntimeHost Create(string cliEntrypoint, string prebuildsFolder, IReadOnlyDictionary<string, string>? environment, ILogger logger)
+    public static FfiRuntimeHost Create(string cliEntrypoint, string prebuildsFolder, IReadOnlyDictionary<string, string>? environment, IReadOnlyList<string> args, ILogger logger)
     {
         var fullEntrypoint = Path.GetFullPath(cliEntrypoint);
         var distDir = Path.GetDirectoryName(fullEntrypoint)
@@ -96,7 +98,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
                 $"FFI runtime library not found. Looked for '{flatLibraryPath}' and '{prebuildsLibraryPath}'.");
 
         PrepareNativeLibrary(libraryPath);
-        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, logger);
+        return new FfiRuntimeHost(libraryPath, fullEntrypoint, environment, args, logger);
     }
 
     /// <summary>
@@ -122,7 +124,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         // perform the blocking FFI handshake on a background thread.
         await Task.Run(() =>
         {
-            var argvJson = BuildArgvJson(_cliEntrypoint);
+            var argvJson = BuildArgvJson(_cliEntrypoint, _args);
             var envJson = BuildEnvJson(_environment);
 
             _serverId = NativeHostStart(argvJson, envJson);
@@ -152,7 +154,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
         }
     }
 
-    private static byte[] BuildArgvJson(string cliEntrypoint)
+    private static byte[] BuildArgvJson(string cliEntrypoint, IReadOnlyList<string> args)
     {
         // A .js entrypoint (dev / dist-cli) is launched via node; the packaged
         // single-file CLI binary embeds its own Node and is invoked directly.
@@ -170,6 +172,10 @@ internal sealed partial class FfiRuntimeHost : IDisposable
             // Pin the worker to the bundled pkg matching the loaded cdylib, instead of
             // drifting to a newer version under the user's ~/.copilot/pkg (ABI skew).
             writer.WriteStringValue("--no-auto-update");
+            foreach (var arg in args)
+            {
+                writer.WriteStringValue(arg);
+            }
             writer.WriteEndArray();
         }
         return stream.ToArray();

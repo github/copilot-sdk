@@ -75,8 +75,12 @@ pub enum SessionEventType {
     PendingMessagesModified,
     #[serde(rename = "assistant.turn_start")]
     AssistantTurnStart,
+    #[serde(rename = "assistant.turn_retry")]
+    AssistantTurnRetry,
     #[serde(rename = "assistant.intent")]
     AssistantIntent,
+    #[serde(rename = "assistant.server_tool_progress")]
+    AssistantServerToolProgress,
     #[serde(rename = "assistant.reasoning")]
     AssistantReasoning,
     #[serde(rename = "assistant.reasoning_delta")]
@@ -99,6 +103,8 @@ pub enum SessionEventType {
     AssistantUsage,
     #[serde(rename = "model.call_failure")]
     ModelCallFailure,
+    #[serde(rename = "model.call_start")]
+    ModelCallStart,
     #[serde(rename = "abort")]
     Abort,
     #[serde(rename = "tool.user_requested")]
@@ -111,6 +117,8 @@ pub enum SessionEventType {
     ToolExecutionProgress,
     #[serde(rename = "tool.execution_complete")]
     ToolExecutionComplete,
+    #[serde(rename = "tool_search.activated")]
+    ToolSearchActivated,
     #[serde(rename = "skill.invoked")]
     SkillInvoked,
     #[serde(rename = "subagent.started")]
@@ -195,6 +203,24 @@ pub enum SessionEventType {
     /// </div>
     #[serde(rename = "session.auto_mode_resolved")]
     SessionAutoModeResolved,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_resolved")]
+    SessionManagedSettingsResolved,
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_enforced")]
+    SessionManagedSettingsEnforced,
     #[serde(rename = "commands.changed")]
     CommandsChanged,
     #[serde(rename = "capabilities.changed")]
@@ -357,8 +383,12 @@ pub enum SessionEventData {
     PendingMessagesModified(PendingMessagesModifiedData),
     #[serde(rename = "assistant.turn_start")]
     AssistantTurnStart(AssistantTurnStartData),
+    #[serde(rename = "assistant.turn_retry")]
+    AssistantTurnRetry(AssistantTurnRetryData),
     #[serde(rename = "assistant.intent")]
     AssistantIntent(AssistantIntentData),
+    #[serde(rename = "assistant.server_tool_progress")]
+    AssistantServerToolProgress(AssistantServerToolProgressData),
     #[serde(rename = "assistant.reasoning")]
     AssistantReasoning(AssistantReasoningData),
     #[serde(rename = "assistant.reasoning_delta")]
@@ -381,6 +411,8 @@ pub enum SessionEventData {
     AssistantUsage(AssistantUsageData),
     #[serde(rename = "model.call_failure")]
     ModelCallFailure(ModelCallFailureData),
+    #[serde(rename = "model.call_start")]
+    ModelCallStart(ModelCallStartData),
     #[serde(rename = "abort")]
     Abort(AbortData),
     #[serde(rename = "tool.user_requested")]
@@ -393,6 +425,8 @@ pub enum SessionEventData {
     ToolExecutionProgress(ToolExecutionProgressData),
     #[serde(rename = "tool.execution_complete")]
     ToolExecutionComplete(ToolExecutionCompleteData),
+    #[serde(rename = "tool_search.activated")]
+    ToolSearchActivated(ToolSearchActivatedData),
     #[serde(rename = "skill.invoked")]
     SkillInvoked(SkillInvokedData),
     #[serde(rename = "subagent.started")]
@@ -470,6 +504,24 @@ pub enum SessionEventData {
     /// </div>
     #[serde(rename = "session.auto_mode_resolved")]
     SessionAutoModeResolved(SessionAutoModeResolvedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_resolved")]
+    SessionManagedSettingsResolved(SessionManagedSettingsResolvedData),
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(rename = "session.managed_settings_enforced")]
+    SessionManagedSettingsEnforced(SessionManagedSettingsEnforcedData),
     #[serde(rename = "commands.changed")]
     CommandsChanged(CommandsChangedData),
     #[serde(rename = "capabilities.changed")]
@@ -1187,10 +1239,27 @@ pub struct SessionShutdownData {
     pub(crate) total_premium_requests: Option<f64>,
 }
 
+/// Internal prompt-cache expiration state for one model
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UsageCheckpointModelCacheState {
+    /// Latest known prompt-cache expiration
+    pub cache_expires_at: String,
+    /// Retained cache lifetime in seconds, used to refresh expiration after a cache read
+    #[doc(hidden)]
+    pub(crate) cache_ttl_seconds: i64,
+    /// Model identifier associated with this cache state
+    pub model_id: String,
+}
+
 /// Session event "session.usage_checkpoint". Durable session usage checkpoint for reconstructing aggregate accounting on resume
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsageCheckpointData {
+    /// Internal per-model prompt-cache state used to restore expiration tracking on resume
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_cache_state: Option<Vec<UsageCheckpointModelCacheState>>,
     /// Session-wide accumulated nano-AI units cost at checkpoint time
     pub total_nano_aiu: f64,
     /// Total number of premium API requests used at checkpoint time
@@ -1453,12 +1522,38 @@ pub struct AssistantTurnStartData {
     pub turn_id: String,
 }
 
+/// Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantTurnRetryData {
+    /// Model identifier used for this retry, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Provider or runtime classification that caused the retry, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Identifier of the turn whose model inference is being retried
+    pub turn_id: String,
+}
+
 /// Session event "assistant.intent". Agent intent description for current activity or plan
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantIntentData {
     /// Short description of what the agent is currently doing or planning to do
     pub intent: String,
+}
+
+/// Session event "assistant.server_tool_progress". Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantServerToolProgressData {
+    /// Kind of hosted server tool that is running. Only `web_search` is emitted today.
+    pub kind: String,
+    /// Position of the hosted tool call in the response output. Stable across the call's lifecycle events (unlike the provider's per-event item id, which CAPI rotates), so the host keys the live in-progress row on it.
+    pub output_index: i64,
+    /// Lifecycle status of the hosted call: `in_progress`, `searching`, or `completed`.
+    pub status: String,
 }
 
 /// Session event "assistant.reasoning". Assistant reasoning content for timeline display with complete thinking text
@@ -1836,6 +1931,9 @@ pub struct AssistantUsageData {
     /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_endpoint: Option<AssistantUsageApiEndpoint>,
+    /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<String>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<i64>,
@@ -1932,6 +2030,9 @@ pub struct ModelCallFailureData {
     /// Completion ID from the model provider (e.g., chatcmpl-abc123)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_endpoint: Option<AssistantUsageApiEndpoint>,
     /// For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bad_request_kind: Option<ModelCallFailureBadRequestKind>,
@@ -1947,9 +2048,24 @@ pub struct ModelCallFailureData {
     /// For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_type: Option<String>,
+    /// Whether the failure originated from an API response or the request transport
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_kind: Option<ModelCallFailureKind>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
+    /// Whether the session selected Auto mode for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_auto: Option<bool>,
+    /// Whether the failed call used a bring-your-own-key provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_byok: Option<bool>,
+    /// Effective maximum output-token limit for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Effective maximum prompt-token limit for the failed call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
     /// Model identifier used for the failed API call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -1960,6 +2076,9 @@ pub struct ModelCallFailureData {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) quota_snapshots: Option<HashMap<String, AssistantUsageQuotaSnapshot>>,
+    /// Reasoning effort level used for the failed model call, if applicable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_fingerprint: Option<ModelCallFailureRequestFingerprint>,
@@ -1971,6 +2090,20 @@ pub struct ModelCallFailureData {
     /// HTTP status code from the failed request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<i32>,
+    /// Transport used for the failed model call (http or websocket)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ModelCallFailureTransport>,
+}
+
+/// Session event "model.call_start". Model API dispatch metadata for internal telemetry
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCallStartData {
+    /// Model identifier used for this API call, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Identifier of the assistant turn that initiated the model call
+    pub turn_id: String,
 }
 
 /// Session event "abort". Turn abort information including the reason for termination
@@ -2416,6 +2549,16 @@ pub struct ToolExecutionCompleteResult {
     /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
+    /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
     /// Structured content (arbitrary JSON) returned verbatim by the MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<serde_json::Value>,
@@ -2472,6 +2615,16 @@ pub struct ToolExecutionCompleteData {
     /// Whether this tool call was explicitly requested by the user rather than the assistant
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_user_requested: Option<bool>,
+    /// FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_meta: Option<serde_json::Value>,
     /// Model identifier that generated this tool call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -2499,6 +2652,16 @@ pub struct ToolExecutionCompleteData {
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
+}
+
+/// Session event "tool_search.activated". Persisted generic client-side tool activations restored when a session resumes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolSearchActivatedData {
+    /// Tool-search strategy that activated the definitions.
+    pub strategy: String,
+    /// Names of tool definitions activated by this search invocation.
+    pub tool_names: Vec<String>,
 }
 
 /// Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
@@ -3633,6 +3796,29 @@ pub struct SamplingCompletedData {
     pub request_id: RequestId,
 }
 
+/// Single HTTP header entry as a name/value pair.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeaderEntry {
+    /// HTTP response header name as observed by the runtime.
+    pub name: String,
+    /// HTTP response header value as observed by the runtime.
+    pub value: String,
+}
+
+/// Raw HTTP response details from the OAuth auth challenge, as observed by the runtime.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthHttpResponse {
+    /// Complete UTF-8 response body for host-specific challenge handling, including an empty string for an empty body. Omitted when the complete body is not valid UTF-8; body read failures fail the HTTP operation rather than exposing a partial response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// HTTP response headers as observed by the runtime. Order and casing are transport-dependent, and duplicate header names may appear multiple times.
+    pub headers: Vec<HeaderEntry>,
+    /// HTTP status code returned with the auth challenge.
+    pub status_code: i32,
+}
+
 /// Static OAuth client configuration, if the server specifies one
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3669,6 +3855,9 @@ pub struct McpOauthWWWAuthenticateParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthRequiredData {
+    /// Raw HTTP response details from the OAuth auth challenge, as observed by the runtime. Header order and casing are transport-dependent, and duplicate header names may appear multiple times.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_response: Option<McpOauthHttpResponse>,
     /// Why the runtime is requesting host-provided OAuth credentials.
     pub reason: McpOauthRequestReason,
     /// Unique identifier for this OAuth request; used to respond via session.mcp.oauth.handlePendingRequest
@@ -3896,6 +4085,58 @@ pub struct SessionAutoModeResolvedData {
     pub reasoning_bucket: Option<AutoModeResolvedReasoningBucket>,
 }
 
+/// Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettingsResolvedData {
+    /// Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true.
+    pub bypass_permissions_disabled: bool,
+    /// Whether the device (MDM/plist/registry/file) managed-settings layer was present
+    pub device_managed: bool,
+    /// Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent.
+    pub fail_closed: bool,
+    /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
+    pub managed_keys: Vec<String>,
+    /// Whether the server (account/org) managed-settings layer was present
+    pub server_managed: bool,
+    /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<serde_json::Value>,
+    /// Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force
+    pub source: ManagedSettingsResolvedSource,
+}
+
+/// Session event "session.managed_settings_enforced". Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettingsEnforcedData {
+    /// The category of runtime action that managed policy governed.
+    pub action: ManagedSettingsEnforcedAction,
+    /// For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused. Absent for actions without a specific escalation primitive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub escalation: Option<ManagedSettingsEnforcedEscalation>,
+    /// Whether the enforcement was forced by fail-closed handling (managed policy could not be determined) rather than an explicit managed setting. When true, `setting` still names the restriction that was applied.
+    pub fail_closed: bool,
+    /// A human-readable explanation of why the action was governed, suitable for surfacing to the user.
+    pub message: String,
+    /// The managed setting key responsible for the enforcement (e.g. `permissions.disableBypassPermissionsMode`).
+    pub setting: String,
+}
+
 /// A single slash command available in the session, as listed by the `commands.changed` event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4099,7 +4340,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub status: McpServerStatus,
 }
 
-/// Session event "mcp.tools.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.tools.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolsListChangedData {
@@ -4107,7 +4348,7 @@ pub struct McpToolsListChangedData {
     pub server_name: String,
 }
 
-/// Session event "mcp.resources.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.resources.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpResourcesListChangedData {
@@ -4115,7 +4356,7 @@ pub struct McpResourcesListChangedData {
     pub server_name: String,
 }
 
-/// Session event "mcp.prompts.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+/// Session event "mcp.prompts.list_changed". Payload identifying the MCP server associated with a list change.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpPromptsListChangedData {
@@ -4145,7 +4386,7 @@ pub struct SessionExtensionsLoadedData {
     pub extensions: Vec<ExtensionsLoadedExtension>,
 }
 
-/// Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional title, status, URL, and input.
+/// Session event "session.canvas.opened". Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
 ///
 /// <div class="warning">
 ///
@@ -4163,6 +4404,9 @@ pub struct SessionCanvasOpenedData {
     /// Owning extension display name, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
+    /// Host-local PNG path for the canvas icon, when supplied
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// Input supplied when the instance was opened
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
@@ -4225,6 +4469,9 @@ pub struct CanvasRegistryChangedCanvas {
     /// Owning extension display name, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
+    /// Host-local PNG path for the canvas icon, when supplied
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     /// JSON Schema for canvas open input
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<serde_json::Value>,
@@ -4716,6 +4963,21 @@ pub enum ModelCallFailureBadRequestKind {
     Unknown,
 }
 
+/// Boundary that produced a model call failure
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureKind {
+    /// The provider returned an API error response.
+    #[serde(rename = "api")]
+    Api,
+    /// The request transport failed before a usable API response completed.
+    #[serde(rename = "transport")]
+    Transport,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Where the failed model call originated
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelCallFailureSource {
@@ -4728,6 +4990,21 @@ pub enum ModelCallFailureSource {
     /// Model call from MCP sampling.
     #[serde(rename = "mcp_sampling")]
     McpSampling,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Transport used for a failed model call
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCallFailureTransport {
+    /// HTTP transport, including SSE streams.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websocket")]
+    Websocket,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -5538,6 +5815,60 @@ pub enum AutoModeResolvedReasoningBucket {
     /// The request looks high-reasoning; a stronger model is appropriate.
     #[serde(rename = "high")]
     High,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedSettingsResolvedSource {
+    /// Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+    #[serde(rename = "server")]
+    Server,
+    /// Device-level MDM policy discovered from plist/registry/file (lower authority).
+    #[serde(rename = "device")]
+    Device,
+    /// No managed policy is in force (no layer contributed).
+    #[serde(rename = "none")]
+    None,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The category of runtime action that enterprise managed settings governed (blocked or capped)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedSettingsEnforcedAction {
+    /// An attempt to turn on a bypass-permissions ("yolo") escalation was refused or capped because policy disables bypass-permissions mode.
+    #[serde(rename = "bypass_permissions_blocked")]
+    BypassPermissionsBlocked,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ManagedSettingsEnforcedEscalation {
+    /// Full allow-all ("/allow-all on") permissions — auto-approving tools, paths, and URLs.
+    #[serde(rename = "allow_all")]
+    AllowAll,
+    /// Auto-approval of all tool permission requests.
+    #[serde(rename = "approve_all")]
+    ApproveAll,
+    /// Advisory auto-approval ("/allow-all auto") mode — keeps normal prompt paths and adds LLM-advised approval, distinct from full allow-all.
+    #[serde(rename = "auto_approval")]
+    AutoApproval,
+    /// Unrestricted filesystem access outside the session's allowed directories.
+    #[serde(rename = "unrestricted_paths")]
+    UnrestrictedPaths,
+    /// Unrestricted URL fetch access.
+    #[serde(rename = "unrestricted_urls")]
+    UnrestrictedUrls,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

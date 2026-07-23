@@ -240,12 +240,15 @@ describe("MCP OAuth host auth", async () => {
         async () => {
             const oauthServer = await startOAuthMcpServer();
             const serverName = "oauth-cancelled-mcp";
-            let authRequest: McpAuthRequest | undefined;
+            let resolveAuthRequest!: (request: McpAuthRequest) => void;
+            const authRequest = new Promise<McpAuthRequest>((resolve) => {
+                resolveAuthRequest = resolve;
+            });
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
                 onMcpAuthRequest: async (request) => {
-                    authRequest = request;
+                    resolveAuthRequest(request);
                     return { kind: "cancelled" };
                 },
                 mcpServers: {
@@ -262,7 +265,7 @@ describe("MCP OAuth host auth", async () => {
 
             await waitForMcpServerStatus(session, serverName, "needs-auth");
 
-            expect(authRequest).toMatchObject({
+            expect(await authRequest).toMatchObject({
                 serverName,
                 reason: "initial",
             });

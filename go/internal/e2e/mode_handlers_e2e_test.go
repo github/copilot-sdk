@@ -101,7 +101,7 @@ func TestModeHandlersE2E(t *testing.T) {
 		if request.Summary != planSummary {
 			t.Fatalf("Expected summary %q, got %q", planSummary, request.Summary)
 		}
-		if len(request.Actions) != 3 || request.Actions[0] != "interactive" || request.Actions[1] != "autopilot" || request.Actions[2] != "exit_only" {
+		if len(request.Actions) != 3 || request.Actions[0] != "autopilot" || request.Actions[1] != "interactive" || request.Actions[2] != "exit_only" {
 			t.Fatalf("Unexpected actions: %#v", request.Actions)
 		}
 		if request.RecommendedAction != "interactive" {

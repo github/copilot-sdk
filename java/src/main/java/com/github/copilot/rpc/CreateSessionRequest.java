@@ -10,7 +10,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -213,7 +212,7 @@ public final class CreateSessionRequest {
     private CloudSessionOptions cloud;
 
     @JsonProperty("expAssignments")
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
 
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -973,14 +972,14 @@ public final class CreateSessionRequest {
     }
 
     /** Gets the ExP assignment data. @return the ExP assignment data */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets the ExP assignment data. @param expAssignments the ExP assignment data
      */
-    public void setExpAssignments(JsonNode expAssignments) {
+    public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
     }
 

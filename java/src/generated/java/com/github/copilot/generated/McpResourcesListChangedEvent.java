@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "mcp.resources.list_changed". Payload of MCP `list_changed` notification events, emitted when an MCP server announces at runtime that one of its advertised lists changed.
+ * Session event "mcp.resources.list_changed". Payload identifying the MCP server associated with a list change.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

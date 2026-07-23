@@ -18,6 +18,7 @@ namespace GitHub.Copilot.Test.E2E;
 /// session, be launched, and route inference to the configured provider with
 /// the configured wire model and headers.
 /// </summary>
+[Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
 public class MultiProviderRegistryE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "multi_provider_registry", output)
 {

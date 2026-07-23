@@ -57,7 +57,9 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = UserMessageEvent.class, name = "user.message"),
     @JsonSubTypes.Type(value = PendingMessagesModifiedEvent.class, name = "pending_messages.modified"),
     @JsonSubTypes.Type(value = AssistantTurnStartEvent.class, name = "assistant.turn_start"),
+    @JsonSubTypes.Type(value = AssistantTurnRetryEvent.class, name = "assistant.turn_retry"),
     @JsonSubTypes.Type(value = AssistantIntentEvent.class, name = "assistant.intent"),
+    @JsonSubTypes.Type(value = AssistantServerToolProgressEvent.class, name = "assistant.server_tool_progress"),
     @JsonSubTypes.Type(value = AssistantReasoningEvent.class, name = "assistant.reasoning"),
     @JsonSubTypes.Type(value = AssistantReasoningDeltaEvent.class, name = "assistant.reasoning_delta"),
     @JsonSubTypes.Type(value = AssistantToolCallDeltaEvent.class, name = "assistant.tool_call_delta"),
@@ -69,12 +71,14 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = AssistantIdleEvent.class, name = "assistant.idle"),
     @JsonSubTypes.Type(value = AssistantUsageEvent.class, name = "assistant.usage"),
     @JsonSubTypes.Type(value = ModelCallFailureEvent.class, name = "model.call_failure"),
+    @JsonSubTypes.Type(value = ModelCallStartEvent.class, name = "model.call_start"),
     @JsonSubTypes.Type(value = AbortEvent.class, name = "abort"),
     @JsonSubTypes.Type(value = ToolUserRequestedEvent.class, name = "tool.user_requested"),
     @JsonSubTypes.Type(value = ToolExecutionStartEvent.class, name = "tool.execution_start"),
     @JsonSubTypes.Type(value = ToolExecutionPartialResultEvent.class, name = "tool.execution_partial_result"),
     @JsonSubTypes.Type(value = ToolExecutionProgressEvent.class, name = "tool.execution_progress"),
     @JsonSubTypes.Type(value = ToolExecutionCompleteEvent.class, name = "tool.execution_complete"),
+    @JsonSubTypes.Type(value = ToolSearchActivatedEvent.class, name = "tool_search.activated"),
     @JsonSubTypes.Type(value = SkillInvokedEvent.class, name = "skill.invoked"),
     @JsonSubTypes.Type(value = SubagentStartedEvent.class, name = "subagent.started"),
     @JsonSubTypes.Type(value = SubagentCompletedEvent.class, name = "subagent.completed"),
@@ -110,6 +114,8 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionLimitsExhaustedRequestedEvent.class, name = "session_limits_exhausted.requested"),
     @JsonSubTypes.Type(value = SessionLimitsExhaustedCompletedEvent.class, name = "session_limits_exhausted.completed"),
     @JsonSubTypes.Type(value = SessionAutoModeResolvedEvent.class, name = "session.auto_mode_resolved"),
+    @JsonSubTypes.Type(value = SessionManagedSettingsResolvedEvent.class, name = "session.managed_settings_resolved"),
+    @JsonSubTypes.Type(value = SessionManagedSettingsEnforcedEvent.class, name = "session.managed_settings_enforced"),
     @JsonSubTypes.Type(value = CommandsChangedEvent.class, name = "commands.changed"),
     @JsonSubTypes.Type(value = CapabilitiesChangedEvent.class, name = "capabilities.changed"),
     @JsonSubTypes.Type(value = ExitPlanModeRequestedEvent.class, name = "exit_plan_mode.requested"),
@@ -167,7 +173,9 @@ public abstract sealed class SessionEvent permits
         UserMessageEvent,
         PendingMessagesModifiedEvent,
         AssistantTurnStartEvent,
+        AssistantTurnRetryEvent,
         AssistantIntentEvent,
+        AssistantServerToolProgressEvent,
         AssistantReasoningEvent,
         AssistantReasoningDeltaEvent,
         AssistantToolCallDeltaEvent,
@@ -179,12 +187,14 @@ public abstract sealed class SessionEvent permits
         AssistantIdleEvent,
         AssistantUsageEvent,
         ModelCallFailureEvent,
+        ModelCallStartEvent,
         AbortEvent,
         ToolUserRequestedEvent,
         ToolExecutionStartEvent,
         ToolExecutionPartialResultEvent,
         ToolExecutionProgressEvent,
         ToolExecutionCompleteEvent,
+        ToolSearchActivatedEvent,
         SkillInvokedEvent,
         SubagentStartedEvent,
         SubagentCompletedEvent,
@@ -220,6 +230,8 @@ public abstract sealed class SessionEvent permits
         SessionLimitsExhaustedRequestedEvent,
         SessionLimitsExhaustedCompletedEvent,
         SessionAutoModeResolvedEvent,
+        SessionManagedSettingsResolvedEvent,
+        SessionManagedSettingsEnforcedEvent,
         CommandsChangedEvent,
         CapabilitiesChangedEvent,
         ExitPlanModeRequestedEvent,
@@ -256,6 +268,10 @@ public abstract sealed class SessionEvent permits
     @JsonProperty("parentId")
     private UUID parentId;
 
+    /** Sub-agent instance identifier. Absent for events from the root/main agent and session-level events. */
+    @JsonProperty("agentId")
+    private String agentId;
+
     /** When true, the event is transient and not persisted to the session event log on disk. */
     @JsonProperty("ephemeral")
     private Boolean ephemeral;
@@ -275,6 +291,9 @@ public abstract sealed class SessionEvent permits
 
     public UUID getParentId() { return parentId; }
     public void setParentId(UUID parentId) { this.parentId = parentId; }
+
+    public String getAgentId() { return agentId; }
+    public void setAgentId(String agentId) { this.agentId = agentId; }
 
     public Boolean getEphemeral() { return ephemeral; }
     public void setEphemeral(Boolean ephemeral) { this.ephemeral = ephemeral; }

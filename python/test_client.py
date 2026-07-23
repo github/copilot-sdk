@@ -5,6 +5,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 """
 
 import asyncio
+import inspect
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -24,6 +25,8 @@ from copilot import (
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
+    CopilotExpAssignmentResponse,
+    ExpConfigEntry,
     ModelBilling,
     ModelCapabilities,
     ModelInfo,
@@ -39,7 +42,16 @@ from copilot.session_events import (
     SessionEvent,
     SessionEventType,
 )
+from copilot.tools import Tool
 from e2e.testharness import CLI_PATH
+
+
+def test_inprocess_connection_has_no_child_process_options():
+    connection = RuntimeConnection.for_inprocess()
+
+    assert list(inspect.signature(RuntimeConnection.for_inprocess).parameters) == []
+    assert not hasattr(connection, "path")
+    assert not hasattr(connection, "args")
 
 
 class TestClientShutdown:
@@ -559,6 +571,46 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_tool_metadata(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            metadata = {"github.com/copilot:safeForTelemetry": {"name": True, "inputsNames": False}}
+            tool = Tool(name="my_tool", description="a tool", metadata=metadata)
+            plain_tool = Tool(name="plain_tool", description="a tool")
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool, plain_tool],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool],
+            )
+
+            create_tools = captured["session.create"]["tools"]
+            assert create_tools[0]["metadata"] == metadata
+            # Omitted when unset.
+            assert "metadata" not in create_tools[1]
+            assert captured["session.resume"]["tools"][0]["metadata"] == metadata
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_canvas_provider(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -817,8 +869,12 @@ class TestCreateSessionConfig:
 
             client._client.request = mock_request
 
-            create_assignments = {"Configs": [{"Id": "exp-create"}]}
-            resume_assignments = {"Configs": [{"Id": "exp-resume"}]}
+            create_assignments = CopilotExpAssignmentResponse(
+                configs=[ExpConfigEntry(id="exp-create")]
+            )
+            resume_assignments = CopilotExpAssignmentResponse(
+                configs=[ExpConfigEntry(id="exp-resume")]
+            )
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -830,8 +886,18 @@ class TestCreateSessionConfig:
                 exp_assignments=resume_assignments,
             )
 
-            assert captured["session.create"]["expAssignments"] == create_assignments
-            assert captured["session.resume"]["expAssignments"] == resume_assignments
+            assert captured["session.create"]["expAssignments"] == {
+                "Features": [],
+                "Flights": {},
+                "Configs": [{"Id": "exp-create", "Parameters": {}}],
+                "AssignmentContext": "",
+            }
+            assert captured["session.resume"]["expAssignments"] == {
+                "Features": [],
+                "Flights": {},
+                "Configs": [{"Id": "exp-resume", "Parameters": {}}],
+                "AssignmentContext": "",
+            }
         finally:
             await client.force_stop()
 
@@ -2236,6 +2302,32 @@ class TestCustomAgentWireFormat:
         wire = client._convert_custom_agent_to_wire_format(agent)
         assert "model" not in wire
 
+    def test_reasoning_effort_is_forwarded_in_camel_case(self):
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "reasoning-agent",
+            "prompt": "Think carefully.",
+            "reasoning_effort": "high",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert wire["reasoningEffort"] == "high"
+        assert "reasoning_effort" not in wire
+
+    def test_reasoning_effort_is_omitted_when_absent(self):
+        from copilot.client import CopilotClient
+        from copilot.session import CustomAgentConfig
+
+        client = CopilotClient.__new__(CopilotClient)
+        agent: CustomAgentConfig = {
+            "name": "default-agent",
+            "prompt": "Use runtime defaults.",
+        }
+        wire = client._convert_custom_agent_to_wire_format(agent)
+        assert "reasoningEffort" not in wire
+
 
 class TestPostToolUseFailureHookDispatch:
     """Unit tests for the postToolUseFailure handler dispatch."""
@@ -2566,12 +2658,33 @@ class TestGitHubTelemetry:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_event_handler_not_registered_without_option(self):
+    async def test_event_not_forwarded_without_option(self):
+        # Client-global handlers are always registered (so that hooks.invoke works),
+        # but without the on_github_telemetry option the telemetry adapter is inert:
+        # incoming events must not be forwarded to any callback.
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
-            assert "gitHubTelemetry.event" not in client._client.notification_method_handlers
-            assert "gitHubTelemetry.event" not in client._client.request_handlers
+            assert client._on_github_telemetry is None
+
+            # Dispatching a telemetry event is a harmless no-op when not opted in.
+            client._client._handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "gitHubTelemetry.event",
+                    "params": {
+                        "sessionId": "sess-no-telemetry",
+                        "restricted": False,
+                        "event": {
+                            "kind": "tool_call_executed",
+                            "metrics": {"duration_ms": 1.0},
+                            "properties": {"tool": "shell"},
+                            "session_id": "sess-no-telemetry",
+                        },
+                    },
+                }
+            )
+            await asyncio.sleep(0)
         finally:
             await client.force_stop()

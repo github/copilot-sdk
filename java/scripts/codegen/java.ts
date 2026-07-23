@@ -21,6 +21,12 @@ const REPO_ROOT = path.resolve(__dirname, "../..");
 /** Event types to exclude from generation (internal/legacy types) */
 const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
 
+function isSchemaInternal(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" &&
+        schema !== null &&
+        (schema as Record<string, unknown>).visibility === "internal";
+}
+
 const AUTO_GENERATED_HEADER = `// AUTO-GENERATED FILE - DO NOT EDIT`;
 const GENERATED_FROM_SESSION_EVENTS = `// Generated from: session-events.schema.json`;
 const GENERATED_FROM_API = `// Generated from: api.schema.json`;
@@ -725,7 +731,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
                 deprecated: (variant as unknown as Record<string, unknown>).deprecated === true,
             };
         })
-        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
+        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName) && !isSchemaInternal(v.dataSchema));
 }
 
 async function generateSessionEvents(schemaPath: string): Promise<void> {
@@ -814,6 +820,10 @@ async function generateSessionEventBaseClass(
     lines.push(`    @JsonProperty("parentId")`);
     lines.push(`    private UUID parentId;`);
     lines.push("");
+    lines.push(`    /** Sub-agent instance identifier. Absent for events from the root/main agent and session-level events. */`);
+    lines.push(`    @JsonProperty("agentId")`);
+    lines.push(`    private String agentId;`);
+    lines.push("");
     lines.push(`    /** When true, the event is transient and not persisted to the session event log on disk. */`);
     lines.push(`    @JsonProperty("ephemeral")`);
     lines.push(`    private Boolean ephemeral;`);
@@ -833,6 +843,9 @@ async function generateSessionEventBaseClass(
     lines.push("");
     lines.push(`    public UUID getParentId() { return parentId; }`);
     lines.push(`    public void setParentId(UUID parentId) { this.parentId = parentId; }`);
+    lines.push("");
+    lines.push(`    public String getAgentId() { return agentId; }`);
+    lines.push(`    public void setAgentId(String agentId) { this.agentId = agentId; }`);
     lines.push("");
     lines.push(`    public Boolean getEphemeral() { return ephemeral; }`);
     lines.push(`    public void setEphemeral(Boolean ephemeral) { this.ephemeral = ephemeral; }`);

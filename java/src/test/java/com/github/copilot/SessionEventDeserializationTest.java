@@ -957,6 +957,23 @@ public class SessionEventDeserializationTest {
     }
 
     @Test
+    void testParseBaseFieldsAgentId() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.message",
+                    "agentId": "subagent-1",
+                    "data": {
+                        "content": "Hello"
+                    }
+                }
+                """;
+
+        SessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertEquals("subagent-1", event.getAgentId());
+    }
+
+    @Test
     void testParseBaseFieldsEphemeral() throws Exception {
         String json = """
                 {
@@ -995,6 +1012,7 @@ public class SessionEventDeserializationTest {
                     "type": "assistant.message",
                     "id": "%s",
                     "parentId": "%s",
+                    "agentId": "subagent-1",
                     "ephemeral": false,
                     "timestamp": "2025-06-15T12:00:00+02:00",
                     "data": {
@@ -1007,6 +1025,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertEquals(UUID.fromString(uuid), event.getId());
         assertEquals(UUID.fromString(parentUuid), event.getParentId());
+        assertEquals("subagent-1", event.getAgentId());
         assertFalse(event.getEphemeral());
         assertNotNull(event.getTimestamp());
         assertInstanceOf(AssistantMessageEvent.class, event);
@@ -1026,6 +1045,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertNull(event.getId());
         assertNull(event.getParentId());
+        assertNull(event.getAgentId());
         assertNull(event.getEphemeral());
         assertNull(event.getTimestamp());
     }

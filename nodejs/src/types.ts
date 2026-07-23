@@ -640,6 +640,14 @@ export interface Tool<TArgs = unknown> {
      * Optional; defaults to `"auto"`.
      */
     defer?: "auto" | "never";
+    /**
+     * Opaque, host-defined metadata associated with the tool definition.
+     *
+     * Keys are namespaced and are not part of the stable public API. Values are
+     * not interpreted and may be recognized to inform host-specific behavior.
+     * Unknown keys are preserved and round-tripped untouched.
+     */
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -655,6 +663,7 @@ export function defineTool<T = unknown>(
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
         defer?: "auto" | "never";
+        metadata?: Record<string, unknown>;
     }
 ): Tool<T> {
     return { name, ...config };
@@ -1632,6 +1641,12 @@ export interface CustomAgentConfig {
      * falling back to the parent session model if unavailable.
      */
     model?: string;
+    /**
+     * Reasoning effort level for this agent's model.
+     * When omitted, no per-agent override is sent and the backend chooses its
+     * default. The parent session effort is not inherited.
+     */
+    reasoningEffort?: ReasoningEffort;
 }
 
 /**
@@ -1844,6 +1859,45 @@ export interface CapiSessionOptions {
      * @default true
      */
     enableWebSocketResponses?: boolean;
+}
+
+/**
+ * A single ExP (Experiment Platform) flag value. ExP assignments resolve to a
+ * string, number, boolean, or `null`.
+ */
+export type ExpFlagValue = string | number | boolean | null;
+
+/**
+ * A single configuration entry in a {@link CopilotExpAssignmentResponse}. Each
+ * entry carries an identifier and a bag of typed parameter values.
+ */
+export interface ExpConfigEntry {
+    /** Identifier of the configuration entry. */
+    Id: string;
+    /** Parameter values keyed by parameter name. */
+    Parameters: Record<string, ExpFlagValue>;
+}
+
+/**
+ * ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+ * fetches from the experimentation service. Field names are PascalCase to match
+ * the on-the-wire contract consumed by the runtime.
+ */
+export interface CopilotExpAssignmentResponse {
+    /** Enabled feature names. */
+    Features: string[];
+    /** Assigned flights keyed by flight name. */
+    Flights: Record<string, string>;
+    /** Configuration entries carrying typed parameter values. */
+    Configs: ExpConfigEntry[];
+    /** Opaque parameter-group payload passed through untouched. */
+    ParameterGroups?: unknown;
+    /** Version of the flighting configuration. */
+    FlightingVersion?: number;
+    /** Impression identifier for the assignment. */
+    ImpressionId?: string;
+    /** Assignment context string forwarded to CAPI and telemetry. */
+    AssignmentContext: string;
 }
 
 /**
@@ -2413,7 +2467,7 @@ export interface SessionConfigBase {
      *
      * @internal
      */
-    expAssignments?: Record<string, unknown>;
+    expAssignments?: CopilotExpAssignmentResponse;
 }
 
 /**

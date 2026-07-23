@@ -604,6 +604,7 @@ func TestRPCServerE2E(t *testing.T) {
 		projectSkillPath := findSkillDiscoveryPath(skillPaths.Paths, ctx.WorkDir)
 		if projectSkillPath == nil {
 			t.Fatalf("Expected skill discovery paths to include %q", ctx.WorkDir)
+			return
 		}
 		if strings.TrimSpace(projectSkillPath.Path) == "" {
 			t.Fatal("Expected non-empty skill discovery path")
@@ -632,6 +633,7 @@ func TestRPCServerE2E(t *testing.T) {
 		projectAgentPath := findAgentDiscoveryPath(agentPaths.Paths, ctx.WorkDir)
 		if projectAgentPath == nil {
 			t.Fatalf("Expected agent discovery paths to include %q", ctx.WorkDir)
+			return
 		}
 		if strings.TrimSpace(projectAgentPath.Path) == "" {
 			t.Fatal("Expected non-empty agent discovery path")

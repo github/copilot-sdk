@@ -66,6 +66,7 @@ class E2ETestContext:
         self._proxy: CapiProxy | None = None
         self._client: CopilotClient | None = None
         self._inprocess: bool = is_inprocess_transport()
+        self._client_inprocess: bool = False
         self._restore_env: list[tuple[str, str | None]] = []
         self._restore_cwd: str | None = None
 
@@ -103,13 +104,11 @@ class E2ETestContext:
         # (os.environ writes reach native getenv on CPython) and chdir into the
         # work dir, then create the client without working_directory/env. This
         # matches the Node/.NET in-process harnesses.
-        if self._inprocess:
+        self._client_inprocess = self._inprocess and not cli_args
+        if self._client_inprocess:
             self._apply_inprocess_environment()
             self._client = CopilotClient(
-                connection=RuntimeConnection.for_inprocess(
-                    path=self.cli_path,
-                    args=tuple(cli_args or []),
-                ),
+                connection=RuntimeConnection.for_inprocess(),
                 github_token=DEFAULT_GITHUB_TOKEN,
             )
         else:
@@ -137,6 +136,7 @@ class E2ETestContext:
             {
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
+                "COPILOT_CLI_PATH": self.cli_path,
                 "COPILOT_HMAC_KEY": "",
                 "CAPI_HMAC_KEY": "",
             }
@@ -156,7 +156,7 @@ class E2ETestContext:
         live on ``os.environ`` (and be restored in teardown). Must be called
         before the runtime starts (i.e., before the first ``create_session``).
         """
-        if self._inprocess:
+        if self._client_inprocess:
             self._restore_env.append((key, os.environ.get(key)))
             os.environ[key] = value
         else:
@@ -191,7 +191,7 @@ class E2ETestContext:
                 pass  # stop() completes all cleanup before raising; safe to ignore in teardown
             self._client = None
 
-        if self._inprocess:
+        if self._client_inprocess:
             self._restore_inprocess_environment()
 
         if self._proxy:

@@ -119,6 +119,7 @@ func (rt *rewritingRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 }
 
 func TestCopilotRequestHandler(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	counters := &handlerCounters{}
 	httpURL, wsURL := startFakeUpstreams(t, counters)

@@ -56,6 +56,7 @@ Every session event, regardless of type, includes these fields:
 | `id` | `string` (UUID v4) | Unique event identifier |
 | `timestamp` | `string` (ISO 8601) | When the event was created |
 | `parentId` | `string \| null` | ID of the previous event in the chain; `null` for the first event |
+| `agentId` | `string?` | Sub-agent instance ID for sub-agent-originated events; absent for root/main agent and session-level events |
 | `ephemeral` | `boolean?` | `true` for transient events; absent or `false` for persisted events |
 | `type` | `string` | Event type discriminator (see tables below) |
 | `data` | `object` | Event-specific payload |
@@ -217,6 +218,139 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 > [!TIP]
 > **(TypeScript)** The TypeScript SDK uses a discriminated union—when you match on `event.type`, the `data` payload is automatically narrowed to the correct shape.
 
+## Render only the parent agent response
+
+Sub-agent events share the parent session stream and include envelope-level `agentId`. Root/main agent events and session-level events omit `agentId`, so main-chat renderers can ignore assistant events where `agentId` is set and route those events to traces or progress UI instead.
+
+<details open>
+<summary><strong>TypeScript</strong></summary>
+
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+export function subscribeParentResponse(session: CopilotSession): void {
+    session.on("assistant.message_delta", (event) => {
+        if (!event.agentId) {
+            process.stdout.write(event.data.deltaContent);
+        }
+    });
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotSession, SessionEvent, SessionEventType
+from copilot.session_events import AssistantMessageDeltaData
+
+
+def subscribe_parent_response(session: CopilotSession) -> None:
+    def handle(event: SessionEvent) -> None:
+        if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA and event.agent_id is None:
+            data = event.data
+            if isinstance(data, AssistantMessageDeltaData):
+                print(data.delta_content, end="", flush=True)
+
+    session.on(handle)
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+package example
+
+import (
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func subscribeParentResponse(session *copilot.Session) {
+	session.On(func(event copilot.SessionEvent) {
+		if event.AgentID != nil {
+			return
+		}
+
+		if d, ok := event.Data.(*copilot.AssistantMessageDeltaData); ok {
+			fmt.Print(d.DeltaContent)
+		}
+	})
+}
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using System;
+using GitHub.Copilot;
+
+static class ParentAgentResponseExample
+{
+    public static void SubscribeParentResponse(CopilotSession session)
+    {
+        session.On<AssistantMessageDeltaEvent>(evt =>
+        {
+            if (evt.AgentId is null)
+            {
+                Console.Write(evt.Data.DeltaContent);
+            }
+        });
+    }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.AssistantMessageDeltaEvent;
+
+final class ParentAgentResponseExample {
+    static void subscribeParentResponse(CopilotSession session) {
+        session.on(AssistantMessageDeltaEvent.class, event -> {
+            if (event.getAgentId() == null) {
+                System.out.print(event.getData().deltaContent());
+            }
+        });
+    }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+use github_copilot_sdk::session::Session;
+
+async fn subscribe_parent_response(session: &Session) {
+    let mut events = session.subscribe();
+
+    while let Ok(event) = events.recv().await {
+        if event.event_type == "assistant.message_delta" && event.agent_id.is_none() {
+            if let Some(delta) = event.data.get("deltaContent").and_then(|v| v.as_str()) {
+                print!("{delta}");
+            }
+        }
+    }
+}
+```
+
+</details>
+
 ## Assistant events
 
 These events track the agent's response lifecycle—from turn start through streaming chunks to the final message.
@@ -271,7 +405,7 @@ The assistant's complete response for this LLM call. May include tool invocation
 | `phase` | `string` | | Generation phase (e.g., `"thinking"` vs `"response"`) |
 | `outputTokens` | `number` | | Actual output token count from the API response |
 | `interactionId` | `string` | | CAPI interaction ID for telemetry |
-| `parentToolCallId` | `string` | | Set when this message originates from a sub-agent |
+| `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
 **`ToolRequest` fields:**
 
@@ -290,7 +424,7 @@ Ephemeral. Incremental chunk of the assistant's text response, streamed in real 
 |------------|------|----------|-------------|
 | `messageId` | `string` | ✅ | Matches the corresponding `assistant.message` event |
 | `deltaContent` | `string` | ✅ | Text chunk to append to the message |
-| `parentToolCallId` | `string` | | Set when originating from a sub-agent |
+| `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
 ### `assistant.turn_end`
 
@@ -317,7 +451,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
 | `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
-| `parentToolCallId` | `string` | | Set when usage originates from a sub-agent |
+| `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 | `quotaSnapshots` | `Record<string, QuotaSnapshot>` | | Per-quota resource usage, keyed by quota identifier |
 | `copilotUsage` | `CopilotUsage` | | Itemized token cost breakdown from the API |
 
@@ -344,7 +478,7 @@ Emitted when a tool begins executing.
 | `arguments` | `object` | | Parsed arguments passed to the tool |
 | `mcpServerName` | `string` | | MCP server name, when the tool is provided by an MCP server |
 | `mcpToolName` | `string` | | Original tool name on the MCP server |
-| `parentToolCallId` | `string` | | Set when invoked by a sub-agent |
+| `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
 ### `tool.execution_partial_result`
 
@@ -378,7 +512,7 @@ Emitted when a tool finishes executing—successfully or with an error.
 | `result` | `Result` | | Present on success (see below) |
 | `error` | `{ message, code? }` | | Present on failure |
 | `toolTelemetry` | `object` | | Tool-specific telemetry (e.g., CodeQL check counts) |
-| `parentToolCallId` | `string` | | Set when invoked by a sub-agent |
+| `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
 **`Result` fields:**
 
@@ -789,6 +923,8 @@ session.idle                  → Ready for next message (ephemeral)
 
 ## All event types at a glance
 
+This table lists key `data` payload fields. Common envelope fields are documented above.
+
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|
 | `assistant.turn_start` | | Assistant | `turnId`, `interactionId?` |
@@ -797,7 +933,7 @@ session.idle                  → Ready for next message (ephemeral)
 | `assistant.reasoning_delta` | ✅ | Assistant | `reasoningId`, `deltaContent` |
 | `assistant.streaming_delta` | ✅ | Assistant | `totalResponseSizeBytes` |
 | `assistant.message` | | Assistant | `messageId`, `content`, `toolRequests?`, `outputTokens?`, `phase?` |
-| `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent`, `parentToolCallId?` |
+| `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent` |
 | `assistant.turn_end` | | Assistant | `turnId` |
 | `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |

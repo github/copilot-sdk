@@ -37,6 +37,7 @@ import {
     isNodeFullyDeprecated,
     isVoidSchema,
     isSchemaExperimental,
+    isSchemaInternal,
     appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
     stripOpaqueJsonMarker,
@@ -348,7 +349,39 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
         resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections) ??
         processed;
-    const schemaForCompile = withSharedDefinitions(sessionEvent, definitionCollections);
+    const excludedDefinitionNames = new Set<string>();
+    const publicVariants = (sessionEvent.anyOf ?? []).filter((variant) => {
+        const variantSchema = variant as JSONSchema7;
+        const resolvedVariant = resolveSchema(variantSchema, definitionCollections) ?? variantSchema;
+        const dataSchema = resolvedVariant.properties?.data as JSONSchema7 | undefined;
+        const resolvedData = dataSchema ? resolveSchema(dataSchema, definitionCollections) ?? dataSchema : undefined;
+        if (!isSchemaInternal(resolvedData)) {
+            return true;
+        }
+
+        for (const ref of [variantSchema.$ref, dataSchema?.$ref]) {
+            const match = ref?.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/);
+            if (match) excludedDefinitionNames.add(match[1]);
+        }
+        return false;
+    });
+    const publicDefinitions = Object.fromEntries(
+        Object.entries(definitionCollections.definitions).filter(([name]) => !excludedDefinitionNames.has(name))
+    );
+    const publicDraftDefinitions = Object.fromEntries(
+        Object.entries(definitionCollections.$defs).filter(([name]) => !excludedDefinitionNames.has(name))
+    );
+    const publicSessionEvent = { ...sessionEvent, anyOf: publicVariants };
+    if ("SessionEvent" in publicDefinitions) {
+        publicDefinitions.SessionEvent = publicSessionEvent;
+    }
+    if ("SessionEvent" in publicDraftDefinitions) {
+        publicDraftDefinitions.SessionEvent = publicSessionEvent;
+    }
+    const schemaForCompile = withSharedDefinitions(
+        publicSessionEvent,
+        { definitions: publicDefinitions, $defs: publicDraftDefinitions }
+    );
     appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
     const ts = await compile(normalizeSchemaForTypeScript(schemaForCompile), "SessionEvent", {

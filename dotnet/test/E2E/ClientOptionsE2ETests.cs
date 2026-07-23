@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -41,7 +42,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             WorkingDirectory = clientCwd,
         });
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -110,7 +111,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal("dotnet-sdk-e2e", capturedEnv.GetProperty("COPILOT_OTEL_SOURCE_NAME").GetString());
         Assert.Equal("true", capturedEnv.GetProperty("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").GetString());
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             EnableConfigDiscovery = true,
             IncludeSubAgentStreamingEvents = false,
@@ -139,7 +140,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await client.StartAsync();
 
         // When explicitly set to false, it should appear in the wire request
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             EnableSessionTelemetry = false,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -166,7 +167,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await client.StartAsync();
 
         // When omitted (null/default), the field should not be present in the wire request
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -191,7 +192,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Follow org policy.",
@@ -219,6 +220,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Advanced_Session_Options_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -232,7 +234,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             ClientName = "advanced-create-client",
             Model = "claude-sonnet-4.5",
@@ -366,6 +368,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Forward_Singular_Provider_Options_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -378,7 +381,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             Model = "claude-sonnet-4.5",
             Provider = new ProviderConfig
@@ -432,7 +435,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
@@ -471,7 +474,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         activity.TraceStateString = "vendor=create-send";
         activity.Start();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -555,7 +558,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         activity.TraceStateString = "vendor=resume";
         activity.Start();
 
-        var session = await client.ResumeSessionAsync("trace-resume-session", new ResumeSessionConfig
+        var session = await Ctx.ResumeSessionAsync(client, "trace-resume-session", new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -582,7 +585,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.ResumeSessionAsync("resume-session", new ResumeSessionConfig
+        var session = await Ctx.ResumeSessionAsync(client, "resume-session", new ResumeSessionConfig
         {
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Resume org policy.",
@@ -624,7 +627,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.ResumeSessionAsync("advanced-resume-session", new ResumeSessionConfig
+        var session = await Ctx.ResumeSessionAsync(client, "advanced-resume-session", new ResumeSessionConfig
         {
             ClientName = "advanced-resume-client",
             Model = "claude-haiku-4.5",
@@ -706,7 +709,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await client.StartAsync();
 
-        var session = await client.ResumeSessionAsync("resume-empty-session", new ResumeSessionConfig
+        var session = await Ctx.ResumeSessionAsync(client, "resume-empty-session", new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
