@@ -254,12 +254,12 @@ try (var client = new CopilotClient()) {
 | `infer` | `boolean` | | Whether the runtime can auto-select this agent (default: `true`) |
 | `skills` | `string[]` | | Skill names to preload into the agent's context at startup |
 | `model` | `string` | | Model identifier to use while this agent runs |
-| `reasoningEffort` | `string` | | Reasoning effort to use while this agent runs. When omitted, no override is sent and the backend chooses its default |
+| `reasoningEffort` | `string` | | Reasoning effort to use while this agent runs. When omitted, the SDK sends no per-agent override and the runtime resolves the effort (see note below) |
 
 > [!TIP]
 > A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
 
-Set `model` and `reasoningEffort` to override the parent session's model settings while a custom agent runs. When `reasoningEffort` is omitted, the SDK sends no per-agent override and the backend chooses its default. The parent session effort is not inherited, and the SDK does not add a per-agent default. Python uses `reasoning_effort`, .NET uses `ReasoningEffort`, Go uses `ReasoningEffort`, Java uses `setReasoningEffort`, and Rust uses `with_reasoning_effort`.
+Set `model` and `reasoningEffort` to override the parent session's model settings while a custom agent runs. When `reasoningEffort` is omitted, the SDK sends no per-agent override and the runtime resolves the effort from its own precedence: a per-call client option, the resolved model's default, or the agent definition all take priority; otherwise the runtime inherits the parent session's effort **only when the subagent runs the same model as the parent**. When the subagent resolves to a different model, it falls back to that model's default instead of inheriting the parent's effort. Python uses `reasoning_effort`, .NET uses `ReasoningEffort`, Go uses `ReasoningEffort`, Java uses `setReasoningEffort`, and Rust uses `with_reasoning_effort`.
 
 In addition to per-agent configuration above, you can set `agent` on the **session config** itself to pre-select which custom agent is active when the session starts. See [Selecting an Agent at Session Creation](#selecting-an-agent-at-session-creation) below.
 
