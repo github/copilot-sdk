@@ -26,7 +26,6 @@ safe-outputs:
     allowed: [bug, enhancement, question, documentation]
     max: 1
     target: "*"
-    issue-intent: true
   add-comment:
     max: 1
     target: "*"
