@@ -732,19 +732,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
-    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {
         var pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test-pixel.png"), Convert.FromBase64String(pngBase64));
 
         var session = await CreateSessionAsync();
 
-        await session.SendAndWaitAsync(new MessageOptions
+        var response = await session.SendAndWaitAsync(new MessageOptions
         {
-            Prompt = "Describe this image",
+            Prompt = "Acknowledge receipt of this image in exactly two words: Image received.",
             Attachments =
             [
                 new AttachmentBlob
@@ -755,6 +751,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
                 },
             ],
         });
+
+        Assert.Equal("Image received.", response?.Data.Content);
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.True(HasImageUrlContent(exchange.Request.Messages), "Expected the request to contain the blob image");
 
         await session.DisposeAsync();
     }

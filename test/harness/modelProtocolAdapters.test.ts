@@ -235,6 +235,118 @@ describe("Anthropic Messages adapter", () => {
     expect(stream).toContain("event: message_stop");
   });
 
+  test("preserves images and documents nested in tool results", () => {
+    const result = JSON.parse(
+      anthropicMessagesRequestToChatCompletion(
+        JSON.stringify({
+          model: "test-model",
+          messages: [
+            {
+              role: "assistant",
+              content: [
+                {
+                  type: "tool_use",
+                  id: "call-1",
+                  name: "view",
+                  input: { path: "test.png" },
+                },
+                {
+                  type: "tool_use",
+                  id: "call-2",
+                  name: "inspect",
+                  input: { path: "test.pdf" },
+                },
+              ],
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: "call-1",
+                  content: [
+                    { type: "text", text: "Viewed image successfully." },
+                    {
+                      type: "image",
+                      source: {
+                        type: "base64",
+                        media_type: "image/png",
+                        data: "AQID",
+                      },
+                    },
+                    {
+                      type: "document",
+                      source: {
+                        type: "base64",
+                        media_type: "application/pdf",
+                        data: "BAUG",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "tool_result",
+                  tool_use_id: "call-2",
+                  content: "Inspected document successfully.",
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    ) as { messages: Array<Record<string, unknown>> };
+
+    expect(result.messages).toEqual([
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: {
+              name: "view",
+              arguments: '{"path":"test.png"}',
+            },
+          },
+          {
+            id: "call-2",
+            type: "function",
+            function: {
+              name: "inspect",
+              arguments: '{"path":"test.pdf"}',
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        tool_call_id: "call-1",
+        content: "Viewed image successfully.",
+      },
+      {
+        role: "tool",
+        tool_call_id: "call-2",
+        content: "Inspected document successfully.",
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: "data:image/png;base64,AQID" },
+          },
+          {
+            type: "file",
+            file: {
+              file_data: "data:application/pdf;base64,BAUG",
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
   test("combines tools from multiple canonical choices", () => {
     const secondChoice = structuredClone(completionWithTool.choices[0]);
     secondChoice.message.content = null;

@@ -22,9 +22,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages history diverged after enabling vision via SetModel. Verify
-    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Disabled_Then_Enabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
@@ -65,9 +62,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages history diverged after disabling vision via SetModel. Verify
-    // that model capability overrides work for provider-backed sessions before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Vision_Enabled_Then_Disabled_Via_SetModel()
     {
         await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test.png"), Png1X1);
@@ -191,9 +185,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    // TODO(BYOK): The Anthropic user-agent omitted ClientName and contained only its provider SDK
-    // identifier. Determine the expected propagation for custom providers before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Forward_ClientName_In_UserAgent()
     {
         var session = await CreateSessionAsync(new SessionConfig
@@ -688,23 +679,16 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages request history diverged while replaying this blob attachment.
-    // Confirm native clients preserve blob/image turns before keeping this CAPI-only.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Accept_Blob_Attachments()
     {
-        // Write the image to disk so the model can view it if it tries
         const string pngBase64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        await File.WriteAllBytesAsync(
-            Path.Join(Ctx.WorkDir, "pixel.png"),
-            Convert.FromBase64String(pngBase64));
 
         var session = await CreateSessionAsync();
 
-        await session.SendAndWaitAsync(new MessageOptions
+        var response = await session.SendAndWaitAsync(new MessageOptions
         {
-            Prompt = "What color is this pixel? Reply in one word.",
+            Prompt = "Acknowledge receipt of this image in exactly two words: Image received.",
             Attachments =
             [
                 new AttachmentBlob
@@ -715,6 +699,10 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 },
             ],
         });
+
+        Assert.Equal("Image received.", response?.Data.Content);
+        var exchange = Assert.Single(await Ctx.GetExchangesAsync());
+        Assert.True(HasImageUrlContent(exchange.Request.Messages), "Expected the request to contain the blob image");
 
         await session.DisposeAsync();
     }
@@ -741,20 +729,6 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         });
 
         await session.DisposeAsync();
-    }
-
-    /// <summary>
-    /// Checks whether any user message contains an image_url content part.
-    /// Content can be a string (no images) or a JSON array of content parts.
-    /// </summary>
-    private static bool HasImageUrlContent(List<ChatCompletionMessage> messages)
-    {
-        return messages
-            .Where(m => m.Role == "user" && m.Content is { ValueKind: JsonValueKind.Array })
-            .Any(m => m.Content!.Value.EnumerateArray().Any(part =>
-                part.TryGetProperty("type", out var typeProp) &&
-                typeProp.ValueKind == JsonValueKind.String &&
-                typeProp.GetString() == "image_url"));
     }
 
     private CopilotClient CreateClientWithRequestHandler(

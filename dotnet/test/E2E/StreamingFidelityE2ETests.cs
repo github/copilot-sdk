@@ -47,9 +47,6 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages emitted delta events with Streaming=false. Investigate the
-    // native-client streaming contract before keeping this disabled for every BYOK backend.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Not_Produce_Deltas_When_Streaming_Is_Disabled()
     {
         var session = await CreateSessionAsync(new SessionConfig { Streaming = false });
@@ -110,9 +107,6 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     }
 
     [Fact]
-    // TODO(BYOK): Anthropic Messages emitted delta events after resuming with Streaming=false.
-    // Investigate the native-client streaming contract before keeping this disabled for every BYOK backend.
-    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task Should_Not_Produce_Deltas_After_Session_Resume_With_Streaming_Disabled()
     {
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
