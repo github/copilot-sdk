@@ -419,6 +419,47 @@ ADR-007 specifies reading the first 2 KB of `/proc/self/exe` and parsing the ELF
 
 **Resolution:**
 
+Read these three spike apps before implementing production code:
+
+- `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-6-platform-detection-darwin-arm64/`
+- `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-6-platform-detection-linux-x64/`
+- `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-6-platform-detection-win32-x64/`
+
+All three spikes converge on the same pure-Java detector shape:
+
+1. `detectOs()` maps `os.name` to `darwin | linux | win32`.
+2. `detectArch()` maps `os.arch` aliases (`amd64`/`x86_64`/`x64` and `aarch64`/`arm64`) to `x64 | arm64`.
+3. `detectLinuxLibc()` runs only on Linux and reads `/proc/self/exe`, parses ELF `PT_INTERP` from the first 2 KB, then classifies:
+   - contains `/ld-musl-` → `MUSL`
+   - contains `/ld-linux-` → `GLIBC`
+   - parse/read failure → `UNKNOWN`
+4. `detectClassifier()` returns:
+   - non-Linux: `<os>-<arch>`
+   - Linux + MUSL: `linuxmusl-<arch>`
+   - Linux + GLIBC/UNKNOWN: `linux-<arch>`
+
+High-level per-spike notes:
+
+- **darwin-arm64 spike:** exercises the generic detector and logs `os`, `arch`, `linuxLibc`, `classifier`; Linux-only ELF parsing is present but skipped on Darwin.
+- **linux-x64 spike:** exercises full Linux path, parses and logs `PT_INTERP`, and explicitly validates expected glibc/musl linker patterns (`/ld-linux-x86-64.so.2` and `/ld-musl-x86_64.so.1`).
+- **win32-x64 spike:** exercises non-Linux classification path, verifies `win32-x64`, and includes an explicit allow-list check for all 8 ADR-007 classifiers.
+
+The three spikes were run on their respective hardware and confirm the platform-selection approach is deterministic.
+
+How to extrapolate to triples without a dedicated spike:
+
+- `linux-arm64` (`aarch64-unknown-linux-gnu`): same Linux logic as the linux-x64 spike; with `arch=arm64` and `PT_INTERP` containing `/ld-linux-`, classifier becomes `linux-arm64`.
+- `linuxmusl-x64` (`x86_64-unknown-linux-musl`): already covered by the linux spike’s MUSL branch; when `PT_INTERP` contains `/ld-musl-`, classifier is `linuxmusl-x64`.
+- `linuxmusl-arm64` (`aarch64-unknown-linux-musl`): same MUSL detection; with `arch=arm64`, classifier becomes `linuxmusl-arm64`.
+- `darwin-x64` (`x86_64-apple-darwin`): same Darwin logic as darwin-arm64 spike; with `arch=x64`, classifier becomes `darwin-x64`.
+- `win32-arm64` (`aarch64-pc-windows-msvc`): same Windows logic as win32-x64 spike; with `arch=arm64`, classifier becomes `win32-arm64`.
+
+Implementation guidance for production `com.github.copilot.ffi.PlatformDetector`:
+
+- Keep detector as a standalone utility class (not inline in loader), with `detectOs()`, `detectArch()`, `detectLinuxLibc()`, `detectClassifier()`.
+- Keep ELF parsing logic private and pure Java (no subprocesses, no external dependencies).
+- Keep classifier derivation table-driven and include an allow-list for the 8 supported ADR-007 classifiers so unsupported tuples fail fast.
+
 ### 3.7 — Native binary extraction and caching
 
 **Question:** What is the exact extraction and caching strategy for the `runtime.node` binary?
