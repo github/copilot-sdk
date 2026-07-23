@@ -1122,7 +1122,14 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 requireDigit("exponent");
                 consumeDigits();
             }
-            return "new java.math.BigDecimal(\"" + input.substring(start, pos) + "\")";
+            String number = input.substring(start, pos);
+            try {
+                new java.math.BigDecimal(number);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Number cannot be represented at position " + start + ": " + number,
+                        e);
+            }
+            return "new java.math.BigDecimal(\"" + number + "\")";
         }
 
         private void requireDigit(String part) {

@@ -335,6 +335,28 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void emitsError_forUnrepresentableSchemaNumber() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class UnrepresentableSchemaNumberTools {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input", schema = "{\\"maximum\\":1e9999999999}") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.UnrepresentableSchemaNumberTools", source)));
+
+        assertTrue(hasErrorContaining(result, "Number cannot be represented"),
+                "Expected compile error for unrepresentable schema number, got: " + result.diagnostics);
+    }
+
+    @Test
     void compilesSuccessfully_forEmptySchemaFallsThrough() {
         String source = """
                 package test;
