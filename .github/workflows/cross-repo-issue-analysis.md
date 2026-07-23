@@ -40,6 +40,7 @@ safe-outputs:
     allowed: [runtime, sdk-fix-only, needs-investigation]
     max: 3
     target: triggering
+    issue-intent: true
   create-issue:
     title-prefix: "[copilot-sdk] "
     labels: [upstream-from-sdk, ai-triaged]
