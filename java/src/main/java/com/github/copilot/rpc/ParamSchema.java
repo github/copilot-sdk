@@ -90,7 +90,8 @@ class ParamSchema {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> parsed = mapper.readerFor(Map.class)
-                            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(param.schema());
+                            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(param.schema());
                     typeSchema = parsed;
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Invalid schema JSON for parameter '" + param.name()

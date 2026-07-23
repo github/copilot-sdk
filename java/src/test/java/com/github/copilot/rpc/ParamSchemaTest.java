@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -234,6 +235,21 @@ class ParamSchemaTest {
                 () -> ParamSchema.buildSchema("schedule", MAPPER, param));
 
         assertTrue(error.getMessage().contains("Invalid schema JSON"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_preservesDecimalPrecision() {
+        Param<String> param = Param.of(String.class, "value", "Precise value")
+                .schema("{\"type\":\"number\",\"maximum\":1e400,\"multipleOf\":0.12345678901234567890}");
+
+        Map<String, Object> schema = ParamSchema.buildSchema("calculate", MAPPER, param);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> valueSchema = (Map<String, Object>) properties.get("value");
+
+        assertEquals(new BigDecimal("1e400"), valueSchema.get("maximum"));
+        assertEquals(new BigDecimal("0.12345678901234567890"), valueSchema.get("multipleOf"));
     }
 
     // ── forType: primitive and boxed integer types ───────────────────────────────

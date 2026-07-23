@@ -401,6 +401,30 @@ class CopilotToolProcessorTest {
                 () -> CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"\\" + "u١٢٣٤\"}"));
     }
 
+    @Test
+    void generatesSchemaOverride_withEscapedControlCharacters() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class EscapedControlSchemaTools {
+                    @CopilotTool("Escaped control schema")
+                    public String useSchema(@CopilotToolParam(value = "Input",
+                        schema = "{\\"title\\":\\"\\\\b\\\\fUNICODE_ESCAPE\\"}") String input) {
+                        return input;
+                    }
+                }
+                """.replace("UNICODE_ESCAPE", "\\\\" + "u0000");
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.EscapedControlSchemaTools", source)));
+
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.EscapedControlSchemaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("\\b\\f\\000"),
+                "Expected Java-safe control escapes in generated source, got:\n" + generated);
+    }
+
     // ── Test: Blank @CopilotToolParam description validation ────────────────────
 
     @Test

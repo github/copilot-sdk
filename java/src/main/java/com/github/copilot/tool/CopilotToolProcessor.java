@@ -1183,7 +1183,26 @@ public class CopilotToolProcessor extends AbstractProcessor {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t",
-                "\\t");
+        StringBuilder escaped = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char current = s.charAt(i);
+            switch (current) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (Character.isISOControl(current)) {
+                        escaped.append(String.format("\\%03o", (int) current));
+                    } else {
+                        escaped.append(current);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 }
