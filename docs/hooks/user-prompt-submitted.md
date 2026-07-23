@@ -433,9 +433,11 @@ const session = await client.createSession({
       }
       
       if (promptTimestamps.length >= RATE_LIMIT) {
+        // This hook cannot hard-block a prompt; it can only annotate or
+        // rewrite it. Inject a notice so the agent responds with the limit
+        // instead of processing the request.
         return {
-          reject: true,
-          rejectReason: `Rate limit exceeded. Please wait before sending more prompts.`,
+          additionalContext: `Rate limit exceeded (${RATE_LIMIT} prompts/minute). Ask the user to wait before sending more prompts, and do not act on the current request.`,
         };
       }
       
@@ -490,7 +492,7 @@ const session = await client.createSession({
 
 1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-1. **Provide clear rejection reasons** - When rejecting prompts, explain why and how to fix it.
+1. **Prefer `additionalContext` for soft controls** - This hook cannot hard-reject a prompt; to discourage or gate a request, add context explaining the constraint rather than expecting a block.
 
 1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 

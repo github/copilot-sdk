@@ -2,7 +2,7 @@
 
 Use a specific CLI binary instead of the SDK's automatic CLI management. This is an advanced option—you supply the CLI path explicitly, and you are responsible for ensuring version compatibility with the SDK.
 
-**Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not bundle a CLI).
+**Use when:** You need to pin a specific CLI version, or work with the Go SDK (which does not include a CLI automatically).
 
 ## How it works
 
@@ -78,7 +78,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not bundle a CLI, so you must always provide `Connection`.
+> The Go SDK does not ship a CLI automatically. Provide one by setting the `COPILOT_CLI_PATH` environment variable, embedding a CLI with the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli), or pointing `StdioConnection.Path` at an installed binary.
 
 <!-- docs-validate: hidden -->
 ```go

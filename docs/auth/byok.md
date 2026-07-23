@@ -207,7 +207,7 @@ client.stop().get();
 | `bearerToken` / `bearer_token` | string | Bearer token auth (takes precedence over apiKey) |
 | `bearerTokenProvider` / `bearer_token_provider` | callback | Returns a bearer token on demand (takes precedence over `apiKey` and `bearerToken`) |
 | `wireApi` / `wire_api` | `"completions"` \| `"responses"` | Select `"completions"` for broad model compatibility (the Chat Completions API); select `"responses"` for multi-turn state management, tool namespacing, and reasoning support (the Responses API). Anthropic models always use the Messages API regardless of this setting. |
-| `azure.apiVersion` / `azure.api_version` | string | Azure API version (default: `"2024-10-21"`) |
+| `azure.apiVersion` / `azure.api_version` | string | Azure API version. When set, uses the versioned deployment route; when omitted, uses the GA versionless `v1` route. |
 
 ### Wire API format
 
