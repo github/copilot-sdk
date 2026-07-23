@@ -12,16 +12,11 @@ It includes ELF `PT_INTERP` parsing from `/proc/self/exe` for Linux musl/glibc d
 ## Build
 
 ```sh
-mkdir -p out/classes
-javac -d out/classes $(find src/main/java -name '*.java')
-jar --create \
-  --file spike-3-6-platform-detection-darwin-arm64.jar \
-  --main-class com.github.copilot.spike.platform.PlatformDetectionSpikeMain \
-  -C out/classes .
+mvn clean package
 ```
 
 ## Run
 
 ```sh
-java -jar spike-3-6-platform-detection-darwin-arm64.jar
+java -jar target/spike-3-6-platform-detection-darwin-arm64.jar
 ```
