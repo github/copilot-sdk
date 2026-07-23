@@ -127,6 +127,24 @@ public class CopilotToolProcessor extends AbstractProcessor {
                     }
                 }
             }
+
+            // Validate blank @CopilotToolParam descriptions (exempt single-record wrappers)
+            boolean isSingleRecordWrapper = schemaParameters.size() == 1 && isRecord(schemaParameters.get(0).asType());
+            for (VariableElement param : schemaParameters) {
+                if (isSingleRecordWrapper && param.equals(schemaParameters.get(0))) {
+                    continue;
+                }
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                if (paramAnnotation != null && paramAnnotation.value().isBlank()) {
+                    TypeElement enclosingClass = (TypeElement) method.getEnclosingElement();
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@CopilotToolParam on parameter '" + param.getSimpleName() + "' in '"
+                                    + enclosingClass.getSimpleName() + "." + method.getSimpleName()
+                                    + "' has a blank value (description). "
+                                    + "Descriptions are required so the LLM can correctly select and invoke the tool",
+                            param);
+                }
+            }
         }
 
         // Group methods by enclosing type
