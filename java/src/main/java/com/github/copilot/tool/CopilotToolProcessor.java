@@ -134,7 +134,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                         }
                         if (!paramAnnotation.schema().isEmpty()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                                    "@CopilotToolParam(schema=...) is not supported on single-record tool parameters; annotate record components instead",
+                                    "@CopilotToolParam(schema=...) is not supported on single-record tool parameters",
                                     singleParam);
                         }
                         if (!paramAnnotation.name().isEmpty() || !paramAnnotation.value().isEmpty()
@@ -247,6 +247,21 @@ public class CopilotToolProcessor extends AbstractProcessor {
             out.println();
         }
 
+        if (needsJsonSourceHelpers(methods)) {
+            out.println("    private static Map<String, Object> mapOfNullable(Object... entries) {");
+            out.println("        var result = new LinkedHashMap<String, Object>();");
+            out.println("        for (int i = 0; i < entries.length; i += 2) {");
+            out.println("            result.put((String) entries[i], entries[i + 1]);");
+            out.println("        }");
+            out.println("        return Collections.unmodifiableMap(result);");
+            out.println("    }");
+            out.println();
+            out.println("    private static List<Object> listOfNullable(Object... items) {");
+            out.println("        return Collections.unmodifiableList(Arrays.asList(items));");
+            out.println("    }");
+            out.println();
+        }
+
         // definitions method
         out.println("    @Override");
         out.println("    @SuppressWarnings({\"unchecked\", \"rawtypes\"})");
@@ -275,6 +290,18 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null
                         && (!paramAnnotation.value().isEmpty() || !paramAnnotation.defaultValue().isEmpty())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean needsJsonSourceHelpers(List<ExecutableElement> methods) {
+        for (ExecutableElement method : methods) {
+            for (VariableElement param : method.getParameters()) {
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
                     return true;
                 }
             }
@@ -901,12 +928,12 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     // ------------------------------------------------------------------
-    // JSON-to-Map.of() source code conversion
+    // JSON-to-Java source code conversion
     // ------------------------------------------------------------------
 
     /**
-     * Converts a JSON object string to a {@code Map.of(...)} Java source literal.
-     * Supports nested objects, arrays, strings, numbers, booleans, and null.
+     * Converts a JSON object string to a Java source expression. Supports nested
+     * objects, arrays, strings, numbers, booleans, and null.
      */
     static String jsonToMapOfSource(String json) {
         JsonToSourceConverter converter = new JsonToSourceConverter(json);
@@ -920,9 +947,9 @@ public class CopilotToolProcessor extends AbstractProcessor {
     }
 
     /**
-     * Minimal recursive-descent JSON parser that produces {@code Map.of(...)},
-     * {@code List.of(...)}, and literal Java source expressions from a JSON string.
-     * Only used at compile time by the annotation processor.
+     * Minimal recursive-descent JSON parser that produces helper calls and literal
+     * Java source expressions from a JSON string. Only used at compile time by the
+     * annotation processor.
      */
     private static final class JsonToSourceConverter {
 
@@ -952,10 +979,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 } while (tryConsume(','));
             }
             expect('}');
-            if (entries.isEmpty()) {
-                return "Map.of()";
-            }
-            return "Map.of(" + String.join(", ", entries) + ")";
+            return "mapOfNullable(" + String.join(", ", entries) + ")";
         }
 
         private String parseArray() {
@@ -970,10 +994,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 } while (tryConsume(','));
             }
             expect(']');
-            if (items.isEmpty()) {
-                return "List.of()";
-            }
-            return "List.of(" + String.join(", ", items) + ")";
+            return "listOfNullable(" + String.join(", ", items) + ")";
         }
 
         private String parseValue() {
@@ -1001,17 +1022,51 @@ public class CopilotToolProcessor extends AbstractProcessor {
             expect('"');
             StringBuilder sb = new StringBuilder();
             while (pos < input.length() && input.charAt(pos) != '"') {
-                if (input.charAt(pos) == '\\') {
-                    pos++;
-                    if (pos >= input.length()) {
-                        throw new IllegalArgumentException("Unterminated string escape at position " + pos);
+                char current = input.charAt(pos++);
+                if (current == '\\') {
+                    sb.append(parseEscape());
+                } else {
+                    if (current < 0x20) {
+                        throw new IllegalArgumentException("Unescaped control character at position " + (pos - 1));
                     }
+                    sb.append(current);
                 }
-                sb.append(input.charAt(pos));
-                pos++;
             }
             expect('"');
             return sb.toString();
+        }
+
+        private char parseEscape() {
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Unterminated string escape at position " + pos);
+            }
+            char escaped = input.charAt(pos++);
+            return switch (escaped) {
+                case '"', '\\', '/' -> escaped;
+                case 'b' -> '\b';
+                case 'f' -> '\f';
+                case 'n' -> '\n';
+                case 'r' -> '\r';
+                case 't' -> '\t';
+                case 'u' -> parseUnicodeEscape();
+                default -> throw new IllegalArgumentException(
+                        "Invalid escape sequence \\" + escaped + " at position " + (pos - 2));
+            };
+        }
+
+        private char parseUnicodeEscape() {
+            if (pos + 4 > input.length()) {
+                throw new IllegalArgumentException("Incomplete Unicode escape at position " + (pos - 2));
+            }
+            int value = 0;
+            for (int i = 0; i < 4; i++) {
+                int digit = Character.digit(input.charAt(pos++), 16);
+                if (digit < 0) {
+                    throw new IllegalArgumentException("Invalid Unicode escape at position " + (pos - 1));
+                }
+                value = (value << 4) | digit;
+            }
+            return (char) value;
         }
 
         private String parseBoolean() {
@@ -1039,15 +1094,46 @@ public class CopilotToolProcessor extends AbstractProcessor {
             if (pos < input.length() && input.charAt(pos) == '-') {
                 pos++;
             }
-            while (pos < input.length()
-                    && (Character.isDigit(input.charAt(pos)) || input.charAt(pos) == '.' || input.charAt(pos) == 'e'
-                            || input.charAt(pos) == 'E' || input.charAt(pos) == '+' || input.charAt(pos) == '-')) {
-                pos++;
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Expected number at position " + start);
             }
-            if (pos == start) {
+            if (input.charAt(pos) == '0') {
+                pos++;
+            } else if (isDigitOneToNine(input.charAt(pos))) {
+                consumeDigits();
+            } else {
                 throw new IllegalArgumentException("Expected number at position " + pos);
             }
-            return input.substring(start, pos);
+            if (pos < input.length() && input.charAt(pos) == '.') {
+                pos++;
+                requireDigit("fraction");
+                consumeDigits();
+            }
+            if (pos < input.length() && (input.charAt(pos) == 'e' || input.charAt(pos) == 'E')) {
+                pos++;
+                if (pos < input.length() && (input.charAt(pos) == '+' || input.charAt(pos) == '-')) {
+                    pos++;
+                }
+                requireDigit("exponent");
+                consumeDigits();
+            }
+            return "new java.math.BigDecimal(\"" + input.substring(start, pos) + "\")";
+        }
+
+        private void requireDigit(String part) {
+            if (pos >= input.length() || !Character.isDigit(input.charAt(pos))) {
+                throw new IllegalArgumentException("Expected digit in number " + part + " at position " + pos);
+            }
+        }
+
+        private void consumeDigits() {
+            while (pos < input.length() && Character.isDigit(input.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        private boolean isDigitOneToNine(char c) {
+            return c >= '1' && c <= '9';
         }
 
         private void skipWhitespace() {

@@ -7,6 +7,7 @@ package com.github.copilot.tool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -169,6 +170,30 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void emitsError_forSingleRecordWrapperSchemaWithoutUnsupportedGuidance() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SingleRecordSchemaTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Single record")
+                    public String search(@CopilotToolParam(schema = "{\\"type\\":\\"object\\"}") SearchArgs req) {
+                    return req.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.SingleRecordSchemaTools", source)));
+
+        assertTrue(hasErrorContaining(result, "schema=...) is not supported on single-record tool parameters"),
+                "Expected unsupported schema diagnostic, got: " + result.diagnostics);
+        assertFalse(hasErrorContaining(result, "annotate record components"),
+                "Diagnostic must not recommend unsupported record-component annotations: " + result.diagnostics);
+    }
+
+    @Test
     void emitsError_forSingleRecordWrapperMetadataOverrides() {
         String source = """
                 package test;
@@ -275,6 +300,46 @@ class CopilotToolProcessorTest {
         CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.EmptySchemaTools", source)));
 
         assertNoErrors(result);
+    }
+
+    @Test
+    void generatesSchemaOverride_withLargeObjectsNullAndNumbers() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ComplexSchemaTools {
+                    @CopilotTool("Complex schema")
+                    public String useSchema(@CopilotToolParam(value = "Input",
+                        schema = "{\\"type\\":\\"object\\",\\"const\\":null,\\"enum\\":[\\"x\\",null],\\"minimum\\":2147483648,\\"k1\\":true,\\"k2\\":true,\\"k3\\":true,\\"k4\\":true,\\"k5\\":true,\\"k6\\":true,\\"k7\\":true}") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ComplexSchemaTools", source)));
+
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.ComplexSchemaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("mapOfNullable("), "Expected arity-independent map helper, got:\n" + generated);
+        assertTrue(generated.contains("new java.math.BigDecimal(\"2147483648\")"),
+                "Expected safe numeric source, got:\n" + generated);
+        assertTrue(generated.contains("\"const\", null"), "Expected null schema value, got:\n" + generated);
+        assertTrue(generated.contains("listOfNullable(\"x\", null)"),
+                "Expected null-tolerant list helper, got:\n" + generated);
+    }
+
+    @Test
+    void jsonToMapOfSource_decodesEscapesAndRejectsMalformedJson() {
+        String generated = CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"line\\n\\u0061\"}");
+
+        assertTrue(generated.contains("\"title\", \"line\\na\""), "Expected decoded JSON escapes, got: " + generated);
+        IllegalArgumentException escapeError = assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"\\q\"}"));
+        assertTrue(escapeError.getMessage().contains("Invalid escape sequence"));
+        IllegalArgumentException numberError = assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1.}"));
+        assertTrue(numberError.getMessage().contains("Expected digit in number fraction"));
     }
 
     // ── Test: Blank @CopilotToolParam description validation ────────────────────
