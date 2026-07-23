@@ -536,6 +536,57 @@ public sealed class ClientSessionLifetimeTests
         }
     }
 
+    [Fact]
+    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Flushes_Event_Enqueued_During_Final_Barrier()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureEventEnqueueDuringFinalBarrier();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var queuedHandlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseQueuedHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<AssistantTurnEndEvent>(evt =>
+        {
+            if (evt.Data.TurnId == "activity-reactivation-barrier")
+            {
+                DispatchEvent(session, new AssistantTurnEndEvent
+                {
+                    Data = new AssistantTurnEndData { TurnId = "queued-during-final-barrier" }
+                });
+            }
+            else if (evt.Data.TurnId == "queued-during-final-barrier")
+            {
+                queuedHandlerStarted.TrySetResult();
+                releaseQueuedHandler.Task.GetAwaiter().GetResult();
+            }
+        });
+
+        var completionTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "flush an event queued during the final barrier" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var first = await Task.WhenAny(queuedHandlerStarted.Task, completionTask)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Same(queuedHandlerStarted.Task, first);
+            await Task.Delay(200);
+            Assert.False(completionTask.IsCompleted, "Completion must wait for events enqueued after the stable snapshot.");
+
+            releaseQueuedHandler.TrySetResult();
+            var response = await completionTask;
+            Assert.Equal("completed response", response?.Data.Content);
+        }
+        finally
+        {
+            releaseQueuedHandler.TrySetResult();
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -647,6 +698,7 @@ public sealed class ClientSessionLifetimeTests
         private bool _emitDelayedIdle;
         private bool _fallbackMethodsUnavailable;
         private bool _reactivateDuringFinalBarrier;
+        private bool _enqueueDuringFinalBarrier;
         private bool _hasActiveWork;
         private int _activityRequestCount;
 
@@ -742,6 +794,12 @@ public sealed class ClientSessionLifetimeTests
             _reactivateDuringFinalBarrier = true;
         }
 
+        public void ConfigureEventEnqueueDuringFinalBarrier()
+        {
+            ConfigureDroppedIdleCompletion();
+            _enqueueDuringFinalBarrier = true;
+        }
+
         public void CompleteReactivatedActivity()
         {
             Volatile.Write(ref _hasActiveWork, false);
@@ -835,7 +893,7 @@ public sealed class ClientSessionLifetimeTests
             if (method == "session.metadata.activity")
             {
                 activityRequestNumber = Interlocked.Increment(ref _activityRequestCount);
-                if (_reactivateDuringFinalBarrier && activityRequestNumber == 2)
+                if ((_reactivateDuringFinalBarrier || _enqueueDuringFinalBarrier) && activityRequestNumber == 2)
                 {
                     await EmitActivityReactivationBarrierEventAsync(stream, cancellationToken);
                 }
