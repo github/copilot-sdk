@@ -17,10 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install gh-aw CLI
+        # Install the latest stable gh-aw release dynamically (no version pin);
+        # the action-code SHA below is pinned for supply-chain safety only.
         uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
         with:
           version: latest
       - name: Recompile workflows
+        # Full-repository compile so the diff check below covers all workflows.
         run: gh aw compile
       - name: Check for uncommitted changes
         run: |
