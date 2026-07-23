@@ -48,6 +48,9 @@ import com.github.copilot.tool.Param;
 @AllowCopilotExperimental
 class ToolDefinitionLambdaTest {
 
+    private record CustomDateTime(String value) {
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
     private static ToolInvocation invocationOf(Map<String, ?> args) {
@@ -483,6 +486,19 @@ class ToolDefinitionLambdaTest {
         assertNotNull(querySchema);
         assertEquals("string", querySchema.get("type"));
         assertEquals("Search query", querySchema.get("description"));
+    }
+
+    @Test
+    void schema_oneArg_customTypeUsesExplicitSchema() {
+        Param<CustomDateTime> p = Param.of(CustomDateTime.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        ToolDefinition tool = ToolDefinition.from("schedule", "Schedules a meeting", p, when -> "scheduled");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) propertiesOf(tool).get("when");
+        assertNotNull(whenSchema);
+        assertEquals("string", whenSchema.get("type"));
+        assertEquals("date-time", whenSchema.get("format"));
+        assertEquals("Meeting time", whenSchema.get("description"));
     }
 
     @Test

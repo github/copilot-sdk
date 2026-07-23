@@ -52,6 +52,18 @@ public final class Param<T> {
             throw new IllegalArgumentException("required=true cannot be combined with a non-empty defaultValue");
         }
 
+        if (!this.schema.isEmpty()) {
+            String trimmed = this.schema.trim();
+            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+                throw new IllegalArgumentException(
+                        "schema must be a valid JSON object string (must start with '{' and end with '}')");
+            }
+            if (!this.defaultValue.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "schema cannot be combined with defaultValue — express defaults inside the schema if needed");
+            }
+        }
+
         validateDefaultValue(type, this.defaultValue);
     }
 

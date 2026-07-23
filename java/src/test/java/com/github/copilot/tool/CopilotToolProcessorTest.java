@@ -349,7 +349,8 @@ class CopilotToolProcessorTest {
         String generated = result.getGeneratedSource("test.PlainTools$$CopilotToolMeta");
         assertFalse(generated.contains("Map.<String, Object>of("),
                 "Expected no metadata map for a tool without metadata, got:\n" + generated);
-        assertTrue(generated.contains("                null\n            )"),
+        String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
+        assertTrue(normalizedGenerated.contains("                null\n            )"),
                 "Expected metadata constructor argument to be null when metadata is absent, got:\n" + generated);
     }
 

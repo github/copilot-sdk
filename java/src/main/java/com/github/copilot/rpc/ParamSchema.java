@@ -84,7 +84,19 @@ class ParamSchema {
         Map<String, Object> properties = new LinkedHashMap<>();
 
         for (Param<?> param : params) {
-            Map<String, Object> typeSchema = forType(param.type());
+            Map<String, Object> typeSchema;
+            if (!param.schema().isEmpty()) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parsed = mapper.readValue(param.schema(), Map.class);
+                    typeSchema = parsed;
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid schema JSON for parameter '" + param.name()
+                            + "' in tool '" + toolName + "': " + e.getMessage(), e);
+                }
+            } else {
+                typeSchema = forType(param.type());
+            }
             Map<String, Object> enriched = new LinkedHashMap<>(typeSchema);
             enriched.put("description", param.description());
             if (param.hasDefaultValue()) {

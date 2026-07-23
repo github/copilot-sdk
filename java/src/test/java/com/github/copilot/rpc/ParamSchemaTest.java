@@ -5,6 +5,7 @@
 package com.github.copilot.rpc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -165,6 +166,63 @@ class ParamSchemaTest {
         Map<String, Object> props = (Map<String, Object>) schema.get("properties");
         List<String> keys = List.copyOf(props.keySet());
         assertEquals(List.of("alpha", "beta", "gamma"), keys);
+    }
+
+    // ── buildSchema: schema override ───────────────────────────────────────────
+
+    @Test
+    void buildSchema_withSchemaOverride_usesExplicitSchema() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("string", whenSchema.get("type"));
+        assertEquals("date-time", whenSchema.get("format"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_preservesDescription() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("Meeting time", whenSchema.get("description"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_respectsRequired() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        List<String> required = (List<String>) schema.get("required");
+        assertTrue(required.contains("when"));
+    }
+
+    @Test
+    void buildSchema_mixedParams_overrideAndAuto() {
+        Param<String> pOverride = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Param<String> pAuto = Param.of(String.class, "title", "Meeting title");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, pOverride, pAuto);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("date-time", whenSchema.get("format"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> titleSchema = (Map<String, Object>) props.get("title");
+        assertEquals("string", titleSchema.get("type"));
+        // Auto-generated should NOT have format
+        assertFalse(titleSchema.containsKey("format"));
     }
 
     // ── forType: primitive and boxed integer types ───────────────────────────────
