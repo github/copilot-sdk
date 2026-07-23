@@ -17,9 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install gh-aw CLI
-        uses: github/gh-aw-actions/setup-cli@34802437a0cba2fd1352d1f1bb02c18a78b56b31 # v0.83.0
+        uses: github/gh-aw-actions/setup-cli@8bdba8075360648fe6802302a5b4e016361dc6ac # v0.83.1
         with:
-          version: v0.83.0
+          version: v0.83.1
       - name: Recompile workflows
         run: gh aw compile issue-triage
       - name: Check for uncommitted changes
