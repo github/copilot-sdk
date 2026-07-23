@@ -2927,17 +2927,17 @@ impl<'a> SessionRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Aborts the current agent turn.
+    /// Aborts the active session turn and recursively cancels its descendant and background work. Use session.interruptMainTurn when background work must survive.
     ///
     /// Wire method: `session.abort`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Parameters for aborting the current turn
+    /// * `params` - Parameters for aborting the active session turn and recursively cancelling its descendant and background work
     ///
     /// # Returns
     ///
-    /// Result of aborting the current turn
+    /// Result of recursively aborting the active session work
     ///
     /// <div class="warning">
     ///
@@ -2953,6 +2953,39 @@ impl<'a> SessionRpc<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_ABORT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Interrupts only the active main coordinator turn while preserving background agents and other background work. Returns interrupted=false only when the method is supported but no main turn is active. Unsupported or older targets return JSON-RPC MethodNotFound; callers must not fall back to session.abort unless recursive cancellation is intended.
+    ///
+    /// Wire method: `session.interruptMainTurn`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for interrupting only the active main coordinator turn while preserving background work
+    ///
+    /// # Returns
+    ///
+    /// Result of interrupting only the active main coordinator turn
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn interrupt_main_turn(
+        &self,
+        params: InterruptMainTurnRequest,
+    ) -> Result<InterruptMainTurnResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_INTERRUPTMAINTURN, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

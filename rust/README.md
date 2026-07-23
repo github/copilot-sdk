@@ -89,7 +89,7 @@ With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in th
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
 
 ```rust,ignore
-use github_copilot_sdk::MessageOptions;
+use github_copilot_sdk::{InterruptMainTurnOptions, MessageOptions};
 
 // Simple send — &str / String convert into MessageOptions automatically.
 // Returns the assigned message ID for correlation with later events.
@@ -107,7 +107,14 @@ let _id = session
 // Message history
 let messages = session.get_events().await?;
 
-// Abort the current agent turn
+// Interrupt only the foreground turn and preserve queued user prompts.
+let result = session
+    .interrupt_main_turn(
+        InterruptMainTurnOptions::default().with_flush_queued(true),
+    )
+    .await?;
+
+// Recursively abort the active turn and all descendant/background work.
 session.abort().await?;
 
 // Model management
@@ -175,6 +182,10 @@ let forked = client
     })
     .await?;
 ```
+
+`interrupt_main_turn` preserves background agents and other independent background work. Its default `flush_queued: false` discards queued prompts; `true` preserves queued user prompts for the next eligible turn, drops hidden system prompts, and resumes normal queue delivery after the interrupted coordinator loop unwinds. A result with `interrupted == false` means the method is supported but no main turn was active. The method never falls back to `session.abort`, whose recursive cancellation also stops descendant and background work.
+
+Check `session.capabilities().interrupt_main_turn` before calling when connected targets may differ: local sessions report `Some(true)`, unsupported remote sessions report `Some(false)`, and older servers omit the capability (`None`). Each `capabilities.changed` event is a complete snapshot, so the SDK replaces the cached capability state wholesale rather than merging omitted fields.
 
 New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the

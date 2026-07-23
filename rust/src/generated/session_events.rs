@@ -4175,6 +4175,9 @@ pub struct CapabilitiesChangedUI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilitiesChangedData {
+    /// Whether scoped main-turn interruption via `session.interruptMainTurn` is supported
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupt_main_turn: Option<bool>,
     /// UI capability changes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<CapabilitiesChangedUI>,
