@@ -375,8 +375,8 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("mapOfNullable("), "Expected arity-independent map helper, got:\n" + generated);
         assertTrue(generated.contains("new java.math.BigDecimal(\"2147483648\")"),
                 "Expected safe numeric source, got:\n" + generated);
-        assertTrue(generated.contains("\"const\", null"), "Expected null schema value, got:\n" + generated);
-        assertTrue(generated.contains("listOfNullable(\"x\", null)"),
+        assertTrue(generated.contains("\"const\", (Object) null"), "Expected null schema value, got:\n" + generated);
+        assertTrue(generated.contains("listOfNullable(\"x\", (Object) null)"),
                 "Expected null-tolerant list helper, got:\n" + generated);
     }
 
@@ -395,6 +395,10 @@ class CopilotToolProcessorTest {
                 () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1\u0662}"));
         assertThrows(IllegalArgumentException.class,
                 () -> CopilotToolProcessor.jsonToMapOfSource("{\f\"type\":\"string\"}"));
+        assertEquals("mapOfNullable(\"enum\", listOfNullable((Object) null))",
+                CopilotToolProcessor.jsonToMapOfSource("{\"enum\":[null]}"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"\\" + "u١٢٣٤\"}"));
     }
 
     // ── Test: Blank @CopilotToolParam description validation ────────────────────

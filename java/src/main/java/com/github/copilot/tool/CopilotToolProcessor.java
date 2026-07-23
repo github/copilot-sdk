@@ -1060,13 +1060,18 @@ public class CopilotToolProcessor extends AbstractProcessor {
             }
             int value = 0;
             for (int i = 0; i < 4; i++) {
-                int digit = Character.digit(input.charAt(pos++), 16);
-                if (digit < 0) {
+                char hex = input.charAt(pos++);
+                if (!isAsciiHexDigit(hex)) {
                     throw new IllegalArgumentException("Invalid Unicode escape at position " + (pos - 1));
                 }
+                int digit = Character.digit(hex, 16);
                 value = (value << 4) | digit;
             }
             return (char) value;
+        }
+
+        private boolean isAsciiHexDigit(char c) {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
         }
 
         private String parseBoolean() {
@@ -1084,7 +1089,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         private String parseNull() {
             if (input.startsWith("null", pos)) {
                 pos += 4;
-                return "null";
+                return "(Object) null";
             }
             throw new IllegalArgumentException("Expected null at position " + pos);
         }
