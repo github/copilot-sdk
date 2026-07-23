@@ -159,6 +159,32 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
 }
 
 #[tokio::test]
+async fn empty_mode_does_not_enable_config_discovery_by_default() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("empty-mode-config-discovery-token"))
+        .await
+        .expect("start fake CLI client");
+
+    let session = client
+        .create_session(
+            SessionConfig::default()
+                .with_mode(github_copilot_sdk::ClientMode::Empty)
+                .with_available_tools(["read_file"]),
+        )
+        .await
+        .expect("create session");
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+
+    let create = fake.captured_request("session.create");
+    let params = create.params.as_object().expect("session.create params");
+    assert!(
+        !params.contains_key("enableConfigDiscovery"),
+        "empty mode should omit enableConfigDiscovery unless explicitly enabled"
+    );
+}
+
+#[tokio::test]
 async fn should_forward_singular_provider_configuration_on_session_creation() {
     let fake = FakeCli::new();
     let client = Client::start(fake.client_options("provider-client-token"))

@@ -851,6 +851,9 @@ impl Client {
             crate::mode::system_message_for_mode(mode, config.system_message.take());
         config.memory = crate::mode::memory_for_mode(mode, config.memory.take());
         if mode == crate::ClientMode::Empty {
+            if config.enable_config_discovery.is_none() {
+                config.enable_config_discovery = Some(false);
+            }
             if config.enable_session_telemetry.is_none() {
                 config.enable_session_telemetry = Some(false);
             }
@@ -1587,18 +1590,18 @@ async fn handle_notification(
         | SessionEventType::SessionIdle
         | SessionEventType::SessionError => {
             let mut guard = idle_waiter.lock();
-            if let Some(waiter) = guard.as_mut() {
+            if guard.is_some() {
                 match event_type {
                     SessionEventType::AssistantMessage => {
-                        if !waiter.first_assistant_message_seen {
-                            waiter.first_assistant_message_seen = true;
+                        if !guard.as_mut().unwrap().first_assistant_message_seen {
+                            guard.as_mut().unwrap().first_assistant_message_seen = true;
                             tracing::debug!(
-                                elapsed_ms = waiter.started_at.elapsed().as_millis(),
+                                elapsed_ms = guard.as_mut().unwrap().started_at.elapsed().as_millis(),
                                 session_id = %session_id,
                                 "Session::send_and_wait first assistant message"
                             );
                         }
-                        waiter.last_assistant_message = Some(event.clone());
+                        guard.as_mut().unwrap().last_assistant_message = Some(event.clone());
                     }
                     SessionEventType::SessionIdle | SessionEventType::SessionError => {
                         if let Some(waiter) = guard.take() {
