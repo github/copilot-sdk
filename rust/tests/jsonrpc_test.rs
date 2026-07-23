@@ -212,6 +212,56 @@ async fn read_loop_terminates_on_eof() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
 
+/// Regression for github/app#1055: a JSON-RPC message carrying a lone
+/// UTF-16 surrogate (or other malformed `\u` escape) must not kill the
+/// read loop. The bad escape is rewritten to U+FFFD, the message is
+/// delivered, and subsequent messages on the same channel still arrive.
+#[tokio::test]
+async fn malformed_unicode_escape_is_recovered_and_loop_survives() {
+    let (_client_write, _discard) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+
+    let (notification_tx, mut notification_rx) = broadcast::channel(16);
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+
+    let _client = JsonRpcClient::new(_client_write, client_read, notification_tx, request_tx);
+
+    // A lone high surrogate `\ud83d` in the params — strict serde_json
+    // rejects this with "unexpected end of hex escape". Construct the raw
+    // body by hand since serde would never emit a lone surrogate.
+    let bad_body =
+        br#"{"jsonrpc":"2.0","method":"session.event","params":{"text":"oops \ud83d here"}}"#;
+    write_framed(&mut server_write, bad_body).await;
+
+    let recovered: JsonRpcNotification =
+        tokio::time::timeout(std::time::Duration::from_secs(2), notification_rx.recv())
+            .await
+            .expect("timed out waiting for recovered notification")
+            .unwrap();
+    assert_eq!(recovered.method, "session.event");
+    assert_eq!(
+        recovered.params.unwrap()["text"],
+        "oops \u{fffd} here",
+        "lone surrogate should be replaced with U+FFFD"
+    );
+
+    // The channel must still be alive: a following well-formed message
+    // arrives normally rather than the loop having torn down the transport.
+    let next = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "session.event",
+        "params": { "text": "still here" }
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&next).unwrap()).await;
+
+    let received: JsonRpcNotification =
+        tokio::time::timeout(std::time::Duration::from_secs(2), notification_rx.recv())
+            .await
+            .expect("timed out waiting for follow-up notification")
+            .unwrap();
+    assert_eq!(received.params.unwrap()["text"], "still here");
+}
+
 /// Cancel-safety regression: dropping a `write()` future after the actor has
 /// committed to writing must NOT produce a partial frame on the wire.
 ///

@@ -428,7 +428,30 @@ impl JsonRpcClient {
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body).await?;
 
-        let message: JsonRpcMessage = serde_json::from_slice(&body)?;
+        let message: JsonRpcMessage = match serde_json::from_slice(&body) {
+            Ok(message) => message,
+            Err(parse_error) => {
+                // A strict parse failure is often a lone UTF-16 surrogate
+                // (or other malformed `\u` escape) emitted by a lenient
+                // upstream serializer. Rather than killing the read loop —
+                // which tears down the transport and retries forever on the
+                // same bytes (github/app#1055) — rewrite the bad escapes to
+                // U+FFFD and try once more. The sanitizer is a no-op for any
+                // other syntax error, so unrelated failures still propagate.
+                match crate::surrogate_safe::sanitize_json_escapes(&body) {
+                    (std::borrow::Cow::Owned(sanitized), replacements) => {
+                        warn!(
+                            replacements,
+                            original_error = %parse_error,
+                            "recovered JSON-RPC message containing malformed unicode escapes by \
+                             substituting U+FFFD"
+                        );
+                        serde_json::from_slice(&sanitized)?
+                    }
+                    (std::borrow::Cow::Borrowed(_), _) => return Err(parse_error.into()),
+                }
+            }
+        };
         Ok(Some(message))
     }
 
