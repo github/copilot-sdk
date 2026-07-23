@@ -40,6 +40,8 @@ pub mod session;
 /// Custom session filesystem provider (virtualizable filesystem layer).
 pub mod session_fs;
 mod session_fs_dispatch;
+/// Per-phase timing breakdown for [`Client::start`].
+pub mod startup_timings;
 /// Event subscription handles returned by `subscribe()` methods.
 pub mod subscription;
 /// Typed tool definition framework and dispatch router.
@@ -106,6 +108,7 @@ pub use types::*;
 
 mod sdk_protocol_version;
 pub use sdk_protocol_version::{SDK_PROTOCOL_VERSION, get_sdk_protocol_version};
+pub use startup_timings::StartupTimings;
 pub use subscription::{EventSubscription, LifecycleSubscription};
 
 /// Minimum protocol version this SDK can communicate with.
@@ -1007,6 +1010,10 @@ struct ClientInner {
     /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
     /// defaults inside `create_session` / `resume_session`.
     pub(crate) mode: ClientMode,
+    /// Per-phase startup timing breakdown, populated once at the end of
+    /// [`Client::start`]. Empty for clients built via [`Client::from_streams`]
+    /// or [`Client::from_transport`] directly.
+    startup_timings: OnceLock<StartupTimings>,
 }
 
 impl Client {
@@ -1024,6 +1031,7 @@ impl Client {
     /// backend.
     pub async fn start(options: ClientOptions) -> Result<Self> {
         let start_time = Instant::now();
+        let mut timings = StartupTimings::default();
         let mut options = options;
         if matches!(options.transport, Transport::Default) {
             options.transport = resolve_default_transport(&options)?;
@@ -1119,9 +1127,16 @@ impl Client {
                 path.clone()
             }
             CliProgram::Resolve => {
+                let resolve_start = Instant::now();
                 let resolved = resolve::copilot_binary_with_extract_dir(
                     options.bundled_cli_extract_dir.as_deref(),
                 )?;
+                let resolve_elapsed = resolve_start.elapsed();
+                timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
+                debug!(
+                    elapsed_ms = resolve_elapsed.as_millis(),
+                    "Client::start CLI program resolution complete"
+                );
                 info!(path = %resolved.display(), "resolved copilot CLI");
                 #[cfg(windows)]
                 {
@@ -1183,8 +1198,10 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
-                let (mut child, actual_port) =
+                let (mut child, actual_port, spawn_elapsed, port_wait_elapsed) =
                     Self::spawn_tcp(&program, &options, &working_directory, port).await?;
+                timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
+                timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
                 debug!(
@@ -1209,7 +1226,9 @@ impl Client {
                 )?
             }
             Transport::Stdio => {
-                let mut child = Self::spawn_stdio(&program, &options, &working_directory)?;
+                let (mut child, spawn_elapsed) =
+                    Self::spawn_stdio(&program, &options, &working_directory)?;
+                timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
                 Self::drain_stderr(&mut child);
@@ -1294,7 +1313,9 @@ impl Client {
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start transport setup complete"
         );
+        let handshake_start = Instant::now();
         client.verify_protocol_version().await?;
+        timings.handshake_ms = Some(StartupTimings::millis(handshake_start.elapsed()));
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
@@ -1313,8 +1334,10 @@ impl Client {
                 session_state_path: cfg.session_state_path,
             };
             client.rpc().session_fs().set_provider(request).await?;
+            let session_fs_elapsed = session_fs_start.elapsed();
+            timings.session_fs_ms = Some(StartupTimings::millis(session_fs_elapsed));
             debug!(
-                elapsed_ms = session_fs_start.elapsed().as_millis(),
+                elapsed_ms = session_fs_elapsed.as_millis(),
                 "Client::start session filesystem setup complete"
             );
         }
@@ -1334,11 +1357,28 @@ impl Client {
                 client.inner.on_github_telemetry.clone(),
             );
             client.rpc().llm_inference().set_provider().await?;
+            let llm_inference_elapsed = llm_inference_start.elapsed();
+            timings.llm_handler_ms = Some(StartupTimings::millis(llm_inference_elapsed));
             debug!(
-                elapsed_ms = llm_inference_start.elapsed().as_millis(),
+                elapsed_ms = llm_inference_elapsed.as_millis(),
                 "Client::start Copilot request handler registration complete"
             );
         }
+        timings.total_ms = Some(StartupTimings::millis(start_time.elapsed()));
+        // Single structured event with the full per-phase breakdown, so hosts
+        // can attribute startup latency to a phase without stitching together
+        // the individual debug lines above.
+        debug!(
+            program_resolve_ms = ?timings.program_resolve_ms,
+            process_spawn_ms = ?timings.process_spawn_ms,
+            port_wait_ms = ?timings.port_wait_ms,
+            handshake_ms = ?timings.handshake_ms,
+            session_fs_ms = ?timings.session_fs_ms,
+            llm_handler_ms = ?timings.llm_handler_ms,
+            total_ms = ?timings.total_ms,
+            "Client::start timings"
+        );
+        let _ = client.inner.startup_timings.set(timings);
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start complete"
@@ -1507,6 +1547,7 @@ impl Client {
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
+                startup_timings: OnceLock::new(),
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1683,7 +1724,7 @@ impl Client {
         program: &Path,
         options: &ClientOptions,
         working_directory: &Path,
-    ) -> Result<Child> {
+    ) -> Result<(Child, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -1696,11 +1737,12 @@ impl Client {
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
         let child = command.spawn()?;
+        let spawn_elapsed = spawn_start.elapsed();
         debug!(
-            elapsed_ms = spawn_start.elapsed().as_millis(),
+            elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_stdio subprocess spawned"
         );
-        Ok(child)
+        Ok((child, spawn_elapsed))
     }
 
     async fn spawn_tcp(
@@ -1708,7 +1750,7 @@ impl Client {
         options: &ClientOptions,
         working_directory: &Path,
         port: u16,
-    ) -> Result<(Child, u16)> {
+    ) -> Result<(Child, u16, Duration, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -1721,8 +1763,9 @@ impl Client {
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
         let mut child = command.spawn()?;
+        let spawn_elapsed = spawn_start.elapsed();
         debug!(
-            elapsed_ms = spawn_start.elapsed().as_millis(),
+            elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_tcp subprocess spawned"
         );
         let stdout = child.stdout.take().expect("stdout is piped");
@@ -1759,13 +1802,14 @@ impl Client {
             .map_err(|_| Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout)))?
             .map_err(|_| Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupFailed)))?;
 
+        let port_wait_elapsed = port_wait_start.elapsed();
         debug!(
-            elapsed_ms = port_wait_start.elapsed().as_millis(),
+            elapsed_ms = port_wait_elapsed.as_millis(),
             port = actual_port,
             "Client::spawn_tcp TCP port wait complete"
         );
         info!(port = %actual_port, "CLI server listening");
-        Ok((child, actual_port))
+        Ok((child, actual_port, spawn_elapsed, port_wait_elapsed))
     }
 
     fn drain_stderr(child: &mut Child) {
@@ -1940,6 +1984,16 @@ impl Client {
     /// [`verify_protocol_version`](Self::verify_protocol_version).
     pub fn protocol_version(&self) -> Option<u32> {
         self.inner.negotiated_protocol_version.get().copied()
+    }
+
+    /// Returns the per-phase [`StartupTimings`] breakdown captured during
+    /// [`start`](Self::start), if available.
+    ///
+    /// Returns `None` for clients created via
+    /// [`from_streams`](Self::from_streams), which bypasses the timed startup
+    /// sequence.
+    pub fn startup_timings(&self) -> Option<StartupTimings> {
+        self.inner.startup_timings.get().cloned()
     }
 
     /// Verify the CLI server's protocol version is within the supported range.
@@ -3112,6 +3166,7 @@ mod tests {
                 on_get_trace_context: None,
                 effective_connection_token: None,
                 mode: ClientMode::default(),
+                startup_timings: OnceLock::new(),
             }),
         }
     }
