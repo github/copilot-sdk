@@ -21,7 +21,7 @@ jobs:
         with:
           version: v0.83.1
       - name: Recompile workflows
-        run: gh aw compile issue-triage
+        run: gh aw compile
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git diff)" ]; then
