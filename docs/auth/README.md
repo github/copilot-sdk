@@ -3,10 +3,11 @@
 Choose the authentication method that best fits your deployment scenario for the GitHub Copilot SDK.
 
 * [Authenticate Copilot SDK](authenticate.md): methods, priority order, and examples
+* [Server-to-server tokens](server-to-server-tokens.md): use GitHub App installation tokens for organization-attributed automation
 * [Bring your own key (BYOK)](./byok.md): use your own API keys from OpenAI, Azure, Anthropic, and more
 
 ## Authentication priority
 
-When multiple credentials are configured, an explicit SDK token takes priority, followed by direct Copilot API environment authentication, environment variable GitHub tokens, stored Copilot CLI credentials, and then GitHub CLI credentials. See [Authenticate Copilot SDK](authenticate.md#authentication-priority) for details.
+When multiple credentials are configured, an explicit SDK token takes priority, followed by direct Copilot API environment authentication, environment variable GitHub tokens, stored Copilot CLI credentials, and then GitHub CLI credentials. Server-to-server installation tokens use the environment variable path. See [Authenticate Copilot SDK](authenticate.md#authentication-priority) for details.
 
 For multi-user server mode, pass a per-session `gitHubToken` so each session runs with the correct GitHub identity; see [Multi-user and server deployments](../setup/multi-tenancy.md).

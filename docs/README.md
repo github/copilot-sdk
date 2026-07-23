@@ -8,7 +8,7 @@ Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copil
 |---|---|
 | **Build my first app** | [Getting Started](./getting-started.md)—end-to-end tutorial with streaming & custom tools |
 | **Set up for production** | [Setup Guides](./setup/README.md)—architecture, deployment patterns, scaling |
-| **Configure authentication** | [Authentication](./auth/README.md)—GitHub OAuth, environment variables, BYOK |
+| **Configure authentication** | [Authentication](./auth/README.md)—GitHub OAuth, server-to-server tokens, environment variables, BYOK |
 | **Add features to my app** | [Features](./features/README.md)—hooks, custom agents, MCP, skills, and more |
 | **Debug an issue** | [Troubleshooting](./troubleshooting/debugging.md)—common problems and solutions |
 
@@ -35,6 +35,7 @@ How to configure and deploy the SDK for your use case.
 Configuring how users and services authenticate with Copilot.
 
 * [Authentication Overview](./auth/README.md): methods, priority order, and examples
+* [Server-to-server tokens](./auth/server-to-server-tokens.md): use GitHub App installation tokens for organization-attributed automation
 * [Bring Your Own Key (BYOK)](./auth/byok.md): use your own API keys from OpenAI, Azure, Anthropic, and more
 
 ### [Features](./features/README.md)
