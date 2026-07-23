@@ -16,6 +16,7 @@
     </properties>
 
     <build>
+        <finalName>spike-3-6-platform-detection-darwin-arm64</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -27,7 +28,6 @@
                             <mainClass>com.github.copilot.spike.platform.PlatformDetectionSpikeMain</mainClass>
                         </manifest>
                     </archive>
-                    <finalName>spike-3-6-platform-detection-darwin-arm64</finalName>
                 </configuration>
             </plugin>
         </plugins>

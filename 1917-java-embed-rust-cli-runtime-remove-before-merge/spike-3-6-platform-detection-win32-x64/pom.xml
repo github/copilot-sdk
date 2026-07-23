@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.copilot.spike</groupId>
-    <artifactId>spike-3-6-platform-detection-linux-x64</artifactId>
+    <artifactId>spike-3-6-platform-detection-win32-x64</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -16,7 +16,7 @@
     </properties>
 
     <build>
-        <finalName>spike-3-6-platform-detection-linux-x64</finalName>
+        <finalName>spike-3-6-platform-detection-win32-x64</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
