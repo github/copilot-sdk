@@ -445,9 +445,9 @@ Sub-agent-originated session events share the parent session stream and include 
 | Event | Emitted when | Data |
 |-------|-------------|------|
 | `subagent.selected` | Runtime selects an agent for the task | `agentName`, `agentDisplayName`, `tools` |
-| `subagent.started` | Sub-agent begins execution | `toolCallId`, `agentName`, `agentDisplayName`, `agentDescription` |
-| `subagent.completed` | Sub-agent finishes successfully | `toolCallId`, `agentName`, `agentDisplayName` |
-| `subagent.failed` | Sub-agent encounters an error | `toolCallId`, `agentName`, `agentDisplayName`, `error` |
+| `subagent.started` | Sub-agent begins execution | `toolCallId`, `agentName`, `agentDisplayName`, `agentDescription`, `model?` |
+| `subagent.completed` | Sub-agent finishes successfully | `toolCallId`, `agentName`, `agentDisplayName`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
+| `subagent.failed` | Sub-agent encounters an error | `toolCallId`, `agentName`, `agentDisplayName`, `error`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
 | `subagent.deselected` | Runtime switches away from the sub-agent |—|
 
 ### Subscribing to events
@@ -466,11 +466,15 @@ session.on((event) => {
 
         case "subagent.completed":
             console.log(`✅ Sub-agent completed: ${event.data.agentDisplayName}`);
+            if (event.data.durationMs) console.log(`  Duration: ${event.data.durationMs}ms`);
+            if (event.data.totalTokens) console.log(`  Tokens: ${event.data.totalTokens}`);
+            if (event.data.totalToolCalls) console.log(`  Tool calls: ${event.data.totalToolCalls}`);
             break;
 
         case "subagent.failed":
             console.log(`❌ Sub-agent failed: ${event.data.agentDisplayName}`);
             console.log(`  Error: ${event.data.error}`);
+            if (event.data.durationMs) console.log(`  Duration: ${event.data.durationMs}ms`);
             break;
 
         case "subagent.selected":
