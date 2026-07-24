@@ -676,6 +676,73 @@ The C ABI functions return `uint32_t` handles or `bool` success flags. When they
 
 **Resolution:**
 
+The error handling strategy mirrors .NET's approach (no dedicated exception type, descriptive diagnostic strings, best-effort teardown) with two Java-specific improvements: defensive callback wrapping and JNA's `Callback.UncaughtExceptionHandler` as a secondary safety net.
+
+**Answers to the four questions:**
+
+**1. Is there an error message channel?**
+
+No. The C ABI has no `copilot_runtime_last_error` export — confirmed by examining all five SDK implementations and the ABI surface. `Native.getLastError()` (which retrieves OS-level `errno`/`GetLastError`) is irrelevant because the Rust runtime does not set OS error codes; it returns 0 on failure. All five SDKs construct their own diagnostic strings from the library path and entrypoint path. Java must do the same. There is nothing additional to retrieve.
+
+**2. Should FFI failures use a new exception type or existing SDK types?**
+
+**RECOMMENDATION SUPERSEDED.** No dedicated `FfiTransportException`. Use `IllegalStateException` — the standard Java analog of .NET's `InvalidOperationException`, which is what .NET uses for every FFI failure. .NET has no dedicated FFI exception type either, and the existing Java SDK already uses `IllegalStateException` for "operation cannot proceed" scenarios (e.g., `CopilotSession`: "Session is not connected — RPC client is unavailable").
+
+Specific error messages match the .NET pattern verbatim for consistency across SDKs:
+
+| Failure                          | Exception               | Message                                                                                                                                                  |
+| -------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library not found                | `IllegalStateException` | `"FFI runtime library not found. Looked for '{path1}' and '{path2}'."`                                                                                   |
+| Library load failure             | `IllegalStateException` | `"Failed to load FFI runtime library '{path}'."`                                                                                                         |
+| Missing export                   | `IllegalStateException` | `"FFI runtime library is missing the '{export}' export."`                                                                                                |
+| `host_start` returns 0           | `IllegalStateException` | `"copilot_runtime_host_start failed (library '{libPath}', entrypoint '{entrypoint}')."`                                                                  |
+| `connection_open` returns 0      | `IllegalStateException` | `"copilot_runtime_connection_open failed."`                                                                                                              |
+| `connection_write` returns false | `IOException`           | `"Failed to write a frame to the in-process runtime connection."`                                                                                        |
+| Write on closed connection       | `IOException`           | `"The in-process runtime connection is closed."`                                                                                                         |
+| Duplicate library load           | `IllegalStateException` | `"An in-process FFI runtime library is already loaded from '{path1}'; loading a different library from '{path2}' in the same process is not supported."` |
+
+**3. How should the SDK handle a native crash/abort?**
+
+Nothing special. A Rust panic that unwinds through the FFI boundary terminates the process — this is the cost of in-process hosting. .NET does nothing special (no SEH guards, no `AccessViolationException` catching). JNA's `Native.setProtected(true)` can catch `SIGSEGV` on some platforms, but the JNA documentation warns it is unreliable, interferes with the JVM's own signal handling, should only be used for testing/debugging, and "should not be considered reliable or robust." The Java implementation must NOT enable protected mode. The mitigation is that the Copilot runtime is extensively tested and the C ABI is designed with `catch_unwind` at the FFI boundary (Rust prevents unwinding across `extern "C"` functions by default since Rust 1.71).
+
+**4. How should the SDK log FFI-level diagnostics?**
+
+Use `java.util.logging` — the logging framework already used throughout the Java SDK (`CliServerManager`, `CopilotClient`, `JsonRpcClient`, etc.). Use a logger named for the FFI class (e.g., `Logger.getLogger(FfiRuntimeHost.class.getName())`).
+
+Logging points (matching .NET's `FfiRuntimeHost` logging):
+
+| Event                                     | Level                   | Content                                |
+| ----------------------------------------- | ----------------------- | -------------------------------------- |
+| Successful start                          | `FINE` (= .NET `Debug`) | Library path, server ID, connection ID |
+| `connection_close` failure during dispose | `FINE`                  | Exception message (swallowed)          |
+| `host_shutdown` failure during dispose    | `FINE`                  | Exception message (swallowed)          |
+| Callback exception (caught in try-catch)  | `WARNING`               | Full exception with stack trace        |
+
+**Additional Java-specific decisions:**
+
+**Callback error containment (better than .NET, matching Go/Python):**
+
+.NET's outbound callback does NOT wrap in try-catch — if `FeedInbound` throws, the exception propagates into native code. Go and Python are more defensive: Go uses `recover()` with the comment "Nothing may panic across the FFI boundary"; Python catches all exceptions and logs them.
+
+Java must follow the Go/Python pattern, not .NET's, for two reasons:
+
+1. **Primary defense: wrap the callback body in try-catch.** The `on_outbound` callback implementation must catch all `Throwable` (including `Error`), log via `java.util.logging` at `WARNING` level, and return normally. This prevents any Java exception from reaching the native caller.
+
+2. **Secondary defense: register a `Callback.UncaughtExceptionHandler`.** JNA's `Callback` contract states: "A callback should generally never throw an exception [...] Any exceptions thrown will be passed to the default callback exception handler." The default handler prints to stderr. The Java implementation should register a custom handler via `Native.setCallbackExceptionHandler()` that logs via `java.util.logging` instead, as a belt-and-suspenders defense for any exception that slips past the primary try-catch.
+
+**Dispose/close error handling (matching .NET, leveraging `AutoCloseable`):**
+
+`FfiRuntimeHost` implements `AutoCloseable`. The `close()` method:
+
+1. Sets a `disposed` flag.
+2. Calls `connection_close(connectionId)` — wrapped in try-catch, failure logged at `FINE` and swallowed.
+3. Drains active callbacks (wait for `AtomicInteger` count to reach 0).
+4. Calls `host_shutdown(serverId)` — wrapped in try-catch, failure logged at `FINE` and swallowed.
+5. Closes the `QueueInputStream` receive buffer.
+6. Releases the JNA `Callback` reference (sets to null).
+
+`close()` must always complete — it must never throw. This matches .NET's `Dispose()` pattern and supports the Java SDK's existing `AutoCloseable` usage (try-with-resources).
+
 ### 3.11 — E2E testing with InProcess transport
 
 **Question:** How should E2E tests exercise the InProcess transport?
