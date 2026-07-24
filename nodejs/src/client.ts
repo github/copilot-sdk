@@ -11,7 +11,7 @@
  * @module client
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -150,6 +150,36 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
             onExit();
         }
     });
+}
+
+/**
+ * Kills a child process and its entire process tree.
+ *
+ * On Windows, `ChildProcess.kill()` only terminates the immediate process via
+ * `TerminateProcess()`, leaving grandchildren (e.g. copilot workers, MCP servers)
+ * orphaned. This helper uses `taskkill /T` to terminate the full tree.
+ *
+ * On Unix, the standard `.kill(signal)` is sufficient because the CLI is spawned
+ * directly (not via a shell wrapper) and handles signals properly.
+ *
+ * @see https://github.com/github/copilot-sdk/issues/1804
+ */
+function killProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): boolean {
+    const pid = child.pid;
+    if (pid == null) {
+        return false;
+    }
+    if (process.platform === "win32") {
+        try {
+            // /T = tree kill (all child processes), /F = force
+            execSync(`taskkill /T /F /PID ${pid}`, { stdio: "ignore", timeout: 5000 });
+            return true;
+        } catch {
+            // taskkill may fail if process already exited; fall back to standard kill
+            return child.kill(signal);
+        }
+    }
+    return child.kill(signal);
 }
 
 /**
@@ -1086,7 +1116,7 @@ export class CopilotClient {
             this.cliProcess = null;
             try {
                 if (child.exitCode == null && child.signalCode == null) {
-                    child.kill();
+                    killProcessTree(child);
                     if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
                         errors.push(
                             new Error(
@@ -1213,7 +1243,7 @@ export class CopilotClient {
         // Force kill CLI process (only if we spawned it)
         if (this.cliProcess && !this.isExternalServer) {
             try {
-                this.cliProcess.kill("SIGKILL");
+                killProcessTree(this.cliProcess, "SIGKILL");
             } catch {
                 // Ignore errors
             }
