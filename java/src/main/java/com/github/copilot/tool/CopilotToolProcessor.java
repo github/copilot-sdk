@@ -99,6 +99,20 @@ public class CopilotToolProcessor extends AbstractProcessor {
                             "@CopilotToolParam(required=false) primitive parameters must provide defaultValue or use a boxed/Optional type",
                             param);
                 }
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()
+                        && !paramAnnotation.defaultValue().isEmpty()) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@CopilotToolParam cannot have both schema and defaultValue — express defaults inside the schema if needed",
+                            param);
+                }
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
+                    String schemaJson = paramAnnotation.schema().trim();
+                    if (!schemaJson.startsWith("{") || !schemaJson.endsWith("}")) {
+                        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                "@CopilotToolParam schema must be a valid JSON object string (must start with '{' and end with '}')",
+                                param);
+                    }
+                }
             }
             if (toolInvocationParamCount > 1) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -116,6 +130,11 @@ public class CopilotToolProcessor extends AbstractProcessor {
                         if (!paramAnnotation.defaultValue().isEmpty()) {
                             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                                     "@CopilotToolParam(defaultValue=...) is not supported on single-record tool parameters; use record component defaults or a non-record parameter",
+                                    singleParam);
+                        }
+                        if (!paramAnnotation.schema().isEmpty()) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                    "@CopilotToolParam(schema=...) is not supported on single-record tool parameters",
                                     singleParam);
                         }
                         if (!paramAnnotation.name().isEmpty() || !paramAnnotation.value().isEmpty()
@@ -228,6 +247,21 @@ public class CopilotToolProcessor extends AbstractProcessor {
             out.println();
         }
 
+        if (needsJsonSourceHelpers(methods)) {
+            out.println("    private static Map<String, Object> mapOfNullable(Object... entries) {");
+            out.println("        var result = new LinkedHashMap<String, Object>();");
+            out.println("        for (int i = 0; i < entries.length; i += 2) {");
+            out.println("            result.put((String) entries[i], entries[i + 1]);");
+            out.println("        }");
+            out.println("        return Collections.unmodifiableMap(result);");
+            out.println("    }");
+            out.println();
+            out.println("    private static List<Object> listOfNullable(Object... items) {");
+            out.println("        return Collections.unmodifiableList(Arrays.asList(items));");
+            out.println("    }");
+            out.println();
+        }
+
         // definitions method
         out.println("    @Override");
         out.println("    @SuppressWarnings({\"unchecked\", \"rawtypes\"})");
@@ -256,6 +290,18 @@ public class CopilotToolProcessor extends AbstractProcessor {
                 CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
                 if (paramAnnotation != null
                         && (!paramAnnotation.value().isEmpty() || !paramAnnotation.defaultValue().isEmpty())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean needsJsonSourceHelpers(List<ExecutableElement> methods) {
+        for (ExecutableElement method : methods) {
+            for (VariableElement param : method.getParameters()) {
+                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
+                if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
                     return true;
                 }
             }
@@ -356,8 +402,19 @@ public class CopilotToolProcessor extends AbstractProcessor {
             CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);
 
             // Generate the type schema for this parameter
-            String typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
-                    processingEnv.getElementUtils());
+            String typeSchema;
+            if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
+                try {
+                    typeSchema = jsonToMapOfSource(paramAnnotation.schema());
+                } catch (IllegalArgumentException e) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "@CopilotToolParam schema is not valid JSON: " + e.getMessage(), param);
+                    continue;
+                }
+            } else {
+                typeSchema = schemaGenerator.generateSchemaSource(paramType, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
+            }
 
             // Build property schema with description and default if present
             String propertySchema = buildPropertySchema(typeSchema, paramAnnotation, paramType);
@@ -870,11 +927,289 @@ public class CopilotToolProcessor extends AbstractProcessor {
         return sb.toString();
     }
 
+    // ------------------------------------------------------------------
+    // JSON-to-Java source code conversion
+    // ------------------------------------------------------------------
+
+    /**
+     * Converts a JSON object string to a Java source expression. Supports nested
+     * objects, arrays, strings, numbers, booleans, and null.
+     */
+    static String jsonToMapOfSource(String json) {
+        JsonToSourceConverter converter = new JsonToSourceConverter(json);
+        String result = converter.parseObject();
+        converter.skipWhitespace();
+        if (converter.pos < json.length()) {
+            throw new IllegalArgumentException("Unexpected trailing content at position " + converter.pos + ": '"
+                    + json.substring(converter.pos) + "'");
+        }
+        return result;
+    }
+
+    /**
+     * Minimal recursive-descent JSON parser that produces helper calls and literal
+     * Java source expressions from a JSON string. Only used at compile time by the
+     * annotation processor.
+     */
+    private static final class JsonToSourceConverter {
+
+        private final String input;
+        private int pos;
+
+        JsonToSourceConverter(String input) {
+            this.input = input;
+            this.pos = 0;
+        }
+
+        String parseObject() {
+            skipWhitespace();
+            expect('{');
+            skipWhitespace();
+            List<String> entries = new ArrayList<>();
+            if (peek() != '}') {
+                do {
+                    skipWhitespace();
+                    String key = parseString();
+                    skipWhitespace();
+                    expect(':');
+                    skipWhitespace();
+                    String value = parseValue();
+                    entries.add("\"" + escapeJava(key) + "\", " + value);
+                    skipWhitespace();
+                } while (tryConsume(','));
+            }
+            expect('}');
+            return "mapOfNullable(" + String.join(", ", entries) + ")";
+        }
+
+        private String parseArray() {
+            expect('[');
+            skipWhitespace();
+            List<String> items = new ArrayList<>();
+            if (peek() != ']') {
+                do {
+                    skipWhitespace();
+                    items.add(parseValue());
+                    skipWhitespace();
+                } while (tryConsume(','));
+            }
+            expect(']');
+            return "listOfNullable(" + String.join(", ", items) + ")";
+        }
+
+        private String parseValue() {
+            skipWhitespace();
+            char c = peek();
+            if (c == '{') {
+                return parseObject();
+            }
+            if (c == '[') {
+                return parseArray();
+            }
+            if (c == '"') {
+                return "\"" + escapeJava(parseString()) + "\"";
+            }
+            if (c == 't' || c == 'f') {
+                return parseBoolean();
+            }
+            if (c == 'n') {
+                return parseNull();
+            }
+            return parseNumber();
+        }
+
+        private String parseString() {
+            expect('"');
+            StringBuilder sb = new StringBuilder();
+            while (pos < input.length() && input.charAt(pos) != '"') {
+                char current = input.charAt(pos++);
+                if (current == '\\') {
+                    sb.append(parseEscape());
+                } else {
+                    if (current < 0x20) {
+                        throw new IllegalArgumentException("Unescaped control character at position " + (pos - 1));
+                    }
+                    sb.append(current);
+                }
+            }
+            expect('"');
+            return sb.toString();
+        }
+
+        private char parseEscape() {
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Unterminated string escape at position " + pos);
+            }
+            char escaped = input.charAt(pos++);
+            return switch (escaped) {
+                case '"', '\\', '/' -> escaped;
+                case 'b' -> '\b';
+                case 'f' -> '\f';
+                case 'n' -> '\n';
+                case 'r' -> '\r';
+                case 't' -> '\t';
+                case 'u' -> parseUnicodeEscape();
+                default -> throw new IllegalArgumentException(
+                        "Invalid escape sequence \\" + escaped + " at position " + (pos - 2));
+            };
+        }
+
+        private char parseUnicodeEscape() {
+            if (pos + 4 > input.length()) {
+                throw new IllegalArgumentException("Incomplete Unicode escape at position " + (pos - 2));
+            }
+            int value = 0;
+            for (int i = 0; i < 4; i++) {
+                char hex = input.charAt(pos++);
+                if (!isAsciiHexDigit(hex)) {
+                    throw new IllegalArgumentException("Invalid Unicode escape at position " + (pos - 1));
+                }
+                int digit = Character.digit(hex, 16);
+                value = (value << 4) | digit;
+            }
+            return (char) value;
+        }
+
+        private boolean isAsciiHexDigit(char c) {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        }
+
+        private String parseBoolean() {
+            if (input.startsWith("true", pos)) {
+                pos += 4;
+                return "true";
+            }
+            if (input.startsWith("false", pos)) {
+                pos += 5;
+                return "false";
+            }
+            throw new IllegalArgumentException("Expected boolean at position " + pos);
+        }
+
+        private String parseNull() {
+            if (input.startsWith("null", pos)) {
+                pos += 4;
+                return "(Object) null";
+            }
+            throw new IllegalArgumentException("Expected null at position " + pos);
+        }
+
+        private String parseNumber() {
+            int start = pos;
+            if (pos < input.length() && input.charAt(pos) == '-') {
+                pos++;
+            }
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Expected number at position " + start);
+            }
+            if (input.charAt(pos) == '0') {
+                pos++;
+            } else if (isDigitOneToNine(input.charAt(pos))) {
+                consumeDigits();
+            } else {
+                throw new IllegalArgumentException("Expected number at position " + pos);
+            }
+            if (pos < input.length() && input.charAt(pos) == '.') {
+                pos++;
+                requireDigit("fraction");
+                consumeDigits();
+            }
+            if (pos < input.length() && (input.charAt(pos) == 'e' || input.charAt(pos) == 'E')) {
+                pos++;
+                if (pos < input.length() && (input.charAt(pos) == '+' || input.charAt(pos) == '-')) {
+                    pos++;
+                }
+                requireDigit("exponent");
+                consumeDigits();
+            }
+            String number = input.substring(start, pos);
+            try {
+                new java.math.BigDecimal(number);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Number cannot be represented at position " + start + ": " + number,
+                        e);
+            }
+            return "new java.math.BigDecimal(\"" + number + "\")";
+        }
+
+        private void requireDigit(String part) {
+            if (pos >= input.length() || !isAsciiDigit(input.charAt(pos))) {
+                throw new IllegalArgumentException("Expected digit in number " + part + " at position " + pos);
+            }
+        }
+
+        private void consumeDigits() {
+            while (pos < input.length() && isAsciiDigit(input.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        private boolean isAsciiDigit(char c) {
+            return c >= '0' && c <= '9';
+        }
+
+        private boolean isDigitOneToNine(char c) {
+            return c >= '1' && c <= '9';
+        }
+
+        private void skipWhitespace() {
+            while (pos < input.length() && isJsonWhitespace(input.charAt(pos))) {
+                pos++;
+            }
+        }
+
+        private boolean isJsonWhitespace(char c) {
+            return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+        }
+
+        private char peek() {
+            if (pos >= input.length()) {
+                throw new IllegalArgumentException("Unexpected end of JSON");
+            }
+            return input.charAt(pos);
+        }
+
+        private void expect(char c) {
+            if (pos >= input.length() || input.charAt(pos) != c) {
+                throw new IllegalArgumentException("Expected '" + c + "' at position " + pos + " but got '"
+                        + (pos < input.length() ? input.charAt(pos) : "EOF") + "'");
+            }
+            pos++;
+        }
+
+        private boolean tryConsume(char c) {
+            if (pos < input.length() && input.charAt(pos) == c) {
+                pos++;
+                return true;
+            }
+            return false;
+        }
+    }
+
     private static String escapeJava(String s) {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t",
-                "\\t");
+        StringBuilder escaped = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char current = s.charAt(i);
+            switch (current) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (Character.isISOControl(current)) {
+                        escaped.append(String.format("\\%03o", (int) current));
+                    } else {
+                        escaped.append(current);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 }
