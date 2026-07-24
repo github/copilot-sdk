@@ -179,7 +179,17 @@ function killProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"
             return child.kill(signal);
         }
     }
-    return child.kill(signal);
+    // Unix: if the child is a process group leader (spawned with detached:true),
+    // kill the entire group with a single signal. This reaps all descendants
+    // (tool subprocesses, MCP servers, etc.) atomically.
+    try {
+        process.kill(-pid, signal);
+        return true;
+    } catch {
+        // Negative-pid kill fails if the child isn't a group leader or already exited;
+        // fall back to signaling the immediate child only.
+        return child.kill(signal);
+    }
 }
 
 /**
@@ -530,6 +540,7 @@ export class CopilotClient {
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
         mode: CopilotClientMode;
+        processGroup: boolean;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -766,6 +777,7 @@ export class CopilotClient {
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
+            processGroup: options.processGroup ?? false,
         };
 
         // Empty mode: validate at construction time that the app supplied a
@@ -2464,6 +2476,10 @@ export class CopilotClient {
                     : ["ignore", "pipe", "pipe"];
 
             // For .js files, spawn node explicitly; for executables, spawn directly
+            // When processGroup is enabled, spawn detached so the CLI and its
+            // descendants form an independent process group that can be reaped
+            // atomically via kill(-pgid). Ignored on Windows (taskkill /T suffices).
+            const detached = !!(this.options.processGroup && process.platform !== "win32");
             const isJsFile = this.resolvedCliPath.endsWith(".js");
             if (isJsFile) {
                 this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
@@ -2471,6 +2487,7 @@ export class CopilotClient {
                     cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
+                    detached,
                 });
             } else {
                 this.cliProcess = spawn(this.resolvedCliPath, args, {
@@ -2478,7 +2495,13 @@ export class CopilotClient {
                     cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
+                    detached,
                 });
+            }
+            // Prevent the detached child from keeping the event loop alive
+            // when the embedder wants to exit without calling stop() explicitly.
+            if (detached && this.cliProcess.unref) {
+                this.cliProcess.unref();
             }
 
             let stdout = "";
