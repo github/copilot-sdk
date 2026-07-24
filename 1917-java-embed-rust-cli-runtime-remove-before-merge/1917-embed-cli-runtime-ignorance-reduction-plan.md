@@ -472,9 +472,45 @@ ADR-007 proposes extracting from classpath to `~/.copilot/runtime-cache/<version
 4. **Permissions:** On Unix, the extracted binary needs `chmod +x`. The ADR's `cached.toFile().setExecutable(true)` works — but note `runtime.node` is a shared library, not an executable. Shared libraries loaded via `dlopen` (which JNA uses internally) do **not** need execute permission on most Linux systems. Verify.
 5. **Cleanup:** Should old versions in the cache be cleaned up? The .NET and Rust SDKs don't do this.
 
-**Recommendation:** Use temp file + atomic rename for extraction. Trust the version-keyed path (no integrity check on subsequent loads). Don't clean up old versions. Set executable permission as a no-op safety measure. Use `<sdk-version>` from `pom.xml` injected into a `.properties` file in the JAR for version identification.
+**Recommendation:** Use temp file + atomic rename for extraction. Trust the version-keyed path after a cheap regular/non-empty check. Don't clean up old versions. Do not set executable permission on the shared library. Use the primary artifact version from the top-level POM, injected into a `.properties` resource, for version identification.
 
 **Resolution:**
+
+Extract the classpath resource `native/<classifier>/runtime.node` to
+`~/.copilot/runtime-cache/<version>/<classifier>/runtime.node` on first use.
+
+1. **Version source: the primary artifact version from the top-level POM.** Maven resource filtering writes `${project.version}` to a properties resource in the SDK artifact. `NativeRuntimeLoader` reads that resource; it does not use `Package.getImplementationVersion()`. This works for a packaged JAR and for IDE execution after Maven resource processing, because the filtered resource is also present under `target/classes`. A missing or blank version resource is a build/configuration error and must produce a clear exception rather than sharing an `unknown` cache directory.
+
+2. **Atomicity: unique sibling temp file plus atomic publish; no file lock.** The extraction sequence is:
+   1. Return an existing cache entry if it is a regular, non-empty file.
+   2. Create the cache directory and a unique temp file in that same directory with `CREATE_NEW`.
+   3. Copy the classpath resource to the temp file, reject an empty result, flush it, and call `FileChannel.force(true)` before publication.
+   4. Publish with `Files.move(temp, cached, ATOMIC_MOVE)`. The sibling temp file guarantees the move stays on one filesystem. Concurrent publishers contain identical version/classifier bytes, so either winner is valid. If another process publishes first and the move reports that the target exists, accept the winner after the same regular/non-empty check. If the filesystem does not support atomic moves, fail with a clear extraction error rather than expose a partially published native library.
+   5. Delete the caller's temp file in a `finally` block when publication does not consume it.
+
+The considered mechanisms have these tradeoffs:
+
+| Mechanism                                            | Pros                                                                                                                                                                          | Cons                                                                                                                                                                                                                                                                                  | Decision                                                                                                                               |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Unique temp file + atomic rename                     | Readers never observe a partially written final file; process crashes leave only an unreferenced temp file; no process-wide coordination; the common path is simple and fast. | Requires a sibling temp file and atomic-move support; concurrent processes can duplicate extraction work; abandoned temp files are possible after a hard crash; atomic replacement behavior differs when a target already exists, so the loser must explicitly accept a valid winner. | **Use this as the publication mechanism.**                                                                                             |
+| File locking                                         | Serializes writers and avoids duplicate extraction work; allows validation and repair to happen under one coordinator.                                                        | Locks are advisory; semantics differ across platforms and filesystems; overlapping locks in one JVM need special handling; lock files and exceptional cleanup add failure modes; a lock does not itself prevent a partial final write or prove integrity.                             | **❌❌❌Do not use.❌❌❌** The small amount of duplicate first-run I/O is preferable to permanent lock-management complexity.         |
+| Check, then extract, with size/checksum verification | A size check catches empty/truncated files; a cryptographic hash detects arbitrary corruption and can validate the winner of a race.                                          | Check-then-act alone is racy and is not a publication mechanism; size is not an integrity proof; hashing a 48-65 MB library on every startup adds I/O; a trusted expected hash must be shipped; local same-user modification remains subject to a check/load TOCTOU race.             | **Use only the cheap regular/non-empty sanity check.** Atomic publication prevents partial first writes; do not hash on every startup. |
+
+3. **Cache invalidation: version key plus cheap sanity check, not a startup hash.** Released artifact versions are immutable, so `<version>/<classifier>` is the invalidation boundary. On each load, require a regular, non-empty file. A missing, empty, or non-regular entry is treated as a cache miss and republished atomically. Do not compute a full-file hash on each startup.
+   - **.NET:** It does not perform Java-style runtime extraction at application startup. MSBuild downloads and extracts the version/platform npm tarball under `$(IntermediateOutputPath)copilot-cli/<version>/<platform>`, then copies `runtime.node` to the build output. An existing CLI binary is treated as the cache hit; there is no runtime size/hash validation, and `FfiRuntimeHost` loads the output library by absolute path.
+   - **Rust:** The build script SHA-512-verifies every downloaded or cached npm archive against npm integrity metadata. For the embedded in-process runtime library itself, runtime installation accepts an existing regular file when its length is greater than zero; otherwise it extracts non-empty trusted embedded bytes to a unique temp file and renames it into place. It does not hash the installed runtime library on every startup. Rust's CLI executable path is deliberately stricter (verified publication plus a size/header marker), but that is not the policy currently used for the shared runtime library.
+
+4. **Permissions: do not set the execute bit on `runtime.node`.** The `spike-3-6-platform-detection-linux-x64` spike now includes a direct JNA permission probe. In an Ubuntu 22.04/glibc container with OpenJDK 17, it compiled a shared object, set its mode to `0644`, loaded it by absolute path through JNA 5.16.0, invoked an exported function, and exited successfully:
+
+   ```text
+   FILE_MODE=644
+   INFO: PASS: JNA loaded and invoked a shared library with permissions [OWNER_WRITE, OTHERS_READ, GROUP_READ, OWNER_READ]
+   JAVA_EXIT_CODE=0
+   ```
+
+   Linux `dlopen` needs permission to read/map the shared object; it does not require a filesystem execute bit as `execve` does. A `noexec` mount can still reject executable mappings, and adding the file execute bit does not fix that mount policy. The Rust build packages the runtime library with mode `0644`, although its current runtime extraction helper also serves the CLI executable and incidentally changes the extracted copy to `0755`. .NET does not chmod the library before `NativeLibrary.Load`. Therefore Java must preserve normal extracted-file permissions and must not call `setExecutable(true)`.
+
+5. **Cleanup: none.** Do not delete old cache versions automatically. Versioned entries are retained until the user or an external cache-management policy removes them.
 
 ### 3.8 — JNA dependency management
 
