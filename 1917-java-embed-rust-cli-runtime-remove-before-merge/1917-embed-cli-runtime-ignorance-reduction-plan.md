@@ -527,6 +527,31 @@ The Java SDK currently has no JNA dependency. Adding it introduces:
 
 **Resolution:**
 
+Use JNA core 5.19.1 as an optional compile dependency of the SDK module:
+
+```xml
+<dependency>
+    <groupId>net.java.dev.jna</groupId>
+    <artifactId>jna</artifactId>
+    <version>5.19.1</version>
+    <optional>true</optional>
+</dependency>
+```
+
+Actionable dependency decisions:
+
+1. **Pin 5.19.1; do not use a Maven version range or the earlier `5.16.0 or later` recommendation.** Version 5.19.1 is the version exercised by `spike-3-8-graal-research`. Keep the version in a Maven property so upgrades are deliberate. A JNA upgrade must rerun the callback spike rather than relying only on compilation or ordinary downcalls.
+2. **Depend on `net.java.dev.jna:jna` only.** The required APIs (`Native`, `Library`, `Callback`, and `Pointer`) are in core JNA. Do not add `jna-platform`; the spike does not use it and the runtime ABI needs none of its platform wrappers.
+3. **Keep JNA optional because only InProcess transport needs it.** Maven optionality prevents subprocess-only consumers from receiving JNA transitively. Consequently, a consumer that explicitly selects InProcess transport must place JNA 5.19.1 on its runtime classpath in addition to the appropriate `copilot-sdk-java-runtime` classifier artifact. If InProcess is explicitly selected without JNA, fail with a clear dependency/setup error. The default subprocess transport must not initialize or load JNA.
+4. **Do not claim GraalVM Native Image support for the JNA-backed InProcess transport.** The spike proves that ordinary JNA downcalls work in the tested native executable, but the callback upcall required by `connection_open` does not. Application-specific proxy, reflection, and JNI reachability metadata allows Native Image to load the JNA interface and create the callback function pointer, but invoking it fails before Java callback code executes. More metadata is therefore not a demonstrated remedy.
+5. **Treat JVM support and Native Image support as separate compatibility claims.** On the regular JVM, the spike passed one synchronous callback and five callbacks from a Rust-created native thread, including `QueueInputStream` delivery and cleanup. That validates the callback design for the tested JVM stack; it does not validate a Native Image executable.
+
+Evidence and implementation details are in `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-8-graal-research/`, especially `java-program-that-invokes-rust-dll-jdk17/README.md` and its `reachability-metadata.json`.
+
+**Explicit scope of the GraalVM result:** The experiment ran only on Windows x64 using Oracle GraalVM 25.0.4+7.1, JNA 5.19.1 core, Native Build Tools Maven plugin 0.11.3, Maven 3.9.14, Visual Studio Build Tools 2022 17.14, and Windows SDK 10.0.26100.0. The 21 MB native executable built successfully, loaded `jnidispatch.dll` and the Rust DLL, and completed ordinary native calls. A same-thread callback then failed with `java.lang.Error: Invalid memory access`; the Rust-thread callback separately crashed in `JNIJavaCallTrampolineHolder.varargsJavaCallTrampoline`. Because the same-thread control also failed, the observed blocker is JNA callback upcalls in this configuration, not attachment of Rust-created threads.
+
+The spike did **not** test Linux, macOS, Windows arm64, any Linux libc/architecture combination, other GraalVM distributions or versions, other JNA versions, or Native Build Tools 1.1.6 (that plugin failed during Maven extension initialization under Maven 3.9.14 before Native Image compilation). Do not extrapolate the failure to every Native Image platform, but do not enable or advertise JNA-backed Native Image support on any platform without a passing callback test for that exact OS, architecture, GraalVM, and JNA combination. Until such a matrix passes, Native Image users must use subprocess transport rather than InProcess transport.
+
 ### 3.9 — `runtime.node` entrypoint argument format
 
 **Question:** What arguments does `copilot_runtime_host_start` expect, and how are they determined?
