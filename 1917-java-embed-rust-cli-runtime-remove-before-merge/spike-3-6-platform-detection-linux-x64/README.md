@@ -23,6 +23,24 @@ mvn clean package
 java -jar target/spike-3-6-platform-detection-linux-x64.jar
 ```
 
+## Verify shared-library permissions on Linux
+
+Build the fixture as a shared library, deliberately remove every execute bit,
+and pass its path to the spike:
+
+```sh
+cc -shared -fPIC -o target/libpermission_probe.so src/main/c/permission_probe.c
+chmod 0644 target/libpermission_probe.so
+java -jar target/spike-3-6-platform-detection-linux-x64.jar target/libpermission_probe.so
+```
+
+The spike fails if the file has an execute bit or if JNA cannot load and invoke
+it. A successful run prints:
+
+```
+INFO: PASS: JNA loaded and invoked a shared library with permissions [OWNER_READ, OWNER_WRITE, GROUP_READ, OTHERS_READ]
+```
+
 ## Expected output (glibc linux-x64)
 
 ```

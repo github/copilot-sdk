@@ -1,7 +1,12 @@
 package com.github.copilot.spike.platform;
 
+import com.sun.jna.Library;
+import com.sun.jna.Native;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -13,6 +18,10 @@ import java.util.logging.Logger;
  */
 public final class PlatformDetectionSpikeMain {
     private static final Logger LOGGER = Logger.getLogger(PlatformDetectionSpikeMain.class.getName());
+
+    private interface PermissionProbeLibrary extends Library {
+        int permission_probe_value();
+    }
 
     private PlatformDetectionSpikeMain() {
     }
@@ -51,5 +60,33 @@ public final class PlatformDetectionSpikeMain {
         LOGGER.log(Level.INFO, "--- Spike result ---");
         LOGGER.log(Level.INFO, "Classifier for native binary selection: {0}", classifier);
         LOGGER.log(Level.INFO, "Resource path would be: native/{0}/runtime.node", classifier);
+
+        if (args.length == 1) {
+            verifySharedLibraryLoadsWithoutExecutePermission(Path.of(args[0]));
+        } else {
+            LOGGER.log(Level.INFO, "No shared-library path supplied; skipping the mode-0644 JNA load probe");
+        }
+    }
+
+    private static void verifySharedLibraryLoadsWithoutExecutePermission(Path libraryPath) {
+        try {
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(libraryPath);
+            boolean executable = permissions.contains(PosixFilePermission.OWNER_EXECUTE)
+                    || permissions.contains(PosixFilePermission.GROUP_EXECUTE)
+                    || permissions.contains(PosixFilePermission.OTHERS_EXECUTE);
+            if (executable) {
+                throw new IllegalStateException("Permission probe library unexpectedly has an execute bit: " + permissions);
+            }
+
+            PermissionProbeLibrary library = Native.load(
+                    libraryPath.toAbsolutePath().toString(), PermissionProbeLibrary.class);
+            int value = library.permission_probe_value();
+            if (value != 42) {
+                throw new IllegalStateException("Permission probe returned " + value + " instead of 42");
+            }
+            LOGGER.log(Level.INFO, "PASS: JNA loaded and invoked a shared library with permissions {0}", permissions);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Unable to inspect shared-library permissions", ex);
+        }
     }
 }
