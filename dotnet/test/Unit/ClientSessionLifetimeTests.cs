@@ -587,6 +587,83 @@ public sealed class ClientSessionLifetimeTests
         }
     }
 
+    [Fact]
+    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Serializes_Concurrent_Enqueue_With_Final_Barrier()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ConfigureEventEnqueueDuringFinalBarrier();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var dispatchGate = typeof(CopilotSession).GetField("_eventDispatchGate", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(session)
+            ?? throw new InvalidOperationException("Event dispatch synchronization gate was not found.");
+        var enqueueStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseEnqueue = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queuedHandlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseQueuedHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task? enqueueTask = null;
+        using var subscription = session.On<AssistantTurnEndEvent>(evt =>
+        {
+            if (evt.Data.TurnId == "activity-reactivation-barrier")
+            {
+                lock (dispatchGate)
+                {
+                    var dispatchAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var task = Task.Run(() =>
+                    {
+                        dispatchAttempted.TrySetResult();
+                        DispatchEvent(session, new AssistantTurnEndEvent
+                        {
+                            Data = new AssistantTurnEndData { TurnId = "queued-after-concurrent-enqueue" }
+                        });
+                    });
+                    enqueueTask = task;
+                    dispatchAttempted.Task.GetAwaiter().GetResult();
+                    enqueueStarted.TrySetResult();
+                    releaseEnqueue.Task.GetAwaiter().GetResult();
+                }
+            }
+            else if (evt.Data.TurnId == "queued-after-concurrent-enqueue")
+            {
+                queuedHandlerStarted.TrySetResult();
+                releaseQueuedHandler.Task.GetAwaiter().GetResult();
+            }
+        });
+
+        var completionTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "serialize a concurrent enqueue with the final barrier" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        try
+        {
+            await enqueueStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.Delay(200);
+            Assert.False(enqueueTask!.IsCompleted, "DispatchEvent must be blocked by the shared enqueue/barrier gate.");
+            Assert.False(completionTask.IsCompleted, "Completion must not cross an event enqueue that is contending with the final barrier.");
+
+            releaseEnqueue.TrySetResult();
+            await enqueueTask!.WaitAsync(TimeSpan.FromSeconds(2));
+            var first = await Task.WhenAny(queuedHandlerStarted.Task, completionTask)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Same(queuedHandlerStarted.Task, first);
+            Assert.False(completionTask.IsCompleted, "Completion must wait for the in-flight event's handler to cross the FIFO barrier.");
+
+            releaseQueuedHandler.TrySetResult();
+            var response = await completionTask;
+            Assert.Equal("completed response", response?.Data.Content);
+        }
+        finally
+        {
+            releaseEnqueue.TrySetResult();
+            releaseQueuedHandler.TrySetResult();
+        }
+    }
+
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -799,6 +876,7 @@ public sealed class ClientSessionLifetimeTests
             ConfigureDroppedIdleCompletion();
             _enqueueDuringFinalBarrier = true;
         }
+
 
         public void CompleteReactivatedActivity()
         {
