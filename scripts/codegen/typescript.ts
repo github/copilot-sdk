@@ -338,11 +338,7 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
 
 // ── Session Events ──────────────────────────────────────────────────────────
 
-async function generateSessionEvents(schemaPath?: string): Promise<void> {
-    console.log("TypeScript: generating session-events...");
-
-    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+export async function generateTypeScriptSessionEventsCode(schema: JSONSchema7): Promise<string> {
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
@@ -355,7 +351,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         const resolvedVariant = resolveSchema(variantSchema, definitionCollections) ?? variantSchema;
         const dataSchema = resolvedVariant.properties?.data as JSONSchema7 | undefined;
         const resolvedData = dataSchema ? resolveSchema(dataSchema, definitionCollections) ?? dataSchema : undefined;
-        if (!isSchemaInternal(resolvedData)) {
+        if (!isSchemaInternal(resolvedVariant) && !isSchemaInternal(resolvedData)) {
             return true;
         }
 
@@ -415,6 +411,15 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
             `$1/** @internal */\n$2`
         );
     }
+    return annotatedTs;
+}
+
+async function generateSessionEvents(schemaPath?: string): Promise<void> {
+    console.log("TypeScript: generating session-events...");
+
+    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
+    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+    const annotatedTs = await generateTypeScriptSessionEventsCode(schema);
     const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }

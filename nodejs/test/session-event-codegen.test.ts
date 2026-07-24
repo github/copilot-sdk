@@ -5,8 +5,59 @@ import { generateSessionEventsCode as generateCSharpSessionEventsCode } from "..
 import { generateGoSessionEventsCode } from "../../scripts/codegen/go.ts";
 import { generatePythonSessionEventsCode } from "../../scripts/codegen/python.ts";
 import { generateSessionEventsCode as generateRustSessionEventsCode } from "../../scripts/codegen/rust.ts";
+import { generateTypeScriptSessionEventsCode } from "../../scripts/codegen/typescript.ts";
 
 describe("session event codegen", () => {
+    it("excludes internal event wrappers from the public TypeScript union", async () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        { $ref: "#/definitions/PublicEvent" },
+                        { $ref: "#/definitions/InternalEvent" },
+                    ],
+                },
+                PublicEvent: {
+                    type: "object",
+                    required: ["type", "data"],
+                    properties: {
+                        type: { const: "session.public" },
+                        data: { $ref: "#/definitions/PublicData" },
+                    },
+                },
+                PublicData: {
+                    type: "object",
+                    required: ["message"],
+                    properties: {
+                        message: { type: "string" },
+                    },
+                },
+                InternalEvent: {
+                    type: "object",
+                    visibility: "internal",
+                    required: ["type", "data"],
+                    properties: {
+                        type: { const: "session.internal" },
+                        data: { $ref: "#/definitions/InternalData" },
+                    },
+                },
+                InternalData: {
+                    type: "object",
+                    required: ["attempt"],
+                    properties: {
+                        attempt: { type: "number" },
+                    },
+                },
+            },
+        };
+
+        const code = await generateTypeScriptSessionEventsCode(schema);
+
+        expect(code).toContain("export interface PublicEvent");
+        expect(code).not.toContain("InternalEvent");
+        expect(code).not.toContain("InternalData");
+    });
+
     it("maps special schema formats to the expected Python types", () => {
         const schema: JSONSchema7 = {
             definitions: {

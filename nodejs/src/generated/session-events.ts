@@ -39,7 +39,6 @@ export type SessionEvent =
   | UserMessageEvent
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
-  | AssistantTurnRetryEvent
   | AssistantIntentEvent
   | AssistantServerToolProgressEvent
   | AssistantReasoningEvent
@@ -53,7 +52,6 @@ export type SessionEvent =
   | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
-  | ModelCallStartEvent
   | AbortEvent
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
@@ -3190,54 +3188,6 @@ export interface AssistantTurnStartData {
   turnId: string;
 }
 /**
- * Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
- */
-/** @internal */
-export interface AssistantTurnRetryEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: AssistantTurnRetryData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "assistant.turn_retry".
-   */
-  type: "assistant.turn_retry";
-}
-/**
- * Metadata for an additional model inference attempt within an existing assistant turn
- */
-export interface AssistantTurnRetryData {
-  /**
-   * Model identifier used for this retry, when known
-   */
-  model?: string;
-  /**
-   * Provider or runtime classification that caused the retry, when known
-   */
-  reason?: string;
-  /**
-   * Identifier of the turn whose model inference is being retried
-   */
-  turnId: string;
-}
-/**
  * Session event "assistant.intent". Agent intent description for current activity or plan
  */
 export interface AssistantIntentEvent {
@@ -4332,50 +4282,6 @@ export interface ModelCallFailureRequestFingerprint {
    * Number of "tool" result messages in the request
    */
   toolResultMessageCount: number;
-}
-/**
- * Session event "model.call_start". Model API dispatch metadata for internal telemetry
- */
-/** @internal */
-export interface ModelCallStartEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: ModelCallStartData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "model.call_start".
-   */
-  type: "model.call_start";
-}
-/**
- * Model API dispatch metadata for internal telemetry
- */
-export interface ModelCallStartData {
-  /**
-   * Model identifier used for this API call, when known
-   */
-  model?: string;
-  /**
-   * Identifier of the assistant turn that initiated the model call
-   */
-  turnId: string;
 }
 /**
  * Session event "abort". Turn abort information including the reason for termination
