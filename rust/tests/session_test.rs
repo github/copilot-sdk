@@ -2671,18 +2671,17 @@ async fn send_and_wait_drop_clears_waiter() {
     assert_eq!(result.unwrap(), "msg-after-abort");
 }
 
-/// Cancel-safety regression: `Session::stop_event_loop` must NOT abort
-/// the event-loop task mid-handler. An in-flight handler (here a slow
-/// `userInput.request` callback) must run to completion before the loop
-/// exits — the CLI receives the response on the wire before the session
-/// tears down.
-///
-/// Closes RFD-400 review finding #3.
+/// Spawned request handlers own enough state to finish even after the
+/// parent session event loop stops.
 #[tokio::test]
-async fn stop_event_loop_completes_in_flight_handler() {
-    struct SlowHandler;
+async fn spawned_handler_can_finish_after_stop_event_loop() {
+    struct ControlledHandler {
+        started: Arc<tokio::sync::Notify>,
+        release: Arc<tokio::sync::Notify>,
+    }
+
     #[async_trait]
-    impl UserInputHandler for SlowHandler {
+    impl UserInputHandler for ControlledHandler {
         async fn handle(
             &self,
             _session_id: SessionId,
@@ -2690,7 +2689,8 @@ async fn stop_event_loop_completes_in_flight_handler() {
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
         ) -> Option<UserInputResponse> {
-            tokio::time::sleep(Duration::from_millis(150)).await;
+            self.started.notify_one();
+            self.release.notified().await;
             Some(UserInputResponse {
                 answer: "completed".to_string(),
                 was_freeform: false,
@@ -2698,9 +2698,14 @@ async fn stop_event_loop_completes_in_flight_handler() {
         }
     }
 
+    let started = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let handler = Arc::new(ControlledHandler {
+        started: started.clone(),
+        release: release.clone(),
+    });
     let (session, mut server) =
-        create_session_pair_with_config(|cfg| cfg.with_user_input_handler(Arc::new(SlowHandler)))
-            .await;
+        create_session_pair_with_config(move |cfg| cfg.with_user_input_handler(handler)).await;
     let session = Arc::new(session);
 
     server
@@ -2716,40 +2721,27 @@ async fn stop_event_loop_completes_in_flight_handler() {
         )
         .await;
 
-    // Give the loop a moment to dispatch into the handler.
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    timeout(TIMEOUT, started.notified()).await.unwrap();
 
-    // Now request shutdown. The loop is parked in handle_request awaiting
-    // the slow handler. `notify_one()` buffers the signal until the loop
-    // re-enters its select, which can only happen after the handler
-    // returns and the response is sent on the wire.
     let stop_handle = tokio::spawn({
         let session = session.clone();
         async move { session.stop_event_loop().await }
     });
 
-    // Verify the handler's response lands on the wire BEFORE the loop
-    // exits — i.e. stop_event_loop did not abort mid-handler.
+    // The parent loop does not wait for independently spawned handlers.
+    timeout(TIMEOUT, stop_handle).await.unwrap().unwrap();
+
+    // The handler still owns its dispatch context and can answer afterward.
+    release.notify_one();
     let response = timeout(Duration::from_secs(2), server.read_response())
         .await
         .unwrap();
     assert_eq!(response["id"], 900);
     assert_eq!(response["result"]["answer"], "completed");
-
-    // stop_event_loop completes after the handler returns and the loop
-    // observes the buffered shutdown signal on its next select iteration.
-    timeout(Duration::from_secs(2), stop_handle)
-        .await
-        .unwrap()
-        .unwrap();
 }
 
-/// Cancel-safety regression: dropping a Session does NOT abort the event
-/// loop mid-handler. The loop sees the buffered shutdown signal on its
-/// next select iteration and exits cleanly. This is the Drop equivalent
-/// of stop_event_loop_completes_in_flight_handler; closes RFD-400 review
-/// finding #3 for the implicit-drop path that used to call
-/// `JoinHandle::abort()`.
+/// Dropping a Session does not abort an independently spawned request
+/// handler; the handler may finish after the parent loop exits.
 #[tokio::test]
 async fn drop_session_does_not_abort_handler() {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -2808,6 +2800,47 @@ async fn drop_session_does_not_abort_handler() {
         handler_completed.load(Ordering::SeqCst),
         "handler must run to completion despite Session being dropped"
     );
+}
+
+#[tokio::test]
+async fn panicking_request_handler_returns_internal_error() {
+    struct PanickingHandler;
+
+    #[async_trait]
+    impl UserInputHandler for PanickingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _question: String,
+            _choices: Option<Vec<String>>,
+            _allow_freeform: Option<bool>,
+        ) -> Option<UserInputResponse> {
+            panic!("handler exploded");
+        }
+    }
+
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_user_input_handler(Arc::new(PanickingHandler))
+    })
+    .await;
+
+    server
+        .send_request(
+            902,
+            "userInput.request",
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "question": "panic-test",
+                "choices": null,
+                "allowFreeform": true,
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 902);
+    assert_eq!(response["error"]["code"], -32603);
+    assert_eq!(response["error"]["message"], "request handler panicked");
 }
 
 /// `Session::cancellation_token()` returns a child token that fires when

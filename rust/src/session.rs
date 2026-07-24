@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures_util::FutureExt;
 use parking_lot::Mutex as ParkingLotMutex;
 use serde_json::Value;
 use tokio::sync::oneshot;
@@ -314,9 +316,8 @@ impl Session {
     ///
     /// Cooperative: signals shutdown via the session's [`CancellationToken`]
     /// and awaits the loop's natural exit rather than aborting the task.
-    /// Any in-flight handler (permission callback, tool call, elicitation
-    /// response) completes before the loop exits, so the CLI never sees a
-    /// half-handled request. See RFD-400 review finding #3.
+    /// Request handlers spawned by the loop are independent tasks and may
+    /// finish after this method returns, matching the other language SDKs.
     pub async fn stop_event_loop(&self) {
         self.shutdown.cancel();
         let handle = self.event_loop.lock().take();
@@ -633,12 +634,8 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         // Cooperative shutdown: cancel the event loop's token to signal
-        // exit between iterations. The loop will see the cancellation on
-        // its next select poll and break cleanly without interrupting an
-        // in-flight handler. We do NOT abort the JoinHandle — that would
-        // land at any await point in the loop body, potentially leaving
-        // the CLI with an unanswered request id. RFD-400 review finding
-        // #3.
+        // exit between iterations. Spawned request handlers own their cloned
+        // dispatch state and may finish after the parent loop exits.
         //
         // The handle itself is left in `event_loop` to be reaped by the
         // tokio runtime when it next polls; we intentionally don't await
@@ -1481,6 +1478,8 @@ fn spawn_event_loop(
                         let canvas_handler = canvas_handler.clone();
                         let session_fs_provider = session_fs_provider.clone();
                         let bearer_token_providers = bearer_token_providers.clone();
+                        let request_id = request.id;
+                        let request_method = request.method.clone();
                         tokio::spawn(
                             async move {
                                 let ctx = RequestDispatchContext {
@@ -1492,7 +1491,24 @@ fn spawn_event_loop(
                                     session_fs_provider: session_fs_provider.as_ref(),
                                     bearer_token_providers: &bearer_token_providers,
                                 };
-                                handle_request(&session_id, ctx, request).await;
+                                if AssertUnwindSafe(handle_request(&session_id, ctx, request))
+                                    .catch_unwind()
+                                    .await
+                                    .is_err()
+                                {
+                                    warn!(
+                                        request_id,
+                                        method = request_method,
+                                        "session request handler panicked"
+                                    );
+                                    let _ = send_error_response(
+                                        &client,
+                                        request_id,
+                                        error_codes::INTERNAL_ERROR,
+                                        "request handler panicked",
+                                    )
+                                    .await;
+                                }
                             }
                             .instrument(span),
                         );
