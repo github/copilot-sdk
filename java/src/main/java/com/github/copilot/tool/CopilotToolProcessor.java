@@ -405,7 +405,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
             String typeSchema;
             if (paramAnnotation != null && !paramAnnotation.schema().isEmpty()) {
                 try {
-                    typeSchema = jsonToMapOfSource(paramAnnotation.schema().trim());
+                    typeSchema = jsonToMapOfSource(paramAnnotation.schema());
                 } catch (IllegalArgumentException e) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
                             "@CopilotToolParam schema is not valid JSON: " + e.getMessage(), param);
