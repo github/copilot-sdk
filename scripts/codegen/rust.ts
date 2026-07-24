@@ -68,6 +68,24 @@ const EXTERNAL_SCHEMA_RUST_TYPE_MODULE: Record<string, Record<string, string>> =
 	},
 };
 
+// account.getQuota can include this dotcom metadata before the bundled CLI schema advertises it.
+function addAccountQuotaCreditsUsed(schema: ApiSchema): void {
+	for (const definitions of [schema.definitions, schema.$defs]) {
+		const snapshot = definitions?.AccountQuotaSnapshot;
+		if (!snapshot || typeof snapshot !== "object") continue;
+
+		const properties = snapshot.properties;
+		if (!properties) continue;
+
+		properties.creditsUsed ??= {
+			type: "number",
+			minimum: 0,
+			description:
+				"Number of AI credits used so far this period, when reported by dotcom",
+		};
+	}
+}
+
 function rustDeprecatedAttributes(indent = ""): string[] {
 	return [`${indent}#[doc(hidden)]`, `${indent}#[deprecated]`];
 }
@@ -2165,6 +2183,7 @@ async function generate(): Promise<void> {
 	const apiRaw = normalizeSchemaBrandCasing(
 		JSON.parse(await fs.readFile(apiSchemaPath, "utf-8")) as ApiSchema,
 	);
+	addAccountQuotaCreditsUsed(apiRaw);
 
 	const sessionEventsSchema = propagateInternalVisibility(
 		postProcessSchema(

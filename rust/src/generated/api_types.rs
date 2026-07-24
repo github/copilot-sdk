@@ -703,6 +703,9 @@ pub struct AccountGetQuotaRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountQuotaSnapshot {
+    /// Number of AI credits used so far this period, when reported by dotcom
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits_used: Option<f64>,
     /// Number of requests included in the entitlement, or -1 for unlimited entitlements
     pub entitlement_requests: i64,
     /// Whether the user has an unlimited usage entitlement

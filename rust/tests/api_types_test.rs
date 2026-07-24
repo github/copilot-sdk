@@ -4,8 +4,9 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    AccountQuotaSnapshot, Extension, ExtensionList, ExtensionSource, ExtensionStatus,
+    ExtensionsDisableRequest, ExtensionsEnableRequest, FleetStartRequest, FleetStartResult,
+    TasksStartAgentRequest,
 };
 
 #[test]
@@ -82,6 +83,45 @@ fn tasks_start_agent_request_fields_are_accessible() {
     assert_eq!(request.agent_type, "general-purpose");
     assert_eq!(request.name, "sdk-test-task");
     assert_eq!(request.description.as_deref(), Some("SDK task agent"));
+}
+
+#[test]
+fn account_quota_snapshot_supports_omitted_credits_used() {
+    let snapshot: AccountQuotaSnapshot =
+        serde_json::from_value(account_quota_snapshot_json()).unwrap();
+
+    assert_eq!(snapshot.credits_used, None);
+    assert!(
+        serde_json::to_value(snapshot)
+            .unwrap()
+            .get("creditsUsed")
+            .is_none()
+    );
+}
+
+#[test]
+fn account_quota_snapshot_credits_used_round_trips_as_camel_case() {
+    let mut json = account_quota_snapshot_json();
+    json["creditsUsed"] = serde_json::json!(12.5);
+
+    let snapshot: AccountQuotaSnapshot = serde_json::from_value(json).unwrap();
+    assert_eq!(snapshot.credits_used, Some(12.5));
+
+    let serialized = serde_json::to_value(snapshot).unwrap();
+    assert_eq!(serialized["creditsUsed"], serde_json::json!(12.5));
+    assert!(serialized.get("credits_used").is_none());
+}
+
+fn account_quota_snapshot_json() -> serde_json::Value {
+    serde_json::json!({
+        "entitlementRequests": 100,
+        "isUnlimitedEntitlement": false,
+        "overage": 0,
+        "overageAllowedWithExhaustedQuota": false,
+        "remainingPercentage": 75,
+        "usageAllowedWithExhaustedQuota": true,
+        "usedRequests": 25
+    })
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {
