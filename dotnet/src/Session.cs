@@ -590,9 +590,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
         // version update from the channel write.
         lock (_eventDispatchGate)
         {
+            // DisposeAsync completes the channel under this same gate. Notifications
+            // that race with session.destroy are intentionally ignored, matching the
+            // pre-barrier behavior instead of failing the JSON-RPC notification pump.
+            if (Volatile.Read(ref _isDisposed) != 0)
+            {
+                return;
+            }
+
             Interlocked.Increment(ref _eventEnqueueVersion);
             var queued = _eventChannel.Writer.TryWrite(new EventItem(sessionEvent));
-            ObjectDisposedException.ThrowIf(!queued, this);
+            Debug.Assert(queued, "The event channel cannot complete outside the dispatch gate.");
         }
     }
 
@@ -2033,7 +2041,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return;
         }
 
-        _eventChannel.Writer.TryComplete();
+        lock (_eventDispatchGate)
+        {
+            _eventChannel.Writer.TryComplete();
+        }
 
         try
         {

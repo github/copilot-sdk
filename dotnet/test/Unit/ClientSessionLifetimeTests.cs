@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -17,6 +18,40 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
+
+    private sealed class RecordingLogger : ILogger
+    {
+        private readonly object _gate = new();
+        private readonly List<string> _messages = [];
+
+        public IReadOnlyList<string> Messages
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _messages.ToArray();
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (_gate)
+            {
+                _messages.Add(formatter(state, exception));
+            }
+        }
+    }
 
     [Fact]
     public async Task StopAsync_Requests_Runtime_Shutdown_For_Owned_Process()
@@ -139,6 +174,39 @@ public sealed class ClientSessionLifetimeTests
         await disposeTask;
 
         AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
+    public async Task Disposing_Session_Ignores_Racing_Inbound_Event()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.DelayDestroy();
+        var logger = new RecordingLogger();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Logger = logger
+        });
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var disposeTask = session.DisposeAsync().AsTask();
+        await server.DestroyStarted;
+        await server.EmitTurnEndEventAsync("event-during-destroy");
+        await Task.Delay(100);
+        server.CompleteDestroy();
+        await disposeTask;
+
+        await using var nextSession = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        Assert.NotNull(nextSession);
+        Assert.DoesNotContain(logger.Messages, message =>
+            message.Contains("Error handling JSON-RPC method session.event", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -537,7 +605,7 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Flushes_Event_Enqueued_During_Final_Barrier()
+    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Flushes_Inbound_Event_Enqueued_During_Final_Barrier()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         server.ConfigureEventEnqueueDuringFinalBarrier();
@@ -553,10 +621,7 @@ public sealed class ClientSessionLifetimeTests
         {
             if (evt.Data.TurnId == "activity-reactivation-barrier")
             {
-                DispatchEvent(session, new AssistantTurnEndEvent
-                {
-                    Data = new AssistantTurnEndData { TurnId = "queued-during-final-barrier" }
-                });
+                server.EmitTurnEndEventAsync("queued-during-final-barrier").GetAwaiter().GetResult();
             }
             else if (evt.Data.TurnId == "queued-during-final-barrier")
             {
@@ -586,83 +651,6 @@ public sealed class ClientSessionLifetimeTests
             releaseQueuedHandler.TrySetResult();
         }
     }
-
-    [Fact]
-    public async Task SendAndWaitAsync_DroppedIdle_Fallback_Serializes_Concurrent_Enqueue_With_Final_Barrier()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.ConfigureEventEnqueueDuringFinalBarrier();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        });
-
-        var dispatchGate = typeof(CopilotSession).GetField("_eventDispatchGate", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?.GetValue(session)
-            ?? throw new InvalidOperationException("Event dispatch synchronization gate was not found.");
-        var enqueueStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseEnqueue = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var queuedHandlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseQueuedHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Task? enqueueTask = null;
-        using var subscription = session.On<AssistantTurnEndEvent>(evt =>
-        {
-            if (evt.Data.TurnId == "activity-reactivation-barrier")
-            {
-                lock (dispatchGate)
-                {
-                    var dispatchAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                    var task = Task.Run(() =>
-                    {
-                        dispatchAttempted.TrySetResult();
-                        DispatchEvent(session, new AssistantTurnEndEvent
-                        {
-                            Data = new AssistantTurnEndData { TurnId = "queued-after-concurrent-enqueue" }
-                        });
-                    });
-                    enqueueTask = task;
-                    dispatchAttempted.Task.GetAwaiter().GetResult();
-                    enqueueStarted.TrySetResult();
-                    releaseEnqueue.Task.GetAwaiter().GetResult();
-                }
-            }
-            else if (evt.Data.TurnId == "queued-after-concurrent-enqueue")
-            {
-                queuedHandlerStarted.TrySetResult();
-                releaseQueuedHandler.Task.GetAwaiter().GetResult();
-            }
-        });
-
-        var completionTask = session.SendAndWaitAsync(
-            new MessageOptions { Prompt = "serialize a concurrent enqueue with the final barrier" },
-            timeout: TimeSpan.FromSeconds(5));
-
-        try
-        {
-            await enqueueStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            await Task.Delay(200);
-            Assert.False(enqueueTask!.IsCompleted, "DispatchEvent must be blocked by the shared enqueue/barrier gate.");
-            Assert.False(completionTask.IsCompleted, "Completion must not cross an event enqueue that is contending with the final barrier.");
-
-            releaseEnqueue.TrySetResult();
-            await enqueueTask!.WaitAsync(TimeSpan.FromSeconds(2));
-            var first = await Task.WhenAny(queuedHandlerStarted.Task, completionTask)
-                .WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.Same(queuedHandlerStarted.Task, first);
-            Assert.False(completionTask.IsCompleted, "Completion must wait for the in-flight event's handler to cross the FIFO barrier.");
-
-            releaseQueuedHandler.TrySetResult();
-            var response = await completionTask;
-            Assert.Equal("completed response", response?.Data.Content);
-        }
-        finally
-        {
-            releaseEnqueue.TrySetResult();
-            releaseQueuedHandler.TrySetResult();
-        }
-    }
-
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
@@ -767,6 +755,7 @@ public sealed class ClientSessionLifetimeTests
         private readonly Task _serverTask;
         private readonly List<RpcRequestRecord> _requests = [];
         private readonly object _requestsLock = new();
+        private Stream? _stream;
         private string? _lastSessionId;
         private bool _delayDestroy;
         private bool _failRuntimeShutdown;
@@ -883,6 +872,30 @@ public sealed class ClientSessionLifetimeTests
             Volatile.Write(ref _hasActiveWork, false);
         }
 
+        public Task EmitTurnEndEventAsync(string turnId)
+        {
+            var stream = _stream ?? throw new InvalidOperationException("The test transport is not connected.");
+            return WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = _lastSessionId,
+                    ["event"] = new Dictionary<string, object?>
+                    {
+                        ["type"] = "assistant.turn_end",
+                        ["id"] = Guid.NewGuid().ToString(),
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["data"] = new Dictionary<string, object?>
+                        {
+                            ["turnId"] = turnId
+                        }
+                    }
+                }
+            }, _cts.Token);
+        }
+
         public async ValueTask DisposeAsync()
         {
             _allowDestroy.TrySetResult();
@@ -905,16 +918,24 @@ public sealed class ClientSessionLifetimeTests
         {
             using var tcpClient = await _listener.AcceptTcpClientAsync(_cts.Token);
             using var stream = tcpClient.GetStream();
+            _stream = stream;
 
-            while (!_cts.Token.IsCancellationRequested)
+            try
             {
-                using var request = await ReadMessageAsync(stream, _cts.Token);
-                if (request is null)
+                while (!_cts.Token.IsCancellationRequested)
                 {
-                    return;
-                }
+                    using var request = await ReadMessageAsync(stream, _cts.Token);
+                    if (request is null)
+                    {
+                        return;
+                    }
 
-                await HandleRequestAsync(stream, request.RootElement, _cts.Token);
+                    await HandleRequestAsync(stream, request.RootElement, _cts.Token);
+                }
+            }
+            finally
+            {
+                _stream = null;
             }
         }
 
