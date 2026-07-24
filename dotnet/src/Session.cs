@@ -81,6 +81,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
 
     private int _isDisposed;
+    private readonly object _eventDispatchGate = new();
     private long _eventEnqueueVersion;
 
     private abstract record EventDispatchItem;
@@ -417,8 +418,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         activity = await Rpc.Metadata.ActivityAsync(waitCancellationToken).ConfigureAwait(false);
                         if (!activity.HasActiveWork)
                         {
-                            var stableEventVersion = Volatile.Read(ref _eventEnqueueVersion);
-                            await FlushEventDispatchAsync(waitCancellationToken).ConfigureAwait(false);
+                            var stableEventVersion = await FlushEventDispatchAsync(waitCancellationToken).ConfigureAwait(false);
                             if (stableEventVersion != Volatile.Read(ref _eventEnqueueVersion))
                             {
                                 continue;
@@ -583,27 +583,39 @@ public sealed partial class CopilotSession : IAsyncDisposable
         // never completes (multi-client permission scenario).
         _ = HandleBroadcastEventAsync(sessionEvent);
 
-        // Queue the event for serial processing by user handlers. Increment first so
-        // a completion monitor can detect an event even if this thread is preempted
-        // before the channel write.
-        Interlocked.Increment(ref _eventEnqueueVersion);
-        _eventChannel.Writer.TryWrite(new EventItem(sessionEvent));
+        // Queueing and publishing the new version share the same gate used to capture
+        // a completion barrier's stable version. Publish first so a monitor whose
+        // barrier is already queued cannot observe the old version after this event
+        // is written behind it; the gate prevents a new barrier from splitting the
+        // version update from the channel write.
+        lock (_eventDispatchGate)
+        {
+            Interlocked.Increment(ref _eventEnqueueVersion);
+            var queued = _eventChannel.Writer.TryWrite(new EventItem(sessionEvent));
+            ObjectDisposedException.ThrowIf(!queued, this);
+        }
     }
 
     /// <summary>
     /// Waits until every event already queued for this session has been delivered to
     /// user handlers. Events arriving after the barrier remain queued behind it.
     /// </summary>
-    private async Task FlushEventDispatchAsync(CancellationToken cancellationToken)
+    private async Task<long> FlushEventDispatchAsync(CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var queued = _eventChannel.Writer.TryWrite(new EventBarrier(completion));
-        ObjectDisposedException.ThrowIf(!queued, this);
+        long stableEventVersion;
+        lock (_eventDispatchGate)
+        {
+            stableEventVersion = _eventEnqueueVersion;
+            var queued = _eventChannel.Writer.TryWrite(new EventBarrier(completion));
+            ObjectDisposedException.ThrowIf(!queued, this);
+        }
 
         using var registration = cancellationToken.Register(
             static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(),
             completion);
         await completion.Task.ConfigureAwait(false);
+        return stableEventVersion;
     }
 
     /// <summary>
