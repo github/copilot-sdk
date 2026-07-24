@@ -337,6 +337,20 @@ export interface CopilotClientOptions {
     telemetry?: TelemetryConfig;
 
     /**
+     * When `true`, the runtime child process is spawned in its own process group
+     * (`detached: true` on Unix). This enables the SDK to signal the entire
+     * process tree on `stop()`/`forceStop()` via a single group kill, guaranteeing
+     * that descendant processes (tool subprocesses, shells, MCP servers) are reaped
+     * together with the CLI rather than orphaned.
+     *
+     * On Windows this is ignored — the SDK already uses `taskkill /T` for tree kill.
+     *
+     * @default false
+     * @see https://github.com/github/copilot-sdk/issues/1935
+     */
+    processGroup?: boolean;
+
+    /**
      * Advanced: callback that returns the current W3C Trace Context for distributed
      * trace propagation.  Most users do not need this — the {@link telemetry} config
      * alone is sufficient to collect traces from the CLI.
