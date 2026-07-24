@@ -552,6 +552,8 @@ Evidence and implementation details are in `1917-java-embed-rust-cli-runtime-rem
 
 The spike did **not** test Linux, macOS, Windows arm64, any Linux libc/architecture combination, other GraalVM distributions or versions, other JNA versions, or Native Build Tools 1.1.6 (that plugin failed during Maven extension initialization under Maven 3.9.14 before Native Image compilation). Do not extrapolate the failure to every Native Image platform, but do not enable or advertise JNA-backed Native Image support on any platform without a passing callback test for that exact OS, architecture, GraalVM, and JNA combination. Until such a matrix passes, Native Image users must use subprocess transport rather than InProcess transport.
 
+❌❌❌❌As a result of this spike, we will not pursue GraalVM native image support at all for this feature. The responsible human has decided that if someone wants native performance, they will choose Rust.❌❌❌
+
 ### 3.9 — `runtime.node` entrypoint argument format
 
 **Question:** What arguments does `copilot_runtime_host_start` expect, and how are they determined?
