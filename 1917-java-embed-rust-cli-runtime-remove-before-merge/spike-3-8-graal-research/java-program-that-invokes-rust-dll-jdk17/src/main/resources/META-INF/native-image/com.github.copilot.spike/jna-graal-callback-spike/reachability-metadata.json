@@ -1,0 +1,63 @@
+{
+  "reflection": [
+    {
+      "type": {
+        "proxy": ["com.github.copilot.spike.CallbackTestLibrary"]
+      }
+    },
+    {
+      "type": "com.github.copilot.spike.CallbackTestLibrary$OutboundCallback",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "com.sun.jna.Pointer",
+            "com.sun.jna.Pointer",
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.github.copilot.spike.CallbackSpikeMain$OutboundCallbackImpl",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "com.sun.jna.Pointer",
+            "com.sun.jna.Pointer",
+            "int"
+          ]
+        }
+      ]
+    }
+  ],
+  "jni": [
+    {
+      "type": "com.github.copilot.spike.CallbackTestLibrary$OutboundCallback",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "com.sun.jna.Pointer",
+            "com.sun.jna.Pointer",
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.github.copilot.spike.CallbackSpikeMain$OutboundCallbackImpl",
+      "methods": [
+        {
+          "name": "invoke",
+          "parameterTypes": [
+            "com.sun.jna.Pointer",
+            "com.sun.jna.Pointer",
+            "int"
+          ]
+        }
+      ]
+    }
+  ]
+}
