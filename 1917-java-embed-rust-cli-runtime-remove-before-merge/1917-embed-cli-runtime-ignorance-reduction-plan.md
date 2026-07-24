@@ -554,18 +554,33 @@ The spike did **not** test Linux, macOS, Windows arm64, any Linux libc/architect
 
 ❌❌❌❌As a result of this spike, we will not pursue GraalVM native image support at all for this feature. The responsible human has decided that if someone wants native performance, they will choose Rust.❌❌❌
 
-### 3.9 — `runtime.node` entrypoint argument format
+### 3.9 — C ABI parameter semantics
 
-**Question:** What arguments does `copilot_runtime_host_start` expect, and how are they determined?
+**Question:** What are the exact semantics of every parameter across all five C ABI functions?
 
-The .NET PR passes an `entrypoint` path and `args`. The Rust PR similarly passes entrypoint and args as byte buffers. We need to understand:
+The C ABI table at the top of this plan names each parameter but does not explain what values to pass or what invariants the runtime enforces. An implementer reading the table alone cannot write production code.
 
-1. What is the `entrypoint` parameter? Is it the path to the `runtime.node` binary itself, or a path to a Node.js entry script?
-2. What are the `args`? JSON-formatted startup options? CLI-style flags?
-3. Does the host need the `runtime.node` file path passed as entrypoint, or does it use the loaded library's own location?
-4. How does authentication context (GitHub token, proxy URLs for E2E) flow into the in-process host?
+#### `copilot_runtime_host_start(argv_json, argv_json_len, env_json, env_json_len)`
 
-**Spike needed:** Read the `copilot_runtime_host_start` implementation in `github/copilot-agent-runtime` `src/runtime/src/interop/cabi.rs` to understand the expected arguments. Alternatively, study how the .NET and Rust SDKs construct the entrypoint and args.
+1. **`argv_json`** — The plan table shows the example `["copilot","--embedded-host"]`. What is the full set of valid arguments? Is `--embedded-host` required, optional, or inferred? What other flags does the runtime accept or require in embedded mode?
+2. **`env_json`** — The plan says this is an optional JSON object of environment overrides. What are the valid keys? At minimum: what key carries the GitHub auth token, what keys carry proxy URLs, what key controls log level, and are there any other keys the runtime reads? A complete key inventory is required — not just "study the .NET and Rust SDKs."
+3. **Nullability** — Can either buffer be passed as a null pointer with length 0? Is a zero-length `argv_json` treated as "use defaults" or as an error?
+4. **Return value** — When `host_start` returns 0 (failure), is there a companion error-retrieval function, or is the only diagnostic stderr output? (Relates to 3.10 but the answer determines how much error context the Java caller can surface.)
+
+#### `copilot_runtime_connection_open(server_id, on_outbound, user_data, ext_source, ext_source_len, ext_name, ext_name_len, conn_token, conn_token_len)`
+
+5. **`ext_source`** — What is this semantically? An extension/plugin identifier? A source URI? The table says it is a nullable metadata buffer; the spike fixture omits it entirely. When is it required vs. safe to pass null?
+6. **`ext_name`** — What is the relationship to `ext_source`? Is this a human-readable label for the same extension? Does the runtime use it for logging, routing, or access control?
+7. **`conn_token`** — Is this a per-connection authentication token distinct from the global auth token passed via `env_json` at `host_start`? If so, when would per-connection tokens differ from the global token? What format — opaque bytes, JWT, something else?
+8. **`user_data`** — The Spike 3.4 fixture passes `Pointer.NULL` and the callback captures Java state via constructor fields rather than via `user_data`. Confirm whether `user_data = null` is safe with the real runtime, and document that the Java implementation should always pass null, relying on Java closure capture instead of the C void-pointer cookie mechanism.
+9. **Multiple concurrent connections** — The handle-per-connection ABI design implies multiple connections per server handle are possible. Confirm whether the runtime supports N concurrent open connections on one server handle, or whether the expected usage is one connection at a time (as .NET and Rust both do in practice).
+
+#### Wire format of `connection_write` and `on_outbound`
+
+10. **Frame format** — The table says `connection_write` writes "a JSON-RPC frame." What exactly is a frame? Length-prefixed (4-byte big-endian)? LSP `Content-Length` header? Newline-delimited? The `on_outbound` callback delivers frames in the same format. The Spike 3.4 `QueueInputStream` bridge uses a 4-byte length prefix as a local convention, but the real runtime may use something different. This must be confirmed against the actual implementation.
+11. **Buffer lifetime for `connection_write`** — Does the runtime copy the buffer before returning, or does it read the buffer asynchronously? The .NET PR comments that the native side copies synchronously. Confirm this — it determines whether the Java caller must keep the byte array alive after the call returns.
+
+**Spike needed (`spike-3-9-deep-entrypoint-questions`):** Read `copilot_runtime_host_start` and `copilot_runtime_connection_open` in `github/copilot-agent-runtime` `src/runtime/src/interop/cabi.rs`. Read how the .NET SDK (`FfiRuntimeHost.cs`) and Rust SDK (`ffi.rs`) construct every parameter. Produce a **complete call-by-call reference** — for each parameter of each function, state the value the Java implementation must pass, the format, and the nullability rule. Explicitly confirm or deny items 1–11 above.
 
 **Resolution:**
 
