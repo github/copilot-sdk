@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
+    PermissionRequest,
 
     // *Data payload types from the v0.3.0 generated session-event schema.
     AssistantMessageData,
@@ -115,6 +116,17 @@ describe("Session event type exports (#1156)", () => {
         expect(data.mcpServerName).toBe("filesystem");
         expect(data.mcpToolName).toBe("list_dir");
         expect(data.turnId).toBe("turn-1");
+    });
+
+    it("exposes whether managed policy requires explicit user approval", () => {
+        const request: PermissionRequest = {
+            kind: "read",
+            path: "/workspace/file.txt",
+            intention: "Read a file",
+            managedApprovalRequired: true,
+        };
+
+        expect(request.managedApprovalRequired).toBe(true);
     });
 
     it("wraps ToolExecutionStartData inside the exported ToolExecutionStartEvent", () => {

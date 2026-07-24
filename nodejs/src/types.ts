@@ -1100,9 +1100,15 @@ export type SystemMessageConfig =
  * discriminated union from the runtime schema — switch on `kind` to
  * access the variant-specific fields (e.g. shell `commands`, write
  * `fileName`/`diff`, mcp `toolName`/`args`).
+ *
+ * `managedApprovalRequired` indicates that managed policy requires an explicit
+ * user decision. Hosts should bypass automatic approval and present their
+ * normal confirmation UI.
  */
-export type { PermissionRequest } from "./generated/session-events.js";
-import type { PermissionRequest } from "./generated/session-events.js";
+import type { PermissionRequest as GeneratedPermissionRequest } from "./generated/session-events.js";
+export type PermissionRequest = GeneratedPermissionRequest & {
+    readonly managedApprovalRequired?: boolean;
+};
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
