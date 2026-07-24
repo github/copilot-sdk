@@ -23,17 +23,18 @@ Embed the Copilot runtime (`runtime.node` cdylib) directly into the Java SDK so 
 
 ### C ABI entry points to bind (from .NET PR #1901 and Rust PR #1915)
 
-| Entry point                        | Signature (C)                                                                                                                                                                                                                                                              | Purpose                                                                                                                                                                                                          |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry point                        | Signature (C)                                                                                                                                                                                                                                                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `copilot_runtime_host_start`       | `(const uint8_t* argv_json, size_t argv_json_len, const uint8_t* env_json, size_t env_json_len) → uint32_t`                                                                                                                                                                | Start the runtime host. `argv_json` is a JSON array: `["/full/path/to/copilot","--embedded-host","--no-auto-update"]` for a binary entrypoint, or `["node","/full/path/to/index.js","--embedded-host","--no-auto-update"]` for a `.js` dev entrypoint; `--no-auto-update` is always required (pins the worker to the bundled cdylib version, preventing ABI skew). `env_json` is an optional JSON object of environment overrides (null/0 if empty). Returns server handle (0 = failure). **This call blocks for up to ~30 s while the worker boots and connects back; it must not be called on an async/reactive executor thread** (Rust uses `spawn_blocking`, .NET uses `Task.Run`). |
-| `copilot_runtime_host_shutdown`    | `(uint32_t server_id) → bool`                                                                                                                                                                                                                                              | Shut down the runtime host identified by `server_id`.                                                                                                                                                            |
-| `copilot_runtime_connection_open`  | `(uint32_t server_id, void(*on_outbound)(void* user_data, const uint8_t* data, size_t len), void* user_data, const uint8_t* ext_source, size_t ext_source_len, const uint8_t* ext_name, size_t ext_name_len, const uint8_t* conn_token, size_t conn_token_len) → uint32_t` | Open a bidirectional connection; registers `on_outbound` callback for runtime→Java data delivery. `ext_source`, `ext_name`, `conn_token` are nullable metadata buffers — **all three are passed as null/0 in every current SDK implementation** (Rust, .NET, Go, Python); their semantics are under investigation in Q3.9. Returns connection handle (0 = failure). |
-| `copilot_runtime_connection_write` | `(uint32_t connection_id, const uint8_t* data, size_t len) → bool`                                                                                                                                                                                                         | Write a JSON-RPC frame from Java into the runtime. Native side copies the buffer synchronously before returning.                                                                                                 |
-| `copilot_runtime_connection_close` | `(uint32_t connection_id) → bool`                                                                                                                                                                                                                                          | Close a connection.                                                                                                                                                                                              |
+| `copilot_runtime_host_shutdown`    | `(uint32_t server_id) → bool`                                                                                                                                                                                                                                              | Shut down the runtime host identified by `server_id`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `copilot_runtime_connection_open`  | `(uint32_t server_id, void(*on_outbound)(void* user_data, const uint8_t* data, size_t len), void* user_data, const uint8_t* ext_source, size_t ext_source_len, const uint8_t* ext_name, size_t ext_name_len, const uint8_t* conn_token, size_t conn_token_len) → uint32_t` | Open a bidirectional connection; registers `on_outbound` callback for runtime→Java data delivery. `ext_source`, `ext_name`, `conn_token` are nullable metadata buffers — **all three are passed as null/0 in every current SDK implementation** (Rust, .NET, Go, Python); their semantics are under investigation in Q3.9. Returns connection handle (0 = failure).                                                                                                                                                                                                                                                                                                                     |
+| `copilot_runtime_connection_write` | `(uint32_t connection_id, const uint8_t* data, size_t len) → bool`                                                                                                                                                                                                         | Write a JSON-RPC frame from Java into the runtime. Native side copies the buffer synchronously before returning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `copilot_runtime_connection_close` | `(uint32_t connection_id) → bool`                                                                                                                                                                                                                                          | Close a connection.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 The outbound callback signature: `void on_outbound(void* user_data, const uint8_t* data, size_t len)` — invoked by native code (potentially on native threads) to deliver JSON-RPC responses and notifications back to Java.
 
 > **Constraints applying to all five functions:**
+>
 > - **One library per process.** The cdylib may only be loaded once per process; loading a second instance (different path or version) is unsupported. All four existing SDK implementations (Rust, .NET, Go, Python) enforce this with a process-wide guard. The Java implementation must do the same.
 > - **`host_start` must run on a blocking thread.** See table row above.
 
@@ -587,6 +588,78 @@ The C ABI table at the top of this plan names each parameter but does not explai
 **Spike needed (`spike-3-9-deep-entrypoint-questions`):** Read `copilot_runtime_host_start` and `copilot_runtime_connection_open` in `github/copilot-agent-runtime` `src/runtime/src/interop/cabi.rs`. Read how the .NET SDK (`FfiRuntimeHost.cs`) and Rust SDK (`ffi.rs`) construct every parameter. Produce a **complete call-by-call reference** — for each parameter of each function, state the value the Java implementation must pass, the format, and the nullability rule. Explicitly confirm or deny items 1–11 above.
 
 **Resolution:**
+
+Read the full evidence and analysis in `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-9-c-abi-parameter-semantics/` before implementing. The spike reviewed all five production SDK implementations (Rust `ffi.rs`, .NET `FfiRuntimeHost.cs`, Node.js `ffiRuntimeHost.ts`, Go `ffihost.go`, Python `_ffi_runtime_host.py`) and their client-side parameter construction code.
+
+**Actionable parameter specification for `copilot_runtime_host_start`:**
+
+| Parameter       | Format                      | Value the Java implementation must pass                                                                                                                                          |
+| --------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `argv_json`     | UTF-8 JSON array of strings | `[entrypoint, "--embedded-host", "--no-auto-update", ...optional_args]`. Prefix with `"node"` if entrypoint ends in `.js`.                                                       |
+| `argv_json_len` | `size_t`                    | Byte length of the JSON text above.                                                                                                                                              |
+| `env_json`      | UTF-8 JSON object or null   | `{"COPILOT_SDK_AUTH_TOKEN":"<token>", "COPILOT_HOME":"<path>", "COPILOT_DISABLE_KEYTAR":"1"}` — include only keys that apply; pass **null with len=0** when no overrides needed. |
+| `env_json_len`  | `size_t`                    | Byte length of env JSON, or 0 when null.                                                                                                                                         |
+
+Optional arguments appended to `argv_json` after the two required flags:
+
+| Flag                                      | Condition                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| `--log-level <level>`                     | `options.logLevel` is set                                           |
+| `--auth-token-env COPILOT_SDK_AUTH_TOKEN` | `options.githubToken` is provided                                   |
+| `--no-auto-login`                         | `useLoggedInUser` is false (default when `githubToken` is provided) |
+| `--session-idle-timeout <seconds>`        | `options.sessionIdleTimeoutSeconds > 0`                             |
+| `--remote`                                | `options.enableRemoteSessions` is true                              |
+
+Complete `env_json` key inventory (these are the **only** three keys used across all five SDKs):
+
+| Key                      | Value                            | Condition                         |
+| ------------------------ | -------------------------------- | --------------------------------- |
+| `COPILOT_SDK_AUTH_TOKEN` | The GitHub token string          | `options.githubToken` is provided |
+| `COPILOT_HOME`           | Copilot base/home directory path | `options.baseDirectory` is set    |
+| `COPILOT_DISABLE_KEYTAR` | `"1"`                            | `options.mode == "empty"`         |
+
+**Actionable parameter specification for `copilot_runtime_connection_open`:**
+
+| Parameter                       | Value the Java implementation must pass                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `server_id`                     | The non-zero handle from `host_start`                                                                                              |
+| `on_outbound`                   | JNA `Callback` function pointer (held as strong field reference)                                                                   |
+| `user_data`                     | **`Pointer.NULL`** — safe; runtime passes it back unmodified; Java uses closure/field capture instead of the C void-pointer cookie |
+| `ext_source` / `ext_source_len` | **`null, 0`** — reserved/future; all 5 SDKs pass null                                                                              |
+| `ext_name` / `ext_name_len`     | **`null, 0`** — reserved/future; all 5 SDKs pass null                                                                              |
+| `conn_token` / `conn_token_len` | **`null, 0`** — reserved/future; all 5 SDKs pass null                                                                              |
+
+**Three key invariants:**
+
+1. **`argv_json` must never be null.** It always contains at least `[entrypoint, "--embedded-host", "--no-auto-update"]`.
+2. **`env_json` can be null** (with `env_json_len = 0`) when no environment overrides are needed.
+3. **All three metadata buffers (`ext_source`, `ext_name`, `conn_token`) are always null/0.** No current SDK uses them; they are reserved extension points.
+
+**Wire format and buffer lifetime:**
+
+- **Frame format:** LSP `Content-Length: <n>\r\n\r\n<payload>` — identical to the stdio transport. NOT binary length-prefixed. The existing Java `JsonRpcClient` handles this framing unchanged; no special encoding/decoding is needed at the FFI boundary.
+- **Buffer lifetime:** `connection_write` copies the buffer synchronously before returning. The Java byte array does not need to survive past the JNA call.
+- **Callback buffer lifetime:** The `on_outbound` callback's `data` pointer is only valid for the duration of the callback invocation. The callback must copy bytes out (via `Pointer.getByteArray(0, len)`) before returning.
+
+**Additional confirmed behaviors:**
+
+- **No error retrieval function:** The C ABI has no `copilot_runtime_last_error` export. Failure is indicated solely by return value (0 for handles, false for booleans). The Java implementation must format its own diagnostic messages.
+- **One connection per server:** All 5 SDKs open exactly one connection per server handle. The Java implementation should follow the same pattern.
+- **Shutdown sequence:** Set closing flag → `connection_close(connectionId)` → drain active callbacks (wait for `AtomicInteger` to reach 0) → `host_shutdown(serverId)` → release callback reference.
+
+**Answers to the 11 original questions (summary):**
+
+1. Full argv set — documented in table above.
+2. Complete env key inventory — exactly 3 keys, documented above.
+3. Nullability — argv never null; env can be null.
+4. Error retrieval — none; return value only.
+5. `ext_source` — reserved/future; pass null.
+6. `ext_name` — reserved/future; pass null.
+7. `conn_token` — reserved/future; pass null. Unrelated to global auth.
+8. `user_data = null` — confirmed safe by 3 SDKs that pass null in production.
+9. Multiple connections — architecturally possible but unused; one per server.
+10. Frame format — LSP `Content-Length:` header framing.
+11. Buffer lifetime — native copies synchronously; no retention needed.
 
 ### 3.10 — Error handling and diagnostics
 
