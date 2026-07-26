@@ -646,7 +646,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
 
 ```go
-client, err := copilot.NewClient(copilot.ClientOptions{
+client := copilot.NewClient(&copilot.ClientOptions{
     Telemetry: &copilot.TelemetryConfig{
         OTLPEndpoint: "http://localhost:4318",
     },

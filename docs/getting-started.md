@@ -2158,7 +2158,7 @@ Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `o
 
 <!-- docs-validate: skip -->
 ```go
-client, err := copilot.NewClient(copilot.ClientOptions{
+client := copilot.NewClient(&copilot.ClientOptions{
     Telemetry: &copilot.TelemetryConfig{
         OTLPEndpoint: "http://localhost:4318",
     },
