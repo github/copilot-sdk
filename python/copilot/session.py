@@ -1031,7 +1031,12 @@ class SessionHooks(TypedDict, total=False):
 
 
 class MCPStdioServerConfig(TypedDict, total=False):
-    """Configuration for a local/stdio MCP server."""
+    """Configuration for a local/stdio MCP server.
+
+    Tools exposed by the runtime are registered under the server key, e.g.
+    ``<server-key>-<tool-name>``. Use that prefixed form in
+    ``available_tools``/``excluded_tools`` and custom-agent ``tools`` lists.
+    """
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: NotRequired[Literal["local", "stdio"]]  # Server type
@@ -1043,7 +1048,12 @@ class MCPStdioServerConfig(TypedDict, total=False):
 
 
 class MCPHTTPServerConfig(TypedDict, total=False):
-    """Configuration for a remote MCP server (HTTP or SSE)."""
+    """Configuration for a remote MCP server (HTTP or SSE).
+
+    Tools exposed by the runtime are registered under the server key, e.g.
+    ``<server-key>-<tool-name>``. Use that prefixed form in
+    ``available_tools``/``excluded_tools`` and custom-agent ``tools`` lists.
+    """
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: Literal["http", "sse"]  # Server type
@@ -1065,7 +1075,8 @@ class CustomAgentConfig(TypedDict, total=False):
     name: str  # Unique name of the custom agent
     display_name: NotRequired[str]  # Display name for UI purposes
     description: NotRequired[str]  # Description of what the agent does
-    # List of tool names the agent can use
+    # List of tool names the agent can use. MCP tools registered from
+    # ``mcp_servers`` are exposed to the runtime as ``<server-key>-<tool-name>``.
     tools: NotRequired[list[str] | None]
     prompt: str  # The prompt content for the agent
     # MCP servers specific to agent

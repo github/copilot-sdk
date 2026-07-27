@@ -10,7 +10,7 @@ off, custom instructions off, etc.). Callers can opt back in field-by-field.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -124,6 +124,42 @@ def _normalize_tool_filter(value: Any) -> list[str] | None:
             "ToolSet (e.g. ToolSet().add_builtin('bash'))."
         )
     return list(value)
+
+
+def _expand_mcp_tool_filter_names(
+    items: list[str] | None,
+    mcp_servers: Mapping[str, Any] | None,
+) -> list[str] | None:
+    """Expand bare MCP tool names to the server-prefixed form used by the runtime.
+
+    The Copilot CLI registers MCP tools under ``<server-key>-<tool-name>``. This
+    helper rewrites bare names to that form when the corresponding server config
+    explicitly exposes that tool in its ``tools`` allowlist.
+    """
+    if items is None or not mcp_servers:
+        return items
+
+    expanded: list[str] = []
+    for entry in items:
+        if entry == "*" or ":" in entry:
+            expanded.append(entry)
+            continue
+
+        matched_entries: list[str] = []
+        for server_name, config in mcp_servers.items():
+            if not isinstance(config, Mapping):
+                continue
+            tools = config.get("tools")
+            if not isinstance(tools, list):
+                continue
+            if entry in tools:
+                matched_entries.append(f"{server_name}-{entry}")
+
+        if matched_entries:
+            expanded.extend(matched_entries)
+        else:
+            expanded.append(entry)
+    return expanded
 
 
 def _validate_tool_filter_list(field: str, items: list[str] | None) -> None:
