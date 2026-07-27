@@ -493,14 +493,6 @@ Results are cached after the first call, just like the default behavior. The han
 
 ## Limitations
 
-When using BYOK, be aware of these limitations:
-
-### Identity limitations
-
-BYOK authentication uses **static credentials only**.
-
-You must use an API key or static bearer token that you manage yourself.
-
 ### Feature limitations
 
 Some Copilot features may behave differently with BYOK:
@@ -514,9 +506,8 @@ Some Copilot features may behave differently with BYOK:
 
 | Provider | Limitations |
 |----------|-------------|
-| Microsoft Foundry | None |
-| Ollama | No API key; local only; model support varies |
 | [Microsoft Foundry Local](https://foundrylocal.ai) | Local only; model availability depends on device hardware; no API key required |
+| Ollama | No API key; local only; model support varies |
 | OpenAI | Subject to OpenAI rate limits and quotas |
 
 ## Troubleshooting
