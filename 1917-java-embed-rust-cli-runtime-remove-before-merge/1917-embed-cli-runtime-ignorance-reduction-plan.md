@@ -763,6 +763,79 @@ For Java:
 
 **Resolution:**
 
+Read the full evidence in `1917-java-embed-rust-cli-runtime-remove-before-merge/spike-3-11-replay-proxy-and-in-process/`. The spike ran the complete InProcess flow on win32-x64 (JDK 25.0.2, JNA 5.19.1, `runtime.node` 1.0.73) and produced a successful ping–pong round trip in 1.1 s. All five answers are now definitive.
+
+**Answer 1: Can E2E tests use the InProcess transport against the replay proxy?**
+
+**YES.** The replay proxy intercepts HTTP calls (to `COPILOT_API_URL`). The in-process runtime library is loaded into the test process via JNA and reads `COPILOT_API_URL` from the **native process environment block** — not from Java's `System.getenv()` snapshot or any per-client dictionary. To redirect traffic to the proxy, the Java E2E harness must write `COPILOT_API_URL=<proxyUrl>` into the live environment block **before** `copilot_runtime_host_start` is called.
+
+Java has no stdlib API for this. The solution is a new `InProcessEnvGuard` class (see `spike-3-11/java-inprocess-e2e-win32-x64/`) that calls `SetEnvironmentVariableW` (Windows) or `setenv()` (Linux/macOS) via JNA to mutate the process environment, and restores saved values on `close()`. This is the Java analog of:
+
+- Rust: `InProcessEnvGuard` in `rust/tests/e2e/support.rs` (lines 603–677)
+- .NET: `InProcessEnvIsolation.Apply()` in `dotnet/test/Harness/InProcessEnvIsolation.cs`
+
+**Critical constraint: E2E concurrency must be 1 when running in-process.** The guard mutates process-global state. Concurrent tests would race on env writes. Rust enforces `concurrency = 1` via semaphore when `COPILOT_SDK_DEFAULT_CONNECTION=inprocess`; Java must do the same (e.g., via `surefire.forkCount=1` or a JUnit 5 `@ResourceLock`).
+
+**Answer 2: Should InProcess E2E tests use a real `runtime.node` binary?**
+
+**YES** (DRI decision). The binary is the same one packaged by the `copilot-native` Maven module (from `npm pack @github/copilot-win32-x64@<version>`). CI makes it available wherever the `copilot-native` module has run. The spike confirms this binary works correctly with JNA.
+
+**ABI version sensitivity:** The `runtime.node` in `@github/copilot-win32-x64@1.0.69-0` (the version currently installed in `nodejs/node_modules`) is missing `copilot_runtime_host_start`. Version `1.0.73` (pinned in `nodejs/package-lock.json`) has both the old `host_start`/`host_shutdown` API and the newer `server_create`/`server_remove` API. The `copilot-native` module's `npm pack` downloads from `package-lock.json`, ensuring `1.0.73` (or newer matching the lock) is used in production — the same version that the spike verifies works.
+
+**Answer 3: How do we mock/stub the native library for unit testing the JNA binding layer?**
+
+**We don't** (DRI decision). Only E2E tests (running with the real binary) exercise the JNA binding layer. Unit tests for the `com.github.copilot.ffi` package (step 4.3) use the minimal Rust test DLL from spike-3-4 for component-level testing of the callback/stream machinery. There is no middle tier of "mock runtime.node".
+
+**Answer 4: Should InProcess E2E tests reuse existing YAML snapshots?**
+
+**YES.** From the replay proxy's perspective, HTTP traffic is identical whether the runtime was launched as a subprocess or loaded in-process — only the transport inside the JVM changes. The Rust `inprocess.rs` smoke test reuses the same `should_start_ping_and_stop_stdio_client` YAML snapshot used by the stdio smoke test. The full Java E2E suite re-runs against all existing YAML snapshots under the InProcess transport.
+
+Some tests need skip-guards for in-process-incompatible behavior (e.g., per-client environment variables are ignored when the runtime is shared in-process — see [issue #1934](https://github.com/github/copilot-sdk/issues/1934)). The Java equivalent of Rust's `skip_inprocess(reason)` function is a JUnit 5 `@DisabledIf` condition or a custom `@SkipInProcess` annotation.
+
+**Answer 5: Should the entire E2E suite run under both transports?**
+
+**YES**, mirroring the Rust PR's pattern exactly:
+
+- **CI job A** (existing): subprocess transport (stdio/TCP) — existing `java-sdk-tests.yml` job, no changes.
+- **CI job B** (new): InProcess transport — same test suite, new Maven profile (`-Pinprocess`):
+
+```xml
+<profile>
+  <id>inprocess</id>
+  <properties>
+    <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+  </properties>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <!-- Mandatory: env guard is process-global; concurrent tests would race -->
+          <forkCount>1</forkCount>
+          <parallel>none</parallel>
+          <environmentVariables>
+            <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</profile>
+```
+
+CI job B requires `runtime.node` to be on the classpath (from the `copilot-native` module built by job A's prerequisite). The matrix runs both jobs, providing confidence that subprocess and InProcess transports produce identical behavior for all non-skip-guarded tests.
+
+**Java-specific implementation requirements (for step 4.7 — E2E tests):**
+
+1. **`InProcessEnvGuard`** in `com.github.copilot.ffi` (or `com.github.copilot.test.harness` for the test module): calls `SetEnvironmentVariableW` / `setenv()` via JNA. See `spike-3-11` for the proven implementation.
+
+2. **`E2ETestContext.createClient()`** dispatch: when `connection instanceof InProcessRuntimeConnection` (or `COPILOT_SDK_DEFAULT_CONNECTION=inprocess`), apply `InProcessEnvGuard` before starting the client, and call `InProcessEnvGuard.close()` in the test's `@AfterEach` / try-with-resources.
+
+3. **Concurrency guard**: enforce single-threaded test execution when running in-process. The `InProcessEnvGuard` must not be active for two tests simultaneously.
+
+4. **`@SkipInProcess` annotation**: a JUnit 5 condition annotation that skips tests that set per-client environment variables or rely on behavior that the in-process transport cannot support (see issue #1934).
+
 ### 3.12 — CI/CD workflow changes
 
 **Question:** What GitHub Actions workflow changes are needed to build and test the InProcess transport?
