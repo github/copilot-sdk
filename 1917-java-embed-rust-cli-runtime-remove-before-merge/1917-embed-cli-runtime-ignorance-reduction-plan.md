@@ -853,6 +853,22 @@ For Java:
 
 **Resolution:**
 
+**Sub-question 1 — Does `java-sdk-tests.yml` need modification, or a separate workflow?**
+
+Answered by 3.11 Resolution. Modify the existing `java-sdk-tests.yml` to add a new `java-sdk-inprocess` job — a separate job, not a matrix entry (that is the .NET pattern). NOT a separate workflow file. The existing `java-sdk` job is completely unchanged. The new job activates the `-Pinprocess` Maven profile. This mirrors the Rust pattern exactly: `test` and `test-inprocess` are separate jobs in the same `rust-sdk-tests.yml`.
+
+**Sub-question 2 — How are the native binaries provisioned in CI?**
+
+Answered by 3.2 Resolution. Via the `copilot-native` Maven module's `generate-resources` phase running `npm pack @github/copilot-<platform>@${project.version}` for each required platform, with SHA-512 integrity verification against `nodejs/package-lock.json`. NOT downloaded from GitHub Releases. NOT built from Rust source. The InProcess CI job must build (or have a prerequisite step that builds) the `copilot-native` module to produce the classifier JAR(s) on the classpath before tests execute.
+
+**Sub-question 3 — Which CI runner platforms?**
+
+Answered by 3.12's own Recommendation, confirmed by the Rust and .NET workflow precedents. `ubuntu-latest` (linux-x64) and `macos-latest` (darwin-arm64). Windows is excluded, matching both `rust-sdk-tests.yml` (`os: [ubuntu-latest, macos-latest]`, comment: "TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash") and `dotnet-sdk-tests.yml` (which excludes `windows-latest` + `inprocess`). The 3.11 spike succeeded on win32-x64 at the JNA/JVM level, but the runtime-side peer-shutdown crash on Windows is a known issue across SDKs that blocks enabling it.
+
+**Sub-question 4 — Should InProcess tests be gated behind a `runtime.node` availability check?**
+
+Answered by 3.11 and 3.5 Resolutions. No explicit availability check in code. The gating mechanism is the `-Pinprocess` Maven profile, activated only in CI job B. The CI job ensures the `copilot-native` module build step (which runs `npm pack`) has completed before tests execute. If `InProcessRuntimeConnection` is explicitly selected but no native binary is found on the classpath, the SDK throws `IllegalStateException` with a diagnostic message (from 3.5 Resolution). No runtime sentinel check or feature flag is needed.
+
 ### 3.13 — Classpath-first or path-first native resolution?
 
 **Question:** In what order should the SDK look for the `runtime.node` binary?
@@ -910,6 +926,8 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 ## Phase 4 — Implementation (the build order)
 
 After Phase 3 questions are resolved, implement in this order. Each step should be a separately testable commit.
+
+> **DRI decision — linux-x64 depth-first.** Implementation targets `linux-x64` first and exclusively until the full stack (platform detection → native extraction → JNA binding → FFI host → `CopilotClient` integration → E2E test → CI job) is end-to-end green on `ubuntu-latest`. `linux-x64` is the platform used by the Copilot Coding Agent runner and is also supported by the local Copilot CLI. Only after linux-x64 is fully working should the implementation be extended to `darwin-arm64` (and subsequently `darwin-x64`, `win32-x64`, `linux-arm64`, and the two musl targets). Each platform extension is a separately gated commit.
 
 ### TDD discipline for all implementation steps
 
