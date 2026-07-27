@@ -1620,6 +1620,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
                         invocation)
                     : null,
+                "agentStop" => hooks.OnAgentStop != null
+                    ? await hooks.OnAgentStop(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.AgentStopHookInput)!,
+                        invocation)
+                    : null,
                 _ => null
             };
         }
@@ -1987,6 +1992,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         AllowOutOfOrderMetadataProperties = true,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonSerializable(typeof(AgentStopHookInput))]
+    [JsonSerializable(typeof(AgentStopHookOutput))]
     [JsonSerializable(typeof(AutoModeSwitchRequest))]
     [JsonSerializable(typeof(AutoModeSwitchResponse))]
     [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]

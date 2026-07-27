@@ -1095,7 +1095,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
-            config.Hooks.OnErrorOccurred != null);
+            config.Hooks.OnErrorOccurred != null ||
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
@@ -1320,7 +1321,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
-            config.Hooks.OnErrorOccurred != null);
+            config.Hooks.OnErrorOccurred != null ||
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 

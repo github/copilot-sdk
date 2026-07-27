@@ -3213,6 +3213,7 @@ describe("CopilotClient", () => {
             const result = await (session as any)._handleHooksInvoke("agentStop", {
                 stopReason: "end_turn",
                 transcriptPath: "/tmp/transcript.jsonl",
+                stop_hook_active: true,
                 timestamp: 1700000000000,
                 cwd: "/repo",
             });
@@ -3221,6 +3222,7 @@ describe("CopilotClient", () => {
             expect(received[0].input).toEqual({
                 stopReason: "end_turn",
                 transcriptPath: "/tmp/transcript.jsonl",
+                stopHookActive: true,
                 timestamp: new Date(1700000000000),
                 workingDirectory: "/repo",
             });

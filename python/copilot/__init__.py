@@ -92,6 +92,9 @@ from .generated.session_events import (
     SessionEventType,
 )
 from .session import (
+    AgentStopHandler,
+    AgentStopHookInput,
+    AgentStopHookOutput,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -196,6 +199,9 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "AgentStopHandler",
+    "AgentStopHookInput",
+    "AgentStopHookOutput",
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",

@@ -791,6 +791,48 @@ public class SerializationTests
     }
 
     [Fact]
+    public void AgentStopHookInput_DeserializesWireFields_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var input = JsonSerializer.Deserialize<AgentStopHookInput>(
+            """
+            {
+              "sessionId": "session-1",
+              "timestamp": 1700000000000,
+              "cwd": "/repo",
+              "stopReason": "end_turn",
+              "transcriptPath": "/tmp/transcript.jsonl",
+              "stop_hook_active": true
+            }
+            """,
+            options);
+
+        Assert.NotNull(input);
+        Assert.Equal("session-1", input.SessionId);
+        Assert.Equal("/repo", input.WorkingDirectory);
+        Assert.Equal("end_turn", input.StopReason);
+        Assert.Equal("/tmp/transcript.jsonl", input.TranscriptPath);
+        Assert.True(input.StopHookActive);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1700000000000), input.Timestamp);
+    }
+
+    [Fact]
+    public void AgentStopHookOutput_SerializesBlockDecision_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var output = new AgentStopHookOutput
+        {
+            Decision = "block",
+            Reason = "finish the remaining work"
+        };
+
+        var json = JsonSerializer.SerializeToElement(output, options);
+
+        Assert.Equal("block", json.GetProperty("decision").GetString());
+        Assert.Equal("finish the remaining work", json.GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public void HooksInvokeResponse_SerializesPreMcpToolCallHookOutput_WithMetaToUse()
     {
         var options = GetSerializerOptions();

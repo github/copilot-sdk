@@ -2411,6 +2411,45 @@ class TestPostToolUseFailureHookDispatch:
         assert result == {"additionalContext": "sync-ok"}
 
 
+class TestAgentStopHookDispatch:
+    """Unit tests for the agentStop handler dispatch."""
+
+    @pytest.mark.asyncio
+    async def test_dispatches_to_on_agent_stop(self):
+        from copilot.session import CopilotSession, SessionHooks
+
+        captured: dict = {}
+
+        async def on_agent_stop(input_data, invocation):
+            captured["input"] = input_data
+            captured["invocation"] = invocation
+            return {"decision": "block", "reason": "finish the remaining work"}
+
+        session = CopilotSession.__new__(CopilotSession)
+        CopilotSession.__init__(session, "sess-123", client=None)
+        session._hooks = SessionHooks(on_agent_stop=on_agent_stop)  # type: ignore[typeddict-item]
+
+        result = await session._handle_hooks_invoke(
+            "agentStop",
+            {
+                "sessionId": "sess-x",
+                "timestamp": 1700000000,
+                "cwd": "/work",
+                "stopReason": "end_turn",
+                "transcriptPath": "/tmp/transcript.jsonl",
+                "stop_hook_active": True,
+            },
+        )
+
+        assert result == {"decision": "block", "reason": "finish the remaining work"}
+        assert captured["input"]["stopReason"] == "end_turn"
+        assert captured["input"]["transcriptPath"] == "/tmp/transcript.jsonl"
+        assert captured["input"]["stopHookActive"] is True
+        assert captured["input"]["workingDirectory"] == "/work"
+        assert captured["input"]["timestamp"] == datetime.fromtimestamp(1700000000 / 1000, tz=UTC)
+        assert captured["invocation"] == {"session_id": "sess-123"}
+
+
 class TestGitHubTelemetry:
     """Unit tests for the experimental gitHubTelemetry.event consumer surface."""
 

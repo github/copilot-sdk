@@ -78,6 +78,7 @@ import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
+import com.github.copilot.rpc.AgentStopHookInput;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
 import com.github.copilot.rpc.MessageOptions;
@@ -1878,6 +1879,16 @@ public final class CopilotSession implements AutoCloseable {
                             return CompletableFuture.completedFuture(null);
                         }
                         return endResult.thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "agentStop" :
+                    if (hooks.getOnAgentStop() != null) {
+                        AgentStopHookInput stopInput = MAPPER.treeToValue(input, AgentStopHookInput.class);
+                        var stopResult = hooks.getOnAgentStop().handle(stopInput, invocation);
+                        if (stopResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return stopResult.thenApply(output -> (Object) output);
                     }
                     break;
                 default :
