@@ -5,6 +5,7 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -141,20 +142,30 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
         // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        // runnable index.js ships in the installed platform package
-        // (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        // runnable index.js ships in the installed platform package.
         var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
-        if (Directory.Exists(githubModules))
-        {
-            var candidate = Directory.EnumerateDirectories(githubModules, "copilot-*")
-                .Select(dir => Path.Join(dir, "index.js"))
-                .FirstOrDefault(File.Exists);
-            if (candidate != null)
-                return candidate;
-        }
+        var packageName = GetCliPackageName();
+        var candidate = Path.Join(githubModules, packageName, "index.js");
+        if (File.Exists(candidate)) return candidate;
 
         throw new InvalidOperationException(
-            $"CLI not found under {githubModules}. Run 'npm install' in the nodejs directory first.");
+            $"CLI package '{packageName}' not found under {githubModules}. " +
+            "Run 'npm install' in the nodejs directory first.");
+    }
+
+    private static string GetCliPackageName()
+    {
+        var platform = OperatingSystem.IsWindows()
+            ? "win32"
+            : OperatingSystem.IsMacOS()
+                ? "darwin"
+                : OperatingSystem.IsLinux()
+                    ? RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
+                        ? "linuxmusl"
+                        : "linux"
+                    : throw new PlatformNotSupportedException("Unsupported operating system for Copilot CLI E2E tests.");
+        var architecture = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+        return $"copilot-{platform}-{architecture}";
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
