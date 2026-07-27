@@ -514,7 +514,7 @@ Some Copilot features may behave differently with BYOK:
 
 | Provider | Limitations |
 |----------|-------------|
-| Microsoft Foundry | No Entra ID auth; must use API keys |
+| Microsoft Foundry | None |
 | Ollama | No API key; local only; model support varies |
 | [Microsoft Foundry Local](https://foundrylocal.ai) | Local only; model availability depends on device hardware; no API key required |
 | OpenAI | Subject to OpenAI rate limits and quotas |
