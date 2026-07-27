@@ -562,7 +562,7 @@ provider: {
 }
 ```
 
-However, if your Microsoft Foundry deployment provides an OpenAI-compatible endpoint path (e.g., `/openai/v1/`), use `type: "openai"`:
+However, if your Microsoft Foundry deployment provides an OpenAI-compatible endpoint path (for example, `/openai/v1/`), use `type: "openai"`:
 
 <!-- docs-validate: hidden -->
 ```typescript
