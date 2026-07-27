@@ -3386,7 +3386,7 @@ class CopilotClient:
         Example:
             >>> sessions = await client.list_sessions()
             >>> for session in sessions:
-            ...     print(f"Session: {session.sessionId}")
+            ...     print(f"Session: {session.session_id}")
             >>> # Filter sessions by repository
             >>> from copilot.client import SessionListFilter
             >>> filtered = await client.list_sessions(SessionListFilter(repository="owner/repo"))
