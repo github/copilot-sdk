@@ -37,7 +37,9 @@ public final class ModelCallStartEvent extends SessionEvent {
         /** Identifier of the assistant turn that initiated the model call */
         @JsonProperty("turnId") String turnId,
         /** Model identifier used for this API call, when known */
-        @JsonProperty("model") String model
+        @JsonProperty("model") String model,
+        /** Previous response or interaction identifier included in the model request, when present */
+        @JsonProperty("previousResponseId") String previousResponseId
     ) {
     }
 }

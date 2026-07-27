@@ -42,7 +42,7 @@ public record SessionSendParams(
     @JsonProperty("billable") Boolean billable,
     /** If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange */
     @JsonProperty("requiredTool") String requiredTool,
-    /** Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-<command-id>` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for messages originating from a scheduled job. */
+    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent. */
     @JsonProperty("source") String source,
     /** The UI mode the agent was in when this message was sent. Defaults to the session's current mode. */
     @JsonProperty("agentMode") SendAgentMode agentMode,

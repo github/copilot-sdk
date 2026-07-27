@@ -104,6 +104,7 @@ export type SessionEvent =
   | ExitPlanModeCompletedEvent
   | ToolsUpdatedEvent
   | BackgroundTasksChangedEvent
+  | FactoryRunUpdatedEvent
   | SkillsLoadedEvent
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
@@ -156,6 +157,14 @@ export type Verbosity =
   | "medium"
   /** A more detailed response was requested. */
   | "high";
+/**
+ * Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
+ */
+export type ScheduleOrigin =
+  /** The schedule was created by an explicit user action, such as `/every` or `/after`. */
+  | "user"
+  /** The schedule was created by the agent via the `manage_schedule` tool. */
+  | "model";
 /**
  * The type of operation performed on the autopilot objective state file
  */
@@ -529,6 +538,21 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestHook
   | PermissionPromptRequestExtensionManagement
   | PermissionPromptRequestExtensionPermissionAccess;
+/**
+ * Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
+ */
+/** @experimental */
+export type AutoApprovalJudgeFailureReason =
+  /** The judge model call exceeded its deadline. */
+  | "timeout"
+  /** The judge model call was cancelled before it returned. */
+  | "abort"
+  /** The judge model call completed but returned no content. */
+  | "empty_response"
+  /** The judge model call failed (for example a transport, authentication, or rate-limit error). */
+  | "model_error"
+  /** The judge model replied, but the reply carried no ALLOW/DENY verdict. */
+  | "parse_error";
 /**
  * Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
  */
@@ -962,7 +986,7 @@ export interface ResumeData {
    */
   contextTier?: ContextTier | null;
   /**
-   * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
+   * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false or omitted, pending work is normally marked as interrupted unless the resume passively joined live work owned by another client; sessionWasActive distinguishes that case.
    */
   continuePendingWork?: boolean;
   /**
@@ -995,7 +1019,7 @@ export interface ResumeData {
    */
   sessionLimits?: SessionLimitsConfig | null;
   /**
-   * True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
+   * True when this resume passively joined a session that already had live work running in the runtime - an agent turn, a native queue run, a queued resume continuation, or an in-flight send (for example, an extension joining a session another client was actively driving). False (or omitted) when the session had no live work or when the resume explicitly abandoned pending work, including cold resumes and suspended sessions that remain resident in memory.
    */
   sessionWasActive?: boolean;
   verbosity?: Verbosity;
@@ -1242,6 +1266,7 @@ export interface ScheduleCreatedData {
    * Interval between ticks in milliseconds (relative-interval schedules)
    */
   intervalMs?: number;
+  origin?: ScheduleOrigin;
   /**
    * Prompt text that gets enqueued on every tick
    */
@@ -2656,7 +2681,7 @@ export interface UserMessageData {
    */
   parentAgentTaskId?: string;
   /**
-   * Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
+   * Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
    */
   source?: string;
   /**
@@ -3365,6 +3390,7 @@ export interface AssistantReasoningData {
    * Unique identifier for this reasoning block
    */
   reasoningId: string;
+  rte?: boolean;
 }
 /**
  * Session event "assistant.reasoning_delta". Streaming reasoning delta for incremental extended thinking updates
@@ -3593,6 +3619,7 @@ export interface AssistantMessageData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   requestId?: string;
+  rte?: boolean;
   serverTools?: AssistantMessageServerTools;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -4038,6 +4065,10 @@ export interface AssistantUsageData {
    */
   inputTokens?: number;
   /**
+   * Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request.
+   */
+  interactionType?: string;
+  /**
    * Average inter-token latency in milliseconds. Only available for streaming requests
    */
   interTokenLatencyMs?: number;
@@ -4074,6 +4105,7 @@ export interface AssistantUsageData {
    * Number of output tokens used for reasoning (e.g., chain-of-thought)
    */
   reasoningTokens?: number;
+  rte?: boolean;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -4289,6 +4321,7 @@ export interface ModelCallFailureData {
    */
   reasoningEffort?: string;
   requestFingerprint?: ModelCallFailureRequestFingerprint;
+  rte?: boolean;
   /**
    * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
    */
@@ -4372,6 +4405,12 @@ export interface ModelCallStartData {
    * Model identifier used for this API call, when known
    */
   model?: string;
+  /**
+   * Previous response or interaction identifier included in the model request, when present
+   *
+   * @internal
+   */
+  previousResponseId?: string;
   /**
    * Identifier of the assistant turn that initiated the model call
    */
@@ -4523,6 +4562,7 @@ export interface ToolExecutionStartData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
+  rte?: boolean;
   shellToolInfo?: ToolExecutionStartShellToolInfo;
   /**
    * Unique identifier for this tool call
@@ -4731,6 +4771,7 @@ export interface ToolExecutionCompleteData {
    */
   parentToolCallId?: string;
   result?: ToolExecutionCompleteResult;
+  rte?: boolean;
   /**
    * Whether this tool execution ran inside a sandbox container
    */
@@ -5863,6 +5904,10 @@ export interface SystemMessageData {
    * The system or developer prompt text sent as model input
    */
   content: string;
+  /**
+   * Logical interaction identifier for the model run receiving this prompt
+   */
+  interactionId?: string;
   metadata?: SystemMessageMetadata;
   /**
    * Optional name identifier for the message source
@@ -6485,6 +6530,11 @@ export interface PermissionPromptRequestCommands {
  */
 /** @experimental */
 export interface PermissionAutoApproval {
+  failureReason?: AutoApprovalJudgeFailureReason;
+  /**
+   * Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
+   */
+  model?: string;
   /**
    * Human-readable reason for the judge's recommendation, when available.
    */
@@ -8598,6 +8648,48 @@ export interface BackgroundTasksChangedEvent {
  * Empty payload for `session.background_tasks_changed`, indicating background task state changed.
  */
 export interface BackgroundTasksChangedData {}
+/**
+ * Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
+ */
+/** @experimental */
+export interface FactoryRunUpdatedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: FactoryRunUpdatedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "factory.run_updated".
+   */
+  type: "factory.run_updated";
+}
+/**
+ * Ephemeral invalidation signal for a changed factory run.
+ */
+/** @experimental */
+export interface FactoryRunUpdatedData {
+  /**
+   * Monotonic revision now available for the run.
+   */
+  revision: number;
+  runId: string;
+}
 /**
  * Session event "session.skills_loaded". Payload of `session.skills_loaded` listing resolved skill metadata.
  */

@@ -36,6 +36,8 @@ public final class SystemMessageEvent extends SessionEvent {
     public record SystemMessageEventData(
         /** The system or developer prompt text sent as model input */
         @JsonProperty("content") String content,
+        /** Logical interaction identifier for the model run receiving this prompt */
+        @JsonProperty("interactionId") String interactionId,
         /** Message role: "system" for system prompts, "developer" for developer-injected instructions */
         @JsonProperty("role") SystemMessageRole role,
         /** Optional name identifier for the message source */

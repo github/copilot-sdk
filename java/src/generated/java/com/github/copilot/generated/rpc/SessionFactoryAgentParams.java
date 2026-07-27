@@ -28,6 +28,8 @@ public record SessionFactoryAgentParams(
     @JsonProperty("sessionId") String sessionId,
     /** Factory run identifier that owns the subagent. */
     @JsonProperty("factoryRunId") String factoryRunId,
+    /** Opaque token identifying the current factory execution attempt. */
+    @JsonProperty("executionToken") String executionToken,
     /** Prompt to send to the subagent. */
     @JsonProperty("prompt") String prompt,
     /** Subagent execution options. */
