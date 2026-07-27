@@ -7,7 +7,7 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 | Provider | Type Value | Notes |
 |----------|------------|-------|
 | OpenAI | `"openai"` | OpenAI API and OpenAI-compatible endpoints |
-| Azure OpenAI / Microsoft Foundry | `"azure"` | Azure-hosted models |
+| Microsoft Foundry / Azure OpenAI | `"openai"` or `"azure"` | Use `"openai"` for `/openai/v1/`; use `"azure"` for native Azure endpoints |
 | Anthropic | `"anthropic"` | Claude models |
 | Ollama | `"openai"` | Local models via OpenAI-compatible API |
 | Microsoft Foundry Local | `"openai"` | Run AI models locally on your device via OpenAI-compatible API |
