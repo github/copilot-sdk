@@ -332,16 +332,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Verify an abort event exists in messages
         Assert.Contains(messages, m => m is AbortEvent);
 
-        // The aborted turn is idle, so the next assistant message proves that
-        // the session accepted and processed the recovery turn.
-        var recoveryTask = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
-            session,
-            static _ => true,
-            timeoutDescription: "recovery assistant message after abort");
-
         await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        var recoveryMessage = await recoveryTask;
-        Assert.False(string.IsNullOrWhiteSpace(recoveryMessage.Data.Content));
+        var recoveryMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(recoveryMessage);
+        Assert.Contains("4", recoveryMessage.Data.Content ?? string.Empty);
     }
 
     [Fact]
