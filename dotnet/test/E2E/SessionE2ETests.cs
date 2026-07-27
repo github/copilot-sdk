@@ -332,10 +332,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Verify an abort event exists in messages
         Assert.Contains(messages, m => m is AbortEvent);
 
-        // We should be able to send another message
-        var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        Assert.NotNull(answer);
-        Assert.Contains("4", answer!.Data.Content ?? string.Empty);
+        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        var recoveryMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(recoveryMessage);
+        Assert.Contains("4", recoveryMessage.Data.Content ?? string.Empty);
     }
 
     [Fact]

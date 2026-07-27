@@ -76,6 +76,7 @@ from copilot import CopilotClient
 from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
+
 async def main():
     # Client automatically starts on enter and cleans up on exit
     async with CopilotClient() as client:
@@ -100,6 +101,7 @@ async def main():
             await session.send("What is 2+2?")
             await done.wait()
 
+
 asyncio.run(main())
 ```
 
@@ -113,6 +115,7 @@ import asyncio
 from copilot import CopilotClient
 from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
+
 
 async def main():
     client = CopilotClient()
@@ -141,6 +144,7 @@ async def main():
     await session.disconnect()
     await client.stop()
 
+
 asyncio.run(main())
 ```
 
@@ -167,6 +171,7 @@ async with CopilotClient() as client:
         on_permission_request=PermissionHandler.approve_all,
         model="gpt-5",
     ) as session:
+
         def on_event(event):
             print(f"Event: {event.type}")
 
@@ -287,14 +292,18 @@ session_id = await client.get_foreground_session_id()
 # Request TUI to display a specific session (TUI+server mode only)
 await client.set_foreground_session_id("session-123")
 
+
 # Subscribe to all lifecycle events
 def on_lifecycle(event):
     print(f"{event.type}: {event.session_id}")
 
+
 unsubscribe = client.on_lifecycle(on_lifecycle)
 
 # Subscribe to specific event type
-unsubscribe = client.on_lifecycle("session.foreground", lambda e: print(f"Foreground: {e.session_id}"))
+unsubscribe = client.on_lifecycle(
+    "session.foreground", lambda e: print(f"Foreground: {e.session_id}")
+)
 
 # Later, to stop receiving events:
 unsubscribe()
@@ -316,13 +325,16 @@ Define tools with automatic JSON schema generation using the `@define_tool` deco
 from pydantic import BaseModel, Field
 from copilot import CopilotClient, define_tool
 
+
 class LookupIssueParams(BaseModel):
     id: str = Field(description="Issue identifier")
+
 
 @define_tool(description="Fetch issue details from our tracker")
 async def lookup_issue(params: LookupIssueParams) -> str:
     issue = await fetch_issue(params.id)
     return issue.summary
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -343,6 +355,7 @@ from copilot import CopilotClient
 from copilot.tools import Tool, ToolInvocation, ToolResult
 from copilot.session import PermissionHandler
 
+
 async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
     issue_id = invocation.arguments["id"]
     issue = await fetch_issue(issue_id)
@@ -351,6 +364,7 @@ async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
         result_type="success",
         session_log=f"Fetched issue {issue_id}",
     )
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -471,6 +485,7 @@ from copilot.session_events import (
 )
 from copilot.session import PermissionHandler
 
+
 async def main():
     async with CopilotClient() as client:
         async with await client.create_session(
@@ -506,6 +521,7 @@ async def main():
             session.on(on_event)
             await session.send("Tell me a short story")
             await done.wait()  # Wait for streaming to complete
+
 
 asyncio.run(main())
 ```
@@ -678,7 +694,10 @@ async with await client.create_session(
     system_message={
         "mode": "customize",
         "sections": {
-            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            "tone": {
+                "action": "replace",
+                "content": "Respond in a warm, professional tone. Be thorough in explanations.",
+            },
             "code_change_rules": {"action": "remove"},
             "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
         },
@@ -697,6 +716,7 @@ You can also pass a transform callback as the `action` instead of a string. The 
 ```python
 def redact_paths(content: str) -> str:
     return content.replace("/home/user", "/***")
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -785,9 +805,7 @@ from copilot.rpc import (
 from copilot.session_events import PermissionRequestShell
 
 
-def on_permission_request(
-    request: PermissionRequest, invocation: dict
-) -> PermissionRequestResult:
+def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
     # ``PermissionRequest`` is a discriminated union — pattern-match on
     # the variant class to access the per-kind fields.
     match request:
@@ -871,6 +889,7 @@ async def handle_user_input(request, invocation):
         "wasFreeform": True,  # Whether the answer was freeform (not from choices)
     }
 
+
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
     model="gpt-5",
@@ -893,11 +912,13 @@ async def on_pre_tool_use(input, invocation):
         "additionalContext": "Extra context for the model",
     }
 
+
 async def on_post_tool_use(input, invocation):
     print(f"Tool {input['toolName']} completed")
     return {
         "additionalContext": "Post-execution notes",
     }
+
 
 async def on_post_tool_use_failure(input, invocation):
     # Fires when a tool's result was a failure. `on_post_tool_use` only fires
@@ -908,11 +929,13 @@ async def on_post_tool_use_failure(input, invocation):
         "additionalContext": f"Retry guidance for {input['toolName']}",
     }
 
+
 async def on_user_prompt_submitted(input, invocation):
     print(f"User prompt: {input['prompt']}")
     return {
         "modifiedPrompt": input["prompt"],  # Optionally modify the prompt
     }
+
 
 async def on_session_start(input, invocation):
     print(f"Session started from: {input['source']}")  # "startup", "resume", "new"
@@ -920,14 +943,17 @@ async def on_session_start(input, invocation):
         "additionalContext": "Session initialization context",
     }
 
+
 async def on_session_end(input, invocation):
     print(f"Session ended: {input['reason']}")
+
 
 async def on_error_occurred(input, invocation):
     print(f"Error in {input['errorContext']}: {input['error']}")
     return {
         "errorHandling": "retry",  # "retry", "skip", or "abort"
     }
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -962,12 +988,14 @@ Register slash commands that users can invoke from the CLI TUI. When the user ty
 ```python
 from copilot.session import CommandDefinition, CommandContext, PermissionHandler
 
+
 async def handle_deploy(ctx: CommandContext) -> None:
     print(f"Deploying with args: {ctx.args}")
     # ctx.session_id  — the session where the command was invoked
     # ctx.command      — full command text (e.g. "/deploy production")
     # ctx.command_name — command name without leading / (e.g. "deploy")
     # ctx.args         — raw argument string (e.g. "production")
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -1030,11 +1058,14 @@ Shows a text input dialog with optional constraints:
 name = await session.ui.input("Enter your name:")
 
 # With options
-email = await session.ui.input("Enter email:", {
-    "title": "Email Address",
-    "description": "We'll use this for notifications",
-    "format": "email",
-})
+email = await session.ui.input(
+    "Enter email:",
+    {
+        "title": "Email Address",
+        "description": "We'll use this for notifications",
+        "format": "email",
+    },
+)
 ```
 
 ### Custom Elicitation
@@ -1042,17 +1073,19 @@ email = await session.ui.input("Enter email:", {
 For full control, use the `elicitation()` method with a custom JSON schema:
 
 ```python
-result = await session.ui.elicitation({
-    "message": "Configure deployment",
-    "requestedSchema": {
-        "type": "object",
-        "properties": {
-            "region": {"type": "string", "enum": ["us-east-1", "eu-west-1"]},
-            "replicas": {"type": "number", "minimum": 1, "maximum": 10},
+result = await session.ui.elicitation(
+    {
+        "message": "Configure deployment",
+        "requestedSchema": {
+            "type": "object",
+            "properties": {
+                "region": {"type": "string", "enum": ["us-east-1", "eu-west-1"]},
+                "replicas": {"type": "number", "minimum": 1, "maximum": 10},
+            },
+            "required": ["region"],
         },
-        "required": ["region"],
-    },
-})
+    }
+)
 
 if result["action"] == "accept":
     region = result["content"]["region"]
@@ -1065,6 +1098,7 @@ When the server (or an MCP tool) needs to ask the end-user a question, it sends 
 
 ```python
 from copilot.session import ElicitationContext, ElicitationResult, PermissionHandler
+
 
 async def handle_elicitation(
     context: ElicitationContext,
@@ -1081,6 +1115,7 @@ async def handle_elicitation(
         "action": "accept",  # or "decline" or "cancel"
         "content": {"answer": "yes"},
     }
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
