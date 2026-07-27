@@ -7,15 +7,15 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 | Provider | Type Value | Notes |
 |----------|------------|-------|
 | OpenAI | `"openai"` | OpenAI API and OpenAI-compatible endpoints |
-| Azure OpenAI / Azure AI Foundry | `"azure"` | Azure-hosted models |
+| Azure OpenAI / Microsoft Foundry | `"azure"` | Azure-hosted models |
 | Anthropic | `"anthropic"` | Claude models |
 | Ollama | `"openai"` | Local models via OpenAI-compatible API |
 | Microsoft Foundry Local | `"openai"` | Run AI models locally on your device via OpenAI-compatible API |
 | Other OpenAI-compatible | `"openai"` | vLLM, LiteLLM, etc. |
 
-## Quick start: Azure AI Foundry
+## Quick start: Microsoft Foundry
 
-Azure AI Foundry (formerly Azure OpenAI) is a common BYOK deployment target for enterprises. Here's a complete example:
+Microsoft Foundry (formerly Azure AI Foundry) is a common BYOK deployment target for enterprises. Here's a complete example:
 
 <details open>
 <summary><strong>Python</strong></summary>
@@ -260,9 +260,9 @@ provider: {
 }
 ```
 
-### Azure AI Foundry (OpenAI-compatible endpoint)
+### Microsoft Foundry (OpenAI-compatible endpoint)
 
-For Azure AI Foundry deployments with `/openai/v1/` endpoints, use `type: "openai"`:
+For Microsoft Foundry deployments with `/openai/v1/` endpoints, use `type: "openai"`:
 
 ```typescript
 provider: {
@@ -514,7 +514,7 @@ Some Copilot features may behave differently with BYOK:
 
 | Provider | Limitations |
 |----------|-------------|
-| Azure AI Foundry | No Entra ID auth; must use API keys |
+| Microsoft Foundry | No Entra ID auth; must use API keys |
 | Ollama | No API key; local only; model support varies |
 | [Microsoft Foundry Local](https://foundrylocal.ai) | Local only; model availability depends on device hardware; no API key required |
 | OpenAI | Subject to OpenAI rate limits and quotas |
@@ -571,7 +571,7 @@ provider: {
 }
 ```
 
-However, if your Azure AI Foundry deployment provides an OpenAI-compatible endpoint path (e.g., `/openai/v1/`), use `type: "openai"`:
+However, if your Microsoft Foundry deployment provides an OpenAI-compatible endpoint path (e.g., `/openai/v1/`), use `type: "openai"`:
 
 <!-- docs-validate: hidden -->
 ```typescript
@@ -589,7 +589,7 @@ const session = await client.createSession({
 <!-- /docs-validate: hidden -->
 
 ```typescript
-// ✅ Correct: OpenAI-compatible Azure AI Foundry endpoint
+// ✅ Correct: OpenAI-compatible Microsoft Foundry endpoint
 provider: {
     type: "openai",
     baseUrl: "https://your-resource.openai.azure.com/openai/v1/",
