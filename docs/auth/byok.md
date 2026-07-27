@@ -15,7 +15,7 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 
 ## Quick start: Microsoft Foundry
 
-Microsoft Foundry (formerly Azure AI Foundry) is a common BYOK deployment target for enterprises. Here's a complete example:
+Microsoft Foundry is a common BYOK deployment target for enterprises. Here's a complete example:
 
 <details open>
 <summary><strong>Python</strong></summary>
