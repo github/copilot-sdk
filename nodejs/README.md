@@ -1058,6 +1058,16 @@ const session = await client.createSession({
                 errorHandling: "retry", // "retry", "skip", or "abort"
             };
         },
+
+        // Called when the top-level agent naturally stops
+        onAgentStop: async (input, invocation) => {
+            if (!input.stopHookActive && needsMoreWork()) {
+                return {
+                    decision: "block",
+                    reason: "Run the final validation and fix any failures.",
+                };
+            }
+        },
     },
 });
 ```
@@ -1071,6 +1081,7 @@ const session = await client.createSession({
 - `onSessionStart` - Run logic when a session starts or resumes.
 - `onSessionEnd` - Cleanup or logging when session ends.
 - `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
+- `onAgentStop` - Observe natural top-level agent completion. Return `{ decision: "block", reason }` to request another turn; use `stopHookActive` to avoid repeated blocks.
 
 ## Error Handling
 

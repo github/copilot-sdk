@@ -3254,6 +3254,7 @@ describe("CopilotClient", () => {
                 hookType: "agentStop",
                 input: {
                     stopReason: "end_turn",
+                    stop_hook_active: true,
                     timestamp: 1700000000000,
                     cwd: "/repo",
                 },
@@ -3262,6 +3263,7 @@ describe("CopilotClient", () => {
             expect(received).toHaveLength(1);
             expect(received[0].input).toEqual({
                 stopReason: "end_turn",
+                stopHookActive: true,
                 timestamp: new Date(1700000000000),
                 workingDirectory: "/repo",
             });
