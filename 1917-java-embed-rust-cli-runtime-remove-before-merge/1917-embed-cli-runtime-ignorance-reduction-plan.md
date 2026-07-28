@@ -133,7 +133,9 @@ The .NET PR uses MSBuild targets to copy `runtime.node` from `runtimes/<rid>/nat
 
 The `package.json`-as-dependency-manifest approach was ruled out by experiment: `npm install` returns `EBADPLATFORM` for cross-platform packages, and `npm install --force` disables all npm safety checks. `npm pack` downloads the tarball without any platform check and does not require `--force`.
 
-The `copilot-native` module's `generate-resources` phase runs `npm pack @github/copilot-<platform>@${project.version}` for each of the 8 platforms. This produces `.tgz` tarballs, which are then extracted with `tar` to stage the `runtime.node` binary at `target/native-staging/<classifier>/native/<classifier>/runtime.node`. The version comes from `${project.version}` — the SDK and npm package versions are identical, so no separate version property is needed.
+Long-term target shape: the `copilot-native` module's `generate-resources` phase runs `npm pack @github/copilot-<platform>@${project.version}` for each supported platform. This produces `.tgz` tarballs, which are then extracted with `tar` to stage the `runtime.node` binary at `target/native-staging/<classifier>/native/<classifier>/runtime.node`. The version comes from `${project.version}` — the SDK and npm package versions are identical, so no separate version property is needed.
+
+Temporary invariant (`linux-x64` only for now): perform this only for `linux-x64` on Ubuntu 24.04 in this phase; all other platform packaging is deferred to a later phase.
 
 Integrity verification: a build step reads the `integrity` field (SHA-512) from the monorepo's `nodejs/package-lock.json` for each `@github/copilot-<platform>` package and verifies the downloaded `.tgz` against it, mirroring Rust's `resolve_version_and_integrity` → `cached_download` → verify pattern in `build/in_process.rs`.
 
@@ -846,10 +848,10 @@ For Java:
 
 1. Does the existing `java-sdk-tests.yml` workflow need modification, or does a separate workflow handle InProcess tests?
 2. How are the native binaries provisioned in CI? Downloaded from a release? Built from source?
-3. Which CI runner platforms need InProcess test coverage? (linux-x64 and darwin-arm64 minimum?)
+3. Which CI runner platforms need InProcess test coverage? (historically discussed as linux-x64 and darwin-arm64 minimum)
 4. Should InProcess tests be gated behind a `runtime.node` availability check to avoid failing when the binary isn't present?
 
-**Recommendation:** Modify the existing `java-sdk-tests.yml` to add InProcess test jobs on linux-x64 and darwin-arm64 runners. Native binaries are downloaded from the `copilot-agent-runtime` release artifacts. InProcess tests run as a separate Maven profile.
+**Recommendation:** Modify the existing `java-sdk-tests.yml` to add an InProcess test job on linux-x64 (`ubuntu-latest`) for now. InProcess tests run as a separate Maven profile. Additional runner platforms are deferred under the temporary linux-x64-only implementation invariant.
 
 **Resolution:**
 
@@ -859,11 +861,11 @@ Answered by 3.11 Resolution. Modify the existing `java-sdk-tests.yml` to add a n
 
 **Sub-question 2 — How are the native binaries provisioned in CI?**
 
-Answered by 3.2 Resolution. Via the `copilot-native` Maven module's `generate-resources` phase running `npm pack @github/copilot-<platform>@${project.version}` for each required platform, with SHA-512 integrity verification against `nodejs/package-lock.json`. NOT downloaded from GitHub Releases. NOT built from Rust source. The InProcess CI job must build (or have a prerequisite step that builds) the `copilot-native` module to produce the classifier JAR(s) on the classpath before tests execute.
+Answered by 3.2 Resolution. Via the `copilot-native` Maven module's `generate-resources` phase running `npm pack @github/copilot-<platform>@${project.version}` with SHA-512 integrity verification against `nodejs/package-lock.json`. NOT downloaded from GitHub Releases. NOT built from Rust source. Under the temporary linux-x64-only implementation invariant, this means `npm pack @github/copilot-linux-x64@${project.version}` only in this phase. The InProcess CI job must build (or have a prerequisite step that builds) the `copilot-native` module to produce the linux-x64 classifier JAR on the classpath before tests execute.
 
 **Sub-question 3 — Which CI runner platforms?**
 
-Answered by 3.12's own Recommendation, confirmed by the Rust and .NET workflow precedents. `ubuntu-latest` (linux-x64) and `macos-latest` (darwin-arm64). Windows is excluded, matching both `rust-sdk-tests.yml` (`os: [ubuntu-latest, macos-latest]`, comment: "TODO: Re-enable Windows after fixing the napi-oop peer shutdown crash") and `dotnet-sdk-tests.yml` (which excludes `windows-latest` + `inprocess`). The 3.11 spike succeeded on win32-x64 at the JNA/JVM level, but the runtime-side peer-shutdown crash on Windows is a known issue across SDKs that blocks enabling it.
+Answered by the temporary implementation invariant and 3.12 Recommendation. Current phase scope is `ubuntu-latest` (linux-x64) only. `macos-latest` (darwin-arm64), Windows, and all other OS/arch combinations are deferred for later phases.
 
 **Sub-question 4 — Should InProcess tests be gated behind a `runtime.node` availability check?**
 
@@ -931,7 +933,21 @@ Annotate with `@CopilotExperimental` initially. The InProcess transport depends 
 
 After Phase 3 questions are resolved, implement in this order. Each step should be a separately testable commit.
 
-> **DRI decision — linux-x64 depth-first.** Implementation targets `linux-x64` first and exclusively until the full stack (platform detection → native extraction → JNA binding → FFI host → `CopilotClient` integration → E2E test → CI job) is end-to-end green on `ubuntu-latest`. `linux-x64` is the platform used by the Copilot Coding Agent runner and is also supported by the local Copilot CLI. Only after linux-x64 is fully working should the implementation be extended to `darwin-arm64` (and subsequently `darwin-x64`, `win32-x64`, `linux-arm64`, and the two musl targets). Each platform extension is a separately gated commit.
+> **DRI decision — hard scope invariant for all native implementation work in Phase 4.**
+>
+> Because this implementation includes native code and is split across Copilot Coding Agent and local Copilot CLI work, all Phase 4 native implementation work is limited to **Ubuntu 24.04 on linux-x64 only**.
+>
+> Any platform-specific implementation work for the following OS/arch pairs is **out of scope for this phase** and must not be done now:
+>
+> - `linux-arm64`
+> - `linuxmusl-x64`
+> - `linuxmusl-arm64`
+> - `darwin-x64`
+> - `darwin-arm64`
+> - `win32-x64`
+> - `win32-arm64`
+>
+> If any step below appears to imply implementation for those platforms, this invariant overrides that text. Those platforms are deferred to a later phase/plan.
 
 ### TDD discipline for all implementation steps
 
@@ -945,10 +961,11 @@ Every implementation step in this phase **must** follow this test-driven workflo
 3. **Refactor.** Clean up the implementation while keeping tests green. Run `mvn spotless:apply` to ensure formatting compliance.
 4. **Gate before proceeding.** All tests from the current step **and all prior steps** must pass (`mvn verify`) before moving to the next step. Do not proceed with a step if any prior step's tests are broken.
 5. **Coverage expectations per step:**
-   - Every public method must have at least one test exercising the success path and one test exercising the primary failure/edge-case path.
-   - Error handling paths (e.g., missing native binary, failed `host_start`, callback on closed connection) must have explicit tests — do not assume "it would throw."
-   - Platform-specific behavior (OS/arch detection, library naming) must be tested with parameterized tests covering all 8 platform combinations where feasible, using mocked system properties.
-   - Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
+  - Every public method must have at least one test exercising the success path and one test exercising the primary failure/edge-case path.
+  - Error handling paths (e.g., missing native binary, failed `host_start`, callback on closed connection) must have explicit tests — do not assume "it would throw."
+  - Platform-specific behavior in this phase is limited to Ubuntu `linux-x64` only. Do not add implementation-specific tests for other OS/arch pairs in this phase.
+  - Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
+
 6. **Test isolation.** Each step's tests must be runnable independently of whether a real `runtime.node` binary is present. Unit tests must use mocks, test doubles, or minimal test native libraries — never depend on the real runtime binary. Only E2E integration tests (step 4.7) require the real binary.
 7. **No skipping tests.** Do not annotate tests with `@Disabled` or `@Ignore` to work around failures. If a test cannot pass, fix the production code or fix the test.
 
@@ -966,7 +983,7 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 - `java/src/test/java/com/github/copilot/ffi/PlatformDetectorTest.java`
 
-**Gating criteria:** Correct classifier output for all 8 platform combinations. Musl detection works against a test ELF binary.
+**Gating criteria:** Correct classifier output for Ubuntu `linux-x64` on `ubuntu-latest`. Multi-platform and musl-specific classifier gating is deferred to a later phase.
 
 ### 4.2 — Native binary extraction and caching
 
@@ -1085,18 +1102,18 @@ This step has three sub-steps that must be done in order.
 
 #### 4.6b — Native binary download and classifier JAR module
 
-**What:** New `copilot-native/` module (`com.github:copilot-sdk-java-runtime`) that downloads `runtime.node` binaries via `npm pack` and packages them into 8 classifier JARs.
+**What:** New `copilot-native/` module (`com.github:copilot-sdk-java-runtime`) that, in this phase, downloads `runtime.node` for `linux-x64` only via `npm pack` and packages a `linux-x64` classifier JAR.
 
 **Files to create:**
 
 - `java/copilot-native/pom.xml` — module POM with:
-  - `exec-maven-plugin` executions in `generate-resources` phase: one `npm pack @github/copilot-<platform>@${project.version}` per platform, followed by `tar` extraction to `target/native-staging/<classifier>/native/<classifier>/runtime.node`
-  - A build step that reads `integrity` (SHA-512) from `${copilot.sdk.root}/nodejs/package-lock.json` and verifies each downloaded `.tgz`
+  - `exec-maven-plugin` execution in `generate-resources` phase for `linux-x64` only: `npm pack @github/copilot-linux-x64@${project.version}`, followed by `tar` extraction to `target/native-staging/linux-x64/native/linux-x64/runtime.node`
+  - A build step that reads `integrity` (SHA-512) from `${copilot.sdk.root}/nodejs/package-lock.json` and verifies the downloaded `.tgz`
   - Default `maven-jar-plugin` execution producing a placeholder primary JAR (contains only `native/lib/copilot-runtime.properties` with `placeholder=true`)
-  - 8 additional `maven-jar-plugin` executions, each with `<classifier>` (e.g., `linux-x64`, `darwin-arm64`), each packaging from `target/native-staging/<classifier>/`
-  - `build-helper-maven-plugin` to attach the generated Gradle Module Metadata (`.module`) file
+  - One additional `maven-jar-plugin` execution with `<classifier>linux-x64</classifier>`, packaging from `target/native-staging/linux-x64/`
+  - Optional: keep `build-helper-maven-plugin` wiring prepared for future Gradle Module Metadata (`.module`) expansion
 - `java/copilot-native/src/main/resources/native/lib/copilot-runtime.properties` — placeholder properties (`placeholder=true`, `version=${project.version}`)
-- `java/copilot-native/gmm-template.json` — GMM template with `${project.version}` and classifier placeholders, declaring 8 variants with `org.gradle.native.operatingSystem`, `org.gradle.native.architecture`, and (for musl) `com.github.copilot.libc` attributes
+- `java/copilot-native/gmm-template.json` — optional deferred artifact; if present in this phase, limit to `linux-x64` only
 
 **Resource path convention per classifier JAR:**
 
@@ -1108,21 +1125,21 @@ native/<classifier>/platform.properties
 Where `platform.properties` contains:
 
 ```properties
-classifier=darwin-arm64
+classifier=linux-x64
 version=${project.version}
 ```
 
-**Gating criteria:** `mvn package -pl copilot-native` produces 8 classifier JARs with correct resource paths. Each classifier JAR contains exactly one `runtime.node` binary at `native/<classifier>/runtime.node`. The placeholder primary JAR contains no native binaries. The `.module` GMM file is attached as an artifact. SHA-512 verification passes for all downloaded tarballs.
+**Gating criteria:** `mvn package -pl copilot-native` produces the `linux-x64` classifier JAR with `native/linux-x64/runtime.node`. The placeholder primary JAR contains no native binaries. SHA-512 verification passes for the `linux-x64` tarball. Other classifiers are deferred.
 
 #### 4.6c — Monolithic uber-JAR module (optional)
 
-**What:** New `copilot-native-all/` module (`com.github:copilot-sdk-java-runtime-all`) that merges all 8 classifier JARs into a single JAR via `maven-assembly-plugin`.
+**What:** Deferred in this phase. Do not implement multi-platform uber-JAR assembly while the Phase 4 invariant is `linux-x64`-only.
 
 **Files to create:**
 
-- `java/copilot-native-all/pom.xml` — declares all 8 classifier JARs as dependencies, uses `maven-assembly-plugin` with `jar-with-dependencies` descriptor and `appendAssemblyId=false`
+- None in this phase.
 
-**Gating criteria:** The assembled JAR contains all 8 `native/<classifier>/runtime.node` resource paths. `NativeRuntimeLoader.loadRuntime()` can locate any platform's binary from the merged classpath.
+**Gating criteria:** Not applicable in this phase (deferred).
 
 ### 4.7 — E2E integration test
 
@@ -1144,7 +1161,7 @@ version=${project.version}
 
 - `.github/workflows/java-sdk-tests.yml`
 
-**Gating criteria:** CI runs InProcess E2E tests on linux-x64 and darwin-arm64. Tests are skipped gracefully when `runtime.node` is not available.
+**Gating criteria:** CI runs InProcess E2E tests on Ubuntu `linux-x64` only. No implementation-specific CI work for other OS/arch pairs is included in this phase.
 
 ---
 
@@ -1162,8 +1179,8 @@ version=${project.version}
 | Concern                   | Notes                                                                                                                                                           |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Java 17 baseline**      | JNA works on Java 17. No Panama FFM. No `--enable-native-access` needed.                                                                                        |
-| **GraalVM native-image**  | Verify JNA callback pattern works under native-image. Add reachability metadata if needed.                                                                      |
-| **Windows path handling** | `runtime.node` on Windows is `copilot_runtime.dll`. Path separators, temp directory behavior differ.                                                            |
+| **GraalVM native-image**  | Out of scope for this feature in this plan iteration; do not pursue native-image support for the JNA-backed InProcess transport.                                |
+| **Windows path handling** | Deferred. Do not do Windows-specific implementation work in this phase; current scope is Ubuntu linux-x64 only.                                                 |
 | **Thread safety**         | `FfiRuntimeHost` must be thread-safe. Callback invocations come from native threads.                                                                            |
 | **Memory management**     | JNA `Callback` instances must not be GC'd while native holds the function pointer. `Pointer`/`Memory` objects must be freed correctly.                          |
 | **Graceful degradation**  | If `runtime.node` is not on the classpath and no CLI path is configured, the SDK should produce a clear error message, not a `ClassNotFoundException` from JNA. |
