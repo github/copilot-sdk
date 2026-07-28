@@ -933,6 +933,10 @@ Annotate with `@CopilotExperimental` initially. The InProcess transport depends 
 
 After Phase 3 questions are resolved, implement in this order. Each step should be a separately testable commit.
 
+> **Execution order is locked to Choice A (restructure-first).**
+>
+> Phase 4 uses a flattened sequence where the former 4.6a runs first, then implementation proceeds in the new numbering below. The former-step mapping is included in each heading.
+
 > **DRI decision — hard scope invariant for all native implementation work in Phase 4.**
 >
 > Because this implementation includes native code and is split across Copilot Coding Agent and local Copilot CLI work, all Phase 4 native implementation work is limited to **Ubuntu 24.04 on linux-x64 only**.
@@ -955,7 +959,7 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 1. **Write tests first.** Before writing or modifying production code for a step, write the unit tests (and integration tests where specified) that define the expected behavior. Tests should initially fail (red).
 
-   The test native library from `spike-3-4-jna-callback-and-threading/rust-dll/` is the test fixture for steps 4.3 and 4.4. Build it once with `cargo build --release` for the current OS and architecture and place the output at a known path before writing Java tests.
+The test native library from `spike-3-4-jna-callback-and-threading/rust-dll/` is the test fixture for steps 4.4 and 4.5. Build it once with `cargo build --release` for the current OS and architecture and place the output at a known path before writing Java tests.
 
 2. **Implement until green.** Write the minimum production code to make all tests pass.
 3. **Refactor.** Clean up the implementation while keeping tests green. Run `mvn spotless:apply` to ensure formatting compliance.
@@ -967,119 +971,10 @@ Every implementation step in this phase **must** follow this test-driven workflo
 - Platform-specific behavior in this phase is limited to Ubuntu `linux-x64` only. Do not add implementation-specific tests for other OS/arch pairs in this phase.
 - Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
 
-6. **Test isolation.** Each step's tests must be runnable independently of whether a real `runtime.node` binary is present. Unit tests must use mocks, test doubles, or minimal test native libraries — never depend on the real runtime binary. Only E2E integration tests (step 4.7) require the real binary.
+6. **Test isolation.** Each step's tests must be runnable independently of whether a real `runtime.node` binary is present. Unit tests must use mocks, test doubles, or minimal test native libraries — never depend on the real runtime binary. Only E2E integration tests (step 4.8) require the real binary.
 7. **No skipping tests.** Do not annotate tests with `@Disabled` or `@Ignore` to work around failures. If a test cannot pass, fix the production code or fix the test.
 
-### 4.1 — Platform detection utility
-
-**What:** `PlatformDetector` class that determines `os`, `arch`, `libc` and produces the classifier string.
-
-> **Path note:** Steps 4.1–4.5 list file paths as `java/src/...`. After step 4.6a (reactor restructure), these become `java/sdk/src/...`. If 4.6a is performed first, use the `java/sdk/src/...` paths. If 4.6a is performed after, the files will be moved during 4.6a.
-
-**Files to create:**
-
-- `java/src/main/java/com/github/copilot/ffi/PlatformDetector.java`
-
-**Tests:** Unit tests with mocked system properties, test ELF binary fragments for PT_INTERP parsing.
-
-- `java/src/test/java/com/github/copilot/ffi/PlatformDetectorTest.java`
-
-**Gating criteria:** Correct classifier output for Ubuntu `linux-x64` on `ubuntu-latest`. Multi-platform and musl-specific classifier gating is deferred to a later phase.
-
-### 4.2 — Native binary extraction and caching
-
-**What:** `NativeRuntimeLoader` class that locates `runtime.node` on the classpath, extracts to cache, and returns the filesystem path.
-
-**Files to create:**
-
-- `java/src/main/java/com/github/copilot/ffi/NativeRuntimeLoader.java`
-
-**Tests:** Unit tests with classpath resources, temp directory extraction, atomic rename behavior.
-
-- `java/src/test/java/com/github/copilot/ffi/NativeRuntimeLoaderTest.java`
-
-**Gating criteria:**
-
-- Extracts binary to `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`. Handles concurrent extraction safely.
-
-- When _multiple_ platform JARs are on the classpath (uber-jar scenario), it sorts candidates and picks the best match. The plan's `NativeRuntimeLoader` should handle this case — in the `copilot-native-all` uber-JAR, all 8 `native/<classifier>/runtime.node` resources exist on the classpath simultaneously. The loader must filter by the detected classifier, not just grab the first `runtime.node` it finds. ❌❌❌We are not doing the uber-jar approach now, but we want to do it in the future, so we must be ready for it.❌❌❌
-
-### 4.3 — JNA binding interface and implementation
-
-**What:** `NativeBinding` interface, `JnaNativeBinding` implementation, JNA `Callback` for outbound data.
-
-**Files to create:**
-
-- `java/src/main/java/com/github/copilot/ffi/NativeBinding.java`
-- `java/src/main/java/com/github/copilot/ffi/JnaNativeBinding.java`
-- `java/src/main/java/com/github/copilot/ffi/OutboundCallback.java`
-
-**Tests:** Unit tests using a test native library with minimal C ABI (or mock/spy on JNA calls).
-
-- `java/src/test/java/com/github/copilot/ffi/JnaNativeBindingTest.java`
-
-**Gating criteria:**
-
-- Can load a native library, call functions, receive callbacks. Error cases throw `IllegalStateException` (see 3.10 resolution — no dedicated `FfiTransportException`).
-
-- **Library-never-unloads pattern** — the loaded native handle must be held in a `static` field and never released. JNA caches by library name, but the plan should make this explicit since native worker threads outlive any `FfiRuntimeHost` instance. See Rust `OnceLock<Mutex<HashMap<PathBuf, &'static Library>>>` + `Box::leak()` Missing this risks a crash if a second `FfiRuntimeHost` is created after the first is closed.
-
-### 4.4 — FFI runtime host and transport streams
-
-**What:** `FfiRuntimeHost` class that manages the full lifecycle: `host_start` → `connection_open` → duplex stream bridging → `connection_close` → `host_shutdown`. Provides `InputStream`/`OutputStream` compatible with `JsonRpcClient`.
-
-**Files to create:**
-
-- `java/src/main/java/com/github/copilot/ffi/FfiRuntimeHost.java`
-
-**Tests:**
-
-- `java/src/test/java/com/github/copilot/ffi/FfiRuntimeHostTest.java`
-
-**Gating criteria:**
-
-- Full lifecycle works with a test native library. Callback data flows through `InputStream`. Write data reaches `connection_write`. Shutdown drains active callbacks.
-
-- **Callback `closing` flag early-exit** — the `on_outbound` callback must check a `closing` flag and return immediately without enqueuing data. Without this, the shutdown drain may never converge. Both .NET and Rust set this flag before `connection_close`. Failing to do this can caus a hang on shutdown.
-
-- **Operation lock for concurrent write/close safety** — `FfiOutputStream.write()` can race with `FfiRuntimeHost.close()`. See how the Rust SDK uses a `parking_lot::Mutex` (`operation_lock`). See the Rust SDK `FfiShared`. Failing to do this can cause a data race during shutdown.
-
-- **`Connection` record needs `FfiRuntimeHost` field** — the current `CopilotClient.Connection` record has `(JsonRpcClient rpc, Process process, ServerRpc serverRpc)`. InProcess has no `Process`. Without an `ffiHost` field, `stop()` and `forceStop()` can't call `ffiHost.close()`. .NET's `Connection` record includes `FfiRuntimeHost? ffiHost`. Failure to do this can cause a leak of native resources on shutdown.
-
-### 4.5 — Transport integration with `CopilotClient`
-
-**What:** `RuntimeConnection` sealed class hierarchy (see 3.5.1 resolution), `setConnection()` on `CopilotClientOptions`, InProcess code path in `CopilotClient` that uses `FfiRuntimeHost` instead of `CliServerManager`. **Do NOT create a `Transport` enum or `setTransport()` method — that approach was explicitly rejected in the 3.5.1 resolution in favor of the `RuntimeConnection` type hierarchy.**
-
-✅✅Remember to handle **`COPILOT_SDK_DEFAULT_CONNECTION` env var resolution in `CopilotClient` constructor**. `CopilotClient` must implement `resolveDefaultConnection()` when no `connection` is set. See .NET `dotnet/src/Client.cs` — search for `ResolveDefaultConnection` (private static method) and its caller `_options.Connection ?? ResolveDefaultConnection(_options)`; Rust `rust/src/lib.rs` — search for `fn resolve_default_transport` and constant `DEFAULT_CONNECTION_ENV_VAR`.
-
-✅✅Remember: **`ValidateEnvironmentOptions` — reject incompatible options for InProcess** — `environment`, `telemetry`, `workingDirectory`, `extraArgs` must be rejected when InProcess is selected. Without this, users set options that silently do nothing in-process. See .NET `dotnet/src/Client.cs` — search for `ValidateEnvironmentOptions` (private static method, called right after `ResolveDefaultConnection`); Rust `rust/src/lib.rs` — search for `fn validate_inprocess_options`.
-
-**Files to modify:**
-
-- `java/src/main/java/com/github/copilot/rpc/CopilotClientOptions.java` — add `connection` field (type `RuntimeConnection`, nullable, default `null`)
-- `java/src/main/java/com/github/copilot/CopilotClient.java` — InProcess connection path via `RuntimeConnection` dispatch
-
-**Files to create:**
-
-- `java/src/main/java/com/github/copilot/rpc/RuntimeConnection.java` — sealed class with factory methods (see 3.5.1 resolution)
-- `java/src/main/java/com/github/copilot/rpc/StdioRuntimeConnection.java`
-- `java/src/main/java/com/github/copilot/rpc/TcpRuntimeConnection.java`
-- `java/src/main/java/com/github/copilot/rpc/UriRuntimeConnection.java`
-- `java/src/main/java/com/github/copilot/rpc/InProcessRuntimeConnection.java`
-
-**Tests:** Unit test that InProcess transport selection uses `FfiRuntimeHost`.
-
-✅✅✅Test the backward-compatibility bridge (legacy fields → `RuntimeConnection` inference) and the `IllegalArgumentException` when both `connection` and legacy fields are set.✅✅✅
-
-- `java/src/test/java/com/github/copilot/CopilotClientTransportTest.java`
-
-**Gating criteria:** `new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())` routes through FFI host. `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` env var works. CLI transport unchanged.
-
-### 4.6 — Multi-module reactor restructure and per-platform classifier JARs
-
-This step has three sub-steps that must be done in order.
-
-#### 4.6a — Parent POM restructure
+### 4.1 — Parent POM restructure
 
 **What:** Convert the single-module `java/pom.xml` into a multi-module reactor. Move the existing SDK code into a `sdk/` subdirectory while preserving its GAV (`com.github:copilot-sdk-java`).
 
@@ -1101,7 +996,110 @@ This step has three sub-steps that must be done in order.
 
 **Gating criteria:** `mvn clean verify` from `java/` runs the full reactor. `mvn -pl sdk clean verify` builds and tests the SDK exactly as before. All existing tests pass. CI workflows work with the new directory structure.
 
-#### 4.6b — Native binary download and classifier JAR module
+### 4.2 — Platform detection utility
+
+**What:** `PlatformDetector` class that determines `os`, `arch`, `libc` and produces the classifier string.
+
+**Files to create:**
+
+- `java/sdk/src/main/java/com/github/copilot/ffi/PlatformDetector.java`
+
+**Tests:** Unit tests with mocked system properties, test ELF binary fragments for PT_INTERP parsing.
+
+- `java/sdk/src/test/java/com/github/copilot/ffi/PlatformDetectorTest.java`
+
+**Gating criteria:** Correct classifier output for Ubuntu `linux-x64` on `ubuntu-latest`. Multi-platform and musl-specific classifier gating is deferred to a later phase.
+
+### 4.3 — Native binary extraction and caching
+
+**What:** `NativeRuntimeLoader` class that locates `runtime.node` on the classpath, extracts to cache, and returns the filesystem path.
+
+**Files to create:**
+
+- `java/sdk/src/main/java/com/github/copilot/ffi/NativeRuntimeLoader.java`
+
+**Tests:** Unit tests with classpath resources, temp directory extraction, atomic rename behavior.
+
+- `java/sdk/src/test/java/com/github/copilot/ffi/NativeRuntimeLoaderTest.java`
+
+**Gating criteria:**
+
+- Extracts binary to `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`. Handles concurrent extraction safely.
+
+- When _multiple_ platform JARs are on the classpath (uber-jar scenario), it sorts candidates and picks the best match. The plan's `NativeRuntimeLoader` should handle this case — in the `copilot-native-all` uber-JAR, all 8 `native/<classifier>/runtime.node` resources exist on the classpath simultaneously. The loader must filter by the detected classifier, not just grab the first `runtime.node` it finds. ❌❌❌We are not doing the uber-jar approach now, but we want to do it in the future, so we must be ready for it.❌❌❌
+
+### 4.4 — JNA binding interface and implementation
+
+**What:** `NativeBinding` interface, `JnaNativeBinding` implementation, JNA `Callback` for outbound data.
+
+**Files to create:**
+
+- `java/sdk/src/main/java/com/github/copilot/ffi/NativeBinding.java`
+- `java/sdk/src/main/java/com/github/copilot/ffi/JnaNativeBinding.java`
+- `java/sdk/src/main/java/com/github/copilot/ffi/OutboundCallback.java`
+
+**Tests:** Unit tests using a test native library with minimal C ABI (or mock/spy on JNA calls).
+
+- `java/sdk/src/test/java/com/github/copilot/ffi/JnaNativeBindingTest.java`
+
+**Gating criteria:**
+
+- Can load a native library, call functions, receive callbacks. Error cases throw `IllegalStateException` (see 3.10 resolution — no dedicated `FfiTransportException`).
+
+- **Library-never-unloads pattern** — the loaded native handle must be held in a `static` field and never released. JNA caches by library name, but the plan should make this explicit since native worker threads outlive any `FfiRuntimeHost` instance. See Rust `OnceLock<Mutex<HashMap<PathBuf, &'static Library>>>` + `Box::leak()` Missing this risks a crash if a second `FfiRuntimeHost` is created after the first is closed.
+
+### 4.5 — FFI runtime host and transport streams
+
+**What:** `FfiRuntimeHost` class that manages the full lifecycle: `host_start` → `connection_open` → duplex stream bridging → `connection_close` → `host_shutdown`. Provides `InputStream`/`OutputStream` compatible with `JsonRpcClient`.
+
+**Files to create:**
+
+- `java/sdk/src/main/java/com/github/copilot/ffi/FfiRuntimeHost.java`
+
+**Tests:**
+
+- `java/sdk/src/test/java/com/github/copilot/ffi/FfiRuntimeHostTest.java`
+
+**Gating criteria:**
+
+- Full lifecycle works with a test native library. Callback data flows through `InputStream`. Write data reaches `connection_write`. Shutdown drains active callbacks.
+
+- **Callback `closing` flag early-exit** — the `on_outbound` callback must check a `closing` flag and return immediately without enqueuing data. Without this, the shutdown drain may never converge. Both .NET and Rust set this flag before `connection_close`. Failing to do this can caus a hang on shutdown.
+
+- **Operation lock for concurrent write/close safety** — `FfiOutputStream.write()` can race with `FfiRuntimeHost.close()`. See how the Rust SDK uses a `parking_lot::Mutex` (`operation_lock`). See the Rust SDK `FfiShared`. Failing to do this can cause a data race during shutdown.
+
+- **`Connection` record needs `FfiRuntimeHost` field** — the current `CopilotClient.Connection` record has `(JsonRpcClient rpc, Process process, ServerRpc serverRpc)`. InProcess has no `Process`. Without an `ffiHost` field, `stop()` and `forceStop()` can't call `ffiHost.close()`. .NET's `Connection` record includes `FfiRuntimeHost? ffiHost`. Failure to do this can cause a leak of native resources on shutdown.
+
+### 4.6 — Transport integration with `CopilotClient`
+
+**What:** `RuntimeConnection` sealed class hierarchy (see 3.5.1 resolution), `setConnection()` on `CopilotClientOptions`, InProcess code path in `CopilotClient` that uses `FfiRuntimeHost` instead of `CliServerManager`. **Do NOT create a `Transport` enum or `setTransport()` method — that approach was explicitly rejected in the 3.5.1 resolution in favor of the `RuntimeConnection` type hierarchy.**
+
+✅✅Remember to handle **`COPILOT_SDK_DEFAULT_CONNECTION` env var resolution in `CopilotClient` constructor**. `CopilotClient` must implement `resolveDefaultConnection()` when no `connection` is set. See .NET `dotnet/src/Client.cs` — search for `ResolveDefaultConnection` (private static method) and its caller `_options.Connection ?? ResolveDefaultConnection(_options)`; Rust `rust/src/lib.rs` — search for `fn resolve_default_transport` and constant `DEFAULT_CONNECTION_ENV_VAR`.
+
+✅✅Remember: **`ValidateEnvironmentOptions` — reject incompatible options for InProcess** — `environment`, `telemetry`, `workingDirectory`, `extraArgs` must be rejected when InProcess is selected. Without this, users set options that silently do nothing in-process. See .NET `dotnet/src/Client.cs` — search for `ValidateEnvironmentOptions` (private static method, called right after `ResolveDefaultConnection`); Rust `rust/src/lib.rs` — search for `fn validate_inprocess_options`.
+
+**Files to modify:**
+
+- `java/sdk/src/main/java/com/github/copilot/rpc/CopilotClientOptions.java` — add `connection` field (type `RuntimeConnection`, nullable, default `null`)
+- `java/sdk/src/main/java/com/github/copilot/CopilotClient.java` — InProcess connection path via `RuntimeConnection` dispatch
+
+**Files to create:**
+
+- `java/sdk/src/main/java/com/github/copilot/rpc/RuntimeConnection.java` — sealed class with factory methods (see 3.5.1 resolution)
+- `java/sdk/src/main/java/com/github/copilot/rpc/StdioRuntimeConnection.java`
+- `java/sdk/src/main/java/com/github/copilot/rpc/TcpRuntimeConnection.java`
+- `java/sdk/src/main/java/com/github/copilot/rpc/UriRuntimeConnection.java`
+- `java/sdk/src/main/java/com/github/copilot/rpc/InProcessRuntimeConnection.java`
+
+**Tests:** Unit test that InProcess transport selection uses `FfiRuntimeHost`.
+
+✅✅✅Test the backward-compatibility bridge (legacy fields → `RuntimeConnection` inference) and the `IllegalArgumentException` when both `connection` and legacy fields are set.✅✅✅
+
+- `java/sdk/src/test/java/com/github/copilot/CopilotClientTransportTest.java`
+
+**Gating criteria:** `new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())` routes through FFI host. `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` env var works. CLI transport unchanged.
+
+### 4.7 — Native binary download and classifier JAR module
 
 **What:** New `copilot-native/` module (`com.github:copilot-sdk-java-runtime`) that, in this phase, downloads `runtime.node` for `linux-x64` only via `npm pack` and packages a `linux-x64` classifier JAR.
 
@@ -1132,29 +1130,21 @@ version=${project.version}
 
 **Gating criteria:** `mvn package -pl copilot-native` produces the `linux-x64` classifier JAR with `native/linux-x64/runtime.node`. The placeholder primary JAR contains no native binaries. SHA-512 verification passes for the `linux-x64` tarball. Other classifiers are deferred.
 
-#### 4.6c — Monolithic uber-JAR module (optional)
+> **Deferred optional work:** Monolithic uber-JAR assembly remains out of scope for this phase. Do not implement multi-platform uber-JAR assembly while the Phase 4 invariant is `linux-x64`-only.
 
-**What:** Deferred in this phase. Do not implement multi-platform uber-JAR assembly while the Phase 4 invariant is `linux-x64`-only.
-
-**Files to create:**
-
-- None in this phase.
-
-**Gating criteria:** Not applicable in this phase (deferred).
-
-### 4.7 — E2E integration test
+### 4.8 — E2E integration test
 
 **What:** Failsafe IT that exercises InProcess transport with a real `runtime.node` binary.
 
 **Files to create:**
 
-- `java/sdk/src/test/java/com/github/copilot/e2e/InProcessTransportIT.java` _(note: `sdk/` prefix — this path is post-4.6a restructure)_
+- `java/sdk/src/test/java/com/github/copilot/e2e/InProcessTransportIT.java`
 
 **Snapshot files:** Reuse existing snapshots or create new ones as needed.
 
 **Gating criteria:** Client connects, creates session, sends message, receives response — all via InProcess FFI transport. Runs in CI where `runtime.node` is available.
 
-### 4.8 — CI workflow updates
+### 4.9 — CI workflow updates
 
 **What:** Modify `java-sdk-tests.yml` to add InProcess test jobs.
 
