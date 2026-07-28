@@ -2205,6 +2205,16 @@ class CopilotClient:
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the create response to
                 detect the drop.
+            github_mcp_tool_config: Configuration for the built-in GitHub MCP
+                server, sent as ``githubMcpToolConfig`` on ``session.create``.
+                Supports ``enable_all_tools``, ``additional_toolsets``,
+                ``additional_tools``, ``enable_insiders_mode``, and
+                ``disable_form_deferral``. Setting ``disable_form_deferral``
+                makes form-backed GitHub write tools execute directly instead
+                of returning an awaiting-form stub; it does not enable MCP Apps
+                on its own and has no effect unless MCP Apps are enabled for
+                the session (see ``enable_mcp_apps``). Omitted from the wire
+                payload entirely when None.
             exp_assignments: ExP assignment ("flight") data injected by a
                 trusted integrator, in the same JSON shape the Copilot CLI
                 fetches from the experimentation service
@@ -2878,6 +2888,16 @@ class CopilotClient:
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the resume response to
                 detect the drop.
+            github_mcp_tool_config: Configuration for the built-in GitHub MCP
+                server, sent as ``githubMcpToolConfig`` on ``session.resume``.
+                Supports ``enable_all_tools``, ``additional_toolsets``,
+                ``additional_tools``, ``enable_insiders_mode``, and
+                ``disable_form_deferral``. Setting ``disable_form_deferral``
+                makes form-backed GitHub write tools execute directly instead
+                of returning an awaiting-form stub; it does not enable MCP Apps
+                on its own and has no effect unless MCP Apps are enabled for
+                the session (see ``enable_mcp_apps``). Omitted from the wire
+                payload entirely when None.
             continue_pending_work: When True, instructs the runtime to continue any
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime

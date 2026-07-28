@@ -974,7 +974,8 @@ public class SessionRequestBuilderTest {
         var mapper = JsonRpcClient.getObjectMapper();
         assertTrue(mapper.writeValueAsString(createRequest).contains("\"githubMcpToolConfig\""));
         assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"githubMcpToolConfig\""));
-        assertFalse(mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig()))
-                .contains("\"githubMcpToolConfig\""));
+        assertFalse(
+                mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
+                        .contains("\"githubMcpToolConfig\""));
     }
 }

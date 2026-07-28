@@ -2416,7 +2416,9 @@ func TestSessionRequests_GitHubMCPToolConfig(t *testing.T) {
 			t.Fatalf("Failed to marshal: %v", err)
 		}
 		var payload map[string]any
-		_ = json.Unmarshal(data, &payload)
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
 		if _, ok := payload["githubMcpToolConfig"]; ok {
 			t.Fatal("Expected githubMcpToolConfig to be omitted")
 		}
