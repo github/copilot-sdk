@@ -591,7 +591,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
 - `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
-- `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
+- `Azure.APIVersion` (string): Azure API version; when empty, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 

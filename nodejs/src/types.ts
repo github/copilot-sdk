@@ -2619,7 +2619,7 @@ export interface ProviderConfig {
      */
     azure?: {
         /**
-         * API version. Defaults to "2024-10-21".
+         * API version. When omitted, the runtime uses the GA versionless v1 route.
          */
         apiVersion?: string;
     };

@@ -1966,7 +1966,8 @@ type CapiSessionOptions struct {
 
 // AzureProviderOptions contains Azure-specific provider configuration
 type AzureProviderOptions struct {
-	// APIVersion is the Azure API version. Defaults to "2024-10-21".
+	// APIVersion is the Azure API version. When empty, the runtime uses the GA
+	// versionless v1 route.
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 

@@ -1351,7 +1351,7 @@ impl CapiSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AzureProviderOptions {
-    /// Azure API version. Defaults to `"2024-10-21"`.
+    /// Azure API version. When omitted, the runtime uses the GA versionless v1 route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
 }

@@ -78,7 +78,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not ship a CLI automatically. Provide one by setting the `COPILOT_CLI_PATH` environment variable, embedding a CLI with the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli), or pointing `StdioConnection.Path` at an installed binary.
+> The Go SDK does not ship a CLI automatically. Install `copilot` on `PATH`, set the `COPILOT_CLI_PATH` environment variable, embed a CLI with the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli), or point `StdioConnection.Path` at an installed binary.
 
 <!-- docs-validate: hidden -->
 ```go

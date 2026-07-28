@@ -1183,7 +1183,8 @@ class MemoryConfiguration(TypedDict):
 class AzureProviderOptions(TypedDict, total=False):
     """Azure-specific provider configuration"""
 
-    api_version: str  # Azure API version. Defaults to "2024-10-21".
+    # Azure API version. When omitted, the runtime uses the GA versionless v1 route.
+    api_version: str
 
 
 class ProviderTokenArgs(TypedDict):
