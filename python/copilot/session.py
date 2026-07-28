@@ -1034,8 +1034,10 @@ class MCPStdioServerConfig(TypedDict, total=False):
     """Configuration for a local/stdio MCP server.
 
     Tools exposed by the runtime are registered under the server key, e.g.
-    ``<server-key>-<tool-name>``. Use that prefixed form in
-    ``available_tools``/``excluded_tools`` and custom-agent ``tools`` lists.
+    ``<server-key>-<tool-name>``. The SDK automatically adds matching prefixed
+    aliases for bare names used in ``available_tools``/``excluded_tools``,
+    ``default_agent.excluded_tools``, and custom-agent ``tools`` lists when the
+    server exposes those tools.
     """
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
@@ -1051,8 +1053,10 @@ class MCPHTTPServerConfig(TypedDict, total=False):
     """Configuration for a remote MCP server (HTTP or SSE).
 
     Tools exposed by the runtime are registered under the server key, e.g.
-    ``<server-key>-<tool-name>``. Use that prefixed form in
-    ``available_tools``/``excluded_tools`` and custom-agent ``tools`` lists.
+    ``<server-key>-<tool-name>``. The SDK automatically adds matching prefixed
+    aliases for bare names used in ``available_tools``/``excluded_tools``,
+    ``default_agent.excluded_tools``, and custom-agent ``tools`` lists when the
+    server exposes those tools.
     """
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
@@ -1076,7 +1080,8 @@ class CustomAgentConfig(TypedDict, total=False):
     display_name: NotRequired[str]  # Display name for UI purposes
     description: NotRequired[str]  # Description of what the agent does
     # List of tool names the agent can use. MCP tools registered from
-    # ``mcp_servers`` are exposed to the runtime as ``<server-key>-<tool-name>``.
+    # ``mcp_servers`` are exposed to the runtime as ``<server-key>-<tool-name>``,
+    # and the SDK adds matching prefixed aliases for bare names automatically.
     tools: NotRequired[list[str] | None]
     prompt: str  # The prompt content for the agent
     # MCP servers specific to agent
@@ -1095,8 +1100,11 @@ class DefaultAgentConfig(TypedDict, total=False):
     when no custom agent is selected.
     """
 
-    # List of tool names to exclude from the default agent.
-    # These tools remain available to custom sub-agents that reference them.
+    # List of tool names to exclude from the default agent. MCP tools registered
+    # from ``mcp_servers`` are exposed to the runtime as
+    # ``<server-key>-<tool-name>``, and the SDK adds matching prefixed aliases
+    # for bare names automatically. These tools remain available to custom
+    # sub-agents that reference them.
     excluded_tools: list[str]
 
 

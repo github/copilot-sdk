@@ -264,6 +264,151 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_normalizes_mcp_tool_filter_names_before_sending(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        captured = {}
+
+        async def mock_request(method, params, **kwargs):
+            captured[method] = params
+            if method == "session.create":
+                result = {"sessionId": params["sessionId"], "workspacePath": None}
+                callback = kwargs.get("on_response_inline")
+                if callback is not None:
+                    callback(result)
+                return result
+            return {}
+
+        client._client = Mock()
+        client._client.request = AsyncMock(side_effect=mock_request)
+        await client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            available_tools=["list_items", "run_query"],
+            excluded_tools=["run_query"],
+            mcp_servers={
+                "session-db": {
+                    "type": "http",
+                    "url": "https://example.com/session-db",
+                    "tools": ["list_items"],
+                },
+                "session-wild": {
+                    "type": "http",
+                    "url": "https://example.com/session-wild",
+                    "tools": ["*"],
+                },
+            },
+            custom_agents=[
+                {
+                    "name": "db-agent",
+                    "prompt": "Use the database tools.",
+                    "tools": ["list_items", "run_query"],
+                    "mcp_servers": {
+                        "agent-db": {
+                            "type": "http",
+                            "url": "https://example.com/agent-db",
+                            "tools": ["run_query"],
+                        }
+                    },
+                }
+            ],
+            default_agent={"excluded_tools": ["run_query"]},
+        )
+
+        assert captured["session.create"]["availableTools"] == [
+            "list_items",
+            "session-db-list_items",
+            "session-wild-list_items",
+            "run_query",
+            "session-wild-run_query",
+        ]
+        assert captured["session.create"]["excludedTools"] == [
+            "run_query",
+            "session-wild-run_query",
+        ]
+        assert captured["session.create"]["customAgents"][0]["tools"] == [
+            "list_items",
+            "session-db-list_items",
+            "session-wild-list_items",
+            "run_query",
+            "session-wild-run_query",
+            "agent-db-run_query",
+        ]
+        assert captured["session.create"]["defaultAgent"]["excludedTools"] == [
+            "run_query",
+            "session-wild-run_query",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_resume_session_normalizes_mcp_tool_filter_names_before_sending(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        captured = {}
+
+        async def mock_request(method, params, **kwargs):
+            captured[method] = params
+            if method == "session.resume":
+                return {"sessionId": params["sessionId"], "workspacePath": None}
+            return {}
+
+        client._client = Mock()
+        client._client.request = AsyncMock(side_effect=mock_request)
+        await client.resume_session(
+            "session-with-mcp-filters",
+            on_permission_request=PermissionHandler.approve_all,
+            available_tools=["list_items", "run_query"],
+            excluded_tools=["run_query"],
+            mcp_servers={
+                "session-db": {
+                    "type": "http",
+                    "url": "https://example.com/session-db",
+                    "tools": ["list_items"],
+                },
+                "session-wild": {
+                    "type": "http",
+                    "url": "https://example.com/session-wild",
+                    "tools": ["*"],
+                },
+            },
+            custom_agents=[
+                {
+                    "name": "db-agent",
+                    "prompt": "Use the database tools.",
+                    "tools": ["list_items", "run_query"],
+                    "mcp_servers": {
+                        "agent-db": {
+                            "type": "http",
+                            "url": "https://example.com/agent-db",
+                            "tools": ["run_query"],
+                        }
+                    },
+                }
+            ],
+            default_agent={"excluded_tools": ["run_query"]},
+        )
+
+        assert captured["session.resume"]["availableTools"] == [
+            "list_items",
+            "session-db-list_items",
+            "session-wild-list_items",
+            "run_query",
+            "session-wild-run_query",
+        ]
+        assert captured["session.resume"]["excludedTools"] == [
+            "run_query",
+            "session-wild-run_query",
+        ]
+        assert captured["session.resume"]["customAgents"][0]["tools"] == [
+            "list_items",
+            "session-db-list_items",
+            "session-wild-list_items",
+            "run_query",
+            "session-wild-run_query",
+            "agent-db-run_query",
+        ]
+        assert captured["session.resume"]["defaultAgent"]["excludedTools"] == [
+            "run_query",
+            "session-wild-run_query",
+        ]
+
+    @pytest.mark.asyncio
     async def test_mcp_auth_handler_registers_interest_after_cloud_create_only_with_handler(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()

@@ -144,7 +144,19 @@ class TestToolFilterListValidation:
                 "other-server": {"type": "http", "tools": ["run_query"]},
             },
         )
-        assert expanded == ["my-server-list_items", "other-server-run_query"]
+        assert expanded == [
+            "list_items",
+            "my-server-list_items",
+            "run_query",
+            "other-server-run_query",
+        ]
+
+    def test_expands_bare_mcp_tool_names_for_wildcard_servers(self):
+        expanded = _expand_mcp_tool_filter_names(
+            ["run_query"],
+            {"my-server": {"type": "http", "tools": ["*"]}},
+        )
+        assert expanded == ["run_query", "my-server-run_query"]
 
     def test_leaves_unmatched_bare_names_unchanged(self):
         expanded = _expand_mcp_tool_filter_names(

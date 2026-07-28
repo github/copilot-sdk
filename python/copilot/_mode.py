@@ -130,35 +130,38 @@ def _expand_mcp_tool_filter_names(
     items: list[str] | None,
     mcp_servers: Mapping[str, Any] | None,
 ) -> list[str] | None:
-    """Expand bare MCP tool names to the server-prefixed form used by the runtime.
+    """Add server-prefixed MCP tool names alongside matching bare tool filters.
 
     The Copilot CLI registers MCP tools under ``<server-key>-<tool-name>``. This
-    helper rewrites bare names to that form when the corresponding server config
-    explicitly exposes that tool in its ``tools`` allowlist.
+    helper preserves the caller's original bare entry and appends the matching
+    ``<server-key>-<tool-name>`` aliases for MCP servers that expose the tool,
+    either explicitly or via ``"*"``, so existing builtin/custom filters keep
+    working while MCP tools remain reachable.
     """
     if items is None or not mcp_servers:
         return items
 
     expanded: list[str] = []
+    seen: set[str] = set()
     for entry in items:
-        if entry == "*" or ":" in entry:
+        if entry not in seen:
             expanded.append(entry)
+            seen.add(entry)
+        if entry == "*" or ":" in entry:
             continue
 
-        matched_entries: list[str] = []
         for server_name, config in mcp_servers.items():
             if not isinstance(config, Mapping):
                 continue
             tools = config.get("tools")
             if not isinstance(tools, list):
                 continue
-            if entry in tools:
-                matched_entries.append(f"{server_name}-{entry}")
-
-        if matched_entries:
-            expanded.extend(matched_entries)
-        else:
-            expanded.append(entry)
+            if "*" not in tools and entry not in tools:
+                continue
+            prefixed_entry = f"{server_name}-{entry}"
+            if prefixed_entry not in seen:
+                expanded.append(prefixed_entry)
+                seen.add(prefixed_entry)
     return expanded
 
 
