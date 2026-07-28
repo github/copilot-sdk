@@ -118,11 +118,11 @@ describe("Session event type exports (#1156)", () => {
         expect(data.turnId).toBe("turn-1");
     });
 
-    it("exposes whether managed policy requires explicit user approval", () => {
+    it("exposes explicit user approval metadata for managed Domain requests", () => {
         const request: PermissionRequest = {
-            kind: "read",
-            path: "/workspace/file.txt",
-            intention: "Read a file",
+            kind: "url",
+            url: "https://api.example.com/data",
+            intention: "Fetch domain data",
             managedApprovalRequired: true,
         };
 

@@ -1103,7 +1103,8 @@ export type SystemMessageConfig =
  *
  * `managedApprovalRequired` indicates that managed policy requires an explicit
  * user decision. Hosts should bypass automatic approval and present their
- * normal confirmation UI.
+ * normal confirmation UI. The runtime currently emits it for managed Shell,
+ * Read, Edit, and Domain selector asks.
  */
 import type { PermissionRequest as GeneratedPermissionRequest } from "./generated/session-events.js";
 export type PermissionRequest = GeneratedPermissionRequest & {
