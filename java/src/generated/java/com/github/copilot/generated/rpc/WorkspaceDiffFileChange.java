@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WorkspaceDiffFileChange(
-    /** Path to the changed file, relative to the workspace root. */
+    /** Path to the changed file, relative to the workspace root when the file lives under it. A file changed outside the workspace root keeps a `../`-relative path, or an absolute path when no relative path exists (for example a different Windows drive). */
     @JsonProperty("path") String path,
     /** Unified diff content for the file. Empty when the diff was truncated. */
     @JsonProperty("diff") String diff,

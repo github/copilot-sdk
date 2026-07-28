@@ -942,6 +942,30 @@ impl<'a> ClientRpcModels<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Returns the running runtime's complete catalog of well-known built-in model IDs without authentication or network access.
+    ///
+    /// Wire method: `models.getBuiltInCatalog`.
+    ///
+    /// # Returns
+    ///
+    /// The running runtime's complete catalog of well-known built-in model IDs, including supported models and additional IDs with built-in metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_built_in_catalog(&self) -> Result<BuiltInModelCatalog, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::MODELS_GETBUILTINCATALOG, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `plugins.*` RPCs.
@@ -1569,6 +1593,71 @@ impl<'a> ClientRpcSessions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Reads lightweight persisted metadata for one local session without opening it.
+    ///
+    /// Wire method: `sessions.getMetadata`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Session ID whose persisted metadata should be read.
+    ///
+    /// # Returns
+    ///
+    /// Persisted local session metadata when the session exists.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_metadata(
+        &self,
+        params: SessionsGetMetadataRequest,
+    ) -> Result<SessionsGetMetadataResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_GETMETADATA, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists recent local session IDs that contain user-visible history, omitting housekeeping-only sessions.
+    ///
+    /// Wire method: `sessions.listNonEmptySessionIds`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Limit for non-empty local session IDs.
+    ///
+    /// # Returns
+    ///
+    /// Recent local session IDs that contain user-visible history.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn list_non_empty_session_ids(
+        &self,
+        params: SessionsListNonEmptySessionIdsRequest,
+    ) -> Result<SessionsListNonEmptySessionIdsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::SESSIONS_LISTNONEMPTYSESSIONIDS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Finds the local session bound to a GitHub task ID, if any.
     ///
     /// Wire method: `sessions.findByTaskId`.
@@ -1839,6 +1928,30 @@ impl<'a> ClientRpcSessions<'a> {
             .call(rpc_methods::SESSIONS_BULKDELETE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Deletes one local session from disk after running the same lifecycle hooks as the session manager.
+    ///
+    /// Wire method: `sessions.delete`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Session ID to delete from disk.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn delete(&self, params: SessionsDeleteRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSIONS_DELETE, Some(wire_params))
+            .await?;
+        Ok(())
     }
 
     /// Deletes sessions older than the given threshold, with optional dry-run and exclusion list.
@@ -2619,6 +2732,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.contentExclusion.*` sub-namespace.
+    pub fn content_exclusion(&self) -> SessionRpcContentExclusion<'a> {
+        SessionRpcContentExclusion {
+            session: self.session,
+        }
+    }
+
     /// `session.debug.*` sub-namespace.
     pub fn debug(&self) -> SessionRpcDebug<'a> {
         SessionRpcDebug {
@@ -2671,6 +2791,13 @@ impl<'a> SessionRpc<'a> {
     /// `session.instructions.*` sub-namespace.
     pub fn instructions(&self) -> SessionRpcInstructions<'a> {
         SessionRpcInstructions {
+            session: self.session,
+        }
+    }
+
+    /// `session.limitPrediction.*` sub-namespace.
+    pub fn limit_prediction(&self) -> SessionRpcLimitPrediction<'a> {
+        SessionRpcLimitPrediction {
             session: self.session,
         }
     }
@@ -2927,6 +3054,38 @@ impl<'a> SessionRpc<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Queues or sends an internal system notification to the session according to its passive policy.
+    ///
+    /// Wire method: `session.sendSystemNotification`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal request for sending a system notification.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn send_system_notification(
+        &self,
+        params: SendSystemNotificationRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SENDSYSTEMNOTIFICATION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Aborts the current agent turn.
     ///
     /// Wire method: `session.abort`.
@@ -2953,6 +3112,69 @@ impl<'a> SessionRpc<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_ABORT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Interrupts the current main agent turn while leaving running background work (subagents, sidekicks, and promoted attached shells) alive. No-op when the main loop is not processing.
+    ///
+    /// Wire method: `session.interruptMainTurn`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for interrupting the main agent turn.
+    ///
+    /// # Returns
+    ///
+    /// Result of interrupting the main agent turn.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn interrupt_main_turn(
+        &self,
+        params: InterruptMainTurnRequest,
+    ) -> Result<InterruptMainTurnResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_INTERRUPTMAINTURN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancels every running background agent (task-registry subagents plus sidekick agents) without interrupting the main agent loop. Promoted attached shells are left running.
+    ///
+    /// Wire method: `session.cancelAllBackgroundAgents`.
+    ///
+    /// # Returns
+    ///
+    /// The number of running background agents (task-registry agents) that were cancelled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn cancel_all_background_agents(
+        &self,
+    ) -> Result<SessionCancelAllBackgroundAgentsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CANCELALLBACKGROUNDAGENTS,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -3618,6 +3840,50 @@ impl<'a> SessionRpcCompletions<'a> {
     }
 }
 
+/// `session.contentExclusion.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcContentExclusion<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcContentExclusion<'a> {
+    /// Checks local file system absolute paths within the session working directory against its content-exclusion policy. Results preserve input order. Unsupported paths/filesystems and unavailable policy evaluation return available false, and callers must treat every requested path as excluded.
+    ///
+    /// Wire method: `session.contentExclusion.checkPaths`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Local file system absolute paths within the session working directory to check against its content-exclusion policy.
+    ///
+    /// # Returns
+    ///
+    /// Batch content-exclusion result. Callers must fail closed when policy evaluation is unavailable.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn check_paths(
+        &self,
+        params: ContentExclusionCheckPathsRequest,
+    ) -> Result<ContentExclusionCheckPathsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_CONTENTEXCLUSION_CHECKPATHS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `session.debug.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct SessionRpcDebug<'a> {
@@ -3976,6 +4242,36 @@ impl<'a> SessionRpcFactory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Resumes a factory run using its persisted name, arguments, journal, and accounting.
+    ///
+    /// Wire method: `session.factory.resume`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for resuming a factory run from its persisted identity.
+    ///
+    /// # Returns
+    ///
+    /// Resolved persisted factory identity and resumed run envelope.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn resume(&self, params: FactoryResumeRequest) -> Result<FactoryResumeResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_RESUME, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Gets the current or settled envelope for a factory run.
     ///
     /// Wire method: `session.factory.getRun`.
@@ -4002,6 +4298,100 @@ impl<'a> SessionRpcFactory<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_FACTORY_GETRUN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists durable factory runs for this session in creation order.
+    ///
+    /// Wire method: `session.factory.listRuns`.
+    ///
+    /// # Returns
+    ///
+    /// Factory runs in durable creation order.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_runs(&self) -> Result<FactoryListRunsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_LISTRUNS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Gets durable and live observability detail for one factory run.
+    ///
+    /// Wire method: `session.factory.getRunDetail`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for retrieving a factory run.
+    ///
+    /// # Returns
+    ///
+    /// Full factory run observability detail.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_run_detail(
+        &self,
+        params: FactoryGetRunRequest,
+    ) -> Result<FactoryRunDetail, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_FACTORY_GETRUNDETAIL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Pages durable progress for one factory run.
+    ///
+    /// Wire method: `session.factory.getRunProgress`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for paging factory progress.
+    ///
+    /// # Returns
+    ///
+    /// A bidirectional page of factory progress.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_run_progress(
+        &self,
+        params: FactoryGetRunProgressRequest,
+    ) -> Result<FactoryProgressPage, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_FACTORY_GETRUNPROGRESS,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -4373,6 +4763,100 @@ impl<'a> SessionRpcHistory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Lists the user turns that the session can rewind to. Never rejects for a busy session: rewind reads need the session's file-change captures to be settled, so a session that still holds active work answers with `unavailableReason: "session-busy"` and no points, which the caller can retry.
+    ///
+    /// Wire method: `session.history.listRewindPoints`.
+    ///
+    /// # Returns
+    ///
+    /// Rewind points and file-change-tracking availability for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_rewind_points(&self) -> Result<HistoryListRewindPointsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_LISTREWINDPOINTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Previews the files that a conversation-and-files rewind would restore.
+    ///
+    /// Wire method: `session.history.previewRewind`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Event boundary to preview for conversation-and-files rewind.
+    ///
+    /// # Returns
+    ///
+    /// Files and aggregate changes for a prospective rewind.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn preview_rewind(
+        &self,
+        params: HistoryPreviewRewindRequest,
+    ) -> Result<HistoryPreviewRewindResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_PREVIEWREWIND,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Rewinds the session conversation, optionally restoring files changed by the discarded turns. Not crash-atomic: file restore and conversation truncation are separate stores, applied in that order, so a process crash between them can leave the workspace rewound while the conversation still contains the discarded turns. There is no recovery journal; re-running the same rewind is the recovery path for a crash before truncation lands, since file restore is idempotent (already-restored files are reported as skipped) and truncation is re-derived from the still-retained boundary event. After truncation lands that boundary no longer exists, so the same request is rejected; the only stage that can still be outstanding is snapshot pruning, whose failure leaves orphan snapshots the capture store tolerates. The reverse inconsistency cannot occur, because truncation is never applied before file restore succeeds.
+    ///
+    /// Wire method: `session.history.rewind`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Boundary and mode for rewinding session history.
+    ///
+    /// # Returns
+    ///
+    /// Structured outcome of a rewind request.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn rewind(&self, params: HistoryRewindRequest) -> Result<HistoryRewindResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_HISTORY_REWIND, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Cancels any in-progress background compaction on a local session.
     ///
     /// Wire method: `session.history.cancelBackgroundCompaction`.
@@ -4491,6 +4975,78 @@ impl<'a> SessionRpcInstructions<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_INSTRUCTIONS_GETSOURCES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.limitPrediction.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcLimitPrediction<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcLimitPrediction<'a> {
+    /// Predicts an AI-credit session limit for the session's resolved model. Returns an unavailable result instead of falling back when the current model is unresolved auto.
+    ///
+    /// Wire method: `session.limitPrediction.predict`.
+    ///
+    /// # Returns
+    ///
+    /// Prediction result. Available results include prediction details; unavailable results include an explicit reason.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn predict(&self) -> Result<SessionLimitPredictionResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_LIMITPREDICTION_PREDICT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Predicts an AI-credit session limit for the session's resolved model. Returns an unavailable result instead of falling back when the current model is unresolved auto.
+    ///
+    /// Wire method: `session.limitPrediction.predict`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for predicting an AI-credit session limit. Omitting `modelId` uses the session's currently selected model.
+    ///
+    /// # Returns
+    ///
+    /// Prediction result. Available results include prediction details; unavailable results include an explicit reason.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn predict_with_params(
+        &self,
+        params: SessionLimitPredictionRequest,
+    ) -> Result<SessionLimitPredictionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_LIMITPREDICTION_PREDICT,
                 Some(wire_params),
             )
             .await?;
@@ -4891,13 +5447,13 @@ impl<'a> SessionRpcMcp<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Starts an individual MCP server on the live session from a caller-supplied config. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
+    /// Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
     ///
     /// Wire method: `session.mcp.startServer`.
     ///
     /// # Parameters
     ///
-    /// * `params` - Server name and configuration for an individual MCP server start.
+    /// * `params` - Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
     ///
     /// <div class="warning">
     ///
@@ -5383,6 +5939,39 @@ impl<'a> SessionRpcMcpOauth<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_OAUTH_LOGIN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Responds to a pending MCP OAuth authorization request by its request id.
+    ///
+    /// Wire method: `session.mcp.oauth.respond`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Pending MCP OAuth request id to respond to.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether the pending MCP OAuth response was accepted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn respond(
+        &self,
+        params: McpOauthRespondRequest,
+    ) -> Result<McpOauthRespondResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_OAUTH_RESPOND, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -6449,6 +7038,10 @@ impl<'a> SessionRpcPermissions<'a> {
     ///
     /// Wire method: `session.permissions.resetSessionApprovals`.
     ///
+    /// # Parameters
+    ///
+    /// * `params` - Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+    ///
     /// # Returns
     ///
     /// Indicates whether the operation succeeded.
@@ -6462,8 +7055,10 @@ impl<'a> SessionRpcPermissions<'a> {
     /// </div>
     pub async fn reset_session_approvals(
         &self,
+        params: PermissionsResetSessionApprovalsRequest,
     ) -> Result<PermissionsResetSessionApprovalsResult, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
             .session
             .client()
@@ -7275,6 +7870,160 @@ impl<'a> SessionRpcQueue<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Returns the internal native queue snapshot for in-process session orchestration.
+    ///
+    /// Wire method: `session.queue.snapshot`.
+    ///
+    /// # Returns
+    ///
+    /// Internal snapshot of native queue state for local session orchestration.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn snapshot(&self) -> Result<QueueSnapshotResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUEUE_SNAPSHOT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reports whether the local session has native queued work pending.
+    ///
+    /// Wire method: `session.queue.hasPending`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the native queue has pending work.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn has_pending(&self) -> Result<QueueHasPendingResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUEUE_HASPENDING, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Begins a native deferred-idle drain when background work has quiesced.
+    ///
+    /// Wire method: `session.queue.beginDeferredIdleDrain`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Inputs for starting a deferred-idle drain.
+    ///
+    /// # Returns
+    ///
+    /// Whether a deferred-idle drain should run.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn begin_deferred_idle_drain(
+        &self,
+        params: QueueBeginDeferredIdleDrainRequest,
+    ) -> Result<QueueBeginDeferredIdleDrainResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_BEGINDEFERREDIDLEDRAIN,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Finishes a native deferred-idle drain and reports whether to drain queue work or emit idle.
+    ///
+    /// Wire method: `session.queue.finishDeferredIdleDrain`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Inputs for completing a deferred-idle drain.
+    ///
+    /// # Returns
+    ///
+    /// Action selected by the native deferred-idle drain.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn finish_deferred_idle_drain(
+        &self,
+        params: QueueFinishDeferredIdleDrainRequest,
+    ) -> Result<QueueFinishDeferredIdleDrainResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_FINISHDEFERREDIDLEDRAIN,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Marks session.idle as deferred by native background work state.
+    ///
+    /// Wire method: `session.queue.deferSessionIdle`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Inputs for marking session.idle deferred in native state.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn defer_session_idle(
+        &self,
+        params: QueueDeferSessionIdleRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_DEFERSESSIONIDLE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Removes the most recently queued user-facing item (LIFO).
     ///
     /// Wire method: `session.queue.removeMostRecent`.
@@ -7320,6 +8069,93 @@ impl<'a> SessionRpcQueue<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_QUEUE_CLEAR, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Consumes queued native system notifications matching an internal filter.
+    ///
+    /// Wire method: `session.queue.consumeSystemNotifications`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Internal filter for consuming queued system notifications.
+    ///
+    /// # Returns
+    ///
+    /// Indicates whether a user-facing pending item was removed.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn consume_system_notifications(
+        &self,
+        params: QueueConsumeSystemNotificationsRequest,
+    ) -> Result<QueueRemoveMostRecentResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_CONSUMESYSTEMNOTIFICATIONS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Enqueues the internal resume-pending wake item when orphan handling needs a follow-up turn.
+    ///
+    /// Wire method: `session.queue.enqueueResumePending`.
+    ///
+    /// # Returns
+    ///
+    /// Result of enqueueing the resume-pending wake item.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn enqueue_resume_pending(
+        &self,
+    ) -> Result<QueueEnqueueResumePendingResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_QUEUE_ENQUEUERESUMEPENDING,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Drains the native local-session work queue for in-process session orchestration.
+    ///
+    /// Wire method: `session.queue.process`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn process(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_QUEUE_PROCESS, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -7452,6 +8288,223 @@ impl<'a> SessionRpcSchedule<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Hydrates the native schedule registry from persisted session events.
+    ///
+    /// Wire method: `session.schedule.hydrate`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn hydrate(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_HYDRATE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Reports whether the session has an active self-paced scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.hasSelfPaced`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the session currently has an active self-paced schedule.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn has_self_paced(&self) -> Result<ScheduleHasSelfPacedResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SCHEDULE_HASSELFPACED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers a relative-interval scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.add`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Register a relative-interval scheduled prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or re-arming a scheduled prompt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn add(&self, params: ScheduleAddRequest) -> Result<ScheduleAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_ADD, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers a recurring cron scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.addCron`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Register a cron scheduled prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or re-arming a scheduled prompt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn add_cron(
+        &self,
+        params: ScheduleAddCronRequest,
+    ) -> Result<ScheduleAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_ADDCRON, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers an absolute-time scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.addAt`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Register an absolute-time scheduled prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or re-arming a scheduled prompt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn add_at(
+        &self,
+        params: ScheduleAddAtRequest,
+    ) -> Result<ScheduleAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_SCHEDULE_ADDAT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers a self-paced scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.addSelfPaced`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Register a self-paced scheduled prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or re-arming a scheduled prompt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn add_self_paced(
+        &self,
+        params: ScheduleAddSelfPacedRequest,
+    ) -> Result<ScheduleAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SCHEDULE_ADDSELFPACED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Re-arms an active self-paced scheduled prompt.
+    ///
+    /// Wire method: `session.schedule.rearmSelfPaced`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Re-arm a self-paced scheduled prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of registering or re-arming a scheduled prompt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn rearm_self_paced(
+        &self,
+        params: ScheduleRearmSelfPacedRequest,
+    ) -> Result<ScheduleAddResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SCHEDULE_REARMSELFPACED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Removes a scheduled prompt by id.
     ///
     /// Wire method: `session.schedule.stop`.
@@ -7559,7 +8612,7 @@ pub struct SessionRpcShell<'a> {
 }
 
 impl<'a> SessionRpcShell<'a> {
-    /// Starts a shell command and streams output through session notifications.
+    /// Starts a shell command and streams output through session notifications. The command runs as the leader of its own process group (POSIX) or in a dedicated job object (Windows), so a forced termination — via "shell.kill", the request timeout, or session disposal — signals that whole group/job rather than only the direct child. Two gaps are worth planning for: a command that exits on its own does not trigger that teardown, and on POSIX a descendant that moves itself into a new session or process group (for example via "setsid") leaves the signalled group, so either can leave a background process running.
     ///
     /// Wire method: `session.shell.exec`.
     ///
@@ -7589,7 +8642,7 @@ impl<'a> SessionRpcShell<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Sends a signal to a shell process previously started via "shell.exec".
+    /// Sends a signal to a shell process previously started via "shell.exec". The signal targets the command's whole process group (POSIX) or job object (Windows), so descendants still in that group are signalled too, not just the direct child. On POSIX a descendant that moved itself into a new session or process group (for example via "setsid") is no longer in the signalled group and survives.
     ///
     /// Wire method: `session.shell.kill`.
     ///
@@ -8875,6 +9928,75 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Updates workspace metadata for a local session and returns the refreshed workspace.
+    ///
+    /// Wire method: `session.workspaces.updateMetadata`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Workspace metadata fields to update.
+    ///
+    /// # Returns
+    ///
+    /// Current workspace metadata for the session, including its absolute filesystem path when available.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_metadata(
+        &self,
+        params: WorkspacesUpdateMetadataRequest,
+    ) -> Result<WorkspacesGetWorkspaceResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_UPDATEMETADATA,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Ensures a local session workspace exists and returns it.
+    ///
+    /// Wire method: `session.workspaces.ensure`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional session context used when creating a local workspace.
+    ///
+    /// # Returns
+    ///
+    /// Current workspace metadata for the session, including its absolute filesystem path when available.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn ensure(
+        &self,
+        params: WorkspacesEnsureRequest,
+    ) -> Result<WorkspacesGetWorkspaceResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_ENSURE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Lists files stored in the session workspace files directory.
     ///
     /// Wire method: `session.workspaces.listFiles`.
@@ -9026,6 +10148,204 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Adds a compaction summary checkpoint to the local session workspace.
+    ///
+    /// Wire method: `session.workspaces.addSummary`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Compaction summary checkpoint to persist.
+    ///
+    /// # Returns
+    ///
+    /// Persisted summary metadata and refreshed workspace metadata.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn add_summary(
+        &self,
+        params: WorkspacesAddSummaryRequest,
+    ) -> Result<WorkspacesAddSummaryResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_ADDSUMMARY,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Truncates local workspace compaction summaries after a rollback.
+    ///
+    /// Wire method: `session.workspaces.truncateSummaries`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Rollback point for local workspace summaries.
+    ///
+    /// # Returns
+    ///
+    /// Current workspace metadata for the session, including its absolute filesystem path when available.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn truncate_summaries(
+        &self,
+        params: WorkspacesTruncateSummariesRequest,
+    ) -> Result<WorkspacesGetWorkspaceResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_TRUNCATESUMMARIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads the autopilot objective state file from the local session workspace.
+    ///
+    /// Wire method: `session.workspaces.readAutopilotObjective`.
+    ///
+    /// # Returns
+    ///
+    /// Autopilot objective file content, or null when missing.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read_autopilot_objective(
+        &self,
+    ) -> Result<WorkspacesReadAutopilotObjectiveResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_READAUTOPILOTOBJECTIVE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Writes the autopilot objective state file in the local session workspace.
+    ///
+    /// Wire method: `session.workspaces.writeAutopilotObjective`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Autopilot objective file content to persist.
+    ///
+    /// # Returns
+    ///
+    /// Result of writing the autopilot objective file.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn write_autopilot_objective(
+        &self,
+        params: WorkspacesWriteAutopilotObjectiveRequest,
+    ) -> Result<WorkspacesWriteAutopilotObjectiveResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_WRITEAUTOPILOTOBJECTIVE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Deletes the autopilot objective state file from the local session workspace.
+    ///
+    /// Wire method: `session.workspaces.deleteAutopilotObjective`.
+    ///
+    /// # Returns
+    ///
+    /// Result of deleting the autopilot objective file.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn delete_autopilot_objective(
+        &self,
+    ) -> Result<WorkspacesDeleteAutopilotObjectiveResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_DELETEAUTOPILOTOBJECTIVE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Checks whether the local session workspace has an autopilot objective state file.
+    ///
+    /// Wire method: `session.workspaces.autopilotObjectiveExists`.
+    ///
+    /// # Returns
+    ///
+    /// Whether the autopilot objective file exists.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn autopilot_objective_exists(
+        &self,
+    ) -> Result<WorkspacesAutopilotObjectiveExistsResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_WORKSPACES_AUTOPILOTOBJECTIVEEXISTS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Saves pasted content as a UTF-8 file in the session workspace.
     ///
     /// Wire method: `session.workspaces.saveLargePaste`.
@@ -9062,7 +10382,7 @@ impl<'a> SessionRpcWorkspaces<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Computes a diff for the session workspace.
+    /// Computes a diff for the session workspace. Never rejects for a busy session: a `session`-mode diff that cannot read the session's file-change captures falls back to an unstaged git diff with `isFallback: true` and reports why in `unavailableReason`.
     ///
     /// Wire method: `session.workspaces.diff`.
     ///

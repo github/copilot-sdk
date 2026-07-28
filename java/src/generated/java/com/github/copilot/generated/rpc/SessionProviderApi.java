@@ -38,7 +38,7 @@ public final class SessionProviderApi {
      */
     @CopilotExperimental
     public CompletableFuture<SessionProviderGetEndpointResult> getEndpoint() {
-        return caller.invoke("session.provider.getEndpoint", java.util.Map.of("sessionId", this.sessionId), SessionProviderGetEndpointResult.class);
+        return caller.invoke("session.provider.getEndpoint", java.util.Map.of(), SessionProviderGetEndpointResult.class);
     }
 
     /**

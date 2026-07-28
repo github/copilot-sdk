@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional filters controlling which command sources to include in the listing.
+ * Identifies the target session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionCommandsListParams(
+public record SessionCancelAllBackgroundAgentsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId
 ) {
