@@ -456,7 +456,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `reasoningEffort` | `string` | | Reasoning effort level used for this call (e.g., `"low"`, `"medium"`, `"high"`) |
 | `initiator` | `string` | | What triggered this call (e.g., `"sub-agent"`); absent for user-initiated |
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
-| `serviceRequestId` | `string` | | Server-side request ID for log correlation with the model provider |
+| `serviceRequestId` | `string` | | Copilot service request ID (`x-copilot-service-request-id`) for CAPI log correlation |
 | `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
@@ -943,7 +943,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `assistant.message` | | Assistant | `messageId`, `content`, `toolRequests?`, `outputTokens?`, `phase?` |
 | `assistant.message_delta` | ✅ | Assistant | `messageId`, `deltaContent` |
 | `assistant.turn_end` | | Assistant | `turnId` |
-| `assistant.usage` | ✅ | Assistant | `model`, `inputTokens?`, `outputTokens?`, `reasoningTokens?`, `cacheReadTokens?`, `cacheWriteTokens?`, `cost?`, `duration?`, `timeToFirstTokenMs?`, `interTokenLatencyMs?`, `contentFilterTriggered?`, `finishReason?` |
+| `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
 | `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |
