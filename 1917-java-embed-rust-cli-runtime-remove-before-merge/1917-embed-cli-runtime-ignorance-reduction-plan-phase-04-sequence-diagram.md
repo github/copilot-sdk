@@ -41,7 +41,7 @@ sequenceDiagram
     Build-->>Agent: Parent/sdk module structure green
 
     Agent->>Build: Execute Step 4.6b (copilot-native packaging)
-    Note over Agent,Build: Current phase: package linux-x64 classifier only; verify SHA-512 for linux-x64 tarball.
+    Note over Agent,Build: Current phase packages linux-x64 classifier only. Verify integrity hash for the linux-x64 tarball.
     Build-->>Agent: linux-x64 classifier JAR produced
 
     alt Step 4.6c requested now
