@@ -4,7 +4,7 @@ Extended hook lifecycle tests that mirror dotnet/test/HookLifecycleAndOutputTest
 E2E coverage for every handler exposed on ``SessionHooks``:
 ``on_pre_tool_use``, ``on_post_tool_use``, ``on_post_tool_use_failure``,
 ``on_user_prompt_submitted``, ``on_session_start``, ``on_session_end``,
-``on_error_occurred``. Output-shape behavior (modifiedPrompt /
+``on_error_occurred``, ``on_agent_stop``. Output-shape behavior (modifiedPrompt /
 additionalContext / errorHandling / modifiedArgs / modifiedResult /
 sessionSummary) is asserted alongside hook invocation.
 """
@@ -111,6 +111,36 @@ class TestHooksExtended:
             assert not inputs
             assert not invocation_session_ids
             assert session.session_id
+        finally:
+            await session.disconnect()
+
+    async def test_should_invoke_agentstop_hook_and_apply_block_response(
+        self, ctx: E2ETestContext
+    ):
+        inputs: list[dict] = []
+
+        async def on_agent_stop(input_data, invocation):
+            assert invocation["session_id"] == session.session_id
+            inputs.append(input_data)
+            if len(inputs) == 1:
+                return {
+                    "decision": "block",
+                    "reason": "Reply with exactly: AGENT_STOP_CONTINUED",
+                }
+            return None
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            hooks={"on_agent_stop": on_agent_stop},
+        )
+        try:
+            response = await session.send_and_wait("Reply with exactly: AGENT_STOP_INITIAL")
+            assert len(inputs) == 2
+            assert inputs[0].get("stopHookActive") is not True
+            assert inputs[1].get("stopHookActive") is True
+            assert inputs[0].get("stopReason") == "end_turn"
+            assert inputs[0].get("transcriptPath")
+            assert "AGENT_STOP_CONTINUED" in (response.data.content or "")
         finally:
             await session.disconnect()
 

@@ -18,6 +18,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.rpc.AgentStopHookInput;
+import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PostToolUseHookInput;
@@ -223,6 +225,46 @@ public class HooksTest {
             assertNotNull(response, "Response should not be null");
 
             assertEquals(originalContent, Files.readString(testFile), "Denied preToolUse hook should block file edits");
+        }
+    }
+
+    /**
+     * Verifies that agent-stop can block a natural stop and enqueue another turn.
+     *
+     * @see Snapshot: hooks_extended/should_invoke_agentstop_hook_and_apply_block_response
+     */
+    @Test
+    void testInvokeAgentStopHookAndApplyBlockResponse() throws Exception {
+        ctx.configureForTest("hooks_extended", "should_invoke_agentstop_hook_and_apply_block_response");
+
+        var inputs = new ArrayList<AgentStopHookInput>();
+        final String[] sessionIdHolder = new String[1];
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnAgentStop((input, invocation) -> {
+                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
+                    inputs.add(input);
+                    if (inputs.size() == 1) {
+                        return CompletableFuture.completedFuture(new AgentStopHookOutput().setDecision("block")
+                                .setReason("Reply with exactly: AGENT_STOP_CONTINUED"));
+                    }
+                    return CompletableFuture.completedFuture(null);
+                }));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(config).get();
+            sessionIdHolder[0] = session.getSessionId();
+
+            var response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Reply with exactly: AGENT_STOP_INITIAL"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertEquals(2, inputs.size());
+            assertNotEquals(Boolean.TRUE, inputs.get(0).getStopHookActive());
+            assertEquals(Boolean.TRUE, inputs.get(1).getStopHookActive());
+            assertEquals("end_turn", inputs.get(0).getStopReason());
+            assertFalse(inputs.get(0).getTranscriptPath().isBlank());
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("AGENT_STOP_CONTINUED"));
         }
     }
 }
