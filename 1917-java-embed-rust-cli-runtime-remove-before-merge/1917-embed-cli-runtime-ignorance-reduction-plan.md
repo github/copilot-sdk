@@ -961,10 +961,11 @@ Every implementation step in this phase **must** follow this test-driven workflo
 3. **Refactor.** Clean up the implementation while keeping tests green. Run `mvn spotless:apply` to ensure formatting compliance.
 4. **Gate before proceeding.** All tests from the current step **and all prior steps** must pass (`mvn verify`) before moving to the next step. Do not proceed with a step if any prior step's tests are broken.
 5. **Coverage expectations per step:**
-  - Every public method must have at least one test exercising the success path and one test exercising the primary failure/edge-case path.
-  - Error handling paths (e.g., missing native binary, failed `host_start`, callback on closed connection) must have explicit tests — do not assume "it would throw."
-  - Platform-specific behavior in this phase is limited to Ubuntu `linux-x64` only. Do not add implementation-specific tests for other OS/arch pairs in this phase.
-  - Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
+
+- Every public method must have at least one test exercising the success path and one test exercising the primary failure/edge-case path.
+- Error handling paths (e.g., missing native binary, failed `host_start`, callback on closed connection) must have explicit tests — do not assume "it would throw."
+- Platform-specific behavior in this phase is limited to Ubuntu `linux-x64` only. Do not add implementation-specific tests for other OS/arch pairs in this phase.
+- Thread-safety-sensitive code (callback handling, stream bridging, shutdown draining) must have concurrency tests — e.g., multiple threads writing/reading simultaneously, shutdown during active callback.
 
 6. **Test isolation.** Each step's tests must be runnable independently of whether a real `runtime.node` binary is present. Unit tests must use mocks, test doubles, or minimal test native libraries — never depend on the real runtime binary. Only E2E integration tests (step 4.7) require the real binary.
 7. **No skipping tests.** Do not annotate tests with `@Disabled` or `@Ignore` to work around failures. If a test cannot pass, fix the production code or fix the test.
