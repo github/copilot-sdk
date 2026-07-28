@@ -1,4 +1,4 @@
-name: "Required SDK checks"
+name: "SDK"
 
 on:
   pull_request:
