@@ -114,9 +114,7 @@ class TestHooksExtended:
         finally:
             await session.disconnect()
 
-    async def test_should_invoke_agentstop_hook_and_apply_block_response(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_invoke_agentstop_hook_and_apply_block_response(self, ctx: E2ETestContext):
         inputs: list[dict] = []
 
         async def on_agent_stop(input_data, invocation):
