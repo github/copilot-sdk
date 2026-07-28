@@ -22,13 +22,15 @@ use std::time::Duration;
 
 /// Millisecond breakdown of the phases of [`Client::start`](crate::Client::start).
 ///
-/// Every field is `Option<u64>` because a phase is only timed when it actually
-/// runs: `program_resolve_ms` is `None` when the caller supplies an explicit
-/// CLI path (no resolution/extraction), `port_wait_ms` is `Some` only for the
-/// TCP transport, and `session_fs_ms` / `llm_handler_ms` are `Some` only when
-/// the corresponding option is configured. `process_spawn_ms` is `None` for
-/// transports that do not spawn a subprocess (external server, in-process
-/// FFI runtime).
+/// Optional fields represent phases that do not run for every configuration:
+/// `program_resolve_ms` is `None` when the caller supplies an explicit CLI path
+/// (no resolution/extraction), `port_wait_ms` is `Some` only for the TCP
+/// transport, and `session_fs_ms` / `llm_handler_ms` are `Some` only when the
+/// corresponding option is configured. `process_spawn_ms` is `None` for
+/// transports that do not spawn a subprocess (external server, in-process FFI
+/// runtime). `transport_setup_ms`, `handshake_ms`, and `total_ms` are always
+/// populated for a value returned by
+/// [`Client::startup_timings`](crate::Client::startup_timings).
 ///
 /// Durations are whole milliseconds, matching the existing `elapsed_ms`
 /// tracing fields.
@@ -46,10 +48,15 @@ pub struct StartupTimings {
     /// Time spent waiting for the TCP server to announce its listening port on
     /// stdout. `Some` only for the TCP transport.
     pub port_wait_ms: Option<u64>,
+    /// Total transport setup time. This includes spawning and connecting to a
+    /// subprocess, connecting to an external server, or starting the in-process
+    /// FFI runtime. `process_spawn_ms` and `port_wait_ms` provide nested detail
+    /// for spawned transports.
+    pub transport_setup_ms: u64,
     /// Time spent on the `connect` protocol handshake in
     /// [`Client::verify_protocol_version`](crate::Client::verify_protocol_version),
     /// including the fallback to the legacy `ping` RPC.
-    pub handshake_ms: Option<u64>,
+    pub handshake_ms: u64,
     /// Time spent registering the filesystem provider via
     /// `sessionFs.setProvider`. `Some` only when
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) is set.
@@ -61,7 +68,7 @@ pub struct StartupTimings {
     pub llm_handler_ms: Option<u64>,
     /// Total wall-clock time for [`Client::start`](crate::Client::start), from
     /// entry to the client being ready. Always present.
-    pub total_ms: Option<u64>,
+    pub total_ms: u64,
 }
 
 impl StartupTimings {
@@ -89,9 +96,10 @@ mod tests {
         assert!(timings.program_resolve_ms.is_none());
         assert!(timings.process_spawn_ms.is_none());
         assert!(timings.port_wait_ms.is_none());
-        assert!(timings.handshake_ms.is_none());
+        assert_eq!(timings.transport_setup_ms, 0);
+        assert_eq!(timings.handshake_ms, 0);
         assert!(timings.session_fs_ms.is_none());
         assert!(timings.llm_handler_ms.is_none());
-        assert!(timings.total_ms.is_none());
+        assert_eq!(timings.total_ms, 0);
     }
 }

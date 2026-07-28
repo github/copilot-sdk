@@ -1163,6 +1163,7 @@ impl Client {
             }
         };
 
+        let transport_setup_start = Instant::now();
         let client = match options.transport {
             Transport::Default => unreachable!("default transport resolved above"),
             Transport::External {
@@ -1309,13 +1310,14 @@ impl Client {
                 unreachable!("in-process feature validation returned above")
             }
         };
+        timings.transport_setup_ms = StartupTimings::millis(transport_setup_start.elapsed());
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start transport setup complete"
         );
         let handshake_start = Instant::now();
         client.verify_protocol_version().await?;
-        timings.handshake_ms = Some(StartupTimings::millis(handshake_start.elapsed()));
+        timings.handshake_ms = StartupTimings::millis(handshake_start.elapsed());
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
             "Client::start protocol verification complete"
@@ -1364,18 +1366,24 @@ impl Client {
                 "Client::start Copilot request handler registration complete"
             );
         }
-        timings.total_ms = Some(StartupTimings::millis(start_time.elapsed()));
+        timings.total_ms = StartupTimings::millis(start_time.elapsed());
         // Single structured event with the full per-phase breakdown, so hosts
         // can attribute startup latency to a phase without stitching together
         // the individual debug lines above.
         debug!(
-            program_resolve_ms = ?timings.program_resolve_ms,
-            process_spawn_ms = ?timings.process_spawn_ms,
-            port_wait_ms = ?timings.port_wait_ms,
-            handshake_ms = ?timings.handshake_ms,
-            session_fs_ms = ?timings.session_fs_ms,
-            llm_handler_ms = ?timings.llm_handler_ms,
-            total_ms = ?timings.total_ms,
+            program_resolve_ms = timings.program_resolve_ms.unwrap_or_default(),
+            program_resolve_present = timings.program_resolve_ms.is_some(),
+            process_spawn_ms = timings.process_spawn_ms.unwrap_or_default(),
+            process_spawn_present = timings.process_spawn_ms.is_some(),
+            port_wait_ms = timings.port_wait_ms.unwrap_or_default(),
+            port_wait_present = timings.port_wait_ms.is_some(),
+            transport_setup_ms = timings.transport_setup_ms,
+            handshake_ms = timings.handshake_ms,
+            session_fs_ms = timings.session_fs_ms.unwrap_or_default(),
+            session_fs_present = timings.session_fs_ms.is_some(),
+            llm_handler_ms = timings.llm_handler_ms.unwrap_or_default(),
+            llm_handler_present = timings.llm_handler_ms.is_some(),
+            total_ms = timings.total_ms,
             "Client::start timings"
         );
         let _ = client.inner.startup_timings.set(timings);
@@ -3119,6 +3127,7 @@ mod tests {
         let (client_write, _server_read) = tokio::io::duplex(8192);
         let (_server_write, client_read) = tokio::io::duplex(8192);
         let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
+        assert!(client.startup_timings().is_none());
         let session_id = SessionId::new("resume-cancel-test");
         let handle = tokio::spawn({
             let client = client.clone();

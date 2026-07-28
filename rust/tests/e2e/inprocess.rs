@@ -7,6 +7,12 @@ async fn should_start_ping_and_stop_inprocess_client() {
     with_e2e_context("client", "should_start_ping_and_stop_stdio_client", |ctx| {
         Box::pin(async move {
             let client = ctx.start_inprocess_client().await;
+            let timings = client.startup_timings().expect("startup timings");
+            assert!(timings.program_resolve_ms.is_some());
+            assert!(timings.process_spawn_ms.is_none());
+            assert!(timings.port_wait_ms.is_none());
+            assert!(timings.total_ms >= timings.transport_setup_ms);
+            assert!(timings.total_ms >= timings.handshake_ms);
 
             let response = client
                 .ping(Some("hello from rust in-process"))
