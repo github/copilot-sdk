@@ -2893,6 +2893,14 @@ type LlmInferenceHeaders map[string][]string
 // Experimental: LlmInferenceHTTPRequestChunkRequest is part of an experimental API and may
 // change or be removed.
 type LlmInferenceHTTPRequestChunkRequest struct {
+	// Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching
+	// the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent
+	// transport can attribute successive turns correctly: when a WebSocket connection is reused
+	// across turns, the httpRequestStart identity reflects only the turn that opened the
+	// connection, so each later turn stamps its own invocation id here. Absent when the runtime
+	// has no invocation context for the request, or on the plain-HTTP transport where every
+	// request has its own httpRequestStart.
+	AgentInvocationID *string `json:"agentInvocationId,omitempty"`
 	// When true, `data` is base64-encoded bytes. When absent or false, `data` is UTF-8 text.
 	Binary *bool `json:"binary,omitempty"`
 	// When true, the runtime is cancelling the in-flight request (e.g. upstream consumer

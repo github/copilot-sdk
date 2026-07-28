@@ -37,16 +37,31 @@ public final class Param<T> {
     private final String description;
     private final boolean required;
     private final String defaultValue;
+    private final String schema;
 
-    private Param(Class<T> type, String name, String description, boolean required, String defaultValue) {
+    private Param(Class<T> type, String name, String description, boolean required, String defaultValue,
+            String schema) {
         this.type = Objects.requireNonNull(type, "type");
         this.name = requireNonBlank(name, "name");
         this.description = requireNonBlank(description, "description");
         this.defaultValue = defaultValue == null ? "" : defaultValue;
+        this.schema = schema == null ? "" : schema;
         this.required = required;
 
         if (this.required && !this.defaultValue.isEmpty()) {
             throw new IllegalArgumentException("required=true cannot be combined with a non-empty defaultValue");
+        }
+
+        if (!this.schema.isEmpty()) {
+            String trimmed = this.schema.trim();
+            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+                throw new IllegalArgumentException(
+                        "schema must be a valid JSON object string (must start with '{' and end with '}')");
+            }
+            if (!this.defaultValue.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "schema cannot be combined with defaultValue — express defaults inside the schema if needed");
+            }
         }
 
         validateDefaultValue(type, this.defaultValue);
@@ -70,7 +85,7 @@ public final class Param<T> {
      *             if {@code name} or {@code description} is blank
      */
     public static <T> Param<T> of(Class<T> type, String name, String description) {
-        return new Param<>(type, name, description, true, "");
+        return new Param<>(type, name, description, true, "", "");
     }
 
     /**
@@ -96,7 +111,7 @@ public final class Param<T> {
      */
     public static <T> Param<T> of(Class<T> type, String name, String description, boolean required,
             String defaultValue) {
-        return new Param<>(type, name, description, required, defaultValue);
+        return new Param<>(type, name, description, required, defaultValue, "");
     }
 
     /**
@@ -107,7 +122,7 @@ public final class Param<T> {
      * @return a new {@code Param} with the updated name
      */
     public Param<T> name(String name) {
-        return new Param<>(this.type, name, this.description, this.required, this.defaultValue);
+        return new Param<>(this.type, name, this.description, this.required, this.defaultValue, this.schema);
     }
 
     /**
@@ -118,7 +133,7 @@ public final class Param<T> {
      * @return a new {@code Param} with the updated description
      */
     public Param<T> description(String description) {
-        return new Param<>(this.type, this.name, description, this.required, this.defaultValue);
+        return new Param<>(this.type, this.name, description, this.required, this.defaultValue, this.schema);
     }
 
     /**
@@ -129,7 +144,7 @@ public final class Param<T> {
      * @return a new {@code Param} with the updated required flag
      */
     public Param<T> required(boolean required) {
-        return new Param<>(this.type, this.name, this.description, required, this.defaultValue);
+        return new Param<>(this.type, this.name, this.description, required, this.defaultValue, this.schema);
     }
 
     /**
@@ -142,7 +157,7 @@ public final class Param<T> {
      *         false
      */
     public Param<T> defaultValue(String defaultValue) {
-        return new Param<>(this.type, this.name, this.description, false, defaultValue);
+        return new Param<>(this.type, this.name, this.description, false, defaultValue, this.schema);
     }
 
     /** Returns the Java type of this parameter. */
@@ -175,18 +190,37 @@ public final class Param<T> {
         return !defaultValue.isEmpty();
     }
 
+    /**
+     * Returns a copy with an explicit JSON Schema override. When set, bypasses
+     * automatic schema generation from the parameter type.
+     *
+     * @param schema
+     *            a JSON object string (e.g.,
+     *            {@code "{\"type\":\"string\",\"format\":\"date-time\"}"} )
+     * @return a new {@code Param} with the schema override
+     */
+    public Param<T> schema(String schema) {
+        return new Param<>(this.type, this.name, this.description, this.required, this.defaultValue, schema);
+    }
+
+    /** Returns the explicit JSON Schema override, or empty if none. */
+    public String schema() {
+        return schema;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof Param<?> other)) {
             return false;
         }
         return required == other.required && Objects.equals(type, other.type) && Objects.equals(name, other.name)
-                && Objects.equals(description, other.description) && Objects.equals(defaultValue, other.defaultValue);
+                && Objects.equals(description, other.description) && Objects.equals(defaultValue, other.defaultValue)
+                && Objects.equals(schema, other.schema);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, name, description, required, defaultValue);
+        return Objects.hash(type, name, description, required, defaultValue, schema);
     }
 
     @Override
