@@ -454,75 +454,80 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           const streamingIsRequested =
             (JSON.parse(normalizedBody) as { stream?: boolean }).stream === true;
 
-          const savedError = await findSavedChatCompletionError(
-            state.storedData,
-            normalizedBody,
-            state.workDir,
-            state.toolResultNormalizers,
-          );
-
-          if (savedError) {
-            const headers = {
-              "content-type": "application/json",
-              ...commonResponseHeaders,
-              ...(savedError.retryAfterSeconds !== undefined
-                ? { "retry-after": String(savedError.retryAfterSeconds) }
-                : {}),
-            };
-            options.onResponseStart(savedError.status, headers);
-            options.onData(
-              Buffer.from(
-                JSON.stringify(
-                  (protocol.errorBody ?? openAIErrorBody)(
-                    savedError.code,
-                    savedError.message ?? "Rate limited by test snapshot",
-                  ),
-                ),
-              ),
-            );
-            options.onResponseEnd();
-            return;
-          }
-
-          const savedResponse = await findSavedChatCompletionResponse(
-            state.storedData,
-            normalizedBody,
-            state.workDir,
-            state.toolResultNormalizers,
-          );
-
-          if (savedResponse) {
-            await this.respondWithProtocol(
-              options,
-              protocol,
-              savedResponse,
-              streamingIsRequested,
-              commonResponseHeaders,
-            );
-
-            return;
-          }
-
-          // Check if this request matches a snapshot with no response (e.g., timeout tests).
-          // If so, hang forever so the client-side timeout can trigger.
-          if (
-            await isRequestOnlySnapshot(
+          for (const allowLegacyViewFallback of [false, true]) {
+            const savedError = await findSavedChatCompletionError(
               state.storedData,
               normalizedBody,
               state.workDir,
               state.toolResultNormalizers,
-            )
-          ) {
-            const headers = {
-              "content-type": streamingIsRequested
-                ? "text/event-stream"
-                : "application/json",
-              ...commonResponseHeaders,
-            };
-            options.onResponseStart(200, headers);
-            // Never call onResponseEnd - hang indefinitely for timeout tests.
-            // Returning here keeps the HTTP response open without leaking a pending Promise.
-            return;
+              allowLegacyViewFallback,
+            );
+
+            if (savedError) {
+              const headers = {
+                "content-type": "application/json",
+                ...commonResponseHeaders,
+                ...(savedError.retryAfterSeconds !== undefined
+                  ? { "retry-after": String(savedError.retryAfterSeconds) }
+                  : {}),
+              };
+              options.onResponseStart(savedError.status, headers);
+              options.onData(
+                Buffer.from(
+                  JSON.stringify(
+                    (protocol.errorBody ?? openAIErrorBody)(
+                      savedError.code,
+                      savedError.message ?? "Rate limited by test snapshot",
+                    ),
+                  ),
+                ),
+              );
+              options.onResponseEnd();
+              return;
+            }
+
+            const savedResponse = await findSavedChatCompletionResponse(
+              state.storedData,
+              normalizedBody,
+              state.workDir,
+              state.toolResultNormalizers,
+              allowLegacyViewFallback,
+            );
+
+            if (savedResponse) {
+              await this.respondWithProtocol(
+                options,
+                protocol,
+                savedResponse,
+                streamingIsRequested,
+                commonResponseHeaders,
+              );
+
+              return;
+            }
+
+            // Check if this request matches a snapshot with no response (e.g., timeout tests).
+            // If so, hang forever so the client-side timeout can trigger.
+            if (
+              await isRequestOnlySnapshot(
+                state.storedData,
+                normalizedBody,
+                state.workDir,
+                state.toolResultNormalizers,
+                allowLegacyViewFallback,
+              )
+            ) {
+              const headers = {
+                "content-type": streamingIsRequested
+                  ? "text/event-stream"
+                  : "application/json",
+                ...commonResponseHeaders,
+              };
+              options.onResponseStart(200, headers);
+              // Never call onResponseEnd - hang indefinitely for timeout tests.
+              // Returning here keeps the HTTP response open without leaking a pending Promise.
+              return;
+            }
           }
         }
 
@@ -672,7 +677,7 @@ function diagnoseMatchFailure(
     // Find the first message that doesn't match
     let mismatchIndex = -1;
     for (let i = 0; i < requestMessages.length; i++) {
-      if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
+      if (!messagesEqualForReplay(requestMessages, saved, i, true)) {
         mismatchIndex = i;
         break;
       }
@@ -762,6 +767,7 @@ async function findSavedChatCompletionResponse(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  allowLegacyViewFallback: boolean,
 ): Promise<ChatCompletion | undefined> {
   // Normalize the incoming request the same way we normalize for caching
   const normalized = await parseAndNormalizeRequest(
@@ -775,11 +781,11 @@ async function findSavedChatCompletionResponse(
     throw new Error("Unable to determine model from request");
   }
 
-  // Now find a matching cached conversation (i.e., one for which this request is a prefix)
   for (const conversation of storedData.conversations) {
     const replyIndex = findAssistantIndexAfterPrefix(
       requestMessages,
       conversation.messages,
+      allowLegacyViewFallback,
     );
     if (replyIndex !== undefined) {
       return createOpenAIResponse(
@@ -799,6 +805,7 @@ async function findSavedChatCompletionError(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  allowLegacyViewFallback: boolean,
 ): Promise<NormalizedErrorResponse | undefined> {
   const normalized = await parseAndNormalizeRequest(
     requestBody,
@@ -814,8 +821,13 @@ async function findSavedChatCompletionError(
     }
     if (
       requestMessages.length === error.messages.length &&
-      requestMessages.every(
-        (msg, i) => JSON.stringify(msg) === JSON.stringify(error.messages[i]),
+      requestMessages.every((_msg, i) =>
+        messagesEqualForReplay(
+          requestMessages,
+          error.messages,
+          i,
+          allowLegacyViewFallback,
+        ),
       )
     ) {
       return error;
@@ -832,6 +844,7 @@ async function isRequestOnlySnapshot(
   requestBody: string | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  allowLegacyViewFallback: boolean,
 ): Promise<boolean> {
   const normalized = await parseAndNormalizeRequest(
     requestBody,
@@ -843,9 +856,13 @@ async function isRequestOnlySnapshot(
   for (const conversation of storedData.conversations) {
     if (
       requestMessages.length === conversation.messages.length &&
-      requestMessages.every(
-        (msg, i) =>
-          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+      requestMessages.every((_msg, i) =>
+        messagesEqualForReplay(
+          requestMessages,
+          conversation.messages,
+          i,
+          allowLegacyViewFallback,
+        ),
       )
     ) {
       return true;
@@ -1520,11 +1537,95 @@ async function parseOpenAIResponse(
   }
 }
 
+function messagesEqualForReplay(
+  requestMessages: NormalizedMessage[],
+  savedMessages: NormalizedMessage[],
+  index: number,
+  allowLegacyViewFallback: boolean,
+): boolean {
+  const requestMessage = requestMessages[index];
+  const savedMessage = savedMessages[index];
+  const savedJson = JSON.stringify(savedMessage);
+  if (JSON.stringify(requestMessage) === savedJson) {
+    return true;
+  }
+
+  if (
+    !allowLegacyViewFallback ||
+    requestMessage?.role !== "tool" ||
+    typeof requestMessage.content !== "string" ||
+    !requestMessage.tool_call_id
+  ) {
+    return false;
+  }
+
+  let originatingToolCall: NormalizedToolCall | undefined;
+  for (let messageIndex = index - 1; messageIndex >= 0; messageIndex--) {
+    originatingToolCall = requestMessages[messageIndex].tool_calls?.find(
+      (toolCall) => toolCall.id === requestMessage.tool_call_id,
+    );
+    if (originatingToolCall) {
+      break;
+    }
+  }
+  if (originatingToolCall?.function?.name !== "view") {
+    return false;
+  }
+
+  const rawCandidate = stripLegacyViewLinePrefixes(requestMessage.content);
+  if (rawCandidate === undefined) {
+    return false;
+  }
+
+  return (
+    JSON.stringify({ ...requestMessage, content: rawCandidate }) === savedJson
+  );
+}
+
+function stripLegacyViewLinePrefixes(result: string): string | undefined {
+  const parts = result.split(/(\r\n|\n)/);
+  const lineIndexes: number[] = [];
+
+  for (let index = 0; index < parts.length; index += 2) {
+    const isTrailingEmptyPart =
+      index === parts.length - 1 && parts[index] === "" && index > 0;
+    if (!isTrailingEmptyPart) {
+      lineIndexes.push(index);
+    }
+  }
+
+  if (lineIndexes.length === 0) {
+    return undefined;
+  }
+
+  let expectedLineNumber: number | undefined;
+  for (const [position, index] of lineIndexes.entries()) {
+    let match = /^(\d+)\. (.*)$/.exec(parts[index]);
+    if (!match && position === lineIndexes.length - 1) {
+      match = /^(\d+)\.$/.exec(parts[index]);
+    }
+    if (!match) {
+      return undefined;
+    }
+
+    const lineNumber = Number(match[1]);
+    if (expectedLineNumber !== undefined && lineNumber !== expectedLineNumber) {
+      return undefined;
+    }
+
+    expectedLineNumber = lineNumber + 1;
+    parts[index] = match[2] ?? "";
+  }
+
+  return parts.join("").trimEnd();
+}
+
 // Checks if requestMessages is a prefix of savedMessages,
 // and returns the index of the next assistant message if found.
 function findAssistantIndexAfterPrefix(
   requestMessages: NormalizedMessage[],
   savedMessages: NormalizedMessage[],
+  allowLegacyViewFallback: boolean,
 ): number | undefined {
   const logFile = process.env.PROXY_DEBUG_LOG;
   const log = (msg: string) => { if (logFile) try { appendFileSync(logFile, msg + "\n"); } catch {} };
@@ -1537,7 +1638,14 @@ function findAssistantIndexAfterPrefix(
   for (let i = 0; i < requestMessages.length; i++) {
     const reqMsg = JSON.stringify(requestMessages[i]);
     const savedMsg = JSON.stringify(savedMessages[i]);
-    if (reqMsg !== savedMsg) {
+    if (
+      !messagesEqualForReplay(
+        requestMessages,
+        savedMessages,
+        i,
+        allowLegacyViewFallback,
+      )
+    ) {
       log(`mismatch at index ${i}:`);
       log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
       log(`  SAVED: ${savedMsg.substring(0, 1000)}`);

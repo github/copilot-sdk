@@ -724,6 +724,107 @@ Always include PINEAPPLE_COCONUT_42.
       });
     }
 
+    async function replayToolResult(
+      toolName: string,
+      requestContent: string,
+      savedResults: Array<{ content: string; response: string }>,
+      savedErrors: Array<{
+        content: string;
+        status: number;
+        message: string;
+      }> = [],
+    ): Promise<string | null> {
+      const toolArguments = toolName === "view" ? '{"path":"file.txt"}' : "{}";
+      const createMessages = (
+        content: string,
+        response?: string,
+      ): NormalizedData["conversations"][number]["messages"] => {
+        const messages: NormalizedData["conversations"][number]["messages"] = [
+          { role: "system", content: "${system}" },
+          { role: "user", content: "Use the tool" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "toolcall_0",
+                type: "function",
+                function: {
+                  name: toolName,
+                  arguments: toolArguments,
+                },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "toolcall_0",
+            content,
+          },
+        ];
+        if (response !== undefined) {
+          messages.push({ role: "assistant", content: response });
+        }
+        return messages;
+      };
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        errors: savedErrors.map((savedError) => ({
+          model: "test-model",
+          status: savedError.status,
+          message: savedError.message,
+          messages: createMessages(savedError.content),
+        })),
+        conversations: savedResults.map((savedResult) => ({
+          messages: createMessages(savedResult.content, savedResult.response),
+        })),
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Use the tool" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "request-tool-call",
+                    type: "function",
+                    function: {
+                      name: toolName,
+                      arguments: toolArguments,
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "request-tool-call",
+                content: requestContent,
+              },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        return (JSON.parse(response.body) as ChatCompletion).choices[0].message
+          .content;
+      } finally {
+        await proxy.stop();
+      }
+    }
+
     test("returns cached response when request matches prefix", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
@@ -818,6 +919,63 @@ Always include PINEAPPLE_COCONUT_42.
       } finally {
         await proxy.stop();
       }
+    });
+
+    test("matches legacy numbered view results against raw cached content", async () => {
+      const result = await replayToolResult(
+        "view",
+        "42. alpha\r\n43. beta\r\n44.",
+        [{ content: "alpha\r\nbeta", response: "legacy view matched" }],
+      );
+
+      expect(result).toBe("legacy view matched");
+    });
+
+    test("prefers an exact naturally numbered view result match", async () => {
+      const result = await replayToolResult("view", "1. alpha\n2. beta", [
+        { content: "alpha\nbeta", response: "legacy fallback" },
+        { content: "1. alpha\n2. beta", response: "exact match" },
+      ]);
+
+      expect(result).toBe("exact match");
+    });
+
+    test("prefers an exact response over a legacy-fallback error", async () => {
+      const result = await replayToolResult(
+        "view",
+        "1. alpha\n2. beta",
+        [{ content: "1. alpha\n2. beta", response: "exact response" }],
+        [
+          {
+            content: "alpha\nbeta",
+            status: 429,
+            message: "legacy fallback error",
+          },
+        ],
+      );
+
+      expect(result).toBe("exact response");
+    });
+
+    test("does not use legacy view compatibility for other tools", async () => {
+      const result = await replayToolResult("grep", "1. alpha\n2. beta", [
+        { content: "alpha\nbeta", response: "incorrect fallback" },
+        { content: "1. alpha\n2. beta", response: "exact grep match" },
+      ]);
+
+      expect(result).toBe("exact grep match");
+    });
+
+    test("does not strip non-sequential view results", async () => {
+      const result = await replayToolResult("view", "1. alpha\n3. gamma", [
+        { content: "alpha\ngamma", response: "incorrect fallback" },
+        {
+          content: "1. alpha\n3. gamma",
+          response: "exact non-sequential match",
+        },
+      ]);
+
+      expect(result).toBe("exact non-sequential match");
     });
 
     test("matches shell tool results with shell ID completion markers", async () => {
