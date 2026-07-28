@@ -950,8 +950,8 @@ type CustomAgentConfig struct {
 	// falling back to the parent session model if unavailable.
 	Model string `json:"model,omitempty"`
 	// ReasoningEffort is the reasoning effort level for this agent's model.
-	// When empty, no per-agent override is sent and the backend chooses its
-	// default. The parent session effort is not inherited.
+	// When empty, the runtime resolves model configuration, then inherits the
+	// parent effort only for the same model.
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 }
 
@@ -1966,7 +1966,8 @@ type CapiSessionOptions struct {
 
 // AzureProviderOptions contains Azure-specific provider configuration
 type AzureProviderOptions struct {
-	// APIVersion is the Azure API version. Defaults to "2024-10-21".
+	// APIVersion is the Azure API version. When empty, the runtime uses the GA
+	// versionless v1 route.
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 

@@ -1643,8 +1643,8 @@ export interface CustomAgentConfig {
     model?: string;
     /**
      * Reasoning effort level for this agent's model.
-     * When omitted, no per-agent override is sent and the backend chooses its
-     * default. The parent session effort is not inherited.
+     * When omitted, the runtime resolves the effort from model configuration,
+     * then inherits the parent effort only if this agent uses the same model.
      */
     reasoningEffort?: ReasoningEffort;
 }
@@ -2619,7 +2619,7 @@ export interface ProviderConfig {
      */
     azure?: {
         /**
-         * API version. Defaults to "2024-10-21".
+         * API version. When omitted, the runtime uses the GA versionless v1 route.
          */
         apiVersion?: string;
     };

@@ -298,8 +298,8 @@ public class CustomAgentConfig {
     /**
      * Sets the reasoning effort level for this agent's model.
      * <p>
-     * When omitted, no per-agent override is sent and the backend chooses its
-     * default. The parent session effort is not inherited.
+     * When omitted, the runtime resolves model configuration, then inherits the
+     * parent effort only if this agent uses the same model.
      *
      * @param reasoningEffort
      *            the reasoning effort level

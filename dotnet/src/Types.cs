@@ -2275,7 +2275,7 @@ public sealed class CapiSessionOptions
 public sealed class AzureOptions
 {
     /// <summary>
-    /// Azure OpenAI API version to use (e.g., "2024-02-01").
+    /// Azure OpenAI API version. When omitted, the runtime uses the GA versionless v1 route.
     /// </summary>
     [JsonPropertyName("apiVersion")]
     public string? ApiVersion { get; set; }
@@ -2660,8 +2660,8 @@ public sealed class CustomAgentConfig
 
     /// <summary>
     /// Reasoning effort level for this agent's model.
-    /// When omitted, no per-agent override is sent and the backend chooses its
-    /// default. The parent session effort is not inherited.
+    /// When omitted, the runtime resolves model configuration, then inherits
+    /// the parent effort only if this agent uses the same model.
     /// </summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }

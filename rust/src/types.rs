@@ -644,8 +644,8 @@ pub struct CustomAgentConfig {
     pub model: Option<String>,
     /// Reasoning effort level for this agent's model.
     ///
-    /// When unset, no per-agent override is sent and the backend chooses its
-    /// default. The parent session effort is not inherited.
+    /// When unset, the runtime resolves model configuration, then inherits the
+    /// parent effort only for the same model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
 }
@@ -1351,7 +1351,7 @@ impl CapiSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AzureProviderOptions {
-    /// Azure API version. Defaults to `"2024-10-21"`.
+    /// Azure API version. When omitted, the runtime uses the GA versionless v1 route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
 }
