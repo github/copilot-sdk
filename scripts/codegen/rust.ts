@@ -575,6 +575,45 @@ function emitRustMapAlias(
 	);
 }
 
+/**
+ * Map a primitive JSON Schema type to its Rust equivalent, or `undefined` when
+ * the schema is not a plain scalar. Mirrors the primitive branches of
+ * {@link resolveRustType}.
+ */
+function rustScalarType(schema: JSONSchema7): string | undefined {
+	if (schema.enum || schema.const !== undefined) return undefined;
+	switch (schema.type) {
+		case "string":
+			return "String";
+		case "number":
+			return "f64";
+		case "integer":
+			return isIntegerSchemaBoundedToInt32(schema) ? "i32" : "i64";
+		case "boolean":
+			return "bool";
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Emit a type alias for a named schema that resolves to a primitive scalar
+ * (e.g. an RPC result declared as `{ "type": "integer" }`). Without this the
+ * generated RPC surface would reference a `*Result` type that was never
+ * defined.
+ */
+function emitRustScalarAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	const scalarType = rustScalarType(schema);
+	if (!scalarType) return;
+	emitRustTypeAlias(typeName, schema, scalarType, ctx, description);
+}
+
 function rustRpcResultDescription(
 	method: RpcMethod,
 	resultSchema: JSONSchema7 | undefined,
@@ -1527,6 +1566,8 @@ function generateApiTypesCode(
 			} else {
 				tryEmitRustUnion(schema, name, "", ctx);
 			}
+		} else {
+			emitRustScalarAlias(name, schema, ctx, schema.description);
 		}
 	}
 
@@ -1576,6 +1617,8 @@ function generateApiTypesCode(
 					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {
 					emitRustStruct(resultName, resolved, ctx, resolved.description);
+				} else {
+					emitRustScalarAlias(resultName, resolved, ctx, resolved.description);
 				}
 			}
 		}
