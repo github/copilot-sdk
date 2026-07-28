@@ -57,7 +57,8 @@ def _find_cli_in_node_modules(github_modules: Path, package_names: Sequence[str]
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests.
 
-    Uses COPILOT_CLI_PATH env var if set, otherwise node_modules CLI.
+    Uses COPILOT_CLI_PATH env var if set, otherwise the platform-specific CLI
+    package in the sibling nodejs directory's node_modules.
     """
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():
@@ -65,15 +66,20 @@ def get_cli_path_for_tests() -> str:
 
     # Look for CLI in sibling nodejs directory's node_modules. As of CLI 1.0.64-1
     # the @github/copilot package is a thin loader; the runnable index.js ships in
-    # the installed platform package (e.g. @github/copilot-linux-x64).
+    # the installed platform package (e.g. @github/copilot-linux-x64), so pick the
+    # one built for this host rather than whichever sorts first (#2103).
     base_path = Path(__file__).parents[3]
     github_modules = base_path / "nodejs" / "node_modules" / "@github"
-    for platform_pkg in sorted(github_modules.glob("copilot-*")):
-        candidate = platform_pkg / "index.js"
-        if candidate.exists():
-            return str(candidate.resolve())
+    package_names = _cli_platform_package_names()
+    found = _find_cli_in_node_modules(github_modules, package_names)
+    if found is not None:
+        return found
 
-    raise RuntimeError("CLI not found for tests. Run 'npm install' in the nodejs directory.")
+    raise RuntimeError(
+        f"CLI not found for tests under {github_modules} "
+        f"(tried: {', '.join(package_names)}). Run 'npm install' in the nodejs "
+        f"directory, or set COPILOT_CLI_PATH."
+    )
 
 
 CLI_PATH = get_cli_path_for_tests()

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from copilot._cli_version import get_npm_platform
 from e2e.testharness import context
 
@@ -76,3 +78,24 @@ class TestFindCliInNodeModules:
     def test_returns_none_when_github_modules_is_absent(self, tmp_path):
         missing = tmp_path / "missing"
         assert context._find_cli_in_node_modules(missing, ["copilot-linux-x64"]) is None
+
+
+class TestGetCliPathForTests:
+    def test_env_var_takes_precedence(self, tmp_path, monkeypatch):
+        cli = tmp_path / "custom-cli.js"
+        cli.write_text("// custom entrypoint\n")
+        monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
+        assert context.get_cli_path_for_tests() == str(cli.resolve())
+
+    def test_error_names_the_packages_tried_and_the_remedy(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+        monkeypatch.setattr(
+            context, "_cli_platform_package_names", lambda *_: ["copilot-linux-x64"]
+        )
+        monkeypatch.setattr(context, "_find_cli_in_node_modules", lambda *_: None)
+        with pytest.raises(RuntimeError) as excinfo:
+            context.get_cli_path_for_tests()
+        message = str(excinfo.value)
+        assert "copilot-linux-x64" in message
+        assert "npm install" in message
+        assert "COPILOT_CLI_PATH" in message
