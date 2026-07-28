@@ -194,58 +194,11 @@ async fn should_start_and_restart_mcp_server() {
     .await;
 }
 
-#[tokio::test]
-async fn should_register_and_unregister_external_mcp_client() {
-    with_e2e_context(
-        "rpc_mcp_lifecycle",
-        "should_register_and_unregister_external_mcp_client",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let host_server = "rpc-lifecycle-extclient-host";
-                let client = ctx.start_client().await;
-                let session =
-                    client
-                        .create_session(ctx.approve_all_session_config().with_mcp_servers(
-                            create_test_mcp_servers(ctx.repo_root(), host_server),
-                        ))
-                        .await
-                        .expect("create session");
-                wait_for_mcp_server_status(&session, host_server, McpServerStatus::Connected).await;
-
-                let external_name = "rpc-lifecycle-external-client";
-                assert!(!is_mcp_server_running(&session, external_name).await);
-
-                call_session_rpc(
-                    &session,
-                    "session.mcp.registerExternalClient",
-                    json!({
-                        "serverName": external_name,
-                        "client": { "id": external_name },
-                        "transport": { "kind": "in-process" },
-                        "config": { "command": "noop" }
-                    }),
-                )
-                .await
-                .expect("register external MCP client");
-                assert!(is_mcp_server_running(&session, external_name).await);
-
-                call_session_rpc(
-                    &session,
-                    "session.mcp.unregisterExternalClient",
-                    json!({ "serverName": external_name }),
-                )
-                .await
-                .expect("unregister external MCP client");
-                assert!(!is_mcp_server_running(&session, external_name).await);
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
+// There is deliberately no e2e test for `session.mcp.registerExternalClient`. That method is
+// marked `visibility: internal` in the shared API contract: its `client` and `transport` fields
+// are live in-process MCP SDK instances, so it cannot be driven over JSON-RPC, and no SDK
+// exposes it as a typed method. A raw-RPC test used to pass only because older CLIs routed
+// internal methods generically; it never exercised a supported wire API.
 
 #[tokio::test]
 async fn should_reload_mcp_servers_with_config() {

@@ -92,3 +92,7 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+# Bound every test so a deadlock fails fast with a stack dump instead of occupying the
+# whole CI leg until GitHub's 6-hour job limit. The full suite runs in ~10 minutes, so no
+# individual test legitimately approaches this.
+timeout = 300
