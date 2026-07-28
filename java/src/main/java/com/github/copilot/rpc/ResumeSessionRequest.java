@@ -198,6 +198,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("requestMcpApps")
     private Boolean requestMcpApps;
 
+    @JsonProperty("githubMcpToolConfig")
+    private GitHubMcpToolConfig githubMcpToolConfig;
+
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
 
@@ -925,6 +928,16 @@ public final class ResumeSessionRequest {
     /** Clears the requestMcpApps setting, reverting to the default behavior. */
     public void clearRequestMcpApps() {
         this.requestMcpApps = null;
+    }
+
+    /** Gets the built-in GitHub MCP tool configuration. @return the configuration */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /** Sets the built-in GitHub MCP tool configuration. @param config the configuration */
+    public void setGitHubMcpToolConfig(GitHubMcpToolConfig config) {
+        this.githubMcpToolConfig = config;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

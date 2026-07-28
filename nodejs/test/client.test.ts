@@ -102,6 +102,55 @@ describe("CopilotClient", () => {
         });
     });
 
+    it("forwards GitHub MCP tool config on create and resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const githubMcpToolConfig = {
+            enableAllTools: true,
+            additionalToolsets: ["repos"],
+            additionalTools: ["get_issue"],
+            enableInsidersMode: true,
+            disableFormDeferral: true,
+        };
+
+        const session = await client.createSession({ githubMcpToolConfig });
+        await client.resumeSession(session.sessionId, { githubMcpToolConfig });
+
+        expect(spy.mock.calls.find(([method]) => method === "session.create")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+        expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+    });
+
+    it("omits GitHub MCP tool config when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({});
+
+        expect(
+            spy.mock.calls.find(([method]) => method === "session.create")![1]
+        ).not.toHaveProperty("githubMcpToolConfig");
+    });
+
     it("passes MCP OAuth requests through when optional metadata is absent", async () => {
         let observedRequest: any;
         const session = new CopilotSession(

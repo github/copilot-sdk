@@ -2363,6 +2363,66 @@ func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_GitHubMCPToolConfig(t *testing.T) {
+	config := &GitHubMCPToolConfig{
+		EnableAllTools:      Bool(true),
+		AdditionalToolsets:  []string{"repos"},
+		AdditionalTools:     []string{"get_issue"},
+		EnableInsidersMode:  Bool(true),
+		DisableFormDeferral: Bool(true),
+	}
+	expected := map[string]any{
+		"enableAllTools":      true,
+		"additionalToolsets":  []any{"repos"},
+		"additionalTools":     []any{"get_issue"},
+		"enableInsidersMode":  true,
+		"disableFormDeferral": true,
+	}
+
+	t.Run("create", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{GitHubMCPToolConfig: config})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(payload["githubMcpToolConfig"], expected) {
+			t.Fatalf("Unexpected githubMcpToolConfig: %#v", payload["githubMcpToolConfig"])
+		}
+	})
+
+	t.Run("resume", func(t *testing.T) {
+		data, err := json.Marshal(resumeSessionRequest{
+			SessionID:           "s1",
+			GitHubMCPToolConfig: config,
+		})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(payload["githubMcpToolConfig"], expected) {
+			t.Fatalf("Unexpected githubMcpToolConfig: %#v", payload["githubMcpToolConfig"])
+		}
+	})
+
+	t.Run("unset is omitted", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		_ = json.Unmarshal(data, &payload)
+		if _, ok := payload["githubMcpToolConfig"]; ok {
+			t.Fatal("Expected githubMcpToolConfig to be omitted")
+		}
+	})
+}
+
 func TestResumeSessionRequest_ModeCallbackFlags(t *testing.T) {
 	req := resumeSessionRequest{
 		SessionID:             "s1",

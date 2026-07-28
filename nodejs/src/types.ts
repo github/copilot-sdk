@@ -1954,6 +1954,20 @@ export interface CopilotExpAssignmentResponse {
 }
 
 /**
+ * Configuration for the built-in GitHub MCP server.
+ *
+ * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+ * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+ */
+export interface GitHubMcpToolConfig {
+    enableAllTools?: boolean;
+    additionalToolsets?: string[];
+    additionalTools?: string[];
+    enableInsidersMode?: boolean;
+    disableFormDeferral?: boolean;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -2286,6 +2300,14 @@ export interface SessionConfigBase {
      * @default false
      */
     enableMcpApps?: boolean;
+
+    /**
+     * Configuration for the built-in GitHub MCP server.
+     *
+     * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+     * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+     */
+    githubMcpToolConfig?: GitHubMcpToolConfig;
 
     /**
      * Handler for exit-plan-mode requests from the agent.

@@ -824,6 +824,80 @@ impl ToolSearchConfig {
     }
 }
 
+/// Configuration for the built-in GitHub MCP server.
+///
+/// `disable_form_deferral` only applies to the built-in GitHub MCP server and
+/// only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GitHubMcpToolConfig {
+    /// Whether all GitHub MCP tools are enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_all_tools: Option<bool>,
+    /// Additional GitHub MCP toolsets to enable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_toolsets: Option<Vec<String>>,
+    /// Additional GitHub MCP tools to enable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_tools: Option<Vec<String>>,
+    /// Whether GitHub MCP insiders mode is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_insiders_mode: Option<bool>,
+    /// Disables form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_form_deferral: Option<bool>,
+}
+
+impl GitHubMcpToolConfig {
+    /// Construct an empty GitHub MCP tool configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set whether all GitHub MCP tools are enabled.
+    pub fn with_enable_all_tools(mut self, value: bool) -> Self {
+        self.enable_all_tools = Some(value);
+        self
+    }
+
+    /// Set the additional GitHub MCP toolsets to enable.
+    pub fn with_additional_toolsets<I, S>(mut self, values: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.additional_toolsets = Some(values.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the additional GitHub MCP tools to enable.
+    pub fn with_additional_tools<I, S>(mut self, values: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.additional_tools = Some(values.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set whether GitHub MCP insiders mode is enabled.
+    pub fn with_enable_insiders_mode(mut self, value: bool) -> Self {
+        self.enable_insiders_mode = Some(value);
+        self
+    }
+
+    /// Disable form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    pub fn with_disable_form_deferral(mut self, value: bool) -> Self {
+        self.disable_form_deferral = Some(value);
+        self
+    }
+}
+
 /// Configures infinite sessions: persistent workspaces with automatic
 /// context-window compaction.
 ///
@@ -1831,6 +1905,11 @@ pub struct SessionConfig {
     ///
     /// Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Configuration for the built-in GitHub MCP server.
+    ///
+    /// `disable_form_deferral` only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -2164,6 +2243,7 @@ impl Default for SessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
@@ -2322,6 +2402,7 @@ impl SessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2701,6 +2782,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set the built-in GitHub MCP server configuration.
+    pub fn with_github_mcp_tool_config(mut self, config: GitHubMcpToolConfig) -> Self {
+        self.github_mcp_tool_config = Some(config);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -3034,6 +3121,11 @@ pub struct ResumeSessionConfig {
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
     /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Configuration for the built-in GitHub MCP server.
+    ///
+    /// `disable_form_deferral` only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -3376,6 +3468,7 @@ impl ResumeSessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -3467,6 +3560,7 @@ impl ResumeSessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
@@ -3822,6 +3916,12 @@ impl ResumeSessionConfig {
     /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
         self.enable_mcp_apps = Some(enable);
+        self
+    }
+
+    /// Set the built-in GitHub MCP server configuration.
+    pub fn with_github_mcp_tool_config(mut self, config: GitHubMcpToolConfig) -> Self {
+        self.github_mcp_tool_config = Some(config);
         self
     }
 
@@ -5490,12 +5590,12 @@ mod tests {
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
         CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
-        ExpFlagValue, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
-        LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
-        NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
-        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
-        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
-        ensure_attachment_display_names,
+        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
+        MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
+        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -5798,6 +5898,47 @@ mod tests {
 
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn github_mcp_tool_config_serializes_for_create_and_resume() {
+        let github_config = GitHubMcpToolConfig::new()
+            .with_enable_all_tools(true)
+            .with_additional_toolsets(["repos"])
+            .with_additional_tools(["get_issue"])
+            .with_enable_insiders_mode(true)
+            .with_disable_form_deferral(true);
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_github_mcp_tool_config(github_config.clone())
+            .into_wire(Some(SessionId::from("github-mcp")))
+            .expect("create config has no duplicate handlers");
+        assert_eq!(
+            serde_json::to_value(&create_wire).unwrap()["githubMcpToolConfig"],
+            serde_json::json!({
+                "enableAllTools": true,
+                "additionalToolsets": ["repos"],
+                "additionalTools": ["get_issue"],
+                "enableInsidersMode": true,
+                "disableFormDeferral": true,
+            })
+        );
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("github-mcp"))
+            .with_github_mcp_tool_config(github_config)
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        assert!(resume_wire.github_mcp_tool_config.is_some());
+
+        let (unset_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("github-mcp-unset")))
+            .expect("default config has no duplicate handlers");
+        assert!(
+            serde_json::to_value(&unset_wire)
+                .unwrap()
+                .get("githubMcpToolConfig")
+                .is_none()
+        );
     }
 
     #[test]

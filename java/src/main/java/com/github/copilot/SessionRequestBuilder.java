@@ -176,6 +176,7 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
+        request.setGitHubMcpToolConfig(config.getGitHubMcpToolConfig());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }
@@ -300,6 +301,7 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
+        request.setGitHubMcpToolConfig(config.getGitHubMcpToolConfig());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }

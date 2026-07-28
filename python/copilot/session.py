@@ -1084,6 +1084,22 @@ class MCPHTTPServerConfig(TypedDict, total=False):
 
 MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
+
+class GitHubMcpToolConfig(TypedDict, total=False):
+    """Configuration for the built-in GitHub MCP server.
+
+    ``disable_form_deferral`` only applies to the built-in GitHub MCP server
+    and only has an effect when MCP Apps and form-backed GitHub tools are
+    enabled.
+    """
+
+    enable_all_tools: bool
+    additional_toolsets: list[str]
+    additional_tools: list[str]
+    enable_insiders_mode: bool
+    disable_form_deferral: bool
+
+
 # ============================================================================
 # Custom Agent Configuration Types
 # ============================================================================

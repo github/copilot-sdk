@@ -24,6 +24,7 @@ import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ExpConfigEntry;
+import com.github.copilot.rpc.GitHubMcpToolConfig;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -957,5 +958,27 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeClone);
         assertEquals(resumeAssignments, resumeRequest.getExpAssignments());
         assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"Id\":\"exp-resume\""));
+    }
+
+    @Test
+    void githubMcpToolConfigIsMappedAndSerializedForCreateAndResume() throws Exception {
+        var config = new GitHubMcpToolConfig()
+                .setEnableAllTools(true)
+                .setAdditionalToolsets(List.of("repos"))
+                .setAdditionalTools(List.of("get_issue"))
+                .setEnableInsidersMode(true)
+                .setDisableFormDeferral(true);
+        var createRequest = SessionRequestBuilder.buildCreateRequest(
+                new SessionConfig().setGitHubMcpToolConfig(config), "session-1");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest(
+                "session-1", new ResumeSessionConfig().setGitHubMcpToolConfig(config));
+
+        assertSame(config, createRequest.getGitHubMcpToolConfig());
+        assertSame(config, resumeRequest.getGitHubMcpToolConfig());
+        var mapper = JsonRpcClient.getObjectMapper();
+        assertTrue(mapper.writeValueAsString(createRequest).contains("\"githubMcpToolConfig\""));
+        assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"githubMcpToolConfig\""));
+        assertFalse(mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig()))
+                .contains("\"githubMcpToolConfig\""));
     }
 }

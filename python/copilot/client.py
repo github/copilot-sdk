@@ -94,6 +94,7 @@ from .session import (
     DefaultAgentConfig,
     ElicitationHandler,
     ExitPlanModeHandler,
+    GitHubMcpToolConfig,
     InfiniteSessionConfig,
     LargeToolOutputConfig,
     McpAuthHandler,
@@ -331,6 +332,22 @@ def _tool_search_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
         wire["enabled"] = config["enabled"]
     if "defer_threshold" in config:
         wire["deferThreshold"] = config["defer_threshold"]
+    return wire
+
+
+def _github_mcp_tool_config_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``GitHubMcpToolConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "enable_all_tools" in config:
+        wire["enableAllTools"] = config["enable_all_tools"]
+    if "additional_toolsets" in config:
+        wire["additionalToolsets"] = config["additional_toolsets"]
+    if "additional_tools" in config:
+        wire["additionalTools"] = config["additional_tools"]
+    if "enable_insiders_mode" in config:
+        wire["enableInsidersMode"] = config["enable_insiders_mode"]
+    if "disable_form_deferral" in config:
+        wire["disableFormDeferral"] = config["disable_form_deferral"]
     return wire
 
 
@@ -2067,6 +2084,7 @@ class CopilotClient:
         canvas_handler: CanvasHandler | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
+        github_mcp_tool_config: GitHubMcpToolConfig | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -2312,6 +2330,10 @@ class CopilotClient:
         payload["requestElicitation"] = bool(on_elicitation_request)
         if enable_mcp_apps:
             payload["requestMcpApps"] = True
+        if github_mcp_tool_config is not None:
+            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(
+                github_mcp_tool_config
+            )
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -2740,6 +2762,7 @@ class CopilotClient:
         open_canvases: list[OpenCanvasInstance] | None = None,
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
+        github_mcp_tool_config: GitHubMcpToolConfig | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -3014,6 +3037,10 @@ class CopilotClient:
         payload["requestElicitation"] = bool(on_elicitation_request)
         if enable_mcp_apps:
             payload["requestMcpApps"] = True
+        if github_mcp_tool_config is not None:
+            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(
+                github_mcp_tool_config
+            )
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 

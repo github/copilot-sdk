@@ -848,6 +848,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
@@ -1220,6 +1221,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
