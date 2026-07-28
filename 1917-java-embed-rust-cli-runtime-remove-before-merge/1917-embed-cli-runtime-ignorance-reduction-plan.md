@@ -885,6 +885,8 @@ The .NET PR resolves the entrypoint from `COPILOT_CLI_PATH` and falls back to th
 
 **Resolution:**
 
+Resolution order: `COPILOT_CLI_PATH` (explicit) → classpath resource (classifier JAR) → alongside bundled CLI. This matches the .NET pattern and gives operators an override.
+
 ### 3.14 — `@CopilotExperimental` annotation on InProcess API
 
 **Question:** Should the InProcess transport API be annotated with `@CopilotExperimental`?
@@ -894,6 +896,8 @@ The existing SDK marks experimental features with `@CopilotExperimental` (compil
 **Recommendation:** Yes, annotate with `@CopilotExperimental` initially. The InProcess transport depends on the Rust runtime's C ABI stability and the ongoing TypeScript migration. Remove the annotation when the C ABI and runtime are declared stable.
 
 **Resolution:**
+
+Annotate with `@CopilotExperimental` initially. The InProcess transport depends on the Rust runtime's C ABI stability and the ongoing TypeScript migration. Remove the annotation when the C ABI and runtime are declared stable.
 
 ---
 
