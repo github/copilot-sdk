@@ -741,6 +741,7 @@ A custom agent was invoked as a sub-agent.
 | `agentName` | `string` | ✅ | Internal name of the sub-agent |
 | `agentDisplayName` | `string` | ✅ | Human-readable display name |
 | `agentDescription` | `string` | ✅ | Description of what the sub-agent does |
+| `model` | `string` | | Model the sub-agent will run with, when known at start |
 
 ### `subagent.completed`
 
@@ -751,6 +752,10 @@ A sub-agent finished successfully.
 | `toolCallId` | `string` | ✅ | Matches the corresponding `subagent.started` |
 | `agentName` | `string` | ✅ | Internal name |
 | `agentDisplayName` | `string` | ✅ | Display name |
+| `model` | `string` | | Model used by the sub-agent |
+| `durationMs` | `number` | | Wall-clock execution duration in milliseconds |
+| `totalTokens` | `number` | | Total input and output tokens consumed |
+| `totalToolCalls` | `number` | | Total tool calls made |
 
 ### `subagent.failed`
 
@@ -762,6 +767,10 @@ A sub-agent encountered an error.
 | `agentName` | `string` | ✅ | Internal name |
 | `agentDisplayName` | `string` | ✅ | Display name |
 | `error` | `string` | ✅ | Error message |
+| `model` | `string` | | Model selected for the sub-agent, when known |
+| `durationMs` | `number` | | Wall-clock execution duration in milliseconds |
+| `totalTokens` | `number` | | Total input and output tokens consumed before failure |
+| `totalToolCalls` | `number` | | Total tool calls made before failure |
 
 ### `subagent.selected`
 
@@ -966,9 +975,9 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `user_input.completed` | ✅ | User Input | `requestId` |
 | `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `requestedSchema` |
 | `elicitation.completed` | ✅ | User Input | `requestId` |
-| `subagent.started` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName` |
-| `subagent.completed` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName` |
-| `subagent.failed` | | Sub-Agent | `toolCallId`, `agentName`, `error` |
+| `subagent.started` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?` |
+| `subagent.completed` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
+| `subagent.failed` | | Sub-Agent | `toolCallId`, `agentName`, `error`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
 | `subagent.selected` | | Sub-Agent | `agentName`, `agentDisplayName`, `tools` |
 | `subagent.deselected` | | Sub-Agent | *(empty)* |
 | `skill.invoked` | | Skill | `name`, `path`, `content`, `allowedTools?` |
