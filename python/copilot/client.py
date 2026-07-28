@@ -2331,9 +2331,7 @@ class CopilotClient:
         if enable_mcp_apps:
             payload["requestMcpApps"] = True
         if github_mcp_tool_config is not None:
-            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(
-                github_mcp_tool_config
-            )
+            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(github_mcp_tool_config)
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -3038,9 +3036,7 @@ class CopilotClient:
         if enable_mcp_apps:
             payload["requestMcpApps"] = True
         if github_mcp_tool_config is not None:
-            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(
-                github_mcp_tool_config
-            )
+            payload["githubMcpToolConfig"] = _github_mcp_tool_config_to_wire(github_mcp_tool_config)
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
