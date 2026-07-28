@@ -245,8 +245,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session1);
+        var answer = await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(answer);
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
