@@ -43,8 +43,8 @@ public class AzureOptions {
     /**
      * Sets the Azure OpenAI API version to use.
      * <p>
-     * Examples: {@code "2024-02-01"}, {@code "2023-12-01-preview"}
-     * When this option is not set, the runtime uses the GA versionless v1 route.
+     * Examples: {@code "2024-02-01"}, {@code "2023-12-01-preview"} When this option
+     * is not set, the runtime uses the GA versionless v1 route.
      *
      * @param apiVersion
      *            the API version string
