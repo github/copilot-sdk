@@ -33,6 +33,7 @@ from copilot.rpc import (
     ModeSetRequest,
     NameSetAutoRequest,
     NameSetRequest,
+    PermissionsResetSessionApprovalsRequest,
     PermissionsSetApproveAllRequest,
     PlanUpdateRequest,
     SessionSetCredentialsParams,
@@ -594,7 +595,9 @@ class TestRpcSessionState:
                 )
                 assert approve_all.success
 
-                reset = await session.rpc.permissions.reset_session_approvals()
+                reset = await session.rpc.permissions.reset_session_approvals(
+                    PermissionsResetSessionApprovalsRequest()
+                )
                 assert reset.success
             finally:
                 await session.rpc.permissions.set_approve_all(

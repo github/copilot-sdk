@@ -238,7 +238,12 @@ func (p *inMemorySqliteProvider) runQueryLocked(queryType rpc.SessionFSSqliteQue
 			LastInsertRowid: &lastID,
 		}
 	case rpc.SessionFSSqliteQueryTypeQuery:
-		if strings.Contains(upper, "SELECT") {
+		// Only the "items" table the test asks the agent to create is modelled
+		// here. The runtime also reads its own bookkeeping tables (for example
+		// inbox_entries) through this provider and deserializes those rows into
+		// typed structs, so returning the canned item row for every SELECT would
+		// make the runtime reject rows it cannot parse.
+		if strings.Contains(upper, "SELECT") && readsTable(upper, "ITEMS") {
 			return &copilot.SessionFSSqliteQueryResult{
 				Columns: []string{"id", "name"},
 				Rows:    []map[string]any{{"id": "a1", "name": "Widget"}},
@@ -247,6 +252,18 @@ func (p *inMemorySqliteProvider) runQueryLocked(queryType rpc.SessionFSSqliteQue
 		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}
 	}
 	return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}
+}
+
+// readsTable reports whether an upper-cased SQL statement selects from the given
+// table, tolerating the quoting styles the agent may emit.
+func readsTable(upperQuery string, table string) bool {
+	names := []string{table, `"` + table + `"`, "`" + table + "`", "[" + table + "]", "MAIN." + table}
+	for _, name := range names {
+		if strings.Contains(upperQuery, "FROM "+name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {
