@@ -614,8 +614,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryTruncateResult_record() {
-        var result = new SessionHistoryTruncateResult(3L);
+        var result = new SessionHistoryTruncateResult(3L, false, null);
         assertEquals(3L, result.eventsRemoved());
+        assertEquals(false, result.checkpointCleanupFailed());
+        assertNull(result.checkpointCleanupError());
     }
 
     @Test

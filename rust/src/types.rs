@@ -33,7 +33,8 @@ use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
+    SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionStatement,
 };
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;

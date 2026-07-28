@@ -941,6 +941,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // excludedBuiltinAgents
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
+                null, // shell
                 null, // shellInitProfile
                 null, // shellProcessFlags
                 null, // sandboxConfig
@@ -966,6 +967,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableReasoningSummaries
                 null, // agentContext
                 null, // eventsLogDirectory
+                null, // eventsLogIncludesSubagents
                 null, // additionalContentExclusionPolicies
                 patchSchedule, // manageScheduleEnabled
                 null, // sessionCapabilities

@@ -58,8 +58,33 @@ type SessionFSProvider interface {
 type SessionFSSqliteProvider interface {
 	// SqliteQuery executes a SQLite query against the provider's per-session database.
 	SqliteQuery(queryType rpc.SessionFSSqliteQueryType, query string, params map[string]any) (*SessionFSSqliteQueryResult, error)
+	// SqliteTransaction executes statements atomically against the provider's
+	// per-session database, applying busy handling to every statement and rolling
+	// the whole batch back if any statement fails. It returns one result per
+	// statement, in the same order.
+	//
+	// Return a [*SessionFSSqliteTransactionFailure] to classify the failure for
+	// the runtime; any other error is reported as
+	// [rpc.SessionFSSqliteTransactionErrorClassFatal].
+	SqliteTransaction(statements []rpc.SessionFSSqliteTransactionStatement) ([]SessionFSSqliteQueryResult, error)
 	// SqliteExists checks whether the provider has a SQLite database for the session.
 	SqliteExists() (bool, error)
+}
+
+// SessionFSSqliteTransactionFailure classifies a SQLite transaction failure for
+// the runtime. Return it from [SessionFSSqliteProvider.SqliteTransaction] with
+// [rpc.SessionFSSqliteTransactionErrorClassBusyOrLocked] when SQLite reported
+// BUSY or LOCKED before commit and the transaction was rolled back, so the
+// runtime knows the call is safe to retry.
+type SessionFSSqliteTransactionFailure struct {
+	// Class is the failure classification reported to the runtime.
+	Class rpc.SessionFSSqliteTransactionErrorClass
+	// Message describes the failure.
+	Message string
+}
+
+func (e *SessionFSSqliteTransactionFailure) Error() string {
+	return e.Message
 }
 
 // SessionFSSqliteQueryResult holds the result of a SQLite query execution.
@@ -230,6 +255,41 @@ func (a *sessionFSAdapter) SqliteQuery(request *rpc.SessionFSSqliteQueryRequest)
 	}, nil
 }
 
+func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransactionRequest) (*rpc.SessionFSSqliteTransactionResult, error) {
+	sp, ok := a.provider.(SessionFSSqliteProvider)
+	if !ok {
+		return &rpc.SessionFSSqliteTransactionResult{
+			Results: []rpc.SessionFSSqliteQueryResult{},
+			Error: &rpc.SessionFSSqliteTransactionError{
+				ErrorClass: rpc.SessionFSSqliteTransactionErrorClassFatal,
+				Message:    "SQLite is not supported by this session filesystem provider",
+			},
+		}, nil
+	}
+	results, err := sp.SqliteTransaction(request.Statements)
+	if err != nil {
+		return &rpc.SessionFSSqliteTransactionResult{
+			Results: []rpc.SessionFSSqliteQueryResult{},
+			Error:   toSessionFSSqliteTransactionError(err),
+		}, nil
+	}
+	wireResults := make([]rpc.SessionFSSqliteQueryResult, 0, len(results))
+	for _, result := range results {
+		var wireRowid *int64
+		if result.LastInsertRowid != nil {
+			rowid := *result.LastInsertRowid
+			wireRowid = &rowid
+		}
+		wireResults = append(wireResults, rpc.SessionFSSqliteQueryResult{
+			Columns:         result.Columns,
+			Rows:            result.Rows,
+			RowsAffected:    result.RowsAffected,
+			LastInsertRowid: wireRowid,
+		})
+	}
+	return &rpc.SessionFSSqliteTransactionResult{Results: wireResults}, nil
+}
+
 func (a *sessionFSAdapter) SqliteExists(request *rpc.SessionFSSqliteExistsRequest) (*rpc.SessionFSSqliteExistsResult, error) {
 	sp, ok := a.provider.(SessionFSSqliteProvider)
 	if !ok {
@@ -249,4 +309,18 @@ func toSessionFSError(err error) *rpc.SessionFSError {
 	}
 	msg := err.Error()
 	return &rpc.SessionFSError{Code: code, Message: &msg}
+}
+
+func toSessionFSSqliteTransactionError(err error) *rpc.SessionFSSqliteTransactionError {
+	var failure *SessionFSSqliteTransactionFailure
+	if errors.As(err, &failure) {
+		return &rpc.SessionFSSqliteTransactionError{
+			ErrorClass: failure.Class,
+			Message:    failure.Message,
+		}
+	}
+	return &rpc.SessionFSSqliteTransactionError{
+		ErrorClass: rpc.SessionFSSqliteTransactionErrorClassFatal,
+		Message:    err.Error(),
+	}
 }

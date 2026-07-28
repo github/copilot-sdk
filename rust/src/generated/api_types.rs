@@ -22620,6 +22620,16 @@ pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
 /// </div>
 pub type AccountGetAllUsersResult = Vec<AccountAllUsers>;
 
+/// The number of running background agents (task-registry agents) that were cancelled.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionCancelAllBackgroundAgentsResult = i64;
+
 /// Standard MCP CallToolResult
 ///
 /// <div class="warning">
