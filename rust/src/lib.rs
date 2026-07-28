@@ -115,6 +115,17 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 const MIN_PROTOCOL_VERSION: u32 = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
+fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Option<u64>) {
+    match value {
+        Some(value) => {
+            span.record(field, value);
+        }
+        None => {
+            span.record(field, "None");
+        }
+    }
+}
+
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
 #[non_exhaustive]
@@ -1367,25 +1378,29 @@ impl Client {
             );
         }
         timings.total_ms = StartupTimings::millis(start_time.elapsed());
-        // Single structured event with the full per-phase breakdown, so hosts
-        // can attribute startup latency to a phase without stitching together
-        // the individual debug lines above.
-        debug!(
-            program_resolve_ms = timings.program_resolve_ms.unwrap_or_default(),
-            program_resolve_present = timings.program_resolve_ms.is_some(),
-            process_spawn_ms = timings.process_spawn_ms.unwrap_or_default(),
-            process_spawn_present = timings.process_spawn_ms.is_some(),
-            port_wait_ms = timings.port_wait_ms.unwrap_or_default(),
-            port_wait_present = timings.port_wait_ms.is_some(),
+        // A span allows optional fields to retain their numeric type when
+        // present while recording an explicit "None" when a phase did not run.
+        let timings_span = tracing::debug_span!(
+            "Client::start timings",
+            program_resolve_ms = tracing::field::Empty,
+            process_spawn_ms = tracing::field::Empty,
+            port_wait_ms = tracing::field::Empty,
             transport_setup_ms = timings.transport_setup_ms,
             handshake_ms = timings.handshake_ms,
-            session_fs_ms = timings.session_fs_ms.unwrap_or_default(),
-            session_fs_present = timings.session_fs_ms.is_some(),
-            llm_handler_ms = timings.llm_handler_ms.unwrap_or_default(),
-            llm_handler_present = timings.llm_handler_ms.is_some(),
+            session_fs_ms = tracing::field::Empty,
+            llm_handler_ms = tracing::field::Empty,
             total_ms = timings.total_ms,
-            "Client::start timings"
         );
+        record_optional_millis(
+            &timings_span,
+            "program_resolve_ms",
+            timings.program_resolve_ms,
+        );
+        record_optional_millis(&timings_span, "process_spawn_ms", timings.process_spawn_ms);
+        record_optional_millis(&timings_span, "port_wait_ms", timings.port_wait_ms);
+        record_optional_millis(&timings_span, "session_fs_ms", timings.session_fs_ms);
+        record_optional_millis(&timings_span, "llm_handler_ms", timings.llm_handler_ms);
+        timings_span.in_scope(|| debug!("Client::start timings"));
         let _ = client.inner.startup_timings.set(timings);
         debug!(
             elapsed_ms = start_time.elapsed().as_millis(),
