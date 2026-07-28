@@ -31,6 +31,12 @@ client.stop().await.ok();
 # }
 ```
 
+When targeting MCP tools configured through `mcp_servers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `available_tools` and
+`excluded_tools`, prefer `ToolSet::new().add_mcp("<server-key>-<tool-name>")`
+or the raw `mcp:<server-key>-<tool-name>` form. For `custom_agents[].tools`
+and `default_agent.excluded_tools`, use `<server-key>-<tool-name>` directly.
+
 ## Architecture
 
 ```text

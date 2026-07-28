@@ -209,7 +209,10 @@ public class ResumeSessionConfig {
      * Sets the list of tool names that are allowed in this session.
      * <p>
      * When specified, only tools in this list will be available to the assistant.
-     * Takes precedence over excluded tools.
+     * Takes precedence over excluded tools. MCP tools from
+     * {@link #setMcpServers(Map)} use the runtime name
+     * {@code <server-key>-<tool-name>}; prefer the source-qualified filter form
+     * {@code mcp:<server-key>-<tool-name>}.
      *
      * @param availableTools
      *            the list of allowed tool names
@@ -233,7 +236,9 @@ public class ResumeSessionConfig {
      * Sets the list of tool names to exclude from this session.
      * <p>
      * Tools in this list will not be available to the assistant. Ignored if
-     * available tools is specified.
+     * available tools is specified. Use the same MCP naming convention as
+     * {@link #setAvailableTools(List)} when targeting tools from
+     * {@link #setMcpServers(Map)}.
      *
      * @param excludedTools
      *            the list of tool names to exclude
@@ -1304,6 +1309,10 @@ public class ResumeSessionConfig {
 
     /**
      * Sets custom agent configurations.
+     * <p>
+     * When an agent {@link CustomAgentConfig#setTools(List)} list targets an
+     * MCP tool from {@link #setMcpServers(Map)}, use the runtime tool name
+     * {@code <server-key>-<tool-name>}.
      *
      * @param customAgents
      *            the list of custom agent configurations
@@ -1329,6 +1338,8 @@ public class ResumeSessionConfig {
      * <p>
      * Use {@link DefaultAgentConfig#setExcludedTools(List)} to hide specific tools
      * from the default agent while keeping them available to custom sub-agents.
+     * MCP tools from {@link #setMcpServers(Map)} use the runtime tool name
+     * {@code <server-key>-<tool-name>}.
      *
      * @param defaultAgent
      *            the default agent configuration

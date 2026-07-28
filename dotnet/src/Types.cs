@@ -2604,6 +2604,8 @@ public sealed class CustomAgentConfig
 
     /// <summary>
     /// List of tool names the agent can use. Null for all tools.
+    /// For MCP tools from <see cref="SessionConfigBase.McpServers"/>, use the
+    /// runtime tool name <c>&lt;server-key&gt;-&lt;tool-name&gt;</c>.
     /// </summary>
     [JsonPropertyName("tools")]
     public IList<string>? Tools { get; set; }
@@ -2655,7 +2657,9 @@ public sealed class DefaultAgentConfig
     /// <summary>
     /// List of tool names to exclude from the default agent.
     /// These tools remain available to custom sub-agents that reference them
-    /// in their <see cref="CustomAgentConfig.Tools"/> list.
+    /// in their <see cref="CustomAgentConfig.Tools"/> list. For MCP tools from
+    /// <see cref="SessionConfigBase.McpServers"/>, use
+    /// <c>&lt;server-key&gt;-&lt;tool-name&gt;</c>.
     /// </summary>
     public IList<string>? ExcludedTools { get; set; }
 }
@@ -3008,10 +3012,19 @@ public abstract class SessionConfigBase
     /// <summary>System message configuration for the session.</summary>
     public SystemMessageConfig? SystemMessage { get; set; }
 
-    /// <summary>List of tool names to allow; only these tools will be available when specified.</summary>
+    /// <summary>
+    /// List of tool names to allow; only these tools will be available when specified.
+    /// For MCP tools from <see cref="McpServers"/>, the runtime tool name is
+    /// <c>&lt;server-key&gt;-&lt;tool-name&gt;</c>; prefer the source-qualified
+    /// filter form <c>mcp:&lt;server-key&gt;-&lt;tool-name&gt;</c>.
+    /// </summary>
     public IList<string>? AvailableTools { get; set; }
 
-    /// <summary>List of tool names to exclude from the session.</summary>
+    /// <summary>
+    /// List of tool names to exclude from the session.
+    /// Use the same MCP naming convention as <see cref="AvailableTools"/> when
+    /// targeting tools from <see cref="McpServers"/>.
+    /// </summary>
     public IList<string>? ExcludedTools { get; set; }
 
     /// <summary>
@@ -3174,13 +3187,19 @@ public abstract class SessionConfigBase
     /// </summary>
     public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
 
-    /// <summary>Custom agent configurations for the session.</summary>
+    /// <summary>
+    /// Custom agent configurations for the session.
+    /// When an agent <see cref="CustomAgentConfig.Tools"/> list targets an MCP
+    /// tool from <see cref="McpServers"/>, use
+    /// <c>&lt;server-key&gt;-&lt;tool-name&gt;</c>.
+    /// </summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
     /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
     /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
-    /// while keeping them available to custom sub-agents.
+    /// while keeping them available to custom sub-agents. For MCP tools from
+    /// <see cref="McpServers"/>, use <c>&lt;server-key&gt;-&lt;tool-name&gt;</c>.
     /// </summary>
     public DefaultAgentConfig? DefaultAgent { get; set; }
 

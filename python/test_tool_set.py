@@ -13,7 +13,6 @@ from copilot._mode import (
     _enable_session_store_default,
     _enable_session_telemetry_default,
     _enable_skills_default,
-    _expand_mcp_tool_filter_names,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
     _require_storage_for_empty_mode,
@@ -135,35 +134,6 @@ class TestToolFilterListValidation:
 
     def test_accepts_none(self):
         _validate_tool_filter_list("available_tools", None)
-
-    def test_expands_bare_mcp_tool_names_to_server_prefixed_names(self):
-        expanded = _expand_mcp_tool_filter_names(
-            ["list_items", "run_query"],
-            {
-                "my-server": {"type": "http", "tools": ["list_items"]},
-                "other-server": {"type": "http", "tools": ["run_query"]},
-            },
-        )
-        assert expanded == [
-            "list_items",
-            "my-server-list_items",
-            "run_query",
-            "other-server-run_query",
-        ]
-
-    def test_expands_bare_mcp_tool_names_for_wildcard_servers(self):
-        expanded = _expand_mcp_tool_filter_names(
-            ["run_query"],
-            {"my-server": {"type": "http", "tools": ["*"]}},
-        )
-        assert expanded == ["run_query", "my-server-run_query"]
-
-    def test_leaves_unmatched_bare_names_unchanged(self):
-        expanded = _expand_mcp_tool_filter_names(
-            ["view"],
-            {"my-server": {"type": "http", "tools": ["list_items"]}},
-        )
-        assert expanded == ["view"]
 
 
 class TestSystemMessageForMode:

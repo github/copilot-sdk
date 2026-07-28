@@ -43,7 +43,6 @@ from ._mode import (
     _enable_session_store_default,
     _enable_session_telemetry_default,
     _enable_skills_default,
-    _expand_mcp_tool_filter_names,
     _mcp_oauth_token_storage_default,
     _memory_default,
     _normalize_tool_filter,
@@ -228,51 +227,6 @@ def _mcp_servers_to_wire(
             del config["working_directory"]
         wire[name] = config
     return wire
-
-
-def _normalize_custom_agent_tool_filters(
-    custom_agents: list[CustomAgentConfig] | None,
-    session_mcp_servers: Mapping[str, Any] | None,
-) -> list[CustomAgentConfig] | None:
-    """Normalize bare MCP tool filters for custom agents."""
-    if custom_agents is None:
-        return None
-
-    normalized_agents: list[CustomAgentConfig] = []
-    for agent in custom_agents:
-        normalized_agent = dict(agent)
-        agent_mcp_servers = normalized_agent.get("mcp_servers")
-        merged_mcp_servers: dict[str, Any] = {}
-        if session_mcp_servers:
-            merged_mcp_servers.update(session_mcp_servers)
-        if isinstance(agent_mcp_servers, Mapping):
-            merged_mcp_servers.update(agent_mcp_servers)
-        if "tools" in normalized_agent:
-            normalized_agent["tools"] = _expand_mcp_tool_filter_names(
-                normalized_agent.get("tools"),
-                merged_mcp_servers or None,
-            )
-        normalized_agents.append(cast(CustomAgentConfig, normalized_agent))
-    return normalized_agents
-
-
-def _normalize_default_agent_tool_filters(
-    default_agent: DefaultAgentConfig | dict[str, Any] | None,
-    mcp_servers: Mapping[str, Any] | None,
-) -> DefaultAgentConfig | dict[str, Any] | None:
-    """Normalize bare MCP tool filters for the default agent config."""
-    if default_agent is None:
-        return None
-
-    normalized_agent = dict(default_agent)
-    if "excluded_tools" in normalized_agent:
-        normalized_agent["excluded_tools"] = _expand_mcp_tool_filter_names(
-            normalized_agent.get("excluded_tools"),
-            mcp_servers,
-        )
-    return normalized_agent
-
-
 def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     """Convert a ``LargeToolOutputConfig`` mapping to wire format."""
     wire: dict[str, Any] = {}
@@ -1828,15 +1782,16 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. MCP tools are
-                registered at runtime as ``<server-key>-<tool-name>``, and the
-                SDK automatically adds matching prefixed aliases for bare names
-                that correspond to tools exposed by ``mcp_servers``. Takes
-                precedence over ``excluded_tools``.
+                included or they will be hidden from the model. MCP tools from
+                ``mcp_servers`` are named ``<server-key>-<tool-name>``; when
+                using source-qualified filters, prefer
+                ``ToolSet().add_mcp("<server-key>-<tool-name>")`` or the raw
+                ``mcp:<server-key>-<tool-name>`` form. Takes precedence over
+                ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Bare MCP tool
-                names are normalized the same way as ``available_tools``.
-                Ignored if ``available_tools`` is set.
+                including custom tools registered via ``tools=``. Use the same
+                MCP naming convention as ``available_tools``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
@@ -1886,13 +1841,13 @@ class CopilotClient:
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
                 Defaults to `"in-memory"` in empty mode.
-            custom_agents: Custom agent configurations. Bare MCP tool names in
-                each agent's ``tools`` list are normalized against both session
-                and agent-level ``mcp_servers``.
+            custom_agents: Custom agent configurations. When an agent's
+                ``tools`` list targets an MCP tool from ``mcp_servers``, use
+                the runtime tool name ``<server-key>-<tool-name>``.
             default_agent: Configuration for the default agent,
-                including tool visibility controls. Bare MCP tool names in
-                ``default_agent.excluded_tools`` are normalized against
-                ``mcp_servers``.
+                including tool visibility controls. When
+                ``default_agent.excluded_tools`` targets an MCP tool from
+                ``mcp_servers``, use ``<server-key>-<tool-name>``.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
@@ -1991,18 +1946,10 @@ class CopilotClient:
         # Empty-mode validation and normalization
         mode = self._options.mode
         _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
-        available_tools = _expand_mcp_tool_filter_names(
-            _normalize_tool_filter(available_tools),
-            mcp_servers,
-        )
-        excluded_tools = _expand_mcp_tool_filter_names(
-            _normalize_tool_filter(excluded_tools),
-            mcp_servers,
-        )
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
         _validate_tool_filter_list("available_tools", available_tools)
         _validate_tool_filter_list("excluded_tools", excluded_tools)
-        custom_agents = _normalize_custom_agent_tool_filters(custom_agents, mcp_servers)
-        default_agent = _normalize_default_agent_tool_filters(default_agent, mcp_servers)
         # Mode "empty" strips environment_context from the system message.
         system_message = _system_message_for_mode(mode, system_message)
         # Mode "empty" defaults selected session config flags to restrictive values;
@@ -2508,15 +2455,16 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. MCP tools are
-                registered at runtime as ``<server-key>-<tool-name>``, and the
-                SDK automatically adds matching prefixed aliases for bare names
-                that correspond to tools exposed by ``mcp_servers``. Takes
-                precedence over ``excluded_tools``.
+                included or they will be hidden from the model. MCP tools from
+                ``mcp_servers`` are named ``<server-key>-<tool-name>``; when
+                using source-qualified filters, prefer
+                ``ToolSet().add_mcp("<server-key>-<tool-name>")`` or the raw
+                ``mcp:<server-key>-<tool-name>`` form. Takes precedence over
+                ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Bare MCP tool
-                names are normalized the same way as ``available_tools``.
-                Ignored if ``available_tools`` is set.
+                including custom tools registered via ``tools=``. Use the same
+                MCP naming convention as ``available_tools``. Ignored if
+                ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
             working_directory: Working directory for the session.
@@ -2566,13 +2514,13 @@ class CopilotClient:
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
                 Defaults to `"in-memory"` in empty mode.
-            custom_agents: Custom agent configurations. Bare MCP tool names in
-                each agent's ``tools`` list are normalized against both session
-                and agent-level ``mcp_servers``.
+            custom_agents: Custom agent configurations. When an agent's
+                ``tools`` list targets an MCP tool from ``mcp_servers``, use
+                the runtime tool name ``<server-key>-<tool-name>``.
             default_agent: Configuration for the default agent,
-                including tool visibility controls. Bare MCP tool names in
-                ``default_agent.excluded_tools`` are normalized against
-                ``mcp_servers``.
+                including tool visibility controls. When
+                ``default_agent.excluded_tools`` targets an MCP tool from
+                ``mcp_servers``, use ``<server-key>-<tool-name>``.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
@@ -2674,18 +2622,10 @@ class CopilotClient:
         # Empty-mode validation and normalization
         mode = self._options.mode
         _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
-        available_tools = _expand_mcp_tool_filter_names(
-            _normalize_tool_filter(available_tools),
-            mcp_servers,
-        )
-        excluded_tools = _expand_mcp_tool_filter_names(
-            _normalize_tool_filter(excluded_tools),
-            mcp_servers,
-        )
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
         _validate_tool_filter_list("available_tools", available_tools)
         _validate_tool_filter_list("excluded_tools", excluded_tools)
-        custom_agents = _normalize_custom_agent_tool_filters(custom_agents, mcp_servers)
-        default_agent = _normalize_default_agent_tool_filters(default_agent, mcp_servers)
         system_message = _system_message_for_mode(mode, system_message)
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
         skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)

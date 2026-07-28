@@ -608,6 +608,8 @@ pub struct CustomAgentConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// List of tool names the agent can use. `None` means all tools.
+    /// For MCP tools from `mcp_servers`, use the runtime tool name
+    /// `<server-key>-<tool-name>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<String>>,
     /// Prompt content for the agent.
@@ -706,6 +708,7 @@ impl CustomAgentConfig {
 #[serde(rename_all = "camelCase")]
 pub struct DefaultAgentConfig {
     /// Tool names to exclude from the default agent.
+    /// For MCP tools from `mcp_servers`, use `<server-key>-<tool-name>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
 }
@@ -1598,9 +1601,14 @@ pub struct SessionConfig {
     pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
-    /// Allowlist of built-in tool names the agent may use.
+    /// Allowlist of tool names the agent may use.
+    /// For MCP tools from `mcp_servers`, the runtime tool name is
+    /// `<server-key>-<tool-name>`; prefer the source-qualified filter form
+    /// `mcp:<server-key>-<tool-name>`.
     pub available_tools: Option<Vec<String>>,
-    /// Blocklist of built-in tool names the agent must not use.
+    /// Blocklist of tool names the agent must not use.
+    /// Use the same MCP naming convention as `available_tools` when targeting
+    /// tools from `mcp_servers`.
     pub excluded_tools: Option<Vec<String>>,
     /// Names of built-in agents to exclude from the session.
     ///
@@ -1682,10 +1690,13 @@ pub struct SessionConfig {
     /// submission, session start/end, errors).
     pub hooks: Option<bool>,
     /// Custom agents (sub-agents) configured for this session.
+    /// When an agent `tools` list targets an MCP tool from `mcp_servers`, use
+    /// `<server-key>-<tool-name>`.
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent. Use `excluded_tools` to
     /// hide tools from the default agent while keeping them available
-    /// to custom sub-agents that reference them in their `tools` list.
+    /// to custom sub-agents that reference them in their `tools` list. For
+    /// MCP tools from `mcp_servers`, use `<server-key>-<tool-name>`.
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate when the session starts.
     /// Must match the `name` of one of the agents in [`Self::custom_agents`].
@@ -2803,8 +2814,13 @@ pub struct ResumeSessionConfig {
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of tool names the agent may use.
+    /// For MCP tools from `mcp_servers`, the runtime tool name is
+    /// `<server-key>-<tool-name>`; prefer the source-qualified filter form
+    /// `mcp:<server-key>-<tool-name>`.
     pub available_tools: Option<Vec<String>>,
-    /// Blocklist of built-in tool names.
+    /// Blocklist of tool names.
+    /// Use the same MCP naming convention as `available_tools` when targeting
+    /// tools from `mcp_servers`.
     pub excluded_tools: Option<Vec<String>>,
     /// Names of built-in agents to exclude from the resumed session.
     ///
@@ -2855,8 +2871,12 @@ pub struct ResumeSessionConfig {
     /// Enable session hooks on resume.
     pub hooks: Option<bool>,
     /// Custom agents to re-supply on resume.
+    /// When an agent `tools` list targets an MCP tool from `mcp_servers`, use
+    /// `<server-key>-<tool-name>`.
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent on resume.
+    /// For MCP tools from `mcp_servers`, use `<server-key>-<tool-name>` in
+    /// `excluded_tools`.
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate.
     pub agent: Option<String>,

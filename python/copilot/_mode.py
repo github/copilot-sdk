@@ -10,7 +10,7 @@ off, custom instructions off, etc.). Callers can opt back in field-by-field.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -124,45 +124,6 @@ def _normalize_tool_filter(value: Any) -> list[str] | None:
             "ToolSet (e.g. ToolSet().add_builtin('bash'))."
         )
     return list(value)
-
-
-def _expand_mcp_tool_filter_names(
-    items: list[str] | None,
-    mcp_servers: Mapping[str, Any] | None,
-) -> list[str] | None:
-    """Add server-prefixed MCP tool names alongside matching bare tool filters.
-
-    The Copilot CLI registers MCP tools under ``<server-key>-<tool-name>``. This
-    helper preserves the caller's original bare entry and appends the matching
-    ``<server-key>-<tool-name>`` aliases for MCP servers that expose the tool,
-    either explicitly or via ``"*"``, so existing builtin/custom filters keep
-    working while MCP tools remain reachable.
-    """
-    if items is None or not mcp_servers:
-        return items
-
-    expanded: list[str] = []
-    seen: set[str] = set()
-    for entry in items:
-        if entry not in seen:
-            expanded.append(entry)
-            seen.add(entry)
-        if entry == "*" or ":" in entry:
-            continue
-
-        for server_name, config in mcp_servers.items():
-            if not isinstance(config, Mapping):
-                continue
-            tools = config.get("tools")
-            if not isinstance(tools, list):
-                continue
-            if "*" not in tools and entry not in tools:
-                continue
-            prefixed_entry = f"{server_name}-{entry}"
-            if prefixed_entry not in seen:
-                expanded.append(prefixed_entry)
-                seen.add(prefixed_entry)
-    return expanded
 
 
 def _validate_tool_filter_list(field: str, items: list[str] | None) -> None:

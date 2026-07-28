@@ -46,7 +46,10 @@ public class DefaultAgentConfig {
      * Sets the list of tool names to exclude from the default agent.
      * <p>
      * These tools remain available to custom sub-agents that reference them in
-     * their {@link CustomAgentConfig#setTools(List)} list.
+     * their {@link CustomAgentConfig#setTools(List)} list. For MCP tools from
+     * {@link SessionConfig#setMcpServers(Map)} or
+     * {@link ResumeSessionConfig#setMcpServers(Map)}, use the runtime tool name
+     * {@code <server-key>-<tool-name>}.
      *
      * @param excludedTools
      *            the list of tool names to exclude from the default agent

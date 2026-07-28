@@ -64,6 +64,12 @@ await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
 await done.Task;
 ```
 
+When targeting MCP tools configured through `McpServers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
+`ExcludedTools`, prefer the source-qualified form
+`mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
+`DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
+
 ## API Reference
 
 ### CopilotClient

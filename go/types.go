@@ -888,7 +888,9 @@ type CustomAgentConfig struct {
 	// Description of what the agent does
 	Description string `json:"description,omitempty"`
 	// Tools is the list of tool names the agent can use. Nil omits the field
-	// (all tools); an empty non-nil slice sends "tools": [] (no tools).
+	// (all tools); an empty non-nil slice sends "tools": [] (no tools). For
+	// MCP tools from MCPServers, use the runtime tool name
+	// <server-key>-<tool-name>.
 	Tools []string `json:"tools,omitzero"`
 	// Prompt is the prompt content for the agent
 	Prompt string `json:"prompt"`
@@ -909,7 +911,9 @@ type CustomAgentConfig struct {
 // them available to custom sub-agents.
 type DefaultAgentConfig struct {
 	// ExcludedTools is a list of tool names to exclude from the default agent.
-	// These tools remain available to custom sub-agents that reference them in their Tools list.
+	// These tools remain available to custom sub-agents that reference them in
+	// their Tools list. For MCP tools from MCPServers, use
+	// <server-key>-<tool-name>.
 	ExcludedTools []string `json:"excludedTools,omitempty"`
 }
 
@@ -1034,11 +1038,15 @@ type SessionConfig struct {
 	Tools []Tool
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
-	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
-	// Takes precedence over ExcludedTools.
+	// AvailableTools is a list of tool names to allow. When specified, only
+	// these tools will be available. Takes precedence over ExcludedTools. For
+	// MCP tools from MCPServers, the runtime tool name is
+	// <server-key>-<tool-name>; prefer the source-qualified filter form
+	// mcp:<server-key>-<tool-name>.
 	AvailableTools []string
-	// ExcludedTools is a list of tool names to disable. All other tools remain available.
-	// Ignored if AvailableTools is specified.
+	// ExcludedTools is a list of tool names to disable. All other tools remain
+	// available. Ignored if AvailableTools is specified. Use the same MCP naming
+	// convention as AvailableTools when targeting tools from MCPServers.
 	ExcludedTools []string
 	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
 	// the session. Excluded built-in agents are hidden from discovery and cannot
@@ -1126,10 +1134,14 @@ type SessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
-	// CustomAgents configures custom agents for the session
+	// CustomAgents configures custom agents for the session. When an agent Tools
+	// list targets an MCP tool from MCPServers, use
+	// <server-key>-<tool-name>.
 	CustomAgents []CustomAgentConfig
-	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
-	// Use ExcludedTools to hide tools from the default agent while keeping them available to sub-agents.
+	// DefaultAgent configures the default agent (the built-in agent that handles
+	// turns when no custom agent is selected). Use ExcludedTools to hide tools
+	// from the default agent while keeping them available to sub-agents. For MCP
+	// tools from MCPServers, use <server-key>-<tool-name> in ExcludedTools.
 	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.
@@ -1441,11 +1453,15 @@ type ResumeSessionConfig struct {
 	Tools []Tool
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
-	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
-	// Takes precedence over ExcludedTools.
+	// AvailableTools is a list of tool names to allow. When specified, only
+	// these tools will be available. Takes precedence over ExcludedTools. For
+	// MCP tools from MCPServers, the runtime tool name is
+	// <server-key>-<tool-name>; prefer the source-qualified filter form
+	// mcp:<server-key>-<tool-name>.
 	AvailableTools []string
-	// ExcludedTools is a list of tool names to disable. All other tools remain available.
-	// Ignored if AvailableTools is specified.
+	// ExcludedTools is a list of tool names to disable. All other tools remain
+	// available. Ignored if AvailableTools is specified. Use the same MCP naming
+	// convention as AvailableTools when targeting tools from MCPServers.
 	ExcludedTools []string
 	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
 	// the session. Excluded built-in agents are hidden from discovery and cannot
@@ -1577,9 +1593,13 @@ type ResumeSessionConfig struct {
 	// MCPOAuthTokenStorage controls how MCP OAuth tokens are stored for this session.
 	// When empty, the runtime default ("in-memory") is used.
 	MCPOAuthTokenStorage string
-	// CustomAgents configures custom agents for the session
+	// CustomAgents configures custom agents for the session. When an agent Tools
+	// list targets an MCP tool from MCPServers, use
+	// <server-key>-<tool-name>.
 	CustomAgents []CustomAgentConfig
-	// DefaultAgent configures the default agent (the built-in agent that handles turns when no custom agent is selected).
+	// DefaultAgent configures the default agent (the built-in agent that handles
+	// turns when no custom agent is selected). For MCP tools from MCPServers,
+	// use <server-key>-<tool-name> in ExcludedTools.
 	DefaultAgent *DefaultAgentConfig
 	// Agent is the name of the custom agent to activate when the session starts.
 	// Must match the Name of one of the agents in CustomAgents.

@@ -120,6 +120,13 @@ public class CopilotSDK {
 }
 ```
 
+When targeting MCP tools configured through `setMcpServers(...)`, remember the
+runtime tool name is `<server-key>-<tool-name>`. For `setAvailableTools(...)`
+and `setExcludedTools(...)`, prefer the source-qualified filter form
+`mcp:<server-key>-<tool-name>`. For `CustomAgentConfig.setTools(...)` and
+`DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
+directly.
+
 ## Try it with JBang
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
