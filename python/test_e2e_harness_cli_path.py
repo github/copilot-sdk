@@ -7,8 +7,19 @@ built for the current platform.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from copilot._cli_version import get_npm_platform
 from e2e.testharness import context
+
+
+def _make_package(github_modules: Path, name: str) -> Path:
+    """Create ``<github_modules>/<name>/index.js`` and return the entrypoint path."""
+    package_dir = github_modules / name
+    package_dir.mkdir(parents=True, exist_ok=True)
+    index = package_dir / "index.js"
+    index.write_text("// fake CLI entrypoint\n")
+    return index
 
 
 class TestCliPlatformPackageNames:
@@ -32,3 +43,36 @@ class TestCliPlatformPackageNames:
 
     def test_defaults_to_current_host_platform(self):
         assert context._cli_platform_package_names()[0] == f"copilot-{get_npm_platform()}"
+
+
+class TestFindCliInNodeModules:
+    def test_skips_alphabetically_earlier_foreign_package(self, tmp_path):
+        # The #2103 regression: "aardvark" sorts before every real platform name.
+        _make_package(tmp_path, "copilot-aardvark-x64")
+        expected = _make_package(tmp_path, "copilot-darwin-arm64")
+        found = context._find_cli_in_node_modules(tmp_path, ["copilot-darwin-arm64"])
+        assert found == str(expected.resolve())
+
+    def test_returns_none_when_no_candidate_is_installed(self, tmp_path):
+        _make_package(tmp_path, "copilot-win32-x64")
+        assert context._find_cli_in_node_modules(tmp_path, ["copilot-darwin-arm64"]) is None
+
+    def test_ignores_non_platform_copilot_packages(self, tmp_path):
+        _make_package(tmp_path, "copilot-language-server")
+        assert context._find_cli_in_node_modules(tmp_path, ["copilot-linux-x64"]) is None
+
+    def test_prefers_earlier_candidate_when_both_libc_variants_exist(self, tmp_path):
+        expected = _make_package(tmp_path, "copilot-linuxmusl-x64")
+        _make_package(tmp_path, "copilot-linux-x64")
+        found = context._find_cli_in_node_modules(
+            tmp_path, ["copilot-linuxmusl-x64", "copilot-linux-x64"]
+        )
+        assert found == str(expected.resolve())
+
+    def test_returns_none_when_package_dir_has_no_index_js(self, tmp_path):
+        (tmp_path / "copilot-linux-x64").mkdir()
+        assert context._find_cli_in_node_modules(tmp_path, ["copilot-linux-x64"]) is None
+
+    def test_returns_none_when_github_modules_is_absent(self, tmp_path):
+        missing = tmp_path / "missing"
+        assert context._find_cli_in_node_modules(missing, ["copilot-linux-x64"]) is None

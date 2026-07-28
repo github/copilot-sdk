@@ -11,6 +11,7 @@ import re
 import shutil
 import tempfile
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,19 @@ def _cli_platform_package_names(npm_platform: str | None = None) -> list[str]:
             if name not in names:
                 names.append(name)
     return names
+
+
+def _find_cli_in_node_modules(github_modules: Path, package_names: Sequence[str]) -> str | None:
+    """Return the resolved ``index.js`` of the first installed candidate package.
+
+    Only exact package names are probed, so unrelated ``copilot-*`` directories
+    (e.g. ``copilot-language-server``) can never be mistaken for the CLI.
+    """
+    for name in package_names:
+        candidate = github_modules / name / "index.js"
+        if candidate.exists():
+            return str(candidate.resolve())
+    return None
 
 
 def get_cli_path_for_tests() -> str:
