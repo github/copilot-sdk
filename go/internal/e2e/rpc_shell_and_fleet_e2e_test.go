@@ -55,6 +55,7 @@ func TestRPCShellAndFleetE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		var command string
 		if runtime.GOOS == "windows" {
@@ -80,10 +81,6 @@ func TestRPCShellAndFleetE2E(t *testing.T) {
 		}
 		if !kill.Killed {
 			t.Errorf("Expected shell.kill to report Killed=true, got %+v", kill)
-		}
-
-		if err := session.Disconnect(); err != nil {
-			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 	})
 
