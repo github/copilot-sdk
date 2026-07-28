@@ -938,6 +938,9 @@ After Phase 3 questions are resolved, implement in this order. Each step should 
 Every implementation step in this phase **must** follow this test-driven workflow:
 
 1. **Write tests first.** Before writing or modifying production code for a step, write the unit tests (and integration tests where specified) that define the expected behavior. Tests should initially fail (red).
+
+   The test native library from `spike-3-4-jna-callback-and-threading/rust-dll/` is the test fixture for steps 4.3 and 4.4. Build it once with `cargo build --release` for the current OS and architecture and place the output at a known path before writing Java tests.
+   
 2. **Implement until green.** Write the minimum production code to make all tests pass.
 3. **Refactor.** Clean up the implementation while keeping tests green. Run `mvn spotless:apply` to ensure formatting compliance.
 4. **Gate before proceeding.** All tests from the current step **and all prior steps** must pass (`mvn verify`) before moving to the next step. Do not proceed with a step if any prior step's tests are broken.
@@ -975,7 +978,11 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 - `java/src/test/java/com/github/copilot/ffi/NativeRuntimeLoaderTest.java`
 
-**Gating criteria:** Extracts binary to `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`. Handles concurrent extraction safely.
+**Gating criteria:** 
+
+- Extracts binary to `~/.copilot/runtime-cache/<version>/<classifier>/runtime.node`. Handles concurrent extraction safely.
+
+- When *multiple* platform JARs are on the classpath (uber-jar scenario), it sorts candidates and picks the best match. The plan's `NativeRuntimeLoader` should handle this case — in the `copilot-native-all` uber-JAR, all 8 `native/<classifier>/runtime.node` resources exist on the classpath simultaneously. The loader must filter by the detected classifier, not just grab the first `runtime.node` it finds. ❌❌❌We are not doing the uber-jar approach now, but we want to do it in the future, so we must be ready for it.❌❌❌
 
 ### 4.3 — JNA binding interface and implementation
 
@@ -992,7 +999,11 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 - `java/src/test/java/com/github/copilot/ffi/JnaNativeBindingTest.java`
 
-**Gating criteria:** Can load a native library, call functions, receive callbacks. Error cases wrapped in `FfiTransportException`.
+**Gating criteria:** 
+
+- Can load a native library, call functions, receive callbacks. Error cases wrapped in `FfiTransportException`.
+
+- **Library-never-unloads pattern** — the loaded native handle must be held in a `static` field and never released. JNA caches by library name, but the plan should make this explicit since native worker threads outlive any `FfiRuntimeHost` instance. See Rust `OnceLock<Mutex<HashMap<PathBuf, &'static Library>>>` + `Box::leak()` Missing this risks a crash if a second `FfiRuntimeHost` is created after the first is closed. 
 
 ### 4.4 — FFI runtime host and transport streams
 
@@ -1006,11 +1017,23 @@ Every implementation step in this phase **must** follow this test-driven workflo
 
 - `java/src/test/java/com/github/copilot/ffi/FfiRuntimeHostTest.java`
 
-**Gating criteria:** Full lifecycle works with a test native library. Callback data flows through `InputStream`. Write data reaches `connection_write`. Shutdown drains active callbacks.
+**Gating criteria:**
+
+- Full lifecycle works with a test native library. Callback data flows through `InputStream`. Write data reaches `connection_write`. Shutdown drains active callbacks.
+
+- **Callback `closing` flag early-exit** — the `on_outbound` callback must check a `closing` flag and return immediately without enqueuing data. Without this, the shutdown drain may never converge. Both .NET and Rust set this flag before `connection_close`. Failing to do this can caus a hang on shutdown.
+
+- **Operation lock for concurrent write/close safety** — `FfiOutputStream.write()` can race with `FfiRuntimeHost.close()`. See how the Rust SDK uses a `parking_lot::Mutex` (`operation_lock`). See the Rust SDK `FfiShared`. Failing to do this can cause a  data race during shutdown.
+
+- **`Connection` record needs `FfiRuntimeHost` field** — the current `CopilotClient.Connection` record has `(JsonRpcClient rpc, Process process, ServerRpc serverRpc)`. InProcess has no `Process`. Without an `ffiHost` field, `stop()` and `forceStop()` can't call `ffiHost.close()`. .NET's `Connection` record includes `FfiRuntimeHost? ffiHost`.  Failure to do this can cause a leak of native resources on shutdown.
 
 ### 4.5 — Transport integration with `CopilotClient`
 
 **What:** `Transport` enum, `setTransport()` on `CopilotClientOptions`, InProcess code path in `CopilotClient` that uses `FfiRuntimeHost` instead of `CliServerManager`.
+
+✅✅Remember to handle **`COPILOT_SDK_DEFAULT_CONNECTION` env var resolution in `CopilotClient` constructor**. `CopilotClient` must implement `resolveDefaultConnection()` when no `connection` is set. See NET Client.cs — search for `ResolveDefaultConnection` (private static method) and its caller `_options.Connection ?? ResolveDefaultConnection(_options)`; Rust lib.rs — search for `fn resolve_default_transport` and constant `DEFAULT_CONNECTION_ENV_VAR`.
+
+✅✅Remember: **`ValidateEnvironmentOptions` — reject incompatible options for InProcess** — `environment`, `telemetry`, `workingDirectory`, `extraArgs` must be rejected when InProcess is selected. Without this, users set options that silently do nothing in-process. See .NET Client.cs — search for `ValidateEnvironmentOptions` (private static method, called right after `ResolveDefaultConnection`); Rust lib.rs — search for `fn validate_inprocess_options`.
 
 **Files to modify:**
 
@@ -1022,6 +1045,8 @@ Every implementation step in this phase **must** follow this test-driven workflo
 - `java/src/main/java/com/github/copilot/ffi/Transport.java`
 
 **Tests:** Unit test that InProcess transport selection uses `FfiRuntimeHost`.
+
+   ✅✅✅Test the backward-compatibility bridge (legacy fields → `RuntimeConnection` inference) and the `IllegalArgumentException` when both `connection` and legacy fields are set.✅✅✅
 
 - `java/src/test/java/com/github/copilot/CopilotClientTransportTest.java`
 
