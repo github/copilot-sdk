@@ -431,16 +431,16 @@ const session = await client.createSession({
       while (promptTimestamps.length > 0 && promptTimestamps[0] < now - RATE_WINDOW) {
         promptTimestamps.shift();
       }
-      
+
+      promptTimestamps.push(now);
       if (promptTimestamps.length >= NOTICE_THRESHOLD) {
         // This is advisory context for the model, not an enforced rate limit.
         // Enforce hard limits before calling session.send().
         return {
-          additionalContext: `The user has sent ${NOTICE_THRESHOLD} prompts in the last minute. Suggest waiting before sending more.`,
+          additionalContext: `The user has sent ${promptTimestamps.length} prompts in the last minute. Suggest waiting before sending more.`,
         };
       }
-      
-      promptTimestamps.push(now);
+
       return null;
     },
   },
@@ -491,7 +491,7 @@ const session = await client.createSession({
 
 1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-1. **Use `additionalContext` for advisory guidance** - This hook cannot reject a prompt or enforce policy. Enforce hard limits before calling `session.send()`.
+1. **Use `additionalContext` for advisory guidance**: This hook cannot reject a prompt or enforce policy. Enforce hard limits before calling `session.send()`.
 
 1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 
