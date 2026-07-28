@@ -6,8 +6,7 @@ use github_copilot_sdk::rpc::{
     MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
     ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
     PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
-    SessionSetCredentialsParams,
-    SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
+    SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
     SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
     TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };

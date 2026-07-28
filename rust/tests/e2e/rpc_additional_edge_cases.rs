@@ -1,7 +1,7 @@
 use github_copilot_sdk::rpc::{
     ModeSetRequest, NameSetRequest, PermissionsResetSessionApprovalsRequest,
-    PermissionsSetApproveAllRequest, PlanUpdateRequest,
-    ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    PermissionsSetApproveAllRequest, PlanUpdateRequest, ShellExecRequest,
+    WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::SessionMode;
 
