@@ -293,13 +293,12 @@ async fn should_invoke_agentstop_hook_and_apply_block_response() {
                 let (tx, mut rx) = mpsc::unbounded_channel();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_hooks(Arc::new(AgentStopHooks {
-                                tx,
-                                call_count: AtomicUsize::new(0),
-                            })),
-                    )
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        AgentStopHooks {
+                            tx,
+                            call_count: AtomicUsize::new(0),
+                        },
+                    )))
                     .await
                     .expect("create session");
 

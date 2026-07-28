@@ -231,7 +231,8 @@ public class HooksTest {
     /**
      * Verifies that agent-stop can block a natural stop and enqueue another turn.
      *
-     * @see Snapshot: hooks_extended/should_invoke_agentstop_hook_and_apply_block_response
+     * @see Snapshot:
+     *      hooks_extended/should_invoke_agentstop_hook_and_apply_block_response
      */
     @Test
     void testInvokeAgentStopHookAndApplyBlockResponse() throws Exception {
@@ -254,8 +255,7 @@ public class HooksTest {
             CopilotSession session = client.createSession(config).get();
             sessionIdHolder[0] = session.getSessionId();
 
-            var response = session
-                    .sendAndWait(new MessageOptions().setPrompt("Reply with exactly: AGENT_STOP_INITIAL"))
+            var response = session.sendAndWait(new MessageOptions().setPrompt("Reply with exactly: AGENT_STOP_INITIAL"))
                     .get(60, TimeUnit.SECONDS);
 
             assertEquals(2, inputs.size());
