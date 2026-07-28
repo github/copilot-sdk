@@ -1,4 +1,4 @@
-# Phase 4 Sequence Diagram (Fresh Rendering)
+# Phase 4 Sequence Diagram
 
 ```mermaid
 sequenceDiagram
