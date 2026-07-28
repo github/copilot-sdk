@@ -466,15 +466,15 @@ session.on((event) => {
 
         case "subagent.completed":
             console.log(`✅ Sub-agent completed: ${event.data.agentDisplayName}`);
-            if (event.data.durationMs) console.log(`  Duration: ${event.data.durationMs}ms`);
-            if (event.data.totalTokens) console.log(`  Tokens: ${event.data.totalTokens}`);
-            if (event.data.totalToolCalls) console.log(`  Tool calls: ${event.data.totalToolCalls}`);
+            if (event.data.durationMs !== undefined) console.log(`  Duration: ${event.data.durationMs}ms`);
+            if (event.data.totalTokens !== undefined) console.log(`  Tokens: ${event.data.totalTokens}`);
+            if (event.data.totalToolCalls !== undefined) console.log(`  Tool calls: ${event.data.totalToolCalls}`);
             break;
 
         case "subagent.failed":
             console.log(`❌ Sub-agent failed: ${event.data.agentDisplayName}`);
             console.log(`  Error: ${event.data.error}`);
-            if (event.data.durationMs) console.log(`  Duration: ${event.data.durationMs}ms`);
+            if (event.data.durationMs !== undefined) console.log(`  Duration: ${event.data.durationMs}ms`);
             break;
 
         case "subagent.selected":
