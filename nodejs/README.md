@@ -36,7 +36,7 @@ import { CopilotClient, approveAll } from "@github/copilot-sdk";
 const client = new CopilotClient();
 await client.start();
 
-// Create a session (onPermissionRequest is optional; approveAll allows every tool)
+// approveAll approves ordinary requests; managed requests still require a human decision.
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -137,7 +137,7 @@ Create a new conversation session.
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
-- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `approveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `approveAll` to approve ordinary requests automatically; requests with `managedApprovalRequired: true` remain pending for explicit resolution through a human-facing host flow. Provide a custom function for other fine-grained control. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -862,7 +862,7 @@ An `onPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `approveAll` helper to allow every tool call without any checks:
+Use the built-in `approveAll` helper to approve ordinary permission requests automatically:
 
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
@@ -872,6 +872,8 @@ const session = await client.createSession({
     onPermissionRequest: approveAll,
 });
 ```
+
+For requests with `managedApprovalRequired: true`, `approveAll` returns `{ kind: "no-result" }`. The request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
 
 ### Custom Permission Handler
 
