@@ -727,7 +727,7 @@ Always include PINEAPPLE_COCONUT_42.
     async function replayToolResult(
       toolName: string,
       requestContent: string,
-      savedResults: Array<{ content: string; response: string }>,
+      savedResults: Array<{ content?: string; response: string }>,
       savedErrors: Array<{
         content: string;
         status: number;
@@ -736,7 +736,7 @@ Always include PINEAPPLE_COCONUT_42.
     ): Promise<string | null> {
       const toolArguments = toolName === "view" ? '{"path":"file.txt"}' : "{}";
       const createMessages = (
-        content: string,
+        content: string | undefined,
         response?: string,
       ): NormalizedData["conversations"][number]["messages"] => {
         const messages: NormalizedData["conversations"][number]["messages"] = [
@@ -755,11 +755,15 @@ Always include PINEAPPLE_COCONUT_42.
               },
             ],
           },
-          {
-            role: "tool",
-            tool_call_id: "toolcall_0",
-            content,
-          },
+          ...(content === undefined
+            ? [{ role: "tool" as const, tool_call_id: "toolcall_0" }]
+            : [
+                {
+                  role: "tool" as const,
+                  tool_call_id: "toolcall_0",
+                  content,
+                },
+              ]),
         ];
         if (response !== undefined) {
           messages.push({ role: "assistant", content: response });
@@ -929,6 +933,14 @@ Always include PINEAPPLE_COCONUT_42.
       );
 
       expect(result).toBe("legacy view matched");
+    });
+
+    test("matches a legacy numbered empty view result against omitted raw content", async () => {
+      const result = await replayToolResult("view", "1.", [
+        { response: "empty view matched" },
+      ]);
+
+      expect(result).toBe("empty view matched");
     });
 
     test("prefers an exact naturally numbered view result match", async () => {

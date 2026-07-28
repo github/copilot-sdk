@@ -1577,9 +1577,13 @@ function messagesEqualForReplay(
     return false;
   }
 
-  return (
-    JSON.stringify({ ...requestMessage, content: rawCandidate }) === savedJson
-  );
+  const candidateMessage = { ...requestMessage };
+  if (rawCandidate) {
+    candidateMessage.content = rawCandidate;
+  } else {
+    delete candidateMessage.content;
+  }
+  return JSON.stringify(candidateMessage) === savedJson;
 }
 
 function stripLegacyViewLinePrefixes(result: string): string | undefined {
