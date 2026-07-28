@@ -806,6 +806,48 @@ type ErrorOccurredHookOutput struct {
 // ErrorOccurredHandler handles error-occurred hook invocations
 type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
 
+// AgentStopHookInput is the input for an agent-stop hook.
+type AgentStopHookInput struct {
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	StopReason       string    `json:"stopReason,omitempty"`
+	TranscriptPath   string    `json:"transcriptPath,omitempty"`
+	StopHookActive   bool      `json:"stop_hook_active,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h AgentStopHookInput) MarshalJSON() ([]byte, error) {
+	type alias AgentStopHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *AgentStopHookInput) UnmarshalJSON(data []byte) error {
+	type alias AgentStopHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// AgentStopHookOutput is the output for an agent-stop hook.
+type AgentStopHookOutput struct {
+	Decision string `json:"decision,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+// AgentStopHandler handles agent-stop hook invocations.
+type AgentStopHandler func(input AgentStopHookInput, invocation HookInvocation) (*AgentStopHookOutput, error)
+
 // PreMCPToolCallHookInput is the input for a pre-mcp-tool-call hook
 type PreMCPToolCallHookInput struct {
 	SessionID        string    `json:"sessionId"`
@@ -863,6 +905,7 @@ type SessionHooks struct {
 	OnSessionStart        SessionStartHandler
 	OnSessionEnd          SessionEndHandler
 	OnErrorOccurred       ErrorOccurredHandler
+	OnAgentStop           AgentStopHandler
 	OnPreMCPToolCall      PreMCPToolCallHandler
 }
 

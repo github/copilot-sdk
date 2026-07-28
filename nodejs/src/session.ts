@@ -74,9 +74,18 @@ function deserializeHookInput(raw: unknown): unknown {
     ) {
         return raw;
     }
-    const obj = raw as Record<string, unknown> & { timestamp: number; cwd?: string };
-    const { cwd, ...rest } = obj;
-    return { ...rest, timestamp: new Date(obj.timestamp), workingDirectory: cwd };
+    const obj = raw as Record<string, unknown> & {
+        timestamp: number;
+        cwd?: string;
+        stop_hook_active?: boolean;
+    };
+    const { cwd, stop_hook_active, ...rest } = obj;
+    return {
+        ...rest,
+        timestamp: new Date(obj.timestamp),
+        workingDirectory: cwd,
+        ...(stop_hook_active === undefined ? {} : { stopHookActive: stop_hook_active }),
+    };
 }
 
 function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
@@ -1258,6 +1267,7 @@ export class CopilotSession {
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
+            agentStop: this.hooks.onAgentStop as GenericHandler | undefined,
         };
 
         const handler = handlerMap[hookType];

@@ -870,7 +870,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	if config.OnPermissionRequest != nil {
@@ -1151,7 +1152,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory

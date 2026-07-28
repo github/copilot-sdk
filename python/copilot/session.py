@@ -1017,6 +1017,30 @@ ErrorOccurredHandler = Callable[
 ]
 
 
+class AgentStopHookInput(TypedDict):
+    """Input for the agent-stop hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    stopReason: NotRequired[str]
+    transcriptPath: NotRequired[str]
+    stopHookActive: NotRequired[bool]
+
+
+class AgentStopHookOutput(TypedDict, total=False):
+    """Output for the agent-stop hook."""
+
+    decision: Literal["block"]
+    reason: str
+
+
+AgentStopHandler = Callable[
+    [AgentStopHookInput, dict[str, str]],
+    AgentStopHookOutput | None | Awaitable[AgentStopHookOutput | None],
+]
+
+
 class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
@@ -1028,6 +1052,7 @@ class SessionHooks(TypedDict, total=False):
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
+    on_agent_stop: AgentStopHandler
 
 
 # ============================================================================
@@ -2722,6 +2747,7 @@ class CopilotSession:
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
+            "agentStop": hooks.get("on_agent_stop"),
         }
 
         handler = handler_map.get(hook_type)
@@ -2738,6 +2764,8 @@ class CopilotSession:
             transformed: dict[str, Any] = dict(input_data)
             if "cwd" in transformed:
                 transformed["workingDirectory"] = transformed.pop("cwd")
+            if "stop_hook_active" in transformed:
+                transformed["stopHookActive"] = transformed.pop("stop_hook_active")
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)

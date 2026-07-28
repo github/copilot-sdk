@@ -302,6 +302,40 @@ pub struct ErrorOccurredOutput {
     pub user_notification: Option<String>,
 }
 
+/// Input for the `agentStop` hook, received when the top-level agent reaches a natural stop.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStopInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Reason the agent stopped.
+    #[serde(default)]
+    pub stop_reason: Option<String>,
+    /// Path to the on-disk session transcript.
+    #[serde(default)]
+    pub transcript_path: Option<PathBuf>,
+    /// Whether this stop follows a previous block decision from the hook.
+    #[serde(default, rename = "stop_hook_active")]
+    pub stop_hook_active: Option<bool>,
+}
+
+/// Output for the `agentStop` hook.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStopOutput {
+    /// Set to `"block"` to keep the agent running.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// Follow-up instruction supplied when the stop is blocked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
 /// Events dispatched to [`SessionHooks::on_hook`] at CLI lifecycle points.
 ///
 /// Each variant carries the typed input for that hook plus the shared
@@ -368,6 +402,13 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired when the top-level agent reaches a natural stop.
+    AgentStop {
+        /// Typed input data.
+        input: AgentStopInput,
+        /// Session context.
+        ctx: HookContext,
+    },
 }
 
 /// Response from [`SessionHooks::on_hook`] back to the SDK.
@@ -395,6 +436,8 @@ pub enum HookOutput {
     SessionEnd(SessionEndOutput),
     /// Response for an error-occurred hook.
     ErrorOccurred(ErrorOccurredOutput),
+    /// Response for an agent-stop hook.
+    AgentStop(AgentStopOutput),
 }
 
 impl HookOutput {
@@ -409,6 +452,7 @@ impl HookOutput {
             Self::SessionStart(_) => "SessionStart",
             Self::SessionEnd(_) => "SessionEnd",
             Self::ErrorOccurred(_) => "ErrorOccurred",
+            Self::AgentStop(_) => "AgentStop",
         }
     }
 }
@@ -476,6 +520,11 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .on_error_occurred(input, ctx)
                 .await
                 .map(HookOutput::ErrorOccurred)
+                .unwrap_or(HookOutput::None),
+            HookEvent::AgentStop { input, ctx } => self
+                .on_agent_stop(input, ctx)
+                .await
+                .map(HookOutput::AgentStop)
                 .unwrap_or(HookOutput::None),
         }
     }
@@ -563,6 +612,16 @@ pub trait SessionHooks: Send + Sync + 'static {
     ) -> Option<ErrorOccurredOutput> {
         None
     }
+
+    /// Called when the top-level agent reaches a natural stop. Return a block
+    /// decision to keep the agent running with a follow-up instruction.
+    async fn on_agent_stop(
+        &self,
+        _input: AgentStopInput,
+        _ctx: HookContext,
+    ) -> Option<AgentStopOutput> {
+        None
+    }
 }
 
 /// Dispatches a `hooks.invoke` request to [`SessionHooks::on_hook`].
@@ -613,6 +672,10 @@ pub(crate) async fn dispatch_hook(
             let input: ErrorOccurredInput = serde_json::from_value(raw_input)?;
             HookEvent::ErrorOccurred { input, ctx }
         }
+        "agentStop" => {
+            let input: AgentStopInput = serde_json::from_value(raw_input)?;
+            HookEvent::AgentStop { input, ctx }
+        }
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -648,6 +711,7 @@ pub(crate) async fn dispatch_hook(
         ("sessionStart", HookOutput::SessionStart(o)) => Some(serde_json::to_value(o)?),
         ("sessionEnd", HookOutput::SessionEnd(o)) => Some(serde_json::to_value(o)?),
         ("errorOccurred", HookOutput::ErrorOccurred(o)) => Some(serde_json::to_value(o)?),
+        ("agentStop", HookOutput::AgentStop(o)) => Some(serde_json::to_value(o)?),
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -980,5 +1044,51 @@ mod tests {
             .unwrap();
         assert_eq!(result["output"]["errorHandling"], "retry");
         assert_eq!(result["output"]["retryCount"], 3);
+    }
+
+    #[tokio::test]
+    async fn dispatch_agent_stop_block() {
+        struct AgentStopHooks;
+        #[async_trait]
+        impl SessionHooks for AgentStopHooks {
+            async fn on_agent_stop(
+                &self,
+                input: AgentStopInput,
+                ctx: HookContext,
+            ) -> Option<AgentStopOutput> {
+                assert_eq!(ctx.session_id, SessionId::new("sess-1"));
+                assert_eq!(input.session_id, "sess-1");
+                assert_eq!(input.stop_reason.as_deref(), Some("end_turn"));
+                assert_eq!(
+                    input.transcript_path,
+                    Some(PathBuf::from("/tmp/transcript.jsonl"))
+                );
+                assert_eq!(input.stop_hook_active, Some(true));
+                Some(AgentStopOutput {
+                    decision: Some("block".to_string()),
+                    reason: Some("finish the remaining work".to_string()),
+                })
+            }
+        }
+
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "stopReason": "end_turn",
+            "transcriptPath": "/tmp/transcript.jsonl",
+            "stop_hook_active": true
+        });
+        let result = dispatch_hook(
+            &AgentStopHooks,
+            &SessionId::new("sess-1"),
+            "agentStop",
+            input,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["output"]["decision"], "block");
+        assert_eq!(result["output"]["reason"], "finish the remaining work");
     }
 }
