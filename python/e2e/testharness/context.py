@@ -15,8 +15,29 @@ from pathlib import Path
 from typing import Any
 
 from copilot import CopilotClient, RuntimeConnection
+from copilot._cli_version import get_npm_platform
 
 from .proxy import CapiProxy
+
+
+def _cli_platform_package_names(npm_platform: str | None = None) -> list[str]:
+    """Return candidate ``@github/copilot-*`` directory names, best match first.
+
+    Mirrors ``getCliPlatformPackageNames()`` in ``nodejs/src/client.ts``: as of CLI
+    1.0.64-1 the runnable ``index.js`` ships in a platform package such as
+    ``copilot-darwin-arm64``. On Linux both libc variants are listed (the detected
+    one first) because npm installs exactly one of them and musl probing can come up
+    empty in minimal containers.
+    """
+    primary = npm_platform or get_npm_platform()
+    names = [f"copilot-{primary}"]
+    if primary.startswith("linux"):
+        arch = primary.rsplit("-", 1)[-1]
+        for variant in (f"linux-{arch}", f"linuxmusl-{arch}"):
+            name = f"copilot-{variant}"
+            if name not in names:
+                names.append(name)
+    return names
 
 
 def get_cli_path_for_tests() -> str:
