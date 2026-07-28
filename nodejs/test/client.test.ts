@@ -19,6 +19,25 @@ async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
 
+describe("approveAll", () => {
+    const request = {
+        kind: "url" as const,
+        url: "https://api.example.com/data",
+        intention: "Fetch domain data",
+    };
+    const invocation = { sessionId: "session-1" };
+
+    it("approves ordinary permission requests", () => {
+        expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
+    });
+
+    it("leaves managed permission requests pending for human approval", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
+            kind: "no-result",
+        });
+    });
+});
+
 describe("CopilotClient", () => {
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();

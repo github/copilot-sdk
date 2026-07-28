@@ -19,6 +19,8 @@ import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
     PermissionRequest,
+    PermissionRequestedData,
+    PermissionRequestedEvent,
 
     // *Data payload types from the v0.3.0 generated session-event schema.
     AssistantMessageData,
@@ -95,6 +97,11 @@ const _defaultFactoryResultCheck: _DefaultFactoryResultIsJsonValueOrVoid = true;
 type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
 // @ts-expect-error Factory results must be JSON values or top-level void.
 type _FactoryResultRejectsFunction = FactoryDefinition<JsonValue, () => void>;
+type _PermissionRequestedEventStaysAlignedWithSessionEventUnion = _AssertEqual<
+    PermissionRequestedEvent,
+    Extract<SessionEvent, { type: "permission.requested" }>
+>;
+const _permissionRequestedEventAlignmentCheck: _PermissionRequestedEventStaysAlignedWithSessionEventUnion = true;
 
 describe("Session event type exports (#1156)", () => {
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
@@ -127,6 +134,32 @@ describe("Session event type exports (#1156)", () => {
         };
 
         expect(request.managedApprovalRequired).toBe(true);
+    });
+
+    it("exposes managed approval metadata through permission event types", () => {
+        const data: PermissionRequestedData = {
+            permissionRequest: {
+                kind: "url",
+                url: "https://api.example.com/data",
+                intention: "Fetch domain data",
+                managedApprovalRequired: true,
+            },
+            requestId: "permission-1",
+        };
+        const event: SessionEvent = {
+            id: "evt-permission-1",
+            parentId: null,
+            timestamp: "2026-01-01T00:00:00.000Z",
+            type: "permission.requested",
+            data,
+        };
+
+        if (event.type !== "permission.requested") {
+            throw new Error("expected permission.requested narrowing");
+        }
+
+        const permissionEvent: PermissionRequestedEvent = event;
+        expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
     });
 
     it("wraps ToolExecutionStartData inside the exported ToolExecutionStartEvent", () => {
@@ -186,6 +219,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionProgressData>();
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
+        assertImportable<PermissionRequestedData>();
 
         assertImportable<AssistantMessageEvent>();
         assertImportable<ErrorEvent>();
@@ -195,6 +229,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionCompleteEvent>();
         assertImportable<ToolExecutionStartEvent>();
         assertImportable<UserMessageEvent>();
+        assertImportable<PermissionRequestedEvent>();
 
         // Supporting auxiliary types referenced by the *Data shapes — these
         // must round-trip through the package root too, otherwise consumers
