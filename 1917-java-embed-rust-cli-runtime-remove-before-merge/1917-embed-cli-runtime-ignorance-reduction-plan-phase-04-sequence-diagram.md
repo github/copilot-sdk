@@ -1,63 +1,73 @@
-# Phase 4 Sequence Diagram (Implementation Order)
+# Phase 4 Sequence Diagram (Fresh Rendering)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor DRI as Human DRI
     participant Agent as Coding Agent
-    participant Tests as Unit/IT Tests
+    participant Tests as Unit and Integration Tests
     participant Build as Maven Build
-    participant Repo as Git Branch
     participant CI as GitHub Actions CI
+    participant Repo as Git Branch
 
-    Note over DRI,CI: Phase 4 invariant: native implementation scope is Ubuntu 24.04 linux-x64 only.
-    Note over DRI,CI: Out of scope in this phase: linux-arm64, linuxmusl-x64, linuxmusl-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64.
-
+    Note over DRI,Repo: Scope invariant. Native implementation work is Ubuntu 24.04 linux-x64 only in this phase.
     DRI->>Agent: Start Phase 4 implementation
 
-    rect rgba(240, 248, 255, 0.6)
-    Note over Agent,Build: TDD cycle applied to each implementation step
-    loop For each step (4.1, 4.2, 4.3, 4.4, 4.5, 4.6a, 4.6b, 4.7, 4.8)
-        Agent->>Tests: Write tests first (red)
-        Agent->>Agent: Implement minimum production code (green)
-        Agent->>Agent: Refactor and run spotless
-        Agent->>Build: Run mvn verify (current + all prior steps)
-        Build-->>Agent: Gate pass/fail
-        alt Gate fails
-            Agent->>Agent: Fix code/tests and re-run gate
-        else Gate passes
-            Agent->>Repo: Commit step
-        end
-    end
+    Agent->>Build: 4.1 Parent POM restructure
+    Build-->>Agent: Reactor restructure passes verify
+
+    Agent->>Tests: 4.2 PlatformDetector tests first
+    Agent->>Build: Implement 4.2 and run verify gate
+    alt 4.2 gate fails
+        Build-->>Agent: Fix code and tests then re-run verify
+    else 4.2 gate passes
+        Build-->>Agent: Proceed
     end
 
-    Note over Agent,Tests: Step 4.1 PlatformDetector. linux-x64 correctness gate in this phase.
-    Note over Agent,Tests: Step 4.2 NativeRuntimeLoader. linux-x64 extraction and cache now. Uber-jar multi-platform readiness is for a later phase.
-    Note over Agent,Tests: Step 4.3 NativeBinding, JnaNativeBinding, and OutboundCallback.
-    Note over Agent,Tests: Step 4.4 FfiRuntimeHost lifecycle, callback drain, and write-close safety.
-    Note over Agent,Tests: Step 4.5 RuntimeConnection integration in CopilotClient, env var resolution, and compatibility validation.
-
-    Agent->>Build: Execute Step 4.6a (reactor restructure)
-    Build-->>Agent: Parent/sdk module structure green
-
-    Agent->>Build: Execute Step 4.6b (copilot-native packaging)
-    Note over Agent,Build: Current phase packages linux-x64 classifier only. Verify integrity hash for the linux-x64 tarball.
-    Build-->>Agent: linux-x64 classifier JAR produced
-
-    alt Step 4.6c requested now
-        Agent-->>DRI: Deferred by Phase 4 invariant policy for this round
-    else Step 4.6c not required now
-        Note over Agent,DRI: Keep 4.6c deferred in this phase.
+    Agent->>Tests: 4.3 NativeRuntimeLoader tests first
+    Agent->>Build: Implement 4.3 and run verify gate
+    alt 4.3 gate fails
+        Build-->>Agent: Fix code and tests then re-run verify
+    else 4.3 gate passes
+        Build-->>Agent: Proceed
     end
 
-    Agent->>Tests: Execute Step 4.7 InProcessTransportIT (real runtime.node)
-    Tests-->>Agent: In-process linux-x64 flow verified
+    Agent->>Tests: 4.4 JNA binding tests first
+    Agent->>Build: Implement 4.4 and run verify gate
+    alt 4.4 gate fails
+        Build-->>Agent: Fix code and tests then re-run verify
+    else 4.4 gate passes
+        Build-->>Agent: Proceed
+    end
 
-    Agent->>CI: Update Step 4.8 workflow
-    Note over Agent,CI: InProcess CI coverage in this phase: ubuntu-latest (linux-x64) only.
-    CI-->>Agent: CI green
+    Agent->>Tests: 4.5 FfiRuntimeHost tests first
+    Agent->>Build: Implement 4.5 and run verify gate
+    alt 4.5 gate fails
+        Build-->>Agent: Fix code and tests then re-run verify
+    else 4.5 gate passes
+        Build-->>Agent: Proceed
+    end
 
-    Agent->>Repo: Final Phase 4 ordered changes committed
+    Agent->>Tests: 4.6 CopilotClient transport integration tests first
+    Agent->>Build: Implement 4.6 and run verify gate
+    alt 4.6 gate fails
+        Build-->>Agent: Fix code and tests then re-run verify
+    else 4.6 gate passes
+        Build-->>Agent: Proceed
+    end
+
+    Agent->>Build: 4.7 Build linux-x64 classifier module
+    Note over Agent,Build: Build and verify linux-x64 runtime artifact integrity.
+    Build-->>Agent: linux-x64 classifier jar produced
+
+    Agent->>Tests: 4.8 Run in-process E2E tests
+    Tests-->>Agent: In-process linux-x64 E2E passes
+
+    Agent->>CI: 4.9 Add and run in-process CI job
+    Note over Agent,CI: CI scope for this phase is ubuntu-latest linux-x64.
+    CI-->>Agent: CI green for default and in-process coverage
+
+    Agent->>Repo: Commit ordered Phase 4 implementation changes
     Agent->>Repo: Push branch updates
-    Repo-->>DRI: Ready for human ordering/flow review
+    Repo-->>DRI: Ready for human review of order and flow
 ```
