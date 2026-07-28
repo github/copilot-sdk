@@ -31,11 +31,11 @@ sequenceDiagram
     end
     end
 
-    Note over Agent,Tests: Step 4.1: PlatformDetector (linux-x64 correctness gate in this phase)
-    Note over Agent,Tests: Step 4.2: NativeRuntimeLoader (linux-x64 extraction/cache now; uber-jar multi-platform readiness noted for future)
-    Note over Agent,Tests: Step 4.3: NativeBinding + JnaNativeBinding + OutboundCallback
-    Note over Agent,Tests: Step 4.4: FfiRuntimeHost lifecycle + callback drain + write/close safety
-    Note over Agent,Tests: Step 4.5: RuntimeConnection integration in CopilotClient + env var resolution + compatibility validation
+    Note over Agent,Tests: Step 4.1 PlatformDetector. linux-x64 correctness gate in this phase.
+    Note over Agent,Tests: Step 4.2 NativeRuntimeLoader. linux-x64 extraction and cache now. Uber-jar multi-platform readiness is for a later phase.
+    Note over Agent,Tests: Step 4.3 NativeBinding, JnaNativeBinding, and OutboundCallback.
+    Note over Agent,Tests: Step 4.4 FfiRuntimeHost lifecycle, callback drain, and write-close safety.
+    Note over Agent,Tests: Step 4.5 RuntimeConnection integration in CopilotClient, env var resolution, and compatibility validation.
 
     Agent->>Build: Execute Step 4.6a (reactor restructure)
     Build-->>Agent: Parent/sdk module structure green
