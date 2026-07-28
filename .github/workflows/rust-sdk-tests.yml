@@ -4,25 +4,8 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'rust/**'
-      - 'test/**'
-      - 'nodejs/package.json'
-      - '.github/workflows/rust-sdk-tests.yml'
-      - '.github/actions/setup-copilot/**'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
   workflow_dispatch:
-  merge_group:
+  workflow_call:
 
 permissions:
   contents: read

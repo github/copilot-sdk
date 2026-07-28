@@ -4,24 +4,8 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'dotnet/**'
-      - 'test/**'
-      - 'nodejs/package.json'
-      - '.github/workflows/dotnet-sdk-tests.yml'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
   workflow_dispatch:
-  merge_group:
+  workflow_call:
 
 permissions:
   contents: read
