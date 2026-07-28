@@ -905,12 +905,12 @@ public final class CreateSessionRequest {
         this.requestMcpApps = null;
     }
 
-    /** Gets the built-in GitHub MCP tool configuration. @return the configuration */
+    /** Gets the GitHub MCP tool configuration. @return the configuration */
     public GitHubMcpToolConfig getGitHubMcpToolConfig() {
         return githubMcpToolConfig;
     }
 
-    /** Sets the built-in GitHub MCP tool configuration. @param config the configuration */
+    /** Sets the GitHub MCP tool configuration. @param config the value */
     public void setGitHubMcpToolConfig(GitHubMcpToolConfig config) {
         this.githubMcpToolConfig = config;
     }

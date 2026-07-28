@@ -12,8 +12,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Configuration for the built-in GitHub MCP server.
  *
- * <p>{@code disableFormDeferral} only applies to the built-in GitHub MCP server
- * and only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+ * <p>
+ * {@code disableFormDeferral} only applies to the built-in GitHub MCP server
+ * and only has an effect when MCP Apps and form-backed GitHub tools are
+ * enabled.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GitHubMcpToolConfig {

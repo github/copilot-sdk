@@ -962,16 +962,12 @@ public class SessionRequestBuilderTest {
 
     @Test
     void githubMcpToolConfigIsMappedAndSerializedForCreateAndResume() throws Exception {
-        var config = new GitHubMcpToolConfig()
-                .setEnableAllTools(true)
-                .setAdditionalToolsets(List.of("repos"))
-                .setAdditionalTools(List.of("get_issue"))
-                .setEnableInsidersMode(true)
-                .setDisableFormDeferral(true);
-        var createRequest = SessionRequestBuilder.buildCreateRequest(
-                new SessionConfig().setGitHubMcpToolConfig(config), "session-1");
-        var resumeRequest = SessionRequestBuilder.buildResumeRequest(
-                "session-1", new ResumeSessionConfig().setGitHubMcpToolConfig(config));
+        var config = new GitHubMcpToolConfig().setEnableAllTools(true).setAdditionalToolsets(List.of("repos"))
+                .setAdditionalTools(List.of("get_issue")).setEnableInsidersMode(true).setDisableFormDeferral(true);
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setGitHubMcpToolConfig(config),
+                "session-1");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig().setGitHubMcpToolConfig(config));
 
         assertSame(config, createRequest.getGitHubMcpToolConfig());
         assertSame(config, resumeRequest.getGitHubMcpToolConfig());
