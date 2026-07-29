@@ -49,8 +49,10 @@ public interface PermissionHandler {
     /**
      * A pre-built handler that approves ordinary permission requests.
      * <p>
-     * Requests that require managed approval return {@code no-result} and remain
-     * pending for an explicit human decision.
+     * Requests that require managed approval return {@code no-result}. This leaves
+     * event-based requests unanswered so another client can handle them. Legacy
+     * protocol v2 callbacks cannot defer a response and fail closed; a custom v2
+     * handler must complete its future with the human's explicit decision.
      *
      * @since 1.0.11
      */

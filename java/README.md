@@ -129,7 +129,7 @@ directly.
 
 ## Permission Handling
 
-`PermissionHandler.APPROVE_ALL` approves ordinary requests automatically. When `request.getManagedApprovalRequired()` is `true`, it returns `no-result`; the request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+`PermissionHandler.APPROVE_ALL` approves ordinary requests automatically. When `request.getManagedApprovalRequired()` is `true`, it returns `no-result`. On the event-based permission path, this leaves the request unanswered so another client can present a human-facing confirmation flow. The legacy protocol v2 callback cannot defer a response, so the SDK fails closed with `user-not-available`; a custom v2 handler must complete its future with the human's explicit decision.
 
 When handling `PermissionRequestedEvent` directly, convert its generated event value with `PermissionRequest.fromJsonValue(event.getData().permissionRequest())` to access the typed metadata.
 
