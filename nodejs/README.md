@@ -877,7 +877,7 @@ For requests with `managedApprovalRequired: true`, `approveAll` returns `{ kind:
 
 ### Custom Permission Handler
 
-Provide your own function to inspect each request and apply custom logic:
+Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
@@ -885,6 +885,11 @@ import type { PermissionRequest, PermissionRequestResult } from "@github/copilot
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: (request: PermissionRequest, invocation): PermissionRequestResult => {
+        if (request.managedApprovalRequired === true) {
+            // Leave the request pending for the host's human-facing confirmation flow.
+            return { kind: "no-result" };
+        }
+
         // request.kind — what type of operation is being requested:
         //   "shell"       — executing a shell command
         //   "write"       — writing or editing a file
