@@ -82,6 +82,10 @@ func TestRPCShellAndFleetE2E(t *testing.T) {
 		if !kill.Killed {
 			t.Errorf("Expected shell.kill to report Killed=true, got %+v", kill)
 		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
 	})
 
 	t.Run("should start fleet and complete custom tool task", func(t *testing.T) {

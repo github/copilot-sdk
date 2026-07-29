@@ -1823,6 +1823,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             null,
             options.ModelCapabilities,
             options.ContextTier,
+            null,
             cancellationToken);
     }
 

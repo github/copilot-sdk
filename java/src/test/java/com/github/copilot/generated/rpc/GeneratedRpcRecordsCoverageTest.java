@@ -234,8 +234,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryCompactParams_record() {
-        var params = new SessionHistoryCompactParams("sess-22");
+        var params = new SessionHistoryCompactParams("sess-22", "focus on the API surface",
+                SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, 4096L);
         assertEquals("sess-22", params.sessionId());
+        assertEquals("focus on the API surface", params.customInstructions());
+        assertEquals(SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, params.trigger());
+        assertEquals(4096L, params.tokenLimit());
     }
 
     @Test
@@ -321,13 +325,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null,
+                null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-4.5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
+        assertNull(params.deferIfModelChangeQueued());
     }
 
     @Test
@@ -614,8 +620,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryTruncateResult_record() {
-        var result = new SessionHistoryTruncateResult(3L);
+        var result = new SessionHistoryTruncateResult(3L, false, null);
         assertEquals(3L, result.eventsRemoved());
+        assertEquals(false, result.checkpointCleanupFailed());
+        assertNull(result.checkpointCleanupError());
     }
 
     @Test
@@ -652,8 +660,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5");
+        var result = new SessionModelSwitchToResult("gpt-5", true);
         assertEquals("gpt-5", result.modelId());
+        assertEquals(true, result.deferred());
     }
 
     @Test
@@ -842,7 +851,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());

@@ -1083,7 +1083,7 @@ func TestRPCSessionStateE2E(t *testing.T) {
 			t.Errorf("Expected SetApproveAll(true) to succeed, got %+v", approve)
 		}
 
-		reset, err := session.RPC.Permissions.ResetSessionApprovals(t.Context())
+		reset, err := session.RPC.Permissions.ResetSessionApprovals(t.Context(), &rpc.PermissionsResetSessionApprovalsRequest{})
 		if err != nil {
 			t.Fatalf("Failed to call ResetSessionApprovals: %v", err)
 		}

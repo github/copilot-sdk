@@ -30,7 +30,7 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
-                clientCommands = await session.Rpc.Commands.ListAsync(new CommandsListRequest
+                clientCommands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
                 {
                     IncludeBuiltins = false,
                     IncludeClientCommands = true,
@@ -45,7 +45,7 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Contains(clientCommands.Commands, c => IsCommand(c, "rollback", SlashCommandKind.Client));
         Assert.DoesNotContain(clientCommands.Commands, c => c.Kind == SlashCommandKind.Builtin);
 
-        var builtinCommands = await session.Rpc.Commands.ListAsync(new CommandsListRequest
+        var builtinCommands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
         {
             IncludeBuiltins = true,
             IncludeClientCommands = false,
@@ -64,7 +64,7 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var session = await CreateSessionAsync();
 
-        var builtinCommands = await session.Rpc.Commands.ListAsync(new CommandsListRequest
+        var builtinCommands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
         {
             IncludeBuiltins = true,
             IncludeClientCommands = false,
@@ -128,7 +128,7 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
-                var commands = await session.Rpc.Commands.ListAsync(new CommandsListRequest
+                var commands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
                 {
                     IncludeBuiltins = false,
                     IncludeClientCommands = true,

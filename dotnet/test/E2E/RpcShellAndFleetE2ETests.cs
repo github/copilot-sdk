@@ -41,6 +41,8 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var killResult = await session.Rpc.Shell.KillAsync(execResult.ProcessId);
 
         Assert.True(killResult.Killed);
+
+        await session.DisposeAsync();
     }
 
     [Fact]

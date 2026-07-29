@@ -32,6 +32,7 @@ export {
     CopilotWebSocketHandler,
     CopilotWebSocketCloseStatus,
     CopilotWebSocketForwarder,
+    SessionFsSqliteTransactionFailure,
     SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and
@@ -145,6 +146,8 @@ export type {
     SessionFsSqliteQueryResult,
     SessionFsSqliteQueryType,
     SessionFsSqliteProvider,
+    SessionFsSqliteStatement,
+    SessionFsSqliteTransactionErrorClass,
     CopilotRequestContext,
     SystemMessageAppendConfig,
     SystemMessageConfig,

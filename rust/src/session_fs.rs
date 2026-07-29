@@ -47,10 +47,13 @@ use std::fmt;
 
 use async_trait::async_trait;
 
-pub use crate::generated::api_types::SessionFsSqliteQueryType;
 use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
+};
+pub use crate::generated::api_types::{
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionErrorClass,
+    SessionFsSqliteTransactionStatement,
 };
 use crate::{Custom, Repr};
 
@@ -528,8 +531,62 @@ pub trait SessionFsSqliteProvider: Send + Sync {
         params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<Option<SessionFsSqliteQueryResult>, FsError>;
 
+    /// Execute `statements` atomically against the provider's per-session
+    /// database, returning one result per statement, in order.
+    ///
+    /// Return `Err` with a [`SessionFsSqliteTransactionError`] describing how
+    /// the failure should be classified. `BusyOrLocked` guarantees the
+    /// transaction rolled back and is safe to retry; `PostCommitAmbiguous`
+    /// must never be retried.
+    async fn sqlite_transaction(
+        &self,
+        statements: &[SessionFsSqliteTransactionStatement],
+    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError>;
+
     /// Check whether the provider has a SQLite database for this session.
     async fn sqlite_exists(&self) -> Result<bool, FsError>;
+}
+
+/// Classified SQLite transaction failure returned by
+/// [`SessionFsSqliteProvider::sqlite_transaction`].
+#[derive(Debug, Clone)]
+pub struct SessionFsSqliteTransactionError {
+    /// How the runtime should classify the failure.
+    pub error_class: SessionFsSqliteTransactionErrorClass,
+    /// Human-readable failure description.
+    pub message: String,
+}
+
+impl SessionFsSqliteTransactionError {
+    /// Create a `Fatal` transaction error with the given message.
+    pub fn fatal(message: impl Into<String>) -> Self {
+        Self {
+            error_class: SessionFsSqliteTransactionErrorClass::Fatal,
+            message: message.into(),
+        }
+    }
+
+    /// Create a `BusyOrLocked` transaction error with the given message.
+    pub fn busy_or_locked(message: impl Into<String>) -> Self {
+        Self {
+            error_class: SessionFsSqliteTransactionErrorClass::BusyOrLocked,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for SessionFsSqliteTransactionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SessionFsSqliteTransactionError {}
+
+impl From<FsError> for SessionFsSqliteTransactionError {
+    fn from(error: FsError) -> Self {
+        Self::fatal(error.to_string())
+    }
 }
 
 /// Result of a SQLite query execution via [`SessionFsSqliteProvider::sqlite_query`].
