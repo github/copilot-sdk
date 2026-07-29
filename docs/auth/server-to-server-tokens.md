@@ -184,6 +184,10 @@ For in-process FFI, set `COPILOT_GITHUB_TOKEN` in the host environment before lo
 
 Mint a new installation token before the current token expires. For a child process, restart the SDK client with the new environment. For an in-process or existing runtime, restart the host runtime with the new token.
 
+## Billing
+
+Usage is attributed and billed to the account that owns the GitHub App installation. Use an organization installation for organization billing; a user-account installation attributes usage to that user.
+
 ## Troubleshooting
 
 | Symptom | Check |
