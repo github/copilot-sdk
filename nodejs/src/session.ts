@@ -10,6 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
+import type { McpDiagnosticData } from "./generated/session-events.js";
 import type {
     ClientSessionApiHandlers,
     CanvasActionInvokeResult,
@@ -35,6 +36,7 @@ import type {
     UiInputOptions,
     MessageOptions,
     McpAuthHandler,
+    McpDiagnosticHandler,
     McpAuthRequest,
     PermissionHandler,
     PermissionRequest,
@@ -149,6 +151,7 @@ export class CopilotSession {
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
+    private mcpDiagnosticHandler?: McpDiagnosticHandler;
     private userInputHandler?: UserInputHandler;
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
@@ -178,10 +181,14 @@ export class CopilotSession {
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
-        options?: { mcpAuthHandler?: McpAuthHandler }
+        options?: {
+            mcpAuthHandler?: McpAuthHandler;
+            mcpDiagnosticHandler?: McpDiagnosticHandler;
+        }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
+        this.mcpDiagnosticHandler = options?.mcpDiagnosticHandler;
     }
 
     /**
@@ -361,6 +368,8 @@ export class CopilotSession {
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.mcpAuthHandler = undefined;
+        this.mcpDiagnosticHandler = undefined;
         this.userInputHandler = undefined;
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
@@ -539,6 +548,10 @@ export class CopilotSession {
                 return;
             }
             void this._executeMcpAuthAndRespond(data);
+        } else if (event.type === "mcp.diagnostic") {
+            if (this.mcpDiagnosticHandler) {
+                void this._executeMcpDiagnosticHandler(event.data);
+            }
         } else if (event.type === "command.execute") {
             const { requestId, commandName, command, args } = event.data as {
                 requestId: string;
@@ -742,6 +755,18 @@ export class CopilotSession {
                     throw rpcError;
                 }
             }
+        }
+    }
+
+    /**
+     * Executes an MCP diagnostic handler.
+     * @internal
+     */
+    private async _executeMcpDiagnosticHandler(diagnostic: McpDiagnosticData): Promise<void> {
+        try {
+            await this.mcpDiagnosticHandler!(diagnostic, { sessionId: this.sessionId });
+        } catch {
+            // Diagnostic handlers are observational and must not interrupt session event dispatch.
         }
     }
 

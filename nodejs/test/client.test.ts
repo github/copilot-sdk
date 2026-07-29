@@ -129,6 +129,64 @@ describe("CopilotClient", () => {
         expect(observedRequest.wwwAuthenticateParams).toBeUndefined();
     });
 
+    it("delivers MCP diagnostics to the configured handler", async () => {
+        let observedDiagnostic:
+            | {
+                  kind: string;
+                  sessionId: string;
+                  method?: string;
+                  truncated?: boolean;
+              }
+            | undefined;
+        let resolveDiagnostic!: () => void;
+        const received = new Promise<{
+            kind: string;
+            sessionId: string;
+            method?: string;
+            truncated?: boolean;
+        }>((resolve) => {
+            resolveDiagnostic = () => resolve(observedDiagnostic!);
+        });
+        const session = new CopilotSession("session-1", {} as any, undefined, undefined, {
+            mcpDiagnosticHandler: (diagnostic, { sessionId }) => {
+                observedDiagnostic = {
+                    kind: diagnostic.detail.kind,
+                    sessionId,
+                    ...(diagnostic.detail.kind === "wire_message"
+                        ? {
+                              method: diagnostic.detail.method,
+                              truncated: diagnostic.detail.truncated,
+                          }
+                        : {}),
+                };
+                resolveDiagnostic();
+            },
+        });
+
+        (session as any)._dispatchEvent({
+            type: "mcp.diagnostic",
+            data: {
+                serverName: "filesystem",
+                transport: "stdio",
+                detail: {
+                    kind: "wire_message",
+                    direction: "outbound",
+                    messageKind: "request",
+                    method: "tools/list",
+                    byteSize: 42,
+                    truncated: true,
+                },
+            },
+        });
+
+        await expect(received).resolves.toEqual({
+            kind: "wire_message",
+            sessionId: "session-1",
+            method: "tools/list",
+            truncated: true,
+        });
+    });
+
     it("registers interest in MCP OAuth required events after create when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -157,7 +215,35 @@ describe("CopilotClient", () => {
         expect(spy.mock.calls[1][1].sessionId).toBe(spy.mock.calls[0][1].sessionId);
     });
 
-    it("does not register MCP OAuth interest without an auth handler", async () => {
+    it("registers interest in MCP diagnostics after create when a handler is configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            onMcpDiagnostic: () => {},
+        });
+
+        expect(spy.mock.calls[0][0]).toBe("session.create");
+        expect(spy.mock.calls[1]).toEqual([
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.diagnostic" }),
+        ]);
+        expect(spy.mock.calls[1][1].sessionId).toBe(spy.mock.calls[0][1].sessionId);
+    });
+
+    it("does not register MCP event interest with only an event subscription", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => stopClient(client));
@@ -177,6 +263,10 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalledWith(
             "session.eventLog.registerInterest",
             expect.objectContaining({ eventType: "mcp.oauth_required" })
+        );
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.diagnostic" })
         );
         expect(spy).toHaveBeenCalledWith(
             "session.create",
@@ -276,6 +366,50 @@ describe("CopilotClient", () => {
         expect(spy).toHaveBeenCalledWith(
             "session.resume",
             expect.objectContaining({ sessionId: "session-without-auth", requestPermission: true })
+        );
+    });
+
+    it("registers MCP diagnostics interest after resuming only when a handler is configured", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.eventLog.registerInterest") {
+                    return { id: "interest-1" };
+                }
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession("session-with-diagnostics", {
+            onPermissionRequest: approveAll,
+            onMcpDiagnostic: () => {},
+        });
+
+        const resumeIndex = spy.mock.calls.findIndex(([method]) => method === "session.resume");
+        const interestIndex = spy.mock.calls.findIndex(
+            ([method, params]) =>
+                method === "session.eventLog.registerInterest" &&
+                params.eventType === "mcp.diagnostic"
+        );
+        expect(resumeIndex).toBeGreaterThanOrEqual(0);
+        expect(interestIndex).toBeGreaterThan(resumeIndex);
+        expect(spy.mock.calls[interestIndex][1]).toEqual({
+            sessionId: "session-with-diagnostics",
+            eventType: "mcp.diagnostic",
+        });
+
+        spy.mockClear();
+        await client.resumeSession("session-without-diagnostics", {
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).not.toHaveBeenCalledWith(
+            "session.eventLog.registerInterest",
+            expect.objectContaining({ eventType: "mcp.diagnostic" })
         );
     });
 

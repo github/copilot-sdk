@@ -49,6 +49,10 @@ import type {
     // narrow or annotate intermediate values.
     UserMessageAgentMode,
     Attachment,
+    McpDiagnosticData,
+    McpDiagnosticEvent,
+    McpDiagnosticHandler,
+    SessionConfig,
     WorkingDirectoryContextHostType,
 } from "../src/index.js";
 
@@ -80,6 +84,15 @@ type _AssistantMessageEventStaysAlignedWithSessionEventUnion = _AssertEqual<
     Extract<SessionEvent, { type: "assistant.message" }>
 >;
 const _assistantMessageEventAlignmentCheck: _AssistantMessageEventStaysAlignedWithSessionEventUnion = true;
+
+const _mcpDiagnosticHandler: McpDiagnosticHandler = (diagnostic) => {
+    if (diagnostic.detail.kind === "wire_message") {
+        diagnostic.detail.truncated satisfies boolean;
+    }
+};
+const _mcpDiagnosticSessionConfig: SessionConfig = {
+    onMcpDiagnostic: _mcpDiagnosticHandler,
+};
 
 describe("Session event type exports (#1156)", () => {
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
@@ -160,6 +173,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionProgressData>();
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
+        assertImportable<McpDiagnosticData>();
 
         assertImportable<AssistantMessageEvent>();
         assertImportable<ErrorEvent>();
@@ -169,6 +183,9 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionCompleteEvent>();
         assertImportable<ToolExecutionStartEvent>();
         assertImportable<UserMessageEvent>();
+        assertImportable<McpDiagnosticEvent>();
+        assertImportable<McpDiagnosticHandler>();
+        assertImportable<SessionConfig>();
 
         // Supporting auxiliary types referenced by the *Data shapes — these
         // must round-trip through the package root too, otherwise consumers
@@ -177,6 +194,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<Attachment>();
         assertImportable<WorkingDirectoryContextHostType>();
 
+        expect(_mcpDiagnosticSessionConfig.onMcpDiagnostic).toBe(_mcpDiagnosticHandler);
         expect(true).toBe(true);
     });
 });

@@ -1461,7 +1461,10 @@ export class CopilotClient {
                 this.connection!,
                 undefined,
                 this.onGetTraceContext,
-                { mcpAuthHandler: config.onMcpAuthRequest }
+                {
+                    mcpAuthHandler: config.onMcpAuthRequest,
+                    mcpDiagnosticHandler: config.onMcpDiagnostic,
+                }
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1624,6 +1627,12 @@ export class CopilotClient {
                     eventType: "mcp.oauth_required",
                 });
             }
+            if (config.onMcpDiagnostic) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId: returnedSessionId,
+                    eventType: "mcp.diagnostic",
+                });
+            }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
 
@@ -1674,7 +1683,10 @@ export class CopilotClient {
             this.connection!,
             undefined,
             this.onGetTraceContext,
-            { mcpAuthHandler: config.onMcpAuthRequest }
+            {
+                mcpAuthHandler: config.onMcpAuthRequest,
+                mcpDiagnosticHandler: config.onMcpDiagnostic,
+            }
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
@@ -1823,6 +1835,12 @@ export class CopilotClient {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId,
                     eventType: "mcp.oauth_required",
+                });
+            }
+            if (config.onMcpDiagnostic) {
+                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                    sessionId,
+                    eventType: "mcp.diagnostic",
                 });
             }
 
