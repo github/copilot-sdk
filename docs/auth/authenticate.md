@@ -9,7 +9,7 @@ The GitHub Copilot SDK supports multiple authentication methods to fit different
 | [GitHub Signed-in User](#github-signed-in-user) | Interactive apps where users sign in with GitHub | Yes |
 | [OAuth GitHub App](#oauth-github-app) | Apps acting on behalf of users via OAuth | Yes |
 | [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server | Yes |
-| [GitHub App installation token](./server-to-server-tokens.md) | Organization-attributed automation and direct organization billing | Yes |
+| [Server-to-server authentication](./server-to-server-tokens.md) | Organization-attributed automation and direct organization billing | No user subscription; organization policy required |
 | [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, and more) | No |
 
 ## GitHub signed-in user
@@ -237,7 +237,7 @@ client.start().get();
 
 For automation, CI/CD pipelines, and server-to-server scenarios, you can authenticate using environment variables.
 
-For organization-attributed automation that should not use a user's personal access token, use a GitHub App installation access token. See [Server-to-server tokens](./server-to-server-tokens.md).
+For organization-attributed automation that should not use a user's personal access token, see [Server-to-server authentication](./server-to-server-tokens.md).
 
 **Supported environment variables (in priority order):**
 1. `COPILOT_GITHUB_TOKEN` - Recommended for explicit Copilot usage
