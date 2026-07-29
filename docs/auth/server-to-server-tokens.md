@@ -1,301 +1,205 @@
-# Server-to-server tokens
+# Server-to-server authentication
 
-Use a GitHub App installation access token to authenticate the Copilot SDK from automation without relying on a user's personal access token. This flow is intended for agents, CI/CD jobs, and backend services that make Copilot requests on behalf of an organization.
+Use a short-lived installation access token when a service needs to make Copilot requests on behalf of an organization without a user's credentials. In GitHub Actions, use the built-in `GITHUB_TOKEN` instead.
 
-## When to use this flow
+## GitHub Actions
 
-Use server-to-server tokens when your application needs:
+For workflows in an organization-owned repository, grant the built-in token permission to make Copilot requests:
 
-* Organization-attributed Copilot usage and billing instead of user-attributed usage
-* Automation that cannot depend on an interactive user sign-in
-* A short-lived credential minted by a GitHub App installation
-* Copilot SDK access from workflows, services, or agents that operate on repositories
+```yaml
+permissions:
+  contents: read
+  copilot-requests: write
 
-For per-user identity or per-user billing, use the standard user OAuth or token-based authentication flows in [Authenticate Copilot SDK](./authenticate.md).
-
-> [!NOTE]
-> Server-to-server tokens do not bypass Copilot model policies. Requests authenticated with an organization installation token use the models allowed by that organization's Copilot policy.
-
-## Prerequisites
-
-Before you begin, make sure you have:
-
-* A GitHub Enterprise Cloud organization that is enabled for the Copilot GitHub App server-to-server flow
-* A GitHub App that your service owns
-* The GitHub App's app ID and private key
-* Permission to install the app on the organization that should be billed
-* A repository that the Copilot request can be attributed to
-
-If the organization or enterprise is not enabled for this flow, Copilot API requests made with the installation token return `401 Unauthorized` even when the GitHub App is configured correctly.
-
-## How it works
-
-1. Create or update a GitHub App.
-1. Grant the app the **Copilot Requests** repository permission with **Read & write** access.
-1. Install the app on the organization that should be billed.
-1. Mint a repository-scoped installation access token that explicitly requests `copilot_requests: write`.
-1. Pass the token to the Copilot CLI subprocess through `COPILOT_GITHUB_TOKEN`.
-1. Create and use Copilot SDK sessions normally.
-
-The token returned by GitHub starts with `ghs_` and expires after 1 hour.
-
-## Create or update the GitHub App
-
-Create a GitHub App by following [Creating a GitHub App](https://docs.github.com/en/apps/creating-github-apps).
-
-When configuring app permissions:
-
-* Under **Repository permissions**, set **Copilot Requests** to **Read & write**.
-* Add any other repository permissions your app needs, such as **Contents**, **Issues**, or **Pull requests**.
-* Leave **Where can this GitHub App be installed?** set to the account scope that fits your application.
-
-If the app already exists, update it in **Settings** > **Developer settings** > **GitHub Apps** > your app > **Permissions & events**. Existing installations must re-approve the new **Copilot Requests** permission before tokens minted from those installations can call Copilot.
-
-## Install the app on the organization
-
-Install the GitHub App on the organization that should be attributed and billed for Copilot usage.
-
-Organization installations are recommended because:
-
-* Usage is attributed and billed to the organization instead of an individual user.
-* Organization installations are the right shape for automation that acts on repositories owned by the organization.
-* Organization installations can use organization-level Copilot policies and limits.
-
-When choosing repository access, select **All repositories**. The current Copilot permission check requires the parent installation to have all-repository access. You still scope each minted token to specific repositories by passing `repository_ids` when you create the installation access token.
-
-After installing the app, record the installation ID. You can find it in the installation URL or by calling `GET /app/installations` and filtering by `account.login`.
-
-## Mint an installation access token
-
-Follow [Generating an installation access token for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), with two required details for Copilot:
-
-* Pass `repository_ids` to scope the token to one or more repositories.
-* Pass `permissions` explicitly, including `"copilot_requests": "write"`.
-
-If your automation is not naturally tied to a repository, use a stable attribution repository that the app can access, such as the organization's `.github` repository or a dedicated placeholder repository.
-
-```http
-POST https://api.github.com/app/installations/INSTALLATION_ID/access_tokens
-Authorization: Bearer APP_JWT
-Accept: application/vnd.github+json
-Content-Type: application/json
-
-{
-  "repository_ids": [REPOSITORY_ID],
-  "permissions": {
-    "copilot_requests": "write",
-    "metadata": "read"
-  }
-}
+jobs:
+  copilot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: your-application
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The response contains a `token` field that starts with `ghs_`. Confirm that the response includes:
+The organization's **Allow use of Copilot CLI billed to the organization** policy must be enabled. This approach needs no GitHub App or stored authentication secret. For details, see [Using Copilot CLI in GitHub Actions with GITHUB_TOKEN](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
 
-* `"repository_selection": "selected"`
-* `"permissions": { "copilot_requests": "write", ... }`
+## Other services and CI systems
 
-Add any other permissions your app needs to the `permissions` object. Requested permissions must be a subset of the permissions approved on the installation.
+For services outside GitHub Actions:
+
+1. Create a GitHub App with the **Copilot Requests** repository permission set to **Read & write**.
+1. Install it on the organization that should be billed. The current Copilot permission check requires **All repositories** access.
+1. [Create an installation access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app) with a repository ID and the Copilot permission:
+
+   ```json
+   {
+     "repository_ids": [123456789],
+     "permissions": {
+       "copilot_requests": "write"
+     }
+   }
+   ```
+
+1. Pass the resulting `ghs_` token to the runtime as `COPILOT_GITHUB_TOKEN`.
+
+The organization must be enabled for Copilot requests from GitHub App installations. Installation tokens expire after one hour.
 
 > [!WARNING]
-> For Copilot server-to-server authentication, tokens minted without `repository_ids`, or without an explicit `permissions` object containing `copilot_requests: write`, are rejected by the Copilot API.
+> Do not pass an installation token through the SDK's `gitHubToken`, `github_token`, or equivalent option. That option is for user tokens. Installation tokens must use the runtime environment authentication path.
 
-## Pass the token to the SDK
+## Configure the runtime
 
-Do not pass a `ghs_` installation token with the SDK's `gitHubToken` or `github_token` option. Those options use the SDK's explicit user-token path, which calls user-oriented GitHub API endpoints that reject GitHub App installation tokens.
-
-Instead, leave the explicit GitHub token option unset and pass the installation token to the spawned Copilot CLI process with `COPILOT_GITHUB_TOKEN`.
+The following examples assume the minted token is in `INSTALLATION_TOKEN`. They pass it only to the child runtime and disable fallback to stored user credentials.
 
 <details open>
-<summary><strong>Node.js / TypeScript</strong></summary>
+<summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
-const installationToken = await mintInstallationToken(); // Returns "ghs_..."
+const token = process.env.INSTALLATION_TOKEN;
+if (!token) throw new Error("INSTALLATION_TOKEN is required");
 
 const client = new CopilotClient({
+    connection: RuntimeConnection.forStdio(),
     env: {
         ...process.env,
-        COPILOT_GITHUB_TOKEN: installationToken,
+        COPILOT_GITHUB_TOKEN: token,
     },
     useLoggedInUser: false,
 });
-
-await client.start();
-
-const session = await client.createSession({
-    model: "claude-sonnet-4.6",
-});
 ```
 
 </details>
-
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
 ```python
 import os
 
-from copilot import CopilotClient
-
-installation_token = mint_installation_token()  # Returns "ghs_..."
+from copilot import CopilotClient, RuntimeConnection
 
 client = CopilotClient(
-    env={**os.environ, "COPILOT_GITHUB_TOKEN": installation_token},
+    connection=RuntimeConnection.for_stdio(),
+    env={**os.environ, "COPILOT_GITHUB_TOKEN": os.environ["INSTALLATION_TOKEN"]},
     use_logged_in_user=False,
-)
-
-await client.start()
-
-session = await client.create_session(
-    model="claude-sonnet-4.6",
 )
 ```
 
 </details>
-
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
 ```go
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
 
-func mintInstallationToken() string {
-	return "ghs_..."
-}
-
 func main() {
-	installationToken := mintInstallationToken()
-
+	token, ok := os.LookupEnv("INSTALLATION_TOKEN")
+	if !ok {
+		log.Fatal("INSTALLATION_TOKEN is required")
+	}
 	client := copilot.NewClient(&copilot.ClientOptions{
-		Env: append(os.Environ(), "COPILOT_GITHUB_TOKEN="+installationToken),
+		Connection:      copilot.StdioConnection{},
+		Env:             append(os.Environ(), "COPILOT_GITHUB_TOKEN="+token),
 		UseLoggedInUser: copilot.Bool(false),
 	})
-
-	ctx := context.Background()
-	if err := client.Start(ctx); err != nil {
-		log.Fatal(err)
-	}
-	defer client.Stop()
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer session.Disconnect()
+	_ = client
 }
 ```
 
 </details>
+<details>
+<summary><strong>Rust</strong></summary>
 
+```rust
+use github_copilot_sdk::{ClientOptions, Transport};
+
+fn main() {
+    let token = std::env::var("INSTALLATION_TOKEN").expect("INSTALLATION_TOKEN is required");
+    let options = ClientOptions::new()
+        .with_transport(Transport::Stdio)
+        .with_env([("COPILOT_GITHUB_TOKEN", token)])
+        .with_use_logged_in_user(false);
+    drop(options);
+}
+```
+
+</details>
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
 ```csharp
 using System.Collections;
 using GitHub.Copilot;
 
-var installationToken = MintInstallationToken(); // Returns "ghs_..."
-
-var env = System.Environment.GetEnvironmentVariables()
+var token = Environment.GetEnvironmentVariable("INSTALLATION_TOKEN")
+    ?? throw new InvalidOperationException("INSTALLATION_TOKEN is required");
+var environment = Environment.GetEnvironmentVariables()
     .Cast<DictionaryEntry>()
-    .ToDictionary(
-        entry => (string)entry.Key,
-        entry => entry.Value?.ToString() ?? string.Empty);
-env["COPILOT_GITHUB_TOKEN"] = installationToken;
+    .ToDictionary(entry => (string)entry.Key, entry => entry.Value?.ToString() ?? "");
+environment["COPILOT_GITHUB_TOKEN"] = token;
 
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    Environment = env,
+    Connection = RuntimeConnection.ForStdio(),
+    Environment = environment,
     UseLoggedInUser = false,
-});
-
-await client.StartAsync();
-
-await using var session = await client.CreateSessionAsync(new SessionConfig
-{
-    Model = "claude-sonnet-4.6",
 });
 ```
 
 </details>
-
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.SessionConfig;
 import java.util.HashMap;
+import java.util.Objects;
 
-String installationToken = mintInstallationToken(); // Returns "ghs_..."
-
-var env = new HashMap<>(System.getenv());
-env.put("COPILOT_GITHUB_TOKEN", installationToken);
+var environment = new HashMap<>(System.getenv());
+var token = Objects.requireNonNull(
+    System.getenv("INSTALLATION_TOKEN"), "INSTALLATION_TOKEN is required");
+environment.put("COPILOT_GITHUB_TOKEN", token);
 
 try (var client = new CopilotClient(new CopilotClientOptions()
-        .setEnvironment(env)
+        .setEnvironment(environment)
         .setUseLoggedInUser(false))) {
-    client.start().get();
-
-    var session = client.createSession(new SessionConfig()
-        .setModel("claude-sonnet-4.6")).get();
+    // Use the client.
 }
 ```
 
 </details>
 
-> [!NOTE]
-> These examples configure the environment for the Copilot CLI process that the SDK spawns. If you connect to an already-running CLI server with a URI connection, set `COPILOT_GITHUB_TOKEN` in that server process instead.
+For in-process FFI, set `COPILOT_GITHUB_TOKEN` in the host environment before loading the runtime; per-client environment options are not supported. For an existing runtime URI, set it on that runtime process.
 
-## Refresh and rotate tokens
+## Refresh tokens
 
-Installation access tokens expire after 1 hour. Cache tokens only until shortly before their expiry, then mint a fresh token.
+Mint a new installation token before the current token expires. For a child process, restart the SDK client with the new environment. For an in-process or existing runtime, restart the host runtime with the new token.
 
-When you refresh the token, start a new Copilot SDK client with an updated `COPILOT_GITHUB_TOKEN` value. The Copilot CLI subprocess reads its environment when it starts and does not re-read the token during an existing session.
+## Billing
 
-Rotate the GitHub App private key according to your organization's security policy. If a token is exposed, revoke the installation token and rotate the app private key.
-
-## What gets billed
-
-Copilot usage is attributed to the account that owns the GitHub App installation used to mint the token:
-
-* Organization installation: usage is attributed and billed to the organization.
-* User installation: usage is attributed to the individual user account.
-
-Use an organization installation for direct organization billing and automation scenarios that should not depend on a user's Copilot plan or personal access token.
+Usage is attributed and billed to the account that owns the GitHub App installation. Use an organization installation for organization billing; a user-account installation attributes usage to that user.
 
 ## Troubleshooting
 
-| Symptom | What to check |
+| Symptom | Check |
 |---|---|
-| `401 Unauthorized` before reaching Copilot | Confirm the organization or enterprise is enabled for the Copilot GitHub App server-to-server flow. |
-| `403 Resource not accessible by integration` or an error that mentions user info | Confirm you did not pass the `ghs_` token with `gitHubToken` or `github_token`. Pass it with `COPILOT_GITHUB_TOKEN` in the spawned CLI environment. |
-| `403 Forbidden` from the Copilot API | Confirm the token was minted with `repository_ids` and explicit `permissions` containing `"copilot_requests": "write"`. |
-| `403 Forbidden` after using the required mint body | Confirm the GitHub App installation has **All repositories** access, then mint a fresh token. |
-| The requested model is unavailable | Confirm the organization's Copilot model policy allows the model and that the bundled Copilot CLI version supports it. |
-| Requests are billed to the wrong account | Confirm the installation ID belongs to the organization, not a user account, before minting the token. |
+| `401 Unauthorized` | Confirm the organization supports GitHub App installation authentication for Copilot. |
+| `403 Resource not accessible by integration` or an error mentioning user information | Confirm the installation token is in `COPILOT_GITHUB_TOKEN`, not the SDK's explicit token option. |
+| `403 Forbidden` from the Copilot API | Confirm the token request contains `repository_ids` and `copilot_requests: write`. |
+| `403 Forbidden` with the required token request | Confirm the app installation has **All repositories** access, then mint a new token. |
+| Requested model is unavailable | Confirm the organization's Copilot policy allows the model and the bundled runtime supports it. |
+| Wrong account billed | Confirm the installation belongs to the intended organization. |
 
 ## Further reading
 
-* [Authenticate Copilot SDK](./authenticate.md): other SDK authentication methods and priority order
-* [Creating a GitHub App](https://docs.github.com/en/apps/creating-github-apps): GitHub App setup
-* [Authenticating as a GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/about-authentication-with-a-github-app): app JWTs and installation tokens
-* [Generating an installation access token for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app): token minting API
-* [Requests in GitHub Copilot](https://docs.github.com/en/copilot/concepts/billing/copilot-requests): Copilot request accounting
+* [Authenticate Copilot SDK](./authenticate.md): other authentication methods and priority
+* [Generating an installation access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app): GitHub App token creation
