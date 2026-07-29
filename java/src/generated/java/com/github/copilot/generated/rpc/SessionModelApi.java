@@ -75,13 +75,31 @@ public final class SessionModelApi {
 
     /**
      * Optional listing options.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionModelListResult> list() {
-        return caller.invoke("session.model.list", java.util.Map.of(), SessionModelListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Optional listing options.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelListResult> list(SessionModelListParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.list", _p, SessionModelListResult.class);
     }
 
 }

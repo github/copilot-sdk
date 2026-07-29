@@ -28,13 +28,26 @@ public final class ServerSessionsApi {
 
     /**
      * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsOpenResult> open() {
-        return caller.invoke("sessions.open", java.util.Map.of(), SessionsOpenResult.class);
+        return open(null);
+    }
+
+    /**
+     * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsOpenResult> open(SessionsOpenParams params) {
+        return caller.invoke("sessions.open", params == null ? java.util.Map.of() : params, SessionsOpenResult.class);
     }
 
     /**
@@ -61,13 +74,26 @@ public final class ServerSessionsApi {
 
     /**
      * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsListResult> list() {
-        return caller.invoke("sessions.list", java.util.Map.of(), SessionsListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Optional source filter, metadata-load limit, and context filter applied to the returned sessions.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsListResult> list(SessionsListParams params) {
+        return caller.invoke("sessions.list", params == null ? java.util.Map.of() : params, SessionsListResult.class);
     }
 
     /**
@@ -325,13 +351,26 @@ public final class ServerSessionsApi {
 
     /**
      * Parameters for stopping the remote-control singleton.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsStopRemoteControlResult> stopRemoteControl() {
-        return caller.invoke("sessions.stopRemoteControl", java.util.Map.of(), SessionsStopRemoteControlResult.class);
+        return stopRemoteControl(null);
+    }
+
+    /**
+     * Parameters for stopping the remote-control singleton.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsStopRemoteControlResult> stopRemoteControl(SessionsStopRemoteControlParams params) {
+        return caller.invoke("sessions.stopRemoteControl", params == null ? java.util.Map.of() : params, SessionsStopRemoteControlResult.class);
     }
 
     /**

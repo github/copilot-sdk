@@ -28,13 +28,26 @@ public final class ServerModelsApi {
 
     /**
      * Optional GitHub token used to list models for a specific user instead of the global auth context.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<ModelsListResult> list() {
-        return caller.invoke("models.list", java.util.Map.of(), ModelsListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Optional GitHub token used to list models for a specific user instead of the global auth context.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ModelsListResult> list(ModelsListParams params) {
+        return caller.invoke("models.list", params == null ? java.util.Map.of() : params, ModelsListResult.class);
     }
 
     /**
