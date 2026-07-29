@@ -203,6 +203,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeFactoryRunUpdated:
+		var d FactoryRunUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeHookEnd:
 		var d HookEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -223,6 +229,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeMCPAppToolCallComplete:
 		var d MCPAppToolCallCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPDiagnostic:
+		var d MCPDiagnosticData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -1370,6 +1382,12 @@ func unmarshalSystemNotification(data []byte) (SystemNotification, error) {
 			return nil, err
 		}
 		return &d, nil
+	case SystemNotificationTypeUnclassified:
+		var d SystemNotificationUnclassified
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	default:
 		return &RawSystemNotification{Discriminator: raw.Type, Raw: data}, nil
 	}
@@ -1443,6 +1461,17 @@ func (r SystemNotificationShellCompleted) MarshalJSON() ([]byte, error) {
 
 func (r SystemNotificationShellDetachedCompleted) MarshalJSON() ([]byte, error) {
 	type alias SystemNotificationShellDetachedCompleted
+	return json.Marshal(struct {
+		Type SystemNotificationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationUnclassified
 	return json.Marshal(struct {
 		Type SystemNotificationType `json:"type"`
 		alias
@@ -1893,6 +1922,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
 		RequestID         string          `json:"requestId"`
 		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
+		RiskAssessment    any             `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1914,6 +1944,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	}
 	r.RequestID = raw.RequestID
 	r.ResolvedByHook = raw.ResolvedByHook
+	r.RiskAssessment = raw.RiskAssessment
 	return nil
 }
 
@@ -2156,6 +2187,125 @@ func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 		r.Result = value
 	}
 	r.ToolCallID = raw.ToolCallID
+	return nil
+}
+
+func unmarshalMCPDiagnosticDetail(data []byte) (MCPDiagnosticDetail, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case MCPDiagnosticDetailKindHTTPExchange:
+		var d MCPDiagnosticHTTPExchange
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPDiagnosticDetailKindProcessLifecycle:
+		var d MCPDiagnosticProcessLifecycle
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPDiagnosticDetailKindServerLog:
+		var d MCPDiagnosticServerLog
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPDiagnosticDetailKindWireMessage:
+		var d MCPDiagnosticWireMessage
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPDiagnosticDetail{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawMCPDiagnosticDetail) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPDiagnosticHTTPExchange) MarshalJSON() ([]byte, error) {
+	type alias MCPDiagnosticHTTPExchange
+	return json.Marshal(struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPDiagnosticProcessLifecycle) MarshalJSON() ([]byte, error) {
+	type alias MCPDiagnosticProcessLifecycle
+	return json.Marshal(struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPDiagnosticServerLog) MarshalJSON() ([]byte, error) {
+	type alias MCPDiagnosticServerLog
+	return json.Marshal(struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPDiagnosticWireMessage) MarshalJSON() ([]byte, error) {
+	type alias MCPDiagnosticWireMessage
+	return json.Marshal(struct {
+		Kind MCPDiagnosticDetailKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *MCPDiagnosticData) UnmarshalJSON(data []byte) error {
+	type rawMCPDiagnosticData struct {
+		Detail     json.RawMessage    `json:"detail"`
+		ServerName string             `json:"serverName"`
+		Transport  MCPServerTransport `json:"transport"`
+	}
+	var raw rawMCPDiagnosticData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Detail != nil {
+		value, err := unmarshalMCPDiagnosticDetail(raw.Detail)
+		if err != nil {
+			return err
+		}
+		r.Detail = value
+	}
+	r.ServerName = raw.ServerName
+	r.Transport = raw.Transport
 	return nil
 }
 

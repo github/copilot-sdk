@@ -262,6 +262,51 @@ directories for different applications.
 | `tools` | `string[]` | No | Tools to enable |
 | `timeout` | `number` | No | Timeout in milliseconds |
 
+## MCP diagnostics
+
+The Node.js SDK can capture verbose MCP transport diagnostics for troubleshooting.
+Set `onMcpDiagnostic` when you create or resume a session. The SDK then registers
+interest in the ephemeral `mcp.diagnostic` event before returning the session.
+Subscribing with `session.on()` alone does not register interest, so it does not
+enable diagnostic events.
+
+```typescript
+const session = await client.createSession({
+    mcpServers: {
+        filesystem: {
+            type: "local",
+            command: "npx",
+            args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
+            tools: ["*"],
+        },
+    },
+    onMcpDiagnostic: (diagnostic, { sessionId }) => {
+        switch (diagnostic.detail.kind) {
+            case "wire_message":
+                console.log(sessionId, diagnostic.detail.direction, diagnostic.detail.method);
+                if (diagnostic.detail.truncated) {
+                    console.log("The captured wire payload was clipped.");
+                }
+                break;
+            case "http_exchange":
+                console.log(sessionId, diagnostic.detail.phase, diagnostic.detail.statusCode);
+                break;
+            case "server_log":
+                console.error(sessionId, diagnostic.detail.line);
+                break;
+            case "process_lifecycle":
+                console.log(sessionId, diagnostic.detail.command, diagnostic.detail.exitCode);
+                break;
+        }
+    },
+});
+```
+
+Diagnostics are high-volume and are not persisted or replayed with the session.
+The runtime redacts sensitive values and size-caps captured payloads. Check
+`detail.truncated` on `wire_message` diagnostics before relying on a captured payload
+being complete.
+
 ## Troubleshooting
 
 ### Tools not showing up or not being invoked

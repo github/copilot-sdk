@@ -97,6 +97,7 @@ export type {
     MCPServerConfig,
     DefaultAgentConfig,
     BearerTokenProvider,
+    McpDiagnosticHandler,
     MessageOptions,
     ModelBilling,
     ModelBillingTokenPrices,

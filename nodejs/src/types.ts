@@ -11,6 +11,7 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    McpDiagnosticData,
     ReasoningSummary,
     SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
@@ -1863,6 +1864,18 @@ export type McpAuthHandler = (
     | Promise<McpAuthResult | McpAuthToken | null | undefined>;
 
 /**
+ * Callback invoked for verbose MCP diagnostics after the SDK host opts in.
+ *
+ * The diagnostic payload is redacted and size-capped by the runtime. For
+ * `wire_message` diagnostics, `truncated` indicates that the captured payload
+ * was clipped.
+ */
+export type McpDiagnosticHandler = (
+    diagnostic: McpDiagnosticData,
+    context: { sessionId: string }
+) => void | Promise<void>;
+
+/**
  * Stable extension identity for session participants that provide canvases.
  */
 export interface ExtensionInfo {
@@ -2245,6 +2258,16 @@ export interface SessionConfigBase {
      * host-provided token data or cancellation.
      */
     onMcpAuthRequest?: McpAuthHandler;
+
+    /**
+     * Optional handler for verbose MCP diagnostics.
+     *
+     * Providing this handler registers interest in the ephemeral, high-volume
+     * `mcp.diagnostic` event automatically. Normal event subscriptions alone do
+     * not enable diagnostics. Payloads are redacted and size-capped by the runtime;
+     * for `wire_message` diagnostics, `truncated` indicates captured-payload clipping.
+     */
+    onMcpDiagnostic?: McpDiagnosticHandler;
 
     /**
      * Handler for user input requests from the agent.
