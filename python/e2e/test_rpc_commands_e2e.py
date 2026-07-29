@@ -6,10 +6,10 @@ import pytest
 
 from copilot.rpc import (
     CommandsInvokeRequest,
-    SessionCommandsListRequest,
     CommandsRespondToQueuedCommandRequest,
     ExecuteCommandParams,
     QueuedCommandHandled,
+    SessionCommandsListRequest,
     SlashCommandKind,
     SlashCommandTextResult,
 )

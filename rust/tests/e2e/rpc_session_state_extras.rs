@@ -315,6 +315,7 @@ async fn should_add_byok_provider_and_model_at_runtime() {
                     .model()
                     .switch_to(ModelSwitchToRequest {
                         context_tier: None,
+                        defer_if_model_change_queued: None,
                         model_capabilities: None,
                         model_id: selection_id.to_string(),
                         reasoning_effort: None,
