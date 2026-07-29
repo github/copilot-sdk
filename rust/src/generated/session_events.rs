@@ -3017,7 +3017,7 @@ pub struct PermissionRequestShell {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestShellKind,
-    /// Whether managed policy requires a human response and forbids host auto-approval
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// File paths that may be read or written by the command
@@ -3052,7 +3052,7 @@ pub struct PermissionRequestWrite {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestWriteKind,
-    /// Whether managed policy requires a human response and forbids host auto-approval
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Complete new file contents for newly created files
@@ -3077,7 +3077,7 @@ pub struct PermissionRequestRead {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestReadKind,
-    /// Whether managed policy requires a human response and forbids host auto-approval
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Path of the file or directory being read
@@ -3102,6 +3102,9 @@ pub struct PermissionRequestMcp {
     pub args: Option<serde_json::Value>,
     /// Permission kind discriminator
     pub kind: PermissionRequestMcpKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Whether this MCP tool is read-only (no side effects)
     pub read_only: bool,
     /// Name of the MCP server providing the tool
@@ -3123,7 +3126,7 @@ pub struct PermissionRequestUrl {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestUrlKind,
-    /// Whether managed policy requires a human response and forbids host auto-approval
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Immediately preceding URL when this request is for a redirect target
@@ -3159,6 +3162,9 @@ pub struct PermissionRequestMemory {
     pub fact: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestMemoryKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Reason for the vote (vote only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -3179,6 +3185,9 @@ pub struct PermissionRequestCustomTool {
     pub args: Option<serde_json::Value>,
     /// Permission kind discriminator
     pub kind: PermissionRequestCustomToolKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3197,6 +3206,9 @@ pub struct PermissionRequestHook {
     pub hook_message: Option<String>,
     /// Permission kind discriminator
     pub kind: PermissionRequestHookKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Arguments of the tool call being gated
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_args: Option<serde_json::Value>,
@@ -3216,6 +3228,9 @@ pub struct PermissionRequestExtensionManagement {
     pub extension_name: Option<String>,
     /// Permission kind discriminator
     pub kind: PermissionRequestExtensionManagementKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// The extension management operation (scaffold, reload)
     pub operation: String,
     /// Tool call ID that triggered this permission request
@@ -3233,6 +3248,9 @@ pub struct PermissionRequestExtensionPermissionAccess {
     pub extension_name: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestExtensionPermissionAccessKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,

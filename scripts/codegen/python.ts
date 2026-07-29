@@ -11,6 +11,7 @@ import path from "path";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { fileURLToPath } from "url";
 import {
+    addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
     filterNodeByVisibility,
     fixNullableRequiredRefsInApiSchema,
@@ -2841,7 +2842,9 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Python: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+    const schema = addManagedApprovalRequiredToPermissionRequests(
+        (await loadSchemaJson(resolvedPath)) as JSONSchema7
+    );
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);

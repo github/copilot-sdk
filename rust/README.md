@@ -230,6 +230,10 @@ impl PermissionHandler for MyPermissions {
         _rid: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
+        if data.managed_approval_required == Some(true) {
+            return PermissionResult::no_result();
+        }
+
         if data.extra.get("tool").and_then(|v| v.as_str()) == Some("view") {
             PermissionResult::approve_once()
         } else {
@@ -250,7 +254,7 @@ let config = SessionConfig::default()
     .with_user_input_handler(h);
 ```
 
-The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandler` for the common cases. To observe streamed session events (assistant messages, tool calls, etc.), call `session.subscribe()` — see [Streaming](#streaming) below.
+The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandler` for the common cases. `ApproveAllHandler` leaves requests with `managed_approval_required == Some(true)` pending for an explicit human decision. To observe streamed session events (assistant messages, tool calls, etc.), call `session.subscribe()` — see [Streaming](#streaming) below.
 
 ### SessionConfig
 
@@ -429,6 +433,8 @@ Reach for the `ToolHandler` trait directly when you need shared state across mul
 ### Permission Policies
 
 Set a permission policy directly on `SessionConfig` with the chainable builders. They install a synthesized `PermissionHandler` so only permission requests are intercepted; every other event flows through unchanged.
+
+The approve-all policy leaves managed approval requests pending so a human-facing host flow can resolve them explicitly.
 
 ```rust,ignore
 let session = client

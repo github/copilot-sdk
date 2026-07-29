@@ -37,7 +37,7 @@ using GitHub.Copilot;
 await using var client = new CopilotClient();
 await client.StartAsync();
 
-// Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
+// ApproveAll approves ordinary requests; managed requests still require a human decision.
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
@@ -132,7 +132,7 @@ Create a new conversation session.
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
-- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves ordinary requests automatically; requests with `ManagedApprovalRequired == true` remain pending for explicit resolution through a human-facing host flow. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -782,7 +782,7 @@ An `OnPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+Use the built-in `PermissionHandler.ApproveAll` helper to approve ordinary permission requests automatically:
 
 ```csharp
 using GitHub.Copilot;
@@ -794,9 +794,11 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+When `ManagedApprovalRequired` is `true`, `ApproveAll` returns `PermissionDecision.NoResult()`. The request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+
 ### Custom Permission Handler
 
-Provide your own permission handler (`Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>`) to inspect each request and apply custom logic:
+Provide your own permission handler (`Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>`) to inspect each request and apply custom logic. Check `ManagedApprovalRequired` before any automatic approval:
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -804,6 +806,11 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Model = "gpt-5",
     OnPermissionRequest = async (request, invocation) =>
     {
+        if (request.ManagedApprovalRequired == true)
+        {
+            return PermissionDecision.NoResult();
+        }
+
         // Pattern-match on the discriminated PermissionRequest union to access
         // per-kind fields (FullCommandText, Path, ToolName, …).
         return request switch

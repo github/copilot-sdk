@@ -127,6 +127,29 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
+## Permission Handling
+
+`PermissionHandler.APPROVE_ALL` approves ordinary requests automatically. When `request.getManagedApprovalRequired()` is `true`, it returns `no-result`; the request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+
+When handling `PermissionRequestedEvent` directly, convert its generated event value with `PermissionRequest.fromJsonValue(event.getData().permissionRequest())` to access the typed metadata.
+
+Custom handlers must check managed approval before applying kind-specific automatic decisions:
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionRequestResult;
+
+PermissionHandler handler = (request, invocation) -> {
+    if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+        return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+    }
+
+    return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+};
+```
+
 ## Try it with JBang
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).

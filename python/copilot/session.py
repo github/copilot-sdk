@@ -373,6 +373,8 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
+        if request.managed_approval_required is True:
+            return PermissionNoResult()
         return PermissionDecisionApproveOnce()
 
 

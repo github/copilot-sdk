@@ -6,10 +6,14 @@ import (
 
 // PermissionHandler provides pre-built OnPermissionRequest implementations.
 var PermissionHandler = struct {
-	// ApproveAll approves all permission requests.
+	// ApproveAll approves ordinary permission requests. Requests that require
+	// managed approval remain pending for an explicit human decision.
 	ApproveAll PermissionHandlerFunc
 }{
-	ApproveAll: func(_ PermissionRequest, _ PermissionInvocation) (rpc.PermissionDecision, error) {
+	ApproveAll: func(request PermissionRequest, _ PermissionInvocation) (rpc.PermissionDecision, error) {
+		if request.RequiresManagedApproval() {
+			return &rpc.PermissionDecisionNoResult{}, nil
+		}
 		return &rpc.PermissionDecisionApproveOnce{}, nil
 	},
 }

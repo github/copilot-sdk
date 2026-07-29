@@ -453,6 +453,47 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     return value;
 }
 
+const PERMISSION_REQUEST_DEFINITION_NAMES = [
+    "PermissionRequestCustomTool",
+    "PermissionRequestExtensionManagement",
+    "PermissionRequestExtensionPermissionAccess",
+    "PermissionRequestHook",
+    "PermissionRequestMcp",
+    "PermissionRequestMemory",
+    "PermissionRequestRead",
+    "PermissionRequestShell",
+    "PermissionRequestUrl",
+    "PermissionRequestWrite",
+] as const;
+
+/**
+ * Add managed approval metadata until the pinned CLI schema includes the field.
+ */
+export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const property: JSONSchema7 = {
+        description:
+            "When true, managed policy requires an explicit user decision and automatic approval must be bypassed.",
+        type: ["boolean", "null"],
+    };
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+        for (const name of PERMISSION_REQUEST_DEFINITION_NAMES) {
+            const definition = definitions[name];
+            if (!definition || typeof definition !== "object") continue;
+            const objectDefinition = definition as JSONSchema7;
+            objectDefinition.properties = {
+                ...objectDefinition.properties,
+                managedApprovalRequired:
+                    objectDefinition.properties?.managedApprovalRequired ?? cloneSchemaForCodegen(property),
+            };
+        }
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 

@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -343,7 +344,7 @@ class RpcHandlerDispatcherTest {
     }
 
     @Test
-    void permissionRequestV2RejectsNoResult() throws Exception {
+    void permissionRequestNoResultRemainsPending() throws Exception {
         CopilotSession session = createSession("s1");
         session.registerPermissionHandler((request, invocation) -> CompletableFuture
                 .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT)));
@@ -354,11 +355,8 @@ class RpcHandlerDispatcherTest {
 
         invokeHandler("permission.request", "13", params);
 
-        // V2 protocol does not support NO_RESULT — the handler should fall through
-        // to the exception path and respond with denied.
-        JsonNode response = readResponse();
-        JsonNode result = response.get("result").get("result");
-        assertEquals("user-not-available", result.get("kind").asText());
+        serverSideSocket.setSoTimeout(100);
+        assertThrows(SocketTimeoutException.class, this::readResponse);
     }
 
     // ===== userInput.request tests =====

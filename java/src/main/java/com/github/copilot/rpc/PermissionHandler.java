@@ -17,6 +17,10 @@ import java.util.concurrent.CompletableFuture;
  *
  * <pre>{@code
  * PermissionHandler handler = (request, invocation) -> {
+ * 	if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+ * 		return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+ * 	}
+ *
  * 	// Check the permission kind
  * 	if ("dangerous-action".equals(request.getKind())) {
  * 		// Deny dangerous actions
@@ -43,12 +47,17 @@ import java.util.concurrent.CompletableFuture;
 public interface PermissionHandler {
 
     /**
-     * A pre-built handler that approves all permission requests.
+     * A pre-built handler that approves ordinary permission requests.
+     * <p>
+     * Requests that require managed approval return {@code no-result} and remain
+     * pending for an explicit human decision.
      *
      * @since 1.0.11
      */
-    PermissionHandler APPROVE_ALL = (request, invocation) -> CompletableFuture
-            .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
+    PermissionHandler APPROVE_ALL = (request,
+            invocation) -> CompletableFuture.completedFuture(Boolean.TRUE.equals(request.getManagedApprovalRequired())
+                    ? PermissionRequestResult.noResult()
+                    : PermissionRequestResult.approveOnce());
 
     /**
      * Handles a permission request from the assistant.

@@ -5445,6 +5445,9 @@ pub struct PermissionRequestData {
     /// to a specific tool invocation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+    /// Whether managed policy requires an explicit human decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// The full permission request params from the CLI. The shape varies by
     /// permission type and CLI version, so we preserve it as `Value`.
     #[serde(flatten)]

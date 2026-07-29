@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
+	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
 	type DefinitionCollections,
 	EXCLUDED_EVENT_TYPES,
@@ -2211,7 +2212,9 @@ async function generate(): Promise<void> {
 
 	const sessionEventsSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+			stripBooleanLiterals(
+				addManagedApprovalRequiredToPermissionRequests(sessionEventsRaw as JSONSchema7),
+			) as JSONSchema7,
 		),
 	);
 	const apiSchema = propagateInternalVisibility(

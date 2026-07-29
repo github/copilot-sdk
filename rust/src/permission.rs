@@ -19,7 +19,10 @@ use async_trait::async_trait;
 use crate::handler::{PermissionHandler, PermissionResult};
 use crate::types::{PermissionRequestData, RequestId, SessionId};
 
-/// Return a [`PermissionHandler`] that approves every request.
+/// Return a [`PermissionHandler`] that approves ordinary requests.
+///
+/// Requests that require managed approval remain pending for an explicit
+/// human decision.
 pub fn approve_all() -> Arc<dyn PermissionHandler> {
     Arc::new(PolicyHandler {
         policy: Policy::ApproveAll,
@@ -110,6 +113,12 @@ impl PermissionHandler for PolicyHandler {
         _request_id: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
+        if matches!(&self.policy, Policy::ApproveAll)
+            && data.managed_approval_required == Some(true)
+        {
+            return PermissionResult::no_result();
+        }
+
         let approved = match &self.policy {
             Policy::ApproveAll => true,
             Policy::DenyAll => false,
@@ -141,6 +150,18 @@ mod tests {
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
             PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn approve_all_leaves_managed_request_pending() {
+        let h = approve_all();
+        let mut request = data();
+        request.managed_approval_required = Some(true);
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), request)
+                .await,
+            PermissionResult::NoResult
         ));
     }
 

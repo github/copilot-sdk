@@ -273,9 +273,8 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
     ) -> AutoModeSwitchResponse;
 }
 
-/// A [`PermissionHandler`] that approves every request. Useful for CLI
-/// tools, scripts, and tests that don't need interactive permission
-/// prompts.
+/// A [`PermissionHandler`] that approves ordinary requests. Requests that
+/// require managed approval remain pending for an explicit human decision.
 #[derive(Debug, Clone)]
 pub struct ApproveAllHandler;
 
@@ -285,9 +284,13 @@ impl PermissionHandler for ApproveAllHandler {
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
-        _data: PermissionRequestData,
+        data: PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::approve_once()
+        if data.managed_approval_required == Some(true) {
+            PermissionResult::no_result()
+        } else {
+            PermissionResult::approve_once()
+        }
     }
 }
 
@@ -324,6 +327,21 @@ mod tests {
             result,
             PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn approve_all_handler_leaves_managed_request_pending() {
+        let result = ApproveAllHandler
+            .handle(
+                SessionId::from("s1"),
+                RequestId::new("1"),
+                PermissionRequestData {
+                    managed_approval_required: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await;
+        assert!(matches!(result, PermissionResult::NoResult));
     }
 
     #[tokio::test]

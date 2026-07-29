@@ -1520,6 +1520,19 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
+fn permission_request_data(event_data: &Value) -> PermissionRequestData {
+    let request_data = event_data
+        .get("permissionRequest")
+        .cloned()
+        .unwrap_or_else(|| event_data.clone());
+    serde_json::from_value(request_data.clone()).unwrap_or(PermissionRequestData {
+        kind: None,
+        tool_call_id: None,
+        managed_approval_required: None,
+        extra: request_data,
+    })
+}
+
 /// Map a [`PermissionResult`] to the `result` payload sent back to the
 /// server via `session.permissions.handlePendingPermissionRequest`.
 ///
@@ -1705,14 +1718,7 @@ async fn handle_notification(
             };
             let client = client.clone();
             let sid = session_id.clone();
-            let data: PermissionRequestData =
-                serde_json::from_value(notification.event.data.clone()).unwrap_or_else(|_| {
-                    PermissionRequestData {
-                        kind: None,
-                        tool_call_id: None,
-                        extra: notification.event.data.clone(),
-                    }
-                });
+            let data = permission_request_data(&notification.event.data);
             let span = tracing::error_span!(
                 "permission_request_handler",
                 session_id = %sid,
@@ -2514,7 +2520,7 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::notification_permission_payload;
+    use super::{notification_permission_payload, permission_request_data};
     use crate::handler::PermissionResult;
 
     #[test]
@@ -2540,5 +2546,20 @@ mod tests {
             notification_permission_payload(&PermissionResult::user_not_available()),
             Some(json!({ "kind": "user-not-available" }))
         );
+    }
+
+    #[test]
+    fn permission_request_data_reads_nested_managed_approval_metadata() {
+        let data = permission_request_data(&json!({
+            "requestId": "permission-1",
+            "permissionRequest": {
+                "kind": "read",
+                "managedApprovalRequired": true,
+                "path": "/workspace/file.txt"
+            }
+        }));
+
+        assert_eq!(data.managed_approval_required, Some(true));
+        assert_eq!(data.extra["path"], "/workspace/file.txt");
     }
 }

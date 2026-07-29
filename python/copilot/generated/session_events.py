@@ -4991,6 +4991,7 @@ class PermissionRequestCustomTool:
     tool_description: str
     tool_name: str
     args: Any = None
+    managed_approval_required: bool | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -4999,11 +5000,13 @@ class PermissionRequestCustomTool:
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
         args = obj.get("args")
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestCustomTool(
             tool_description=tool_description,
             tool_name=tool_name,
             args=args,
+            managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
         )
 
@@ -5014,6 +5017,8 @@ class PermissionRequestCustomTool:
         result["toolName"] = from_str(self.tool_name)
         if self.args is not None:
             result["args"] = self.args
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5025,6 +5030,7 @@ class PermissionRequestExtensionManagement:
     kind: ClassVar[str] = "extension-management"
     operation: str
     extension_name: str | None = None
+    managed_approval_required: bool | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5032,10 +5038,12 @@ class PermissionRequestExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_str(obj.get("operation"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestExtensionManagement(
             operation=operation,
             extension_name=extension_name,
+            managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
         )
 
@@ -5045,6 +5053,8 @@ class PermissionRequestExtensionManagement:
         result["operation"] = from_str(self.operation)
         if self.extension_name is not None:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5056,6 +5066,7 @@ class PermissionRequestExtensionPermissionAccess:
     capabilities: list[str]
     extension_name: str
     kind: ClassVar[str] = "extension-permission-access"
+    managed_approval_required: bool | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5063,10 +5074,12 @@ class PermissionRequestExtensionPermissionAccess:
         assert isinstance(obj, dict)
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestExtensionPermissionAccess(
             capabilities=capabilities,
             extension_name=extension_name,
+            managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
         )
 
@@ -5075,6 +5088,8 @@ class PermissionRequestExtensionPermissionAccess:
         result["capabilities"] = from_list(from_str, self.capabilities)
         result["extensionName"] = from_str(self.extension_name)
         result["kind"] = self.kind
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5086,6 +5101,7 @@ class PermissionRequestHook:
     kind: ClassVar[str] = "hook"
     tool_name: str
     hook_message: str | None = None
+    managed_approval_required: bool | None = None
     tool_args: Any = None
     tool_call_id: str | None = None
 
@@ -5094,11 +5110,13 @@ class PermissionRequestHook:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_args = obj.get("toolArgs")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestHook(
             tool_name=tool_name,
             hook_message=hook_message,
+            managed_approval_required=managed_approval_required,
             tool_args=tool_args,
             tool_call_id=tool_call_id,
         )
@@ -5109,6 +5127,8 @@ class PermissionRequestHook:
         result["toolName"] = from_str(self.tool_name)
         if self.hook_message is not None:
             result["hookMessage"] = from_union([from_none, from_str], self.hook_message)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_args is not None:
             result["toolArgs"] = self.tool_args
         if self.tool_call_id is not None:
@@ -5125,6 +5145,7 @@ class PermissionRequestMcp:
     tool_name: str
     tool_title: str
     args: Any = None
+    managed_approval_required: bool | None = None
     tool_call_id: str | None = None
 
     @staticmethod
@@ -5135,6 +5156,7 @@ class PermissionRequestMcp:
         tool_name = from_str(obj.get("toolName"))
         tool_title = from_str(obj.get("toolTitle"))
         args = obj.get("args")
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
         return PermissionRequestMcp(
             read_only=read_only,
@@ -5142,6 +5164,7 @@ class PermissionRequestMcp:
             tool_name=tool_name,
             tool_title=tool_title,
             args=args,
+            managed_approval_required=managed_approval_required,
             tool_call_id=tool_call_id,
         )
 
@@ -5154,6 +5177,8 @@ class PermissionRequestMcp:
         result["toolTitle"] = from_str(self.tool_title)
         if self.args is not None:
             result["args"] = self.args
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         return result
@@ -5167,6 +5192,7 @@ class PermissionRequestMemory:
     action: PermissionRequestMemoryAction | None = None
     citations: str | None = None
     direction: PermissionRequestMemoryDirection | None = None
+    managed_approval_required: bool | None = None
     reason: str | None = None
     subject: str | None = None
     tool_call_id: str | None = None
@@ -5178,6 +5204,7 @@ class PermissionRequestMemory:
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
         citations = from_union([from_none, from_str], obj.get("citations"))
         direction = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryDirection, x)], obj.get("direction"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         reason = from_union([from_none, from_str], obj.get("reason"))
         subject = from_union([from_none, from_str], obj.get("subject"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
@@ -5186,6 +5213,7 @@ class PermissionRequestMemory:
             action=action,
             citations=citations,
             direction=direction,
+            managed_approval_required=managed_approval_required,
             reason=reason,
             subject=subject,
             tool_call_id=tool_call_id,
@@ -5201,6 +5229,8 @@ class PermissionRequestMemory:
             result["citations"] = from_union([from_none, from_str], self.citations)
         if self.direction is not None:
             result["direction"] = from_union([from_none, lambda x: to_enum(PermissionRequestMemoryDirection, x)], self.direction)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         if self.reason is not None:
             result["reason"] = from_union([from_none, from_str], self.reason)
         if self.subject is not None:
