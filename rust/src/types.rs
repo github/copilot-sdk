@@ -7547,7 +7547,10 @@ mod is_terminal_tests {
             ..Default::default()
         };
         let value = serde_json::to_value(&tool).expect("tool serializes");
-        assert_eq!(value.get("isTerminal"), Some(&serde_json::Value::Bool(true)));
+        assert_eq!(
+            value.get("isTerminal"),
+            Some(&serde_json::Value::Bool(true))
+        );
     }
 
     #[test]

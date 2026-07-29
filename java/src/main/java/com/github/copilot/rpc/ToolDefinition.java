@@ -95,8 +95,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         @JsonProperty("metadata") Map<String, Object> metadata, @JsonProperty("isTerminal") Boolean isTerminal) {
 
     /**
-     * Creates a tool definition without a {@code metadata} bag or terminality
-     * hint.
+     * Creates a tool definition without a {@code metadata} bag or terminality hint.
      * <p>
      * Convenience overload equivalent to the canonical constructor with
      * {@code metadata} and {@code isTerminal} set to {@code null}.
@@ -393,8 +392,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      * Returns a copy with the {@code isTerminal} flag set.
      *
      * @param value
-     *            {@code true} to end the agent turn after a successful call to
-     *            this tool
+     *            {@code true} to end the agent turn after a successful call to this
+     *            tool
      * @return a new {@code ToolDefinition} with the flag applied
      * @since 1.0.7
      */
