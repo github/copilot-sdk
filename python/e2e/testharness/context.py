@@ -54,6 +54,18 @@ def _find_cli_in_node_modules(github_modules: Path, package_names: Sequence[str]
     return None
 
 
+def _installed_cli_package_names(github_modules: Path) -> list[str]:
+    """Return the ``copilot-*`` directory names present, for error messages only.
+
+    Selection never globs — that was the #2103 bug. This exists so a failure can
+    say what *is* installed, which is the difference between a dead-end "run npm
+    install" and a message that diagnoses itself on a mixed-architecture host.
+    """
+    if not github_modules.is_dir():
+        return []
+    return sorted(path.name for path in github_modules.glob("copilot-*") if path.is_dir())
+
+
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests.
 
@@ -75,10 +87,12 @@ def get_cli_path_for_tests() -> str:
     if found is not None:
         return found
 
+    installed = _installed_cli_package_names(github_modules)
     raise RuntimeError(
         f"CLI not found for tests under {github_modules} "
-        f"(tried: {', '.join(package_names)}). Run 'npm install' in the nodejs "
-        f"directory, or set COPILOT_CLI_PATH."
+        f"(tried: {', '.join(package_names)}; "
+        f"present: {', '.join(installed) or 'none'}). "
+        "Run 'npm install' in the nodejs directory, or set COPILOT_CLI_PATH."
     )
 
 

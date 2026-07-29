@@ -80,6 +80,20 @@ class TestFindCliInNodeModules:
         assert context._find_cli_in_node_modules(missing, ["copilot-linux-x64"]) is None
 
 
+class TestInstalledCliPackageNames:
+    def test_lists_platform_directories_sorted(self, tmp_path):
+        _make_package(tmp_path, "copilot-win32-x64")
+        _make_package(tmp_path, "copilot-darwin-arm64")
+        (tmp_path / "not-copilot").mkdir()
+        assert context._installed_cli_package_names(tmp_path) == [
+            "copilot-darwin-arm64",
+            "copilot-win32-x64",
+        ]
+
+    def test_returns_empty_when_directory_is_absent(self, tmp_path):
+        assert context._installed_cli_package_names(tmp_path / "missing") == []
+
+
 class TestGetCliPathForTests:
     def test_env_var_takes_precedence(self, tmp_path, monkeypatch):
         cli = tmp_path / "custom-cli.js"
@@ -99,3 +113,34 @@ class TestGetCliPathForTests:
         assert "copilot-linux-x64" in message
         assert "npm install" in message
         assert "COPILOT_CLI_PATH" in message
+
+    def test_error_names_the_searched_directory(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+        seen: list[Path] = []
+
+        def fake_find(github_modules, package_names):
+            seen.append(github_modules)
+            return None
+
+        monkeypatch.setattr(context, "_cli_platform_package_names", lambda *_: ["copilot-nope-x64"])
+        monkeypatch.setattr(context, "_find_cli_in_node_modules", fake_find)
+        with pytest.raises(RuntimeError) as excinfo:
+            context.get_cli_path_for_tests()
+        assert seen, "get_cli_path_for_tests must consult _find_cli_in_node_modules"
+        assert seen[0].name == "@github"
+        assert seen[0].parent.name == "node_modules"
+        assert seen[0].parent.parent.name == "nodejs"
+        assert str(seen[0]) in str(excinfo.value)
+
+    def test_error_lists_the_packages_actually_installed(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+        monkeypatch.setattr(context, "_cli_platform_package_names", lambda *_: ["copilot-nope-x64"])
+        monkeypatch.setattr(context, "_find_cli_in_node_modules", lambda *_: None)
+        monkeypatch.setattr(
+            context, "_installed_cli_package_names", lambda *_: ["copilot-darwin-arm64"]
+        )
+        with pytest.raises(RuntimeError) as excinfo:
+            context.get_cli_path_for_tests()
+        message = str(excinfo.value)
+        assert "present: copilot-darwin-arm64" in message
+        assert "copilot-nope-x64" in message
