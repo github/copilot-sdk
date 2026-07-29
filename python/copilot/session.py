@@ -344,10 +344,8 @@ SystemMessageConfig = (
 class PermissionNoResult:
     """Sentinel returned by a permission handler to leave the request unanswered.
 
-    Only meaningful against protocol-v1 servers. v2 servers reject ``no-result``
-    responses; the SDK raises :class:`ValueError` if a v2 server receives one.
-    Mirrors the ``{kind: "no-result"}`` extension TS adds to its ``PermissionDecision``
-    union (see ``nodejs/src/types.ts:883``).
+    The SDK suppresses its response so another connected client, such as a
+    human-facing host, can answer the pending request.
     """
 
     kind: Literal["no-result"] = "no-result"

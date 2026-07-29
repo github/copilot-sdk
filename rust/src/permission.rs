@@ -113,19 +113,17 @@ impl PermissionHandler for PolicyHandler {
         _request_id: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
-        if matches!(&self.policy, Policy::ApproveAll)
-            && data.managed_approval_required == Some(true)
-        {
-            return PermissionResult::no_result();
-        }
-
         let approved = match &self.policy {
             Policy::ApproveAll => true,
             Policy::DenyAll => false,
             Policy::Predicate(f) => f(&data),
         };
         if approved {
-            PermissionResult::approve_once()
+            if data.managed_approval_required == Some(true) {
+                PermissionResult::no_result()
+            } else {
+                PermissionResult::approve_once()
+            }
         } else {
             PermissionResult::reject(None)
         }
@@ -180,6 +178,30 @@ mod tests {
         let h = approve_if(|d| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell"));
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
+            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn approve_if_leaves_managed_approval_pending_when_predicate_approves() {
+        let h = approve_if(|_| true);
+        let mut request = data();
+        request.managed_approval_required = Some(true);
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), request)
+                .await,
+            PermissionResult::NoResult
+        ));
+    }
+
+    #[tokio::test]
+    async fn approve_if_still_rejects_managed_request_when_predicate_denies() {
+        let h = approve_if(|_| false);
+        let mut request = data();
+        request.managed_approval_required = Some(true);
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
             PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
         ));

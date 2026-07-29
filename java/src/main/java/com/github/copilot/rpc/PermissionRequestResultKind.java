@@ -49,8 +49,10 @@ public final class PermissionRequestResultKind {
      * When the SDK is used as an extension and the extension's permission handler
      * cannot or chooses not to handle a given permission request, it can return
      * {@code NO_RESULT} to leave the request unanswered, allowing another client to
-     * handle it. The SDK suppresses its response for this result so the request
-     * remains pending.
+     * handle it.
+     * <p>
+     * This kind is supported by the broadcast permission flow. Legacy protocol-v2
+     * request callbacks require an immediate response and reject this result.
      */
     public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind("no-result");
 

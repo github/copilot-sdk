@@ -10,7 +10,6 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -344,7 +343,7 @@ class RpcHandlerDispatcherTest {
     }
 
     @Test
-    void permissionRequestNoResultRemainsPending() throws Exception {
+    void permissionRequestV2RejectsNoResult() throws Exception {
         CopilotSession session = createSession("s1");
         session.registerPermissionHandler((request, invocation) -> CompletableFuture
                 .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT)));
@@ -355,8 +354,9 @@ class RpcHandlerDispatcherTest {
 
         invokeHandler("permission.request", "13", params);
 
-        serverSideSocket.setSoTimeout(100);
-        assertThrows(SocketTimeoutException.class, this::readResponse);
+        JsonNode response = readResponse();
+        JsonNode result = response.get("result").get("result");
+        assertEquals("user-not-available", result.get("kind").asText());
     }
 
     // ===== userInput.request tests =====
