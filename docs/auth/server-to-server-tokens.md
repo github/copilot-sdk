@@ -193,8 +193,10 @@ Usage is attributed and billed to the account that owns the GitHub App installat
 | Symptom | Check |
 |---|---|
 | `401 Unauthorized` | Confirm the organization supports GitHub App installation authentication for Copilot. |
-| Error mentioning user information | Confirm the installation token is in `COPILOT_GITHUB_TOKEN`, not the SDK's explicit token option. |
-| `403 Forbidden` | Confirm the app has **Copilot Requests: Read & write**, the installation covers all repositories, and the token request contains `repository_ids` and `copilot_requests: write`. |
+| `403 Resource not accessible by integration` or an error mentioning user information | Confirm the installation token is in `COPILOT_GITHUB_TOKEN`, not the SDK's explicit token option. |
+| `403 Forbidden` from the Copilot API | Confirm the token request contains `repository_ids` and `copilot_requests: write`. |
+| `403 Forbidden` with the required token request | Confirm the app installation has **All repositories** access, then mint a new token. |
+| Requested model is unavailable | Confirm the organization's Copilot policy allows the model and the bundled runtime supports it. |
 | Wrong account billed | Confirm the installation belongs to the intended organization. |
 
 ## Further reading
