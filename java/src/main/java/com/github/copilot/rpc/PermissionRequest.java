@@ -5,10 +5,8 @@
 package com.github.copilot.rpc;
 
 import java.util.Map;
-import java.util.HashMap;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PermissionRequest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -119,7 +118,6 @@ public class PermissionRequest {
      *
      * @return the extension data map
      */
-    @JsonAnyGetter
     public Map<String, Object> getExtensionData() {
         return extensionData;
     }
@@ -132,21 +130,5 @@ public class PermissionRequest {
      */
     public void setExtensionData(Map<String, Object> extensionData) {
         this.extensionData = extensionData;
-    }
-
-    /**
-     * Captures variant-specific permission request fields.
-     *
-     * @param name
-     *            the JSON property name
-     * @param value
-     *            the JSON property value
-     */
-    @JsonAnySetter
-    public void setExtensionData(String name, Object value) {
-        if (extensionData == null) {
-            extensionData = new HashMap<>();
-        }
-        extensionData.put(name, value);
     }
 }

@@ -51,8 +51,10 @@ public final class PermissionRequestResultKind {
      * {@code NO_RESULT} to leave the request unanswered, allowing another client to
      * handle it.
      * <p>
-     * This kind is supported by the broadcast permission flow. Legacy protocol-v2
-     * request callbacks require an immediate response and reject this result.
+     * <strong>Warning:</strong> This kind is only valid with protocol v3 servers
+     * (broadcast permission model). When connected to a protocol v2 server, the SDK
+     * will throw {@link IllegalStateException} because v2 expects exactly one
+     * response per permission request.
      */
     public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind("no-result");
 

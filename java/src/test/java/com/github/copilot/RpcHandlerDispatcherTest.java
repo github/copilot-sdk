@@ -354,6 +354,8 @@ class RpcHandlerDispatcherTest {
 
         invokeHandler("permission.request", "13", params);
 
+        // V2 protocol does not support NO_RESULT — the handler should fall through
+        // to the exception path and respond with denied.
         JsonNode response = readResponse();
         JsonNode result = response.get("result").get("result");
         assertEquals("user-not-available", result.get("kind").asText());

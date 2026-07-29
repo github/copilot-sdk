@@ -86,7 +86,6 @@ public class PermissionRequestResultTest {
                 """, PermissionRequest.class);
 
         assertTrue(request.getManagedApprovalRequired());
-        assertEquals("/workspace/file.txt", request.getExtensionData().get("path"));
     }
 
     @Test
@@ -100,7 +99,6 @@ public class PermissionRequestResultTest {
         var request = PermissionRequest.fromJsonValue(event.getData().permissionRequest());
 
         assertTrue(request.getManagedApprovalRequired());
-        assertEquals("https://example.com", request.getExtensionData().get("url"));
     }
 
     @Test
