@@ -35,6 +35,8 @@ public record SessionEventLogReadParams(
     /** Either '*' to receive all event types, or a non-empty list of event types to receive */
     @JsonProperty("types") Object types,
     /** Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers. */
-    @JsonProperty("agentScope") EventsAgentScope agentScope
+    @JsonProperty("agentScope") EventsAgentScope agentScope,
+    /** When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order). */
+    @JsonProperty("includeEphemeral") Boolean includeEphemeral
 ) {
 }

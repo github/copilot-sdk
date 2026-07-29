@@ -24,6 +24,8 @@ public record SandboxConfigUserPolicyNetwork(
     /** Whether outbound network traffic is allowed at all. */
     @JsonProperty("allowOutbound") Boolean allowOutbound,
     /** Whether traffic to local/loopback addresses is allowed. */
-    @JsonProperty("allowLocalNetwork") Boolean allowLocalNetwork
+    @JsonProperty("allowLocalNetwork") Boolean allowLocalNetwork,
+    /** HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS. Credentials go in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; an https:// or authenticated loopback URL is used as-is. */
+    @JsonProperty("proxy") SandboxConfigUserPolicyNetworkProxy proxy
 ) {
 }

@@ -45,6 +45,7 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("mcpMeta") Object mcpMeta,
         /** CAPI interaction ID for correlating this tool execution with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
+        @JsonProperty("rte") Boolean rte,
         /** Whether this tool call was explicitly requested by the user rather than the assistant */
         @JsonProperty("isUserRequested") Boolean isUserRequested,
         /** Tool execution result on success */

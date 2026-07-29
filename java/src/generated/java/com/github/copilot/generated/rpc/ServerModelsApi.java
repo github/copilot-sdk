@@ -37,4 +37,15 @@ public final class ServerModelsApi {
         return caller.invoke("models.list", java.util.Map.of(), ModelsListResult.class);
     }
 
+    /**
+     * The running runtime's complete catalog of well-known built-in model IDs, including supported models and additional IDs with built-in metadata.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ModelsGetBuiltInCatalogResult> getBuiltInCatalog() {
+        return caller.invoke("models.getBuiltInCatalog", java.util.Map.of(), ModelsGetBuiltInCatalogResult.class);
+    }
+
 }

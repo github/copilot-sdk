@@ -30,6 +30,8 @@ public record FactoryExecuteParams(
     @JsonProperty("name") String name,
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** Opaque token identifying this factory execution attempt. */
+    @JsonProperty("executionToken") String executionToken,
     /** Factory input value. */
     @JsonProperty("args") Object args
 ) {

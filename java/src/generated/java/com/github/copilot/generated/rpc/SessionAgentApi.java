@@ -31,14 +31,14 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Identifies the target session.
+     * Controls whether built-in agents and authored prompt text are included.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionAgentListResult> list() {
-        return caller.invoke("session.agent.list", java.util.Map.of("sessionId", this.sessionId), SessionAgentListResult.class);
+        return caller.invoke("session.agent.list", java.util.Map.of(), SessionAgentListResult.class);
     }
 
     /**

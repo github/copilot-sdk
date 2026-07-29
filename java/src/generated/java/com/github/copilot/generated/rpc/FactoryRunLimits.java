@@ -25,7 +25,9 @@ public record FactoryRunLimits(
     @JsonProperty("maxConcurrentSubagents") Long maxConcurrentSubagents,
     /** Maximum total number of factory subagents that may be admitted. */
     @JsonProperty("maxTotalSubagents") Long maxTotalSubagents,
-    /** Factory active-run timeout in milliseconds. */
-    @JsonProperty("timeout") Double timeout
+    /** Maximum accumulated active-execution time in seconds. Active execution includes the entire extension body, subprocess waits, queued-agent waits, and sleeps; time between resumed attempts is not counted. */
+    @JsonProperty("timeoutSeconds") Double timeoutSeconds,
+    /** Maximum AI credits consumed by factory subagents and their descendants. The post-paid ceiling is soft: parallel turns can settle beyond it before the run stops. */
+    @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
 }

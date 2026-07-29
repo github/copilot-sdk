@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionAgentListParams(
+public record SessionCancelAllBackgroundAgentsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId
 ) {

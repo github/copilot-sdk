@@ -81,7 +81,7 @@ public final class SessionModelApi {
      */
     @CopilotExperimental
     public CompletableFuture<SessionModelListResult> list() {
-        return caller.invoke("session.model.list", java.util.Map.of("sessionId", this.sessionId), SessionModelListResult.class);
+        return caller.invoke("session.model.list", java.util.Map.of(), SessionModelListResult.class);
     }
 
 }

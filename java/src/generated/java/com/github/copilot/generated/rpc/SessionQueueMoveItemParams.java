@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional flags controlling which side effects the reload performs.
+ * Parameters for moving a queued item by stable id.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,8 +23,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPluginsReloadParams(
+public record SessionQueueMoveItemParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Stable opaque queued-item id. */
+    @JsonProperty("id") String id,
+    /** Zero-based target position in the public visible queue. Values outside the queue clamp to an end. */
+    @JsonProperty("toPosition") Long toPosition
 ) {
 }

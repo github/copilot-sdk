@@ -71,6 +71,28 @@ public final class ServerSessionsApi {
     }
 
     /**
+     * Session ID whose persisted metadata should be read.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsGetMetadataResult> getMetadata(SessionsGetMetadataParams params) {
+        return caller.invoke("sessions.getMetadata", params, SessionsGetMetadataResult.class);
+    }
+
+    /**
+     * Limit for non-empty local session IDs.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsListNonEmptySessionIdsResult> listNonEmptySessionIds(SessionsListNonEmptySessionIdsParams params) {
+        return caller.invoke("sessions.listNonEmptySessionIds", params, SessionsListNonEmptySessionIdsResult.class);
+    }
+
+    /**
      * GitHub task ID to look up.
      *
      * @apiNote This method is experimental and may change in a future version.
@@ -167,6 +189,17 @@ public final class ServerSessionsApi {
     @CopilotExperimental
     public CompletableFuture<SessionsBulkDeleteResult> bulkDelete(SessionsBulkDeleteParams params) {
         return caller.invoke("sessions.bulkDelete", params, SessionsBulkDeleteResult.class);
+    }
+
+    /**
+     * Session ID to delete from disk.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> delete(SessionsDeleteParams params) {
+        return caller.invoke("sessions.delete", params, Void.class);
     }
 
     /**

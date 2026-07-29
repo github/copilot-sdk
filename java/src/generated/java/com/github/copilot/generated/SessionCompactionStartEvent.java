@@ -41,7 +41,13 @@ public final class SessionCompactionStartEvent extends SessionEvent {
         /** Token count from non-system messages (user, assistant, tool) at compaction start */
         @JsonProperty("conversationTokens") Long conversationTokens,
         /** Token count from tool definitions at compaction start */
-        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens,
+        /** Total context tokens (system + conversation + tool definitions) at compaction start, when known */
+        @JsonProperty("currentTokens") Long currentTokens,
+        /** Model context window token limit the compaction is targeting, when known */
+        @JsonProperty("tokenLimit") Long tokenLimit,
+        /** What initiated this compaction, when known */
+        @JsonProperty("trigger") CompactionTrigger trigger
     ) {
     }
 }

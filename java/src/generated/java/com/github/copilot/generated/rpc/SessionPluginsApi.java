@@ -47,7 +47,7 @@ public final class SessionPluginsApi {
      */
     @CopilotExperimental
     public CompletableFuture<Void> reload() {
-        return caller.invoke("session.plugins.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+        return caller.invoke("session.plugins.reload", java.util.Map.of(), Void.class);
     }
 
 }

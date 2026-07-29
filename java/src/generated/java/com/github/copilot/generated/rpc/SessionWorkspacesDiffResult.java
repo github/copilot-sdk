@@ -33,7 +33,9 @@ public record SessionWorkspacesDiffResult(
     @JsonProperty("changes") List<WorkspaceDiffFileChange> changes,
     /** Default branch used for a branch diff, when branch mode was requested. */
     @JsonProperty("baseBranch") String baseBranch,
-    /** Whether a requested branch diff fell back to unstaged changes because branch diff failed. */
-    @JsonProperty("isFallback") Boolean isFallback
+    /** Whether the requested diff fell back to unstaged changes, either because branch diff failed or session diff was unavailable. */
+    @JsonProperty("isFallback") Boolean isFallback,
+    /** Why the session diff could not be produced, when applicable. Set only when `session` mode was requested and `isFallback` is true, so a client can tell the permanent `file-change-tracking-disabled` apart from the transient `session-busy`, which the same request answers once the session settles. Never set for `unstaged` or `branch` mode, and never `unsupported-remote-session`: a remote session's captures live on its own host, so a `session`-mode diff is rejected for one rather than answered with a controller-side fallback. */
+    @JsonProperty("unavailableReason") HistoryRewindUnavailableReason unavailableReason
 ) {
 }

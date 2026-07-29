@@ -25,6 +25,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionHistoryTruncateResult(
     /** Number of events that were removed */
-    @JsonProperty("eventsRemoved") Long eventsRemoved
+    @JsonProperty("eventsRemoved") Long eventsRemoved,
+    /** True when conversation truncation succeeded but post-truncation workspace checkpoint cleanup failed. History is already truncated; callers may still prune snapshots but should report a checkpoint-cleanup rather than a truncation failure. */
+    @JsonProperty("checkpointCleanupFailed") Boolean checkpointCleanupFailed,
+    /** Failure detail when checkpointCleanupFailed is true. */
+    @JsonProperty("checkpointCleanupError") String checkpointCleanupError
 ) {
 }

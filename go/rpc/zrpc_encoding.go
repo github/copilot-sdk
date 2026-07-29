@@ -1075,6 +1075,12 @@ func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
 	}
 
 	switch raw.Type {
+	case FactoryRunFailureTypeFactoryDurableFailure:
+		var d FactoryRunFailureFactoryDurableFailure
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case FactoryRunFailureTypeFactoryLimitReached:
 		var d FactoryRunFailureFactoryLimitReached
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1103,6 +1109,17 @@ func (r RawFactoryRunFailureData) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r FactoryRunFailureFactoryDurableFailure) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryDurableFailure
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
 func (r FactoryRunFailureFactoryLimitReached) MarshalJSON() ([]byte, error) {
 	type alias FactoryRunFailureFactoryLimitReached
 	return json.Marshal(struct {
@@ -1123,6 +1140,30 @@ func (r FactoryRunFailureFactoryResumeDeclined) MarshalJSON() ([]byte, error) {
 		Type:  r.Type(),
 		alias: alias(r),
 	})
+}
+
+func (r *FactoryRunTerminal) UnmarshalJSON(data []byte) error {
+	type rawFactoryRunTerminal struct {
+		Error         *string         `json:"error,omitempty"`
+		Failure       json.RawMessage `json:"failure,omitempty"`
+		Reason        *string         `json:"reason,omitempty"`
+		ResultPreview *string         `json:"resultPreview,omitempty"`
+	}
+	var raw rawFactoryRunTerminal
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Error = raw.Error
+	if raw.Failure != nil {
+		value, err := unmarshalFactoryRunFailure(raw.Failure)
+		if err != nil {
+			return err
+		}
+		r.Failure = value
+	}
+	r.Reason = raw.Reason
+	r.ResultPreview = raw.ResultPreview
+	return nil
 }
 
 func (r *FactoryRunResult) UnmarshalJSON(data []byte) error {
@@ -1327,6 +1368,7 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigHTTP struct {
 		Auth              json.RawMessage                    `json:"auth,omitempty"`
 		DeferTools        *MCPServerConfigDeferTools         `json:"deferTools,omitempty"`
+		DisableToolCache  *bool                              `json:"disableToolCache,omitempty"`
 		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
 		Headers           map[string]string                  `json:"headers,omitzero"`
 		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
@@ -1351,6 +1393,7 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 		r.Auth = value
 	}
 	r.DeferTools = raw.DeferTools
+	r.DisableToolCache = raw.DisableToolCache
 	if raw.FilterMapping != nil {
 		value, err := unmarshalFilterMapping(raw.FilterMapping)
 		if err != nil {
@@ -1379,17 +1422,18 @@ func (r *MCPServerConfigHTTP) UnmarshalJSON(data []byte) error {
 
 func (r *MCPServerConfigStdio) UnmarshalJSON(data []byte) error {
 	type rawMCPServerConfigStdio struct {
-		Args            []string                   `json:"args,omitzero"`
-		Auth            json.RawMessage            `json:"auth,omitempty"`
-		Command         string                     `json:"command"`
-		Cwd             *string                    `json:"cwd,omitempty"`
-		DeferTools      *MCPServerConfigDeferTools `json:"deferTools,omitempty"`
-		Env             map[string]string          `json:"env,omitzero"`
-		FilterMapping   json.RawMessage            `json:"filterMapping,omitempty"`
-		IsDefaultServer *bool                      `json:"isDefaultServer,omitempty"`
-		Oidc            json.RawMessage            `json:"oidc,omitempty"`
-		Timeout         *int64                     `json:"timeout,omitempty"`
-		Tools           []string                   `json:"tools,omitzero"`
+		Args             []string                   `json:"args,omitzero"`
+		Auth             json.RawMessage            `json:"auth,omitempty"`
+		Command          string                     `json:"command"`
+		Cwd              *string                    `json:"cwd,omitempty"`
+		DeferTools       *MCPServerConfigDeferTools `json:"deferTools,omitempty"`
+		DisableToolCache *bool                      `json:"disableToolCache,omitempty"`
+		Env              map[string]string          `json:"env,omitzero"`
+		FilterMapping    json.RawMessage            `json:"filterMapping,omitempty"`
+		IsDefaultServer  *bool                      `json:"isDefaultServer,omitempty"`
+		Oidc             json.RawMessage            `json:"oidc,omitempty"`
+		Timeout          *int64                     `json:"timeout,omitempty"`
+		Tools            []string                   `json:"tools,omitzero"`
 	}
 	var raw rawMCPServerConfigStdio
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1406,6 +1450,7 @@ func (r *MCPServerConfigStdio) UnmarshalJSON(data []byte) error {
 	r.Command = raw.Command
 	r.Cwd = raw.Cwd
 	r.DeferTools = raw.DeferTools
+	r.DisableToolCache = raw.DisableToolCache
 	r.Env = raw.Env
 	if raw.FilterMapping != nil {
 		value, err := unmarshalFilterMapping(raw.FilterMapping)
@@ -1676,7 +1721,7 @@ func (r *MCPRestartServerRequest) UnmarshalJSON(data []byte) error {
 
 func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 	type rawMCPStartServerRequest struct {
-		Config     json.RawMessage `json:"config"`
+		Config     json.RawMessage `json:"config,omitempty"`
 		ServerName string          `json:"serverName"`
 	}
 	var raw rawMCPStartServerRequest
@@ -3091,6 +3136,49 @@ func (r PushAttachmentSelection) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r *QueueInsertMessage) UnmarshalJSON(data []byte) error {
+	type rawQueueInsertMessage struct {
+		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
+		Attachments    []json.RawMessage `json:"attachments,omitzero"`
+		Billable       *bool             `json:"billable,omitempty"`
+		Delivery       *string           `json:"delivery,omitempty"`
+		DisplayPrompt  *string           `json:"displayPrompt,omitempty"`
+		Mode           *SendMode         `json:"mode,omitempty"`
+		Prepend        *bool             `json:"prepend,omitempty"`
+		Prompt         string            `json:"prompt"`
+		RequestHeaders map[string]string `json:"requestHeaders,omitzero"`
+		RequiredTool   *string           `json:"requiredTool,omitempty"`
+		Source         *string           `json:"source,omitempty"`
+		Wait           *bool             `json:"wait,omitempty"`
+	}
+	var raw rawQueueInsertMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AgentMode = raw.AgentMode
+	if raw.Attachments != nil {
+		r.Attachments = make([]Attachment, 0, len(raw.Attachments))
+		for _, rawItem := range raw.Attachments {
+			value, err := unmarshalAttachment(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Attachments = append(r.Attachments, value)
+		}
+	}
+	r.Billable = raw.Billable
+	r.Delivery = raw.Delivery
+	r.DisplayPrompt = raw.DisplayPrompt
+	r.Mode = raw.Mode
+	r.Prepend = raw.Prepend
+	r.Prompt = raw.Prompt
+	r.RequestHeaders = raw.RequestHeaders
+	r.RequiredTool = raw.RequiredTool
+	r.Source = raw.Source
+	r.Wait = raw.Wait
+	return nil
+}
+
 func unmarshalRemoteControlStatus(data []byte) (RemoteControlStatus, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -3397,6 +3485,69 @@ func (r *SessionInstalledPluginSource) UnmarshalJSON(data []byte) error {
 	return errors.New("data did not match any union variant for SessionInstalledPluginSource")
 }
 
+func unmarshalSessionLimitPredictionResult(data []byte) (SessionLimitPredictionResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind SessionLimitPredictionResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case SessionLimitPredictionResultKindAvailable:
+		var d SessionLimitPredictionResultAvailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionLimitPredictionResultKindUnavailable:
+		var d SessionLimitPredictionResultUnavailable
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSessionLimitPredictionResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawSessionLimitPredictionResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind SessionLimitPredictionResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r SessionLimitPredictionResultAvailable) MarshalJSON() ([]byte, error) {
+	type alias SessionLimitPredictionResultAvailable
+	return json.Marshal(struct {
+		Kind SessionLimitPredictionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SessionLimitPredictionResultUnavailable) MarshalJSON() ([]byte, error) {
+	type alias SessionLimitPredictionResultUnavailable
+	return json.Marshal(struct {
+		Kind SessionLimitPredictionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalSessionListEntry(data []byte) (SessionListEntry, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -3475,6 +3626,7 @@ func (r *SessionList) UnmarshalJSON(data []byte) error {
 func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	type rawSessionOpenOptions struct {
 		AdditionalContentExclusionPolicies     []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
+		AdditionalDirectories                  []string                                             `json:"additionalDirectories,omitzero"`
 		AgentContext                           *string                                              `json:"agentContext,omitempty"`
 		AllowAllMCPServerInstructions          *bool                                                `json:"allowAllMcpServerInstructions,omitempty"`
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
@@ -3493,12 +3645,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
+		EnableFileChangeTracking               *bool                                                `json:"enableFileChangeTracking,omitempty"`
 		EnableManagedSettings                  *bool                                                `json:"enableManagedSettings,omitempty"`
 		EnableOnDemandInstructionDiscovery     *bool                                                `json:"enableOnDemandInstructionDiscovery,omitempty"`
 		EnableScriptSafety                     *bool                                                `json:"enableScriptSafety,omitempty"`
 		EnableStreaming                        *bool                                                `json:"enableStreaming,omitempty"`
 		EnvValueMode                           *SessionOpenOptionsEnvValueMode                      `json:"envValueMode,omitempty"`
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
+		EventsLogIncludesSubagents             *bool                                                `json:"eventsLogIncludesSubagents,omitempty"`
 		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
@@ -3527,6 +3681,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		SessionCapabilities                    []SessionCapability                                  `json:"sessionCapabilities,omitzero"`
 		SessionID                              *string                                              `json:"sessionId,omitempty"`
 		SessionLimits                          *SessionLimitsConfig                                 `json:"sessionLimits,omitempty"`
+		Shell                                  *ShellOptions                                        `json:"shell,omitempty"`
 		ShellInitProfile                       *string                                              `json:"shellInitProfile,omitempty"`
 		ShellProcessFlags                      []string                                             `json:"shellProcessFlags,omitzero"`
 		SkillDirectories                       []string                                             `json:"skillDirectories,omitzero"`
@@ -3541,6 +3696,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.AdditionalContentExclusionPolicies = raw.AdditionalContentExclusionPolicies
+	r.AdditionalDirectories = raw.AdditionalDirectories
 	r.AgentContext = raw.AgentContext
 	r.AllowAllMCPServerInstructions = raw.AllowAllMCPServerInstructions
 	r.AskUserDisabled = raw.AskUserDisabled
@@ -3565,12 +3721,14 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
+	r.EnableFileChangeTracking = raw.EnableFileChangeTracking
 	r.EnableManagedSettings = raw.EnableManagedSettings
 	r.EnableOnDemandInstructionDiscovery = raw.EnableOnDemandInstructionDiscovery
 	r.EnableScriptSafety = raw.EnableScriptSafety
 	r.EnableStreaming = raw.EnableStreaming
 	r.EnvValueMode = raw.EnvValueMode
 	r.EventsLogDirectory = raw.EventsLogDirectory
+	r.EventsLogIncludesSubagents = raw.EventsLogIncludesSubagents
 	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
@@ -3599,6 +3757,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.SessionCapabilities = raw.SessionCapabilities
 	r.SessionID = raw.SessionID
 	r.SessionLimits = raw.SessionLimits
+	r.Shell = raw.Shell
 	r.ShellInitProfile = raw.ShellInitProfile
 	r.ShellProcessFlags = raw.ShellProcessFlags
 	r.SkillDirectories = raw.SkillDirectories
