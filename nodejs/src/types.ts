@@ -43,6 +43,9 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
+export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
+export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {

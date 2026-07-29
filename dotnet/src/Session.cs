@@ -1145,7 +1145,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ClientSessionApis.Canvas = handler is null ? null : new CanvasHandlerAdapter(handler);
     }
 
-    private static readonly JsonElement NullJsonElement = JsonDocument.Parse("null").RootElement.Clone();
+    private static readonly JsonElement NullJsonElement = JsonElement.Parse("null");
 
     private static JsonElement SerializeActionResult(object? value)
     {
@@ -1823,6 +1823,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             null,
             options.ModelCapabilities,
             options.ContextTier,
+            null,
             cancellationToken);
     }
 

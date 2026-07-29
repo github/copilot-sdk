@@ -322,6 +322,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         response: UIExitPlanModeResponse {
                             approved: false,
                             auto_approve_edits: None,
+                            defer_implementation: None,
                             feedback: Some("not now".to_string()),
                             selected_action: None,
                         },
@@ -358,6 +359,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                     (
                         "missing-approve-once-request",
                         PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce {
+                            approved_interactively: None,
                             kind: PermissionDecisionApproveOnceKind::ApproveOnce,
                         }),
                     ),

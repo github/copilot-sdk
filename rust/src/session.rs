@@ -538,6 +538,7 @@ impl Session {
             verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
+            defer_if_model_change_queued: None,
         };
         self.rpc().model().switch_to(request).await?;
         Ok(())

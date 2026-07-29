@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.Rpc;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace GitHub.Copilot;
@@ -28,6 +29,23 @@ public sealed class SessionFsSqliteResult
 }
 
 /// <summary>
+/// One statement in an atomic SQLite transaction passed to
+/// <see cref="ISessionFsSqliteProvider.TransactionAsync"/>.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionFsSqliteStatement
+{
+    /// <summary>How to execute: <c>"exec"</c>, <c>"query"</c>, or <c>"run"</c>.</summary>
+    public SessionFsSqliteQueryType QueryType { get; set; }
+
+    /// <summary>SQL statement to execute.</summary>
+    public string Query { get; set; } = string.Empty;
+
+    /// <summary>Optional named bind parameters.</summary>
+    public IDictionary<string, object?>? Params { get; set; }
+}
+
+/// <summary>
 /// Optional interface for <see cref="SessionFsProvider"/> subclasses that support
 /// per-session SQLite databases. Implement this interface on your provider to enable
 /// the runtime's SQL tool to route queries through your SessionFs implementation.
@@ -49,10 +67,50 @@ public interface ISessionFsSqliteProvider
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Executes <paramref name="statements"/> atomically against the per-session database.
+    /// </summary>
+    /// <param name="statements">Statements to execute in order, inside a single transaction.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>One result per statement, in the same order as <paramref name="statements"/>.</returns>
+    /// <exception cref="SessionFsSqliteTransactionException">
+    /// Thrown to tell the runtime how the failure should be classified. Any other exception
+    /// is reported as <see cref="SessionFsSqliteTransactionErrorClass.Fatal"/>.
+    /// </exception>
+    Task<IList<SessionFsSqliteResult>> TransactionAsync(
+        IList<SessionFsSqliteStatement> statements,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Checks whether the per-session SQLite database already exists, without creating it.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<bool> ExistsAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Thrown by an <see cref="ISessionFsSqliteProvider"/> to classify a failed SQLite transaction.
+/// <see cref="SessionFsSqliteTransactionErrorClass.BusyOrLocked"/> guarantees the transaction
+/// rolled back and is safe to retry; <see cref="SessionFsSqliteTransactionErrorClass.PostCommitAmbiguous"/>
+/// must never be retried.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionFsSqliteTransactionException : Exception
+{
+    /// <summary>Initializes a new instance of the <see cref="SessionFsSqliteTransactionException"/> class.</summary>
+    /// <param name="message">Human-readable failure description.</param>
+    /// <param name="errorClass">How the runtime should classify the failure.</param>
+    /// <param name="innerException">Optional underlying exception.</param>
+    public SessionFsSqliteTransactionException(
+        string message,
+        SessionFsSqliteTransactionErrorClass errorClass,
+        Exception? innerException = null)
+        : base(message, innerException)
+    {
+        ErrorClass = errorClass;
+    }
+
+    /// <summary>Gets the failure classification reported to the runtime.</summary>
+    public SessionFsSqliteTransactionErrorClass ErrorClass { get; }
 }
 
 /// <summary>
@@ -307,6 +365,64 @@ public abstract class SessionFsProvider : ISessionFsHandler
         {
             return new SessionFsSqliteQueryResult { Error = ToSessionFsError(ex) };
         }
+    }
+
+    async Task<SessionFsSqliteTransactionResult> ISessionFsHandler.SqliteTransactionAsync(SessionFsSqliteTransactionRequest request, CancellationToken cancellationToken)
+    {
+        if (this is not ISessionFsSqliteProvider sqliteProvider)
+        {
+            return new SessionFsSqliteTransactionResult
+            {
+                Error = new SessionFsSqliteTransactionError
+                {
+                    ErrorClass = SessionFsSqliteTransactionErrorClass.Fatal,
+                    Message = "SQLite is not supported by this provider.",
+                },
+            };
+        }
+
+        IList<SessionFsSqliteResult> results;
+        try
+        {
+            var statements = request.Statements.Select(statement => new SessionFsSqliteStatement
+            {
+                QueryType = statement.QueryType,
+                Query = statement.Query,
+                Params = statement.Params?.ToDictionary(kvp => kvp.Key, kvp => JsonElementToValue(kvp.Value)),
+            }).ToList();
+            results = await sqliteProvider.TransactionAsync(statements, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SessionFsSqliteTransactionException ex)
+        {
+            return new SessionFsSqliteTransactionResult
+            {
+                Error = new SessionFsSqliteTransactionError { ErrorClass = ex.ErrorClass, Message = ex.Message },
+            };
+        }
+        catch (Exception ex)
+        {
+            return new SessionFsSqliteTransactionResult
+            {
+                Error = new SessionFsSqliteTransactionError
+                {
+                    ErrorClass = SessionFsSqliteTransactionErrorClass.Fatal,
+                    Message = ex.Message,
+                },
+            };
+        }
+
+        return new SessionFsSqliteTransactionResult
+        {
+            Results = results.Select(result => new SessionFsSqliteQueryResult
+            {
+                Rows = result.Rows?.Select(row => (IDictionary<string, JsonElement>)row.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value)).ToList() ?? [],
+                Columns = result.Columns ?? [],
+                RowsAffected = result.RowsAffected,
+                LastInsertRowid = result.LastInsertRowid,
+            }).ToList(),
+        };
     }
 
     async Task<SessionFsSqliteExistsResult> ISessionFsHandler.SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken)

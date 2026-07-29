@@ -1624,7 +1624,8 @@ function emitRpcClass(
     className: string,
     schema: JSONSchema7,
     visibility: "public" | "internal",
-    extraClasses: string[]
+    extraClasses: string[],
+    inlineTypeParentName: string = className
 ): string {
     const effectiveSchema =
         resolveObjectSchema(schema, rpcDefinitions) ??
@@ -1671,7 +1672,7 @@ function emitRpcClass(
         const prop = propSchema as JSONSchema7;
         const isReq = requiredSet.has(propName);
         const csharpName = toCSharpPropertyName(propName, prop);
-        const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
+        const csharpType = resolveRpcType(prop, isReq, inlineTypeParentName, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    ", csharpType));
@@ -2037,7 +2038,15 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             };
             const publicReqClass = emitRpcClass(requestClassName, publicParams, methodVisibility, classes);
             if (publicReqClass) classes.push(publicReqClass);
-            const wireReqClass = emitRpcClass(wireRequestClassName, effectiveParams, "internal", classes);
+            // The wire wrapper carries the same properties as the public request
+            // type plus `sessionId`, so both must reuse the same inline types.
+            const wireReqClass = emitRpcClass(
+                wireRequestClassName,
+                effectiveParams,
+                "internal",
+                classes,
+                requestClassName
+            );
             if (wireReqClass) classes.push(wireReqClass);
         } else {
             const reqClass = emitRpcClass(requestClassName, effectiveParams, "internal", classes);

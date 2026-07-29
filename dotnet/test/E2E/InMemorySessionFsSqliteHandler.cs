@@ -46,27 +46,67 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
         IDictionary<string, object?>? bindParams,
         CancellationToken cancellationToken)
     {
+        return Task.FromResult(RunStatement(GetOrCreateDb(), null, queryType, query, bindParams));
+    }
+
+    public Task<IList<SessionFsSqliteResult>> TransactionAsync(
+        IList<SessionFsSqliteStatement> statements,
+        CancellationToken cancellationToken)
+    {
+        var db = GetOrCreateDb();
+        using var transaction = db.BeginTransaction();
+        try
+        {
+            IList<SessionFsSqliteResult> results = statements
+                .Select(statement => RunStatement(db, transaction, statement.QueryType, statement.Query, statement.Params)
+                    ?? new SessionFsSqliteResult())
+                .ToList();
+            transaction.Commit();
+            return Task.FromResult(results);
+        }
+        catch (SqliteException ex)
+        {
+            transaction.Rollback();
+            var errorClass = ex.SqliteErrorCode is 5 or 6
+                ? SessionFsSqliteTransactionErrorClass.BusyOrLocked
+                : SessionFsSqliteTransactionErrorClass.Fatal;
+            throw new SessionFsSqliteTransactionException(ex.Message, errorClass, ex);
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            throw new SessionFsSqliteTransactionException(ex.Message, SessionFsSqliteTransactionErrorClass.Fatal, ex);
+        }
+    }
+
+    private SessionFsSqliteResult? RunStatement(
+        SqliteConnection db,
+        SqliteTransaction? transaction,
+        SessionFsSqliteQueryType queryType,
+        string query,
+        IDictionary<string, object?>? bindParams)
+    {
         sqliteCalls.Add(new SqliteCall(sessionId, queryType.Value, query));
 
         var trimmed = query.Trim();
         if (trimmed.Length == 0)
         {
-            return Task.FromResult<SessionFsSqliteResult?>(null);
+            return null;
         }
-
-        var db = GetOrCreateDb();
 
         if (queryType == SessionFsSqliteQueryType.Exec)
         {
             using var cmd = db.CreateCommand();
+            cmd.Transaction = transaction;
             cmd.CommandText = trimmed;
             cmd.ExecuteNonQuery();
-            return Task.FromResult<SessionFsSqliteResult?>(null);
+            return null;
         }
 
         if (queryType == SessionFsSqliteQueryType.Query)
         {
             using var cmd = db.CreateCommand();
+            cmd.Transaction = transaction;
             cmd.CommandText = trimmed;
             AddParams(cmd, bindParams);
 
@@ -88,33 +128,35 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
                 rows.Add(row);
             }
 
-            return Task.FromResult<SessionFsSqliteResult?>(new SessionFsSqliteResult
+            return new SessionFsSqliteResult
             {
                 Columns = columns,
                 Rows = rows,
                 RowsAffected = 0,
-            });
+            };
         }
 
         if (queryType == SessionFsSqliteQueryType.Run)
         {
             using var cmd = db.CreateCommand();
+            cmd.Transaction = transaction;
             cmd.CommandText = trimmed;
             AddParams(cmd, bindParams);
 
             var rowsAffected = cmd.ExecuteNonQuery();
 
             using var rowidCmd = db.CreateCommand();
+            rowidCmd.Transaction = transaction;
             rowidCmd.CommandText = "SELECT last_insert_rowid()";
             var lastRowid = rowidCmd.ExecuteScalar();
 
-            return Task.FromResult<SessionFsSqliteResult?>(new SessionFsSqliteResult
+            return new SessionFsSqliteResult
             {
                 Columns = [],
                 Rows = [],
                 RowsAffected = rowsAffected,
                 LastInsertRowid = lastRowid is long l ? l : null,
-            });
+            };
         }
 
         throw new ArgumentException($"Unknown queryType: {queryType}");

@@ -8,10 +8,12 @@ import type {
     SessionFsStatResult,
     SessionFsReaddirWithTypesEntry,
     SessionFsSqliteQueryResult as GeneratedSqliteQueryResult,
+    SessionFsSqliteTransactionError as GeneratedSqliteTransactionError,
+    SessionFsSqliteTransactionErrorClass,
     SessionFsSqliteQueryType,
 } from "./generated/rpc.js";
 
-export type { SessionFsSqliteQueryType };
+export type { SessionFsSqliteQueryType, SessionFsSqliteTransactionErrorClass };
 
 /**
  * File metadata returned by {@link SessionFsProvider.stat}.
@@ -26,6 +28,40 @@ export type SessionFsFileInfo = Omit<SessionFsStatResult, "error">;
  * `error` field, since providers signal errors by throwing.
  */
 export type SessionFsSqliteQueryResult = Omit<GeneratedSqliteQueryResult, "error">;
+
+/**
+ * One statement in an atomic SQLite transaction passed to
+ * {@link SessionFsSqliteProvider.transaction}.
+ */
+export interface SessionFsSqliteStatement {
+    /** How to execute: `"exec"` for DDL/multi-statement, `"query"` for SELECT, `"run"` for INSERT/UPDATE/DELETE. */
+    queryType: SessionFsSqliteQueryType;
+
+    /** SQL statement to execute. */
+    query: string;
+
+    /** Optional named bind parameters. */
+    params?: Record<string, string | number | null>;
+}
+
+/**
+ * Error thrown by {@link SessionFsSqliteProvider.transaction} to classify a
+ * transaction failure for the runtime.
+ *
+ * Any other thrown value is reported as `"fatal"`. Throw this with
+ * `"busyOrLocked"` when SQLite reported BUSY/LOCKED before commit and the
+ * transaction was rolled back, so the runtime knows the call is safe to retry.
+ */
+export class SessionFsSqliteTransactionFailure extends Error {
+    /** Failure classification reported to the runtime. */
+    readonly errorClass: SessionFsSqliteTransactionErrorClass;
+
+    constructor(message: string, errorClass: SessionFsSqliteTransactionErrorClass = "fatal") {
+        super(message);
+        this.name = "SessionFsSqliteTransactionFailure";
+        this.errorClass = errorClass;
+    }
+}
 
 /**
  * SQLite operations for the per-session database.
@@ -44,6 +80,18 @@ export interface SessionFsSqliteProvider {
         query: string,
         params?: Record<string, string | number | null>
     ): Promise<SessionFsSqliteQueryResult | undefined>;
+
+    /**
+     * Execute `statements` atomically against the per-session database.
+     *
+     * Apply busy handling to every statement and roll back the whole batch if
+     * any statement fails. Throw {@link SessionFsSqliteTransactionFailure} to
+     * classify the failure; any other thrown value is reported as `"fatal"`.
+     *
+     * @param statements - Statements to execute in order inside a single transaction.
+     * @returns One result per statement, in the same order.
+     */
+    transaction(statements: SessionFsSqliteStatement[]): Promise<SessionFsSqliteQueryResult[]>;
 
     /**
      * Check whether the per-session database already exists, without creating it.
@@ -219,6 +267,26 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             );
             return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
+        sqliteTransaction: async ({ statements }) => {
+            if (!provider.sqlite) {
+                throw new Error("SQLite is not supported by this provider");
+            }
+            try {
+                const results = await provider.sqlite.transaction(
+                    statements.map((statement) => ({
+                        queryType: statement.queryType,
+                        query: statement.query,
+                        params: normalizeSqliteParams(statement.params),
+                    }))
+                );
+                return { results: results.map((result) => ({ ...result })) };
+            } catch (err) {
+                // Unlike sqliteQuery, transaction failures carry a classification the
+                // runtime uses to decide whether a retry is safe, so they are reported
+                // as a result-level error instead of a JSON-RPC error.
+                return { results: [], error: toSqliteTransactionError(err) };
+            }
+        },
         sqliteExists: async () => {
             if (!provider.sqlite) {
                 throw new Error("SQLite is not supported by this provider");
@@ -232,4 +300,14 @@ function toSessionFsError(err: unknown): SessionFsError {
     const e = err as NodeJS.ErrnoException;
     const code = e.code === "ENOENT" ? "ENOENT" : "UNKNOWN";
     return { code, message: e.message ?? String(err) };
+}
+
+function toSqliteTransactionError(err: unknown): GeneratedSqliteTransactionError {
+    if (err instanceof SessionFsSqliteTransactionFailure) {
+        return { errorClass: err.errorClass, message: err.message };
+    }
+    return {
+        errorClass: "fatal",
+        message: err instanceof Error ? err.message : String(err),
+    };
 }

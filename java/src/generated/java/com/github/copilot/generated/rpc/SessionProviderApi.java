@@ -32,13 +32,31 @@ public final class SessionProviderApi {
 
     /**
      * Optional model identifier to scope the endpoint snapshot to.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionProviderGetEndpointResult> getEndpoint() {
-        return caller.invoke("session.provider.getEndpoint", java.util.Map.of(), SessionProviderGetEndpointResult.class);
+        return getEndpoint(null);
+    }
+
+    /**
+     * Optional model identifier to scope the endpoint snapshot to.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionProviderGetEndpointResult> getEndpoint(SessionProviderGetEndpointParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.provider.getEndpoint", _p, SessionProviderGetEndpointResult.class);
     }
 
     /**

@@ -32,13 +32,31 @@ public final class SessionHistoryApi {
 
     /**
      * Optional compaction parameters.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionHistoryCompactResult> compact() {
-        return caller.invoke("session.history.compact", java.util.Map.of(), SessionHistoryCompactResult.class);
+        return compact(null);
+    }
+
+    /**
+     * Optional compaction parameters.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionHistoryCompactResult> compact(SessionHistoryCompactParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.history.compact", _p, SessionHistoryCompactResult.class);
     }
 
     /**

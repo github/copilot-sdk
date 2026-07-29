@@ -12671,7 +12671,7 @@ internal sealed class SessionHistoryCompactRequestWithSession
 
     /// <summary>What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).</summary>
     [JsonPropertyName("trigger")]
-    public SessionHistoryCompactRequestWithSessionTrigger? Trigger { get; set; }
+    public SessionHistoryCompactRequestTrigger? Trigger { get; set; }
 }
 
 /// <summary>Number of events that were removed by the truncation.</summary>
@@ -21436,68 +21436,6 @@ public readonly struct SessionHistoryCompactRequestTrigger : IEquatable<SessionH
         public override void Write(Utf8JsonWriter writer, SessionHistoryCompactRequestTrigger value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionHistoryCompactRequestTrigger));
-        }
-    }
-}
-
-
-/// <summary>What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionHistoryCompactRequestWithSessionTrigger : IEquatable<SessionHistoryCompactRequestWithSessionTrigger>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SessionHistoryCompactRequestWithSessionTrigger"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionHistoryCompactRequestWithSessionTrigger"/>.</param>
-    [JsonConstructor]
-    public SessionHistoryCompactRequestWithSessionTrigger(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SessionHistoryCompactRequestWithSessionTrigger"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>User-requested compaction, e.g. the /compact command or a direct history.compact call.</summary>
-    public static SessionHistoryCompactRequestWithSessionTrigger Manual { get; } = new("manual");
-
-    /// <summary>Compaction requested while switching to a model with a smaller context window.</summary>
-    public static SessionHistoryCompactRequestWithSessionTrigger ModelSwitch { get; } = new("model_switch");
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionHistoryCompactRequestWithSessionTrigger"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionHistoryCompactRequestWithSessionTrigger left, SessionHistoryCompactRequestWithSessionTrigger right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SessionHistoryCompactRequestWithSessionTrigger"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionHistoryCompactRequestWithSessionTrigger left, SessionHistoryCompactRequestWithSessionTrigger right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionHistoryCompactRequestWithSessionTrigger other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SessionHistoryCompactRequestWithSessionTrigger other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SessionHistoryCompactRequestWithSessionTrigger}"/> for serializing <see cref="SessionHistoryCompactRequestWithSessionTrigger"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionHistoryCompactRequestWithSessionTrigger>
-    {
-        /// <inheritdoc />
-        public override SessionHistoryCompactRequestWithSessionTrigger Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionHistoryCompactRequestWithSessionTrigger value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionHistoryCompactRequestWithSessionTrigger));
         }
     }
 }

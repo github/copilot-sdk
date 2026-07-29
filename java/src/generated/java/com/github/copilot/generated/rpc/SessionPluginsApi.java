@@ -19,6 +19,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public final class SessionPluginsApi {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
     private final RpcCaller caller;
     private final String sessionId;
 
@@ -41,13 +43,31 @@ public final class SessionPluginsApi {
 
     /**
      * Optional flags controlling which side effects the reload performs.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<Void> reload() {
-        return caller.invoke("session.plugins.reload", java.util.Map.of(), Void.class);
+        return reload(null);
+    }
+
+    /**
+     * Optional flags controlling which side effects the reload performs.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> reload(SessionPluginsReloadParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.plugins.reload", _p, Void.class);
     }
 
 }

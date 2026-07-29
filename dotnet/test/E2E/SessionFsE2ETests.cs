@@ -616,6 +616,9 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object?>? bindParams, CancellationToken cancellationToken) =>
             Task.FromException<SessionFsSqliteResult?>(exception);
 
+        Task<IList<SessionFsSqliteResult>> ISessionFsSqliteProvider.TransactionAsync(IList<SessionFsSqliteStatement> statements, CancellationToken cancellationToken) =>
+            Task.FromException<IList<SessionFsSqliteResult>>(exception);
+
         Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>
             Task.FromException<bool>(exception);
     }
