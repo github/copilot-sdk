@@ -1472,6 +1472,11 @@ type Tool struct {
 	Parameters           map[string]any `json:"parameters,omitzero"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
 	SkipPermission       bool           `json:"skipPermission,omitempty"`
+	// IsTerminal reports that a successful call to this tool ends the agent
+	// turn: the runtime halts instead of feeding the result back to the model
+	// for another round. A failed call leaves the loop running so the model can
+	// read the error and retry.
+	IsTerminal bool `json:"isTerminal,omitempty"`
 	// Defer controls whether the tool may be deferred (loaded lazily via tool
 	// search) rather than always pre-loaded. When empty, the runtime decides.
 	Defer ToolDefer `json:"defer,omitempty"`

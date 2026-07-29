@@ -656,6 +656,17 @@ export interface Tool<TArgs = unknown> {
      * Unknown keys are preserved and round-tripped untouched.
      */
     metadata?: Record<string, unknown>;
+    /**
+     * When true, a successful call to this tool ends the agent turn: the runtime's
+     * tool phase halts instead of feeding the tool result back to the model for
+     * another round. A failed call (for example input validation) leaves the loop
+     * running so the model can read the error and retry.
+     *
+     * Use this for tools whose whole purpose is to terminate the turn, such as a
+     * context clear that replaces the conversation the model would otherwise
+     * continue from.
+     */
+    isTerminal?: boolean;
 }
 
 /**
@@ -672,6 +683,7 @@ export function defineTool<T = unknown>(
         skipPermission?: boolean;
         defer?: "auto" | "never";
         metadata?: Record<string, unknown>;
+        isTerminal?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };

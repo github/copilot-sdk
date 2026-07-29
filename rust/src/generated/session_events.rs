@@ -318,6 +318,8 @@ pub enum SessionEventType {
     SessionExtensionsAttachmentsPushed,
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete,
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared,
     /// Unknown event type for forward compatibility.
     #[default]
     #[serde(other)]
@@ -630,6 +632,8 @@ pub enum SessionEventData {
     SessionExtensionsAttachmentsPushed(SessionExtensionsAttachmentsPushedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete(McpAppToolCallCompleteData),
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared(SessionContextClearedData),
 }
 
 /// A session event with typed data payload.
@@ -5016,6 +5020,20 @@ pub struct McpAppToolCallCompleteData {
     pub tool_meta: Option<McpAppToolCallCompleteToolMeta>,
     /// MCP tool name that was invoked
     pub tool_name: String,
+}
+
+/// Session event "session.context_cleared". Context-cleared details emitted when the clear_context tool resets the conversation
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextClearedData {
+    /// Optional initial message set after clearing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_message: Option<String>,
+    /// Number of conversation messages that were cleared
+    pub messages_cleared: i64,
+    /// Runtime-injected messages re-seeded into the freshly-cleared context (e.g. self-paced loop wrappers). Persisted so a resumed session reproduces the same post-clear window instead of resurrecting the pre-clear history.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prepend_messages: Option<Vec<String>>,
 }
 
 /// Hosting platform type of the repository (github or ado)
