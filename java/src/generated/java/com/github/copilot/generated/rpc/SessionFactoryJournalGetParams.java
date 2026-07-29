@@ -28,6 +28,8 @@ public record SessionFactoryJournalGetParams(
     @JsonProperty("sessionId") String sessionId,
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** Opaque token identifying the current factory execution attempt. */
+    @JsonProperty("executionToken") String executionToken,
     /** Namespaced journal key. */
     @JsonProperty("key") String key
 ) {

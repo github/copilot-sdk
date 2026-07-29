@@ -81,24 +81,27 @@ const (
 	SessionEventTypeExitPlanModeRequested       SessionEventType = "exit_plan_mode.requested"
 	SessionEventTypeExternalToolCompleted       SessionEventType = "external_tool.completed"
 	SessionEventTypeExternalToolRequested       SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                     SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                   SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete      SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPHeadersRefreshCompleted  SessionEventType = "mcp.headers_refresh_completed"
-	SessionEventTypeMCPHeadersRefreshRequired   SessionEventType = "mcp.headers_refresh_required"
-	SessionEventTypeMCPOauthCompleted           SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired            SessionEventType = "mcp.oauth_required"
-	SessionEventTypeMCPPromptsListChanged       SessionEventType = "mcp.prompts.list_changed"
-	SessionEventTypeMCPResourcesListChanged     SessionEventType = "mcp.resources.list_changed"
-	SessionEventTypeMCPToolsListChanged         SessionEventType = "mcp.tools.list_changed"
-	SessionEventTypeModelCallFailure            SessionEventType = "model.call_failure"
-	SessionEventTypeModelCallStart              SessionEventType = "model.call_start"
-	SessionEventTypePendingMessagesModified     SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted         SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested         SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted           SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested           SessionEventType = "sampling.requested"
+	// Experimental: SessionEventTypeFactoryRunUpdated identifies an experimental event that may
+	// change or be removed.
+	SessionEventTypeFactoryRunUpdated          SessionEventType = "factory.run_updated"
+	SessionEventTypeHookEnd                    SessionEventType = "hook.end"
+	SessionEventTypeHookProgress               SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                  SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete     SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired  SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted          SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired           SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMCPPromptsListChanged      SessionEventType = "mcp.prompts.list_changed"
+	SessionEventTypeMCPResourcesListChanged    SessionEventType = "mcp.resources.list_changed"
+	SessionEventTypeMCPToolsListChanged        SessionEventType = "mcp.tools.list_changed"
+	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
+	SessionEventTypeModelCallStart             SessionEventType = "model.call_start"
+	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
 	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
@@ -214,6 +217,7 @@ type AssistantReasoningData struct {
 	Content string `json:"content"`
 	// Unique identifier for this reasoning block
 	ReasoningID string `json:"reasoningId"`
+	Rte         *bool  `json:"rte,omitempty"`
 }
 
 func (*AssistantReasoningData) sessionEventData()      {}
@@ -253,6 +257,7 @@ type AssistantMessageData struct {
 	ReasoningWireField *string `json:"reasoningWireField,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
+	Rte       *bool   `json:"rte,omitempty"`
 	// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 	ServerTools *AssistantMessageServerTools `json:"serverTools,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -356,12 +361,18 @@ func (*SessionBinaryAssetData) Type() SessionEventType { return SessionEventType
 type SessionCompactionStartData struct {
 	// Token count from non-system messages (user, assistant, tool) at compaction start
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
+	// Total context tokens (system + conversation + tool definitions) at compaction start, when known
+	CurrentTokens *int64 `json:"currentTokens,omitempty"`
 	// Model identifier used for compaction, when known
 	Model *string `json:"model,omitempty"`
 	// Token count from system message(s) at compaction start
 	SystemTokens *int64 `json:"systemTokens,omitempty"`
+	// Model context window token limit the compaction is targeting, when known
+	TokenLimit *int64 `json:"tokenLimit,omitempty"`
 	// Token count from tool definitions at compaction start
 	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
+	// What initiated this compaction, when known
+	Trigger *CompactionTrigger `json:"trigger,omitempty"`
 }
 
 func (*SessionCompactionStartData) sessionEventData() {}
@@ -403,10 +414,14 @@ type SessionCompactionCompleteData struct {
 	SummaryContent *string `json:"summaryContent,omitempty"`
 	// Token count from system message(s) after compaction
 	SystemTokens *int64 `json:"systemTokens,omitempty"`
+	// Model context window token limit the compaction was targeting, when known
+	TokenLimit *int64 `json:"tokenLimit,omitempty"`
 	// Number of tokens removed during compaction
 	TokensRemoved *int64 `json:"tokensRemoved,omitempty"`
 	// Token count from tool definitions after compaction
 	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
+	// What initiated this compaction, when known
+	Trigger *CompactionTrigger `json:"trigger,omitempty"`
 }
 
 func (*SessionCompactionCompleteData) sessionEventData() {}
@@ -609,6 +624,8 @@ type SessionManagedSettingsResolvedData struct {
 	FailClosed bool `json:"failClosed"`
 	// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
 	ManagedKeys []string `json:"managedKeys"`
+	// Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+	PermissionsAllowIntersected *bool `json:"permissionsAllowIntersected,omitempty"`
 	// Whether the server (account/org) managed-settings layer was present
 	ServerManaged bool `json:"serverManaged"`
 	// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
@@ -621,6 +638,17 @@ func (*SessionManagedSettingsResolvedData) sessionEventData() {}
 func (*SessionManagedSettingsResolvedData) Type() SessionEventType {
 	return SessionEventTypeSessionManagedSettingsResolved
 }
+
+// Ephemeral invalidation signal for a changed factory run.
+// Experimental: FactoryRunUpdatedData is part of an experimental API and may change or be removed.
+type FactoryRunUpdatedData struct {
+	// Monotonic revision now available for the run.
+	Revision int64  `json:"revision"`
+	RunID    string `json:"runId"`
+}
+
+func (*FactoryRunUpdatedData) sessionEventData()      {}
+func (*FactoryRunUpdatedData) Type() SessionEventType { return SessionEventTypeFactoryRunUpdated }
 
 // Ephemeral progress update from a running hook process
 type HookProgressData struct {
@@ -733,6 +761,7 @@ type ModelCallFailureData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
+	Rte                *bool                               `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
@@ -818,6 +847,8 @@ type AssistantUsageData struct {
 	Initiator *string `json:"initiator,omitempty"`
 	// Number of input tokens consumed
 	InputTokens *int64 `json:"inputTokens,omitempty"`
+	// Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request.
+	InteractionType *string `json:"interactionType,omitempty"`
 	// Average inter-token latency in milliseconds. Only available for streaming requests
 	InterTokenLatencyMs *float64 `json:"interTokenLatencyMs,omitempty"`
 	// Model identifier used for this API call
@@ -836,6 +867,7 @@ type AssistantUsageData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
+	Rte             *bool  `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
@@ -926,6 +958,9 @@ func (*AssistantTurnRetryData) Type() SessionEventType { return SessionEventType
 type ModelCallStartData struct {
 	// Model identifier used for this API call, when known
 	Model *string `json:"model,omitempty"`
+	// Previous response or interaction identifier included in the model request, when present
+	// Internal: PreviousResponseID is part of the SDK's internal API surface and is not intended for external use.
+	PreviousResponseID *string `json:"previousResponseId,omitempty"`
 	// Identifier of the assistant turn that initiated the model call
 	TurnID string `json:"turnId"`
 }
@@ -1213,7 +1248,7 @@ type UserMessageData struct {
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
-	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
+	// Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
 	Source *string `json:"source,omitempty"`
 	// Normalized document MIME types that were sent natively instead of through tagged_files XML
 	SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitzero"`
@@ -1247,6 +1282,8 @@ type PermissionRequestedData struct {
 	RequestID string `json:"requestId"`
 	// When true, this permission was already resolved by a permissionRequest hook and requires no client action
 	ResolvedByHook *bool `json:"resolvedByHook,omitempty"`
+	// Neutral risk metadata supplied by the tool host. Consumers may display this value but must not use it to bypass the permission decision.
+	RiskAssessment any `json:"riskAssessment,omitempty"`
 }
 
 func (*PermissionRequestedData) sessionEventData()      {}
@@ -1438,6 +1475,8 @@ type SessionScheduleCreatedData struct {
 	ID int64 `json:"id"`
 	// Interval between ticks in milliseconds (relative-interval schedules)
 	IntervalMs *int64 `json:"intervalMs,omitempty"`
+	// Who created the schedule (`user` or `model`). Persisted so a resumed session keeps gating non-user schedules from firing skills that opted out of model invocation. Absent on entries created before this field existed; a missing origin fails closed (treated the same as a non-user origin), so such a schedule may not resolve a `disable-model-invocation` skill.
+	Origin *ScheduleOrigin `json:"origin,omitempty"`
 	// Prompt text that gets enqueued on every tick
 	Prompt string `json:"prompt"`
 	// Whether the schedule re-arms after each tick (`/every`) or fires once (`/after`)
@@ -1580,7 +1619,7 @@ type SessionResumeData struct {
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
 	// Context tier currently selected at resume time; null when no tier is active
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
-	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
+	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false or omitted, pending work is normally marked as interrupted unless the resume passively joined live work owned by another client; sessionWasActive distinguishes that case.
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
 	EventCount int64 `json:"eventCount"`
@@ -1598,7 +1637,7 @@ type SessionResumeData struct {
 	SelectedModel *string `json:"selectedModel,omitempty"`
 	// Session limits currently configured at resume time; null when no limits are active
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
-	// True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log.
+	// True when this resume passively joined a session that already had live work running in the runtime - an agent turn, a native queue run, a queued resume continuation, or an in-flight send (for example, an extension joining a session another client was actively driving). False (or omitted) when the session had no live work or when the resume explicitly abandoned pending work, including cold resumes and suspended sessions that remain resident in memory.
 	SessionWasActive *bool `json:"sessionWasActive,omitempty"`
 	// Output verbosity level used for model calls, if applicable (e.g. "low", "medium", "high")
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
@@ -1861,6 +1900,8 @@ func (*SystemNotificationData) Type() SessionEventType { return SessionEventType
 type SystemMessageData struct {
 	// The system or developer prompt text sent as model input
 	Content string `json:"content"`
+	// Logical interaction identifier for the model run receiving this prompt
+	InteractionID *string `json:"interactionId,omitempty"`
 	// Metadata about the prompt template and its construction
 	Metadata *SystemMessageMetadata `json:"metadata,omitempty"`
 	// Optional name identifier for the message source
@@ -1901,6 +1942,7 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
+	Rte    *bool                        `json:"rte,omitempty"`
 	// Whether this tool execution ran inside a sandbox container
 	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
@@ -1948,6 +1990,7 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	Rte              *bool   `json:"rte,omitempty"`
 	// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
 	ShellToolInfo *ToolExecutionStartShellToolInfo `json:"shellToolInfo,omitempty"`
 	// Unique identifier for this tool call
@@ -2566,6 +2609,10 @@ type ModelCallFailureRequestFingerprint struct {
 // Auto-approval judge information attached to a permission request. Present (non-null) only when the session's allow-all mode is "auto"; its absence means auto mode was off and the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 // Experimental: PermissionAutoApproval is part of an experimental API and may change or be removed.
 type PermissionAutoApproval struct {
+	// Classified cause of an `error` recommendation. Absent for every other recommendation.
+	FailureReason *AutoApprovalJudgeFailureReason `json:"failureReason,omitempty"`
+	// Model id that produced the recommendation, when the judge was consulted and reported one. Absent for `excluded` (the judge was not consulted) and for failures that occurred before a model was selected.
+	Model *string `json:"model,omitempty"`
 	// Human-readable reason for the judge's recommendation, when available.
 	Reason *string `json:"reason,omitempty"`
 	// The auto-approval safety judge's outcome for this request.
@@ -2601,6 +2648,8 @@ type PermissionPromptRequestCommands struct {
 	FullCommandText string `json:"fullCommandText"`
 	// Human-readable description of what the command intends to do
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Optional warning message about risks of running this command
@@ -2761,6 +2810,8 @@ type PermissionPromptRequestRead struct {
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the file is being read
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
 	// Tool call ID that triggered this permission request
@@ -2779,6 +2830,8 @@ type PermissionPromptRequestURL struct {
 	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
 	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
@@ -2807,6 +2860,8 @@ type PermissionPromptRequestWrite struct {
 	FileName string `json:"fileName"`
 	// Human-readable description of the intended file change
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
 	// Tool call ID that triggered this permission request
@@ -2946,6 +3001,8 @@ func (PermissionRequestMemory) Kind() PermissionRequestKind {
 type PermissionRequestRead struct {
 	// Human-readable description of why the file is being read
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Path of the file or directory being read
 	Path string `json:"path"`
 	// True when the model has requested to run this search outside the sandbox (it set requestSandboxBypass: true and the host opted in via sandbox.allowBypass). This is a request, not a grant: the search runs unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
@@ -2967,12 +3024,16 @@ type PermissionRequestShell struct {
 	CanOfferSessionApproval bool `json:"canOfferSessionApproval"`
 	// Parsed command identifiers found in the command text
 	Commands []PermissionRequestShellCommand `json:"commands"`
+	// Parsed command segments, including arguments, used for managed policy matching
+	CommandSegments []PermissionRequestShellCommandSegment `json:"commandSegments,omitzero"`
 	// The complete shell command text to be executed
 	FullCommandText string `json:"fullCommandText"`
 	// Whether the command includes a file write redirection (e.g., > or >>)
 	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
 	// Human-readable description of what the command intends to do
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// File paths that may be read or written by the command
 	PossiblePaths []string `json:"possiblePaths"`
 	// URLs that may be accessed by the command
@@ -2996,6 +3057,8 @@ func (PermissionRequestShell) Kind() PermissionRequestKind {
 type PermissionRequestURL struct {
 	// Human-readable description of why the URL is being accessed
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// True when this URL fetch is requesting to bypass the sandbox network policy: either the model set requestSandboxBypass: true, or the tool re-issued the request as an interactive bypass after the network policy denied the approved URL (host opted in via sandbox.allowBypass). This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
 	RequestSandboxBypass *bool `json:"requestSandboxBypass,omitempty"`
 	// Model-provided justification for the sandbox-bypass request. Only meaningful when requestSandboxBypass is true.
@@ -3021,6 +3084,8 @@ type PermissionRequestWrite struct {
 	FileName string `json:"fileName"`
 	// Human-readable description of the intended file change
 	Intention string `json:"intention"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Complete new file contents for newly created files
 	NewFileContents *string `json:"newFileContents,omitempty"`
 	// True when a built-in file tool (apply_patch / str_replace_editor) asked to write a path the sandbox filesystem policy would block, and the host opted in via sandbox.allowBypass. This is a request, not a grant: the write happens unsandboxed only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.
@@ -3042,6 +3107,14 @@ type PermissionRequestShellCommand struct {
 	Identifier string `json:"identifier"`
 	// Whether this command is read-only (no side effects)
 	ReadOnly bool `json:"readOnly"`
+}
+
+// A parsed shell command segment used for argument-aware managed policy matching.
+type PermissionRequestShellCommandSegment struct {
+	// Full text of this command segment, including arguments
+	FullCommandText string `json:"fullCommandText"`
+	// Command identifier (e.g., executable name)
+	Identifier string `json:"identifier"`
 }
 
 // A URL that may be accessed by a command in a shell permission request.
@@ -3460,6 +3533,17 @@ func (SystemNotificationShellDetachedCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeShellDetachedCompleted
 }
 
+// System notification metadata from an external host that does not match a runtime-owned notification kind.
+type SystemNotificationUnclassified struct {
+	// Opaque metadata supplied by the external host, when present.
+	Metadata any `json:"metadata,omitempty"`
+}
+
+func (SystemNotificationUnclassified) systemNotification() {}
+func (SystemNotificationUnclassified) Type() SystemNotificationType {
+	return SystemNotificationTypeUnclassified
+}
+
 // A content block within a tool result, which may be text, terminal output, image, audio, or a resource
 type ToolExecutionCompleteContent interface {
 	toolExecutionCompleteContent()
@@ -3808,6 +3892,23 @@ const (
 	AssistantUsageAPIEndpointWsResponses AssistantUsageAPIEndpoint = "ws:/responses"
 )
 
+// Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
+// Experimental: AutoApprovalJudgeFailureReason is part of an experimental API and may change or be removed.
+type AutoApprovalJudgeFailureReason string
+
+const (
+	// The judge model call was cancelled before it returned.
+	AutoApprovalJudgeFailureReasonAbort AutoApprovalJudgeFailureReason = "abort"
+	// The judge model call completed but returned no content.
+	AutoApprovalJudgeFailureReasonEmptyResponse AutoApprovalJudgeFailureReason = "empty_response"
+	// The judge model call failed (for example a transport, authentication, or rate-limit error).
+	AutoApprovalJudgeFailureReasonModelError AutoApprovalJudgeFailureReason = "model_error"
+	// The judge model replied, but the reply carried no ALLOW/DENY verdict.
+	AutoApprovalJudgeFailureReasonParseError AutoApprovalJudgeFailureReason = "parse_error"
+	// The judge model call exceeded its deadline.
+	AutoApprovalJudgeFailureReasonTimeout AutoApprovalJudgeFailureReason = "timeout"
+)
+
 // Outcome of the auto-approval safety judge for a permission request. Present only when auto mode is enabled; its absence means the judge did not evaluate the request (auto mode was off).
 // Experimental: AutoApprovalRecommendation is part of an experimental API and may change or be removed.
 type AutoApprovalRecommendation string
@@ -3914,6 +4015,22 @@ const (
 	CitationProviderClient CitationProvider = "client"
 	// Citation produced by an OpenAI model response.
 	CitationProviderOpenai CitationProvider = "openai"
+)
+
+// What initiated a conversation compaction
+type CompactionTrigger string
+
+const (
+	// Compaction forced by a context-limit model response (e.g. HTTP 413) before retrying the request.
+	CompactionTriggerContextLimitRetry CompactionTrigger = "context_limit_retry"
+	// User-requested compaction, e.g. the /compact command or the history.compact API.
+	CompactionTriggerManual CompactionTrigger = "manual"
+	// Emergency compaction triggered by high process memory usage.
+	CompactionTriggerMemoryPressure CompactionTrigger = "memory_pressure"
+	// Compaction requested while switching to a model with a smaller context window.
+	CompactionTriggerModelSwitch CompactionTrigger = "model_switch"
+	// Background compaction started automatically because context utilization crossed the background threshold.
+	CompactionTriggerThreshold CompactionTrigger = "threshold"
 )
 
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
@@ -4278,6 +4395,16 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
+// Who created the schedule: `user` (an explicit user action such as `/every` or `/after`) or `model` (the agent via the `manage_schedule` tool). Gates whether a scheduled skill that opted out of model invocation may fire: only user-created schedules may.
+type ScheduleOrigin string
+
+const (
+	// The schedule was created by the agent via the `manage_schedule` tool.
+	ScheduleOriginModel ScheduleOrigin = "model"
+	// The schedule was created by an explicit user action, such as `/every` or `/after`.
+	ScheduleOriginUser ScheduleOrigin = "user"
+)
+
 // User action selected for an exhausted session limit.
 type SessionLimitsExhaustedResponseAction string
 
@@ -4334,6 +4461,7 @@ const (
 	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
 	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
 	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
+	SystemNotificationTypeUnclassified           SystemNotificationType = "unclassified"
 )
 
 // Theme variant this icon is intended for

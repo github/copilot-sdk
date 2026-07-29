@@ -27,7 +27,7 @@ public record McpHostState(
     @JsonProperty("mcp3pEnabled") Boolean mcp3pEnabled,
     /** Configured servers that are explicitly disabled. */
     @JsonProperty("disabledServers") List<String> disabledServers,
-    /** Configured servers filtered out by enterprise allowlist policy. */
+    /** Configured servers filtered out by MCP server policy. */
     @JsonProperty("filteredServers") List<String> filteredServers,
     /** Names of currently-connected MCP clients. */
     @JsonProperty("clients") List<String> clients,

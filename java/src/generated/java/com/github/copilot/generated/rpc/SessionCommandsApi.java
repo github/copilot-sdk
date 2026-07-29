@@ -38,7 +38,7 @@ public final class SessionCommandsApi {
      */
     @CopilotExperimental
     public CompletableFuture<SessionCommandsListResult> list() {
-        return caller.invoke("session.commands.list", java.util.Map.of("sessionId", this.sessionId), SessionCommandsListResult.class);
+        return caller.invoke("session.commands.list", java.util.Map.of(), SessionCommandsListResult.class);
     }
 
     /**

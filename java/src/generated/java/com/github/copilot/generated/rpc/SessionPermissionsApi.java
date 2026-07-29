@@ -162,14 +162,19 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * No parameters; clears all session-scoped tool permission approvals.
+     * Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionPermissionsResetSessionApprovalsResult> resetSessionApprovals() {
-        return caller.invoke("session.permissions.resetSessionApprovals", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsResetSessionApprovalsResult.class);
+    public CompletableFuture<SessionPermissionsResetSessionApprovalsResult> resetSessionApprovals(SessionPermissionsResetSessionApprovalsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.permissions.resetSessionApprovals", _p, SessionPermissionsResetSessionApprovalsResult.class);
     }
 
     /**

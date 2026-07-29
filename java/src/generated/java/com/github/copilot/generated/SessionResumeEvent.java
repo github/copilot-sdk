@@ -57,11 +57,11 @@ public final class SessionResumeEvent extends SessionEvent {
         @JsonProperty("context") WorkingDirectoryContext context,
         /** Whether the session was already in use by another client at resume time */
         @JsonProperty("alreadyInUse") Boolean alreadyInUse,
-        /** True when this resume attached to a session that the runtime already had running in-memory (for example, an extension joining a session another client was actively driving). False (or omitted) for cold resumes — the runtime had to reconstitute the session from its persisted event log. */
+        /** True when this resume passively joined a session that already had live work running in the runtime - an agent turn, a native queue run, a queued resume continuation, or an in-flight send (for example, an extension joining a session another client was actively driving). False (or omitted) when the session had no live work or when the resume explicitly abandoned pending work, including cold resumes and suspended sessions that remain resident in memory. */
         @JsonProperty("sessionWasActive") Boolean sessionWasActive,
         /** Whether this session supports remote steering via GitHub */
         @JsonProperty("remoteSteerable") Boolean remoteSteerable,
-        /** When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume. */
+        /** When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false or omitted, pending work is normally marked as interrupted unless the resume passively joined live work owned by another client; sessionWasActive distinguishes that case. */
         @JsonProperty("continuePendingWork") Boolean continuePendingWork
     ) {
     }
