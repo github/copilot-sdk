@@ -49,32 +49,136 @@ The organization must be enabled for Copilot requests from GitHub App installati
 
 ## Configure the runtime
 
-Set the token in the environment before starting the application:
+The following examples assume the minted token is in `INSTALLATION_TOKEN`. They pass it only to the child runtime and disable fallback to stored user credentials.
 
-```shell
-COPILOT_GITHUB_TOKEN=ghs_your_token your-application
+<details open>
+<summary><strong>TypeScript</strong></summary>
+
+```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
+const token = process.env.INSTALLATION_TOKEN;
+if (!token) throw new Error("INSTALLATION_TOKEN is required");
+
+const client = new CopilotClient({
+    connection: RuntimeConnection.forStdio(),
+    env: {
+        ...process.env,
+        COPILOT_GITHUB_TOKEN: token,
+    },
+    useLoggedInUser: false,
+});
 ```
 
-All six SDKs inherit the host environment by default. When spawning a runtime with a per-client environment, use the following option:
+</details>
+<details>
+<summary><strong>Python</strong></summary>
 
-| SDK | Child-process environment | Disable user fallback |
-|---|---|---|
-| TypeScript | `env` | `useLoggedInUser: false` |
-| Python | `env` | `use_logged_in_user=False` |
-| Go | `Env` | `UseLoggedInUser: copilot.Bool(false)` |
-| Rust | `ClientOptions::with_env` | `.with_use_logged_in_user(false)` |
-| .NET | `Environment` | `UseLoggedInUser = false` |
-| Java | `setEnvironment` | `.setUseLoggedInUser(false)` |
+```python
+import os
 
-Environment configuration depends on how the SDK reaches the runtime:
+from copilot import CopilotClient, RuntimeConnection
 
-| Runtime connection | Where to set `COPILOT_GITHUB_TOKEN` |
-|---|---|
-| Child process | Host environment or the SDK's child-process environment option |
-| In-process FFI | Host process environment before loading the runtime |
-| Existing runtime URI | Environment of the existing runtime process |
+client = CopilotClient(
+    connection=RuntimeConnection.for_stdio(),
+    env={**os.environ, "COPILOT_GITHUB_TOKEN": os.environ["INSTALLATION_TOKEN"]},
+    use_logged_in_user=False,
+)
+```
 
-Disable logged-in-user fallback when the host could also contain stored user credentials.
+</details>
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+package main
+
+import (
+	"log"
+	"os"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	token, ok := os.LookupEnv("INSTALLATION_TOKEN")
+	if !ok {
+		log.Fatal("INSTALLATION_TOKEN is required")
+	}
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection:      copilot.StdioConnection{},
+		Env:             append(os.Environ(), "COPILOT_GITHUB_TOKEN="+token),
+		UseLoggedInUser: copilot.Bool(false),
+	})
+	_ = client
+}
+```
+
+</details>
+<details>
+<summary><strong>Rust</strong></summary>
+
+```rust
+use github_copilot_sdk::{ClientOptions, Transport};
+
+fn main() {
+    let token = std::env::var("INSTALLATION_TOKEN").expect("INSTALLATION_TOKEN is required");
+    let options = ClientOptions::new()
+        .with_transport(Transport::Stdio)
+        .with_env([("COPILOT_GITHUB_TOKEN", token)])
+        .with_use_logged_in_user(false);
+    drop(options);
+}
+```
+
+</details>
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using System.Collections;
+using GitHub.Copilot;
+
+var token = Environment.GetEnvironmentVariable("INSTALLATION_TOKEN")
+    ?? throw new InvalidOperationException("INSTALLATION_TOKEN is required");
+var environment = Environment.GetEnvironmentVariables()
+    .Cast<DictionaryEntry>()
+    .ToDictionary(entry => (string)entry.Key, entry => entry.Value?.ToString() ?? "");
+environment["COPILOT_GITHUB_TOKEN"] = token;
+
+await using var client = new CopilotClient(new CopilotClientOptions
+{
+    Connection = RuntimeConnection.ForStdio(),
+    Environment = environment,
+    UseLoggedInUser = false,
+});
+```
+
+</details>
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.CopilotClientOptions;
+import java.util.HashMap;
+import java.util.Objects;
+
+var environment = new HashMap<>(System.getenv());
+var token = Objects.requireNonNull(
+    System.getenv("INSTALLATION_TOKEN"), "INSTALLATION_TOKEN is required");
+environment.put("COPILOT_GITHUB_TOKEN", token);
+
+try (var client = new CopilotClient(new CopilotClientOptions()
+        .setEnvironment(environment)
+        .setUseLoggedInUser(false))) {
+    // Use the client.
+}
+```
+
+</details>
+
+For in-process FFI, set `COPILOT_GITHUB_TOKEN` in the host environment before loading the runtime; per-client environment options are not supported. For an existing runtime URI, set it on that runtime process.
 
 ## Refresh tokens
 
