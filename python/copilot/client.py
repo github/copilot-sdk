@@ -1005,6 +1005,32 @@ SessionLifecycleEvent = (
 )
 
 
+def _normalize_stopped_mcp_status(event: Any) -> None:
+    """Temporary backward-compat shim.
+
+    Newer runtimes report a distinct ``stopped`` MCP server status that this SDK
+    build's generated ``McpServerStatus`` enum does not yet know about, which
+    raises ``ValueError`` while parsing MCP status events. Rewrite it in the raw
+    event payload back to ``not_configured`` (the pre-``stopped`` behavior) so a
+    retry can parse. Remove once ``stopped`` is added to the generated enum.
+    """
+    if not isinstance(event, dict):
+        return
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return
+    event_type = event.get("type")
+    if event_type == "session.mcp_servers_loaded":
+        servers = data.get("servers")
+        if isinstance(servers, list):
+            for server in servers:
+                if isinstance(server, dict) and server.get("status") == "stopped":
+                    server["status"] = "not_configured"
+    elif event_type == "session.mcp_server_status_changed":
+        if data.get("status") == "stopped":
+            data["status"] = "not_configured"
+
+
 def _session_lifecycle_event_from_dict(data: dict) -> SessionLifecycleEvent:
     """Construct the correct :class:`SessionLifecycleEvent` variant from a wire dict."""
     metadata = None
@@ -3717,7 +3743,14 @@ class CopilotClient:
                 session_id = params["sessionId"]
                 event_dict = params["event"]
                 # Convert dict to SessionEvent object
-                event = session_event_from_dict(event_dict)
+                try:
+                    event = session_event_from_dict(event_dict)
+                except ValueError:
+                    # Backward-compat: a newer runtime may report an MCP server
+                    # status this build's enum lacks (e.g. "stopped"). Remap it to
+                    # the previous value and retry once.
+                    _normalize_stopped_mcp_status(event_dict)
+                    event = session_event_from_dict(event_dict)
                 with self._sessions_lock:
                     session = self._sessions.get(session_id)
                 if session:
@@ -3838,7 +3871,14 @@ class CopilotClient:
                 session_id = params["sessionId"]
                 event_dict = params["event"]
                 # Convert dict to SessionEvent object
-                event = session_event_from_dict(event_dict)
+                try:
+                    event = session_event_from_dict(event_dict)
+                except ValueError:
+                    # Backward-compat: a newer runtime may report an MCP server
+                    # status this build's enum lacks (e.g. "stopped"). Remap it to
+                    # the previous value and retry once.
+                    _normalize_stopped_mcp_status(event_dict)
+                    event = session_event_from_dict(event_dict)
                 session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)

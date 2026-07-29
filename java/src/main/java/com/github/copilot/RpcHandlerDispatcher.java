@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.ExitPlanModeRequest;
@@ -102,13 +103,62 @@ final class RpcHandlerDispatcher {
 
             CopilotSession session = sessions.get(sessionId);
             if (session != null && eventNode != null) {
-                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
+                SessionEvent event;
+                try {
+                    event = MAPPER.treeToValue(eventNode, SessionEvent.class);
+                } catch (Exception parseError) {
+                    // Backward-compat: a newer runtime may report an MCP server
+                    // status this build's enum lacks (e.g. "stopped"). Remap it to
+                    // the previous value and retry once.
+                    normalizeStoppedMcpStatus(eventNode);
+                    event = MAPPER.treeToValue(eventNode, SessionEvent.class);
+                }
                 if (event != null) {
                     session.dispatchEvent(event);
                 }
             }
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Error handling session event", e);
+        }
+    }
+
+    /**
+     * Temporary backward-compat shim.
+     *
+     * <p>Newer runtimes report a distinct {@code stopped} MCP server status that this SDK build's
+     * generated {@code McpServerStatus} enum does not yet know about, which throws while parsing MCP
+     * status events. Rewrite it in the raw event tree back to {@code not_configured} (the
+     * pre-{@code stopped} behavior) so a retry can parse. Remove once {@code stopped} is added to
+     * the generated enum.
+     */
+    private static void normalizeStoppedMcpStatus(JsonNode eventNode) {
+        if (eventNode == null || !eventNode.isObject()) {
+            return;
+        }
+        JsonNode typeNode = eventNode.get("type");
+        JsonNode dataNode = eventNode.get("data");
+        if (typeNode == null || dataNode == null || !dataNode.isObject()) {
+            return;
+        }
+        String type = typeNode.asText();
+        if ("session.mcp_servers_loaded".equals(type)) {
+            JsonNode servers = dataNode.get("servers");
+            if (servers != null && servers.isArray()) {
+                for (JsonNode server : servers) {
+                    remapStoppedStatus(server);
+                }
+            }
+        } else if ("session.mcp_server_status_changed".equals(type)) {
+            remapStoppedStatus(dataNode);
+        }
+    }
+
+    private static void remapStoppedStatus(JsonNode node) {
+        if (node instanceof ObjectNode obj) {
+            JsonNode status = obj.get("status");
+            if (status != null && "stopped".equals(status.asText())) {
+                obj.put("status", "not_configured");
+            }
         }
     }
 

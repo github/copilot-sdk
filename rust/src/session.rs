@@ -1518,6 +1518,39 @@ fn tool_failure_result(message: impl Into<String>) -> ToolResult {
     })
 }
 
+/// Temporary backward-compat shim.
+///
+/// Newer runtimes report a distinct `stopped` MCP server status that this SDK
+/// build's generated `McpServerStatus` does not yet know about. Rewrite it in
+/// the raw event payload back to `not_configured` (the pre-`stopped` behavior)
+/// before the event is dispatched, so status-based logic keeps its previous
+/// meaning. Only the two MCP status events are inspected. Remove once `stopped`
+/// is added to the generated types.
+fn normalize_stopped_mcp_status(event: &mut SessionEvent) {
+    fn remap(status: &mut Value) {
+        if status.as_str() == Some("stopped") {
+            *status = Value::String("not_configured".to_string());
+        }
+    }
+    match event.event_type.as_str() {
+        "session.mcp_servers_loaded" => {
+            if let Some(servers) = event.data.get_mut("servers").and_then(Value::as_array_mut) {
+                for server in servers {
+                    if let Some(status) = server.get_mut("status") {
+                        remap(status);
+                    }
+                }
+            }
+        }
+        "session.mcp_server_status_changed" => {
+            if let Some(status) = event.data.get_mut("status") {
+                remap(status);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Process a notification from the CLI's broadcast channel.
 #[allow(clippy::too_many_arguments)]
 async fn handle_notification(
@@ -1532,6 +1565,15 @@ async fn handle_notification(
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
     let dispatch_start = Instant::now();
+    let mut notification = notification;
+    // Backward-compat: only inspect the two MCP status events, which are the
+    // only ones that can carry the new "stopped" status.
+    if matches!(
+        notification.event.event_type.as_str(),
+        "session.mcp_servers_loaded" | "session.mcp_server_status_changed"
+    ) {
+        normalize_stopped_mcp_status(&mut notification.event);
+    }
     let event = notification.event.clone();
     let event_type = event.parsed_type();
     if event_type == SessionEventType::PermissionRequested {

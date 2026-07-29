@@ -2115,6 +2115,7 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if req.SessionID == "" {
 		return
 	}
+	normalizeStoppedMCPStatus(&req.Event)
 	// Dispatch to session
 	c.sessionsMux.Lock()
 	session, ok := c.sessions[req.SessionID]
@@ -2122,6 +2123,28 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 
 	if ok {
 		session.dispatchEvent(req.Event)
+	}
+}
+
+// normalizeStoppedMCPStatus is a temporary backward-compat shim.
+//
+// Newer runtimes report a distinct "stopped" MCP server status that this SDK
+// build's generated MCPServerStatus does not yet know about. Remap it back to
+// "not_configured" (the pre-"stopped" behavior) so status-based logic keeps its
+// previous meaning. Only the two MCP status events are inspected. Remove once
+// "stopped" is added to the generated types.
+func normalizeStoppedMCPStatus(event *SessionEvent) {
+	switch data := event.Data.(type) {
+	case *rpc.SessionMCPServersLoadedData:
+		for i := range data.Servers {
+			if data.Servers[i].Status == "stopped" {
+				data.Servers[i].Status = "not_configured"
+			}
+		}
+	case *rpc.SessionMCPServerStatusChangedData:
+		if data.Status == "stopped" {
+			data.Status = "not_configured"
+		}
 	}
 }
 

@@ -2410,8 +2410,40 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 var evt = SessionEvent.FromJson(@event.Value.GetRawText());
                 if (evt != null)
                 {
+                    NormalizeStoppedMcpStatus(evt);
                     session.DispatchEvent(evt);
                 }
+            }
+        }
+
+        // Temporary backward-compat shim.
+        //
+        // Newer runtimes report a distinct "stopped" MCP server status that this
+        // SDK build's generated McpServerStatus does not yet know about. Remap it
+        // back to "not_configured" (the pre-"stopped" behavior) so status-based
+        // logic keeps its previous meaning. Only the two MCP status events are
+        // inspected. Remove once "stopped" is added to the generated types.
+        private static void NormalizeStoppedMcpStatus(SessionEvent evt)
+        {
+            switch (evt)
+            {
+                case SessionMcpServersLoadedEvent loaded:
+                    foreach (var server in loaded.Data.Servers)
+                    {
+                        if (server.Status.Value == "stopped")
+                        {
+                            server.Status = McpServerStatus.NotConfigured;
+                        }
+                    }
+
+                    break;
+                case SessionMcpServerStatusChangedEvent changed:
+                    if (changed.Data.Status.Value == "stopped")
+                    {
+                        changed.Data.Status = McpServerStatus.NotConfigured;
+                    }
+
+                    break;
             }
         }
 

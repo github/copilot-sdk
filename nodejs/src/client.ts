@@ -21,33 +21,34 @@ import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     ErrorCodes,
-    type Message,
     MessageConnection,
     ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
+    type Message,
 } from "vscode-jsonrpc/node.js";
-import {
-    createServerRpc,
-    createInternalServerRpc,
-    registerClientGlobalApiHandlers,
-    registerClientSessionApiHandlers,
-} from "./generated/rpc.js";
+import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
+import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
 import type {
     GitHubTelemetryNotification,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
+import {
+    createInternalServerRpc,
+    createServerRpc,
+    registerClientGlobalApiHandlers,
+    registerClientSessionApiHandlers,
+} from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
-import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
-import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import { getTraceContext } from "./telemetry.js";
 import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    BearerTokenProvider,
     CopilotClientMode,
     CopilotClientOptions,
     CustomAgentConfig,
@@ -55,7 +56,6 @@ import type {
     ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
-    BearerTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
     LargeToolOutputConfig,
@@ -65,10 +65,9 @@ import type {
     ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
+    SessionCapabilities,
     SessionConfig,
     SessionConfigBase,
-    SystemMessageConfig,
-    SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
     SessionLifecycleEvent,
@@ -76,6 +75,7 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    SystemMessageConfig,
     SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
@@ -467,6 +467,41 @@ class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
                 throw error;
             }
         }
+    }
+}
+
+/**
+ * Temporary backward-compat shim.
+ *
+ * Newer runtimes report a distinct `stopped` MCP server status that this SDK
+ * build's `McpServerStatus` union does not yet include. Rewrite it in the raw
+ * event payload back to `not_configured` (the pre-`stopped` behavior) before the
+ * event is dispatched, so status-based logic keeps its previous meaning. Only the
+ * two MCP status events are inspected. Remove once `stopped` is added to the
+ * generated types.
+ */
+function normalizeStoppedMcpStatus(event: unknown): void {
+    if (typeof event !== "object" || event === null) {
+        return;
+    }
+    const { type, data } = event as { type?: unknown; data?: unknown };
+    if (typeof data !== "object" || data === null) {
+        return;
+    }
+    const remap = (obj: unknown): void => {
+        if (obj && typeof obj === "object" && (obj as { status?: unknown }).status === "stopped") {
+            (obj as { status?: unknown }).status = "not_configured";
+        }
+    };
+    if (type === "session.mcp_servers_loaded") {
+        const servers = (data as { servers?: unknown }).servers;
+        if (Array.isArray(servers)) {
+            for (const server of servers) {
+                remap(server);
+            }
+        }
+    } else if (type === "session.mcp_server_status_changed") {
+        remap(data);
     }
 }
 
@@ -2621,7 +2656,17 @@ export class CopilotClient {
 
         const session = this.sessions.get((notification as { sessionId: string }).sessionId);
         if (session) {
-            session._dispatchEvent((notification as { event: SessionEvent }).event);
+            const event = (notification as { event: SessionEvent }).event;
+            // Backward-compat: only inspect the two MCP status events, which are
+            // the only ones that can carry the new "stopped" status.
+            const eventType = (event as { type?: unknown }).type;
+            if (
+                eventType === "session.mcp_servers_loaded" ||
+                eventType === "session.mcp_server_status_changed"
+            ) {
+                normalizeStoppedMcpStatus(event);
+            }
+            session._dispatchEvent(event);
         }
     }
 
