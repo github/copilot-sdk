@@ -166,6 +166,7 @@ public class CanvasTests
                 ExtensionName = "Counter Provider",
                 InstanceId = "counter-1",
                 Title = "Counter",
+                Icon = "beaker",
                 Status = "ready",
                 Url = "https://example.test/counter",
                 Input = JsonDocument.Parse("""{"seed":1}""").RootElement.Clone(),
@@ -200,6 +201,7 @@ public class CanvasTests
                 ExtensionName = "Counter Provider",
                 InstanceId = "counter-1",
                 Title = "Counter Updated",
+                Icon = "beaker-filled",
                 Status = "reconnected",
                 Url = "https://example.test/counter-updated",
                 Input = JsonDocument.Parse("""{"seed":2}""").RootElement.Clone(),
@@ -212,6 +214,7 @@ public class CanvasTests
             {
                 Assert.Equal("counter-1", canvas.InstanceId);
                 Assert.Equal("Counter Updated", canvas.Title);
+                Assert.Equal("beaker-filled", canvas.Icon);
                 Assert.Equal("reconnected", canvas.Status);
                 Assert.Equal("https://example.test/counter-updated", canvas.Url);
                 Assert.Equal(2, canvas.Input!.Value.GetProperty("seed").GetInt32());
@@ -314,6 +317,28 @@ public class CanvasTests
     }
 
     [Fact]
+    public void CanvasProviderIdentity_Serializes_IdAndName()
+    {
+        var options = GetSerializerOptions();
+        var identity = new CanvasProviderIdentity { Id = "app:builtin:window-1", Name = "Built-in" };
+        var json = JsonSerializer.Serialize(identity, options);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("app:builtin:window-1", doc.RootElement.GetProperty("id").GetString());
+        Assert.Equal("Built-in", doc.RootElement.GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public void CanvasProviderIdentity_OmitsNullName()
+    {
+        var options = GetSerializerOptions();
+        var identity = new CanvasProviderIdentity { Id = "app:builtin:window-1" };
+        var json = JsonSerializer.Serialize(identity, options);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("app:builtin:window-1", doc.RootElement.GetProperty("id").GetString());
+        Assert.False(doc.RootElement.TryGetProperty("name", out _));
+    }
+
+    [Fact]
     public async Task CanvasHandlerBase_DefaultOnClose_Completes()
     {
         var handler = new TestHandler();
@@ -348,6 +373,7 @@ public class CanvasTests
             RequestCanvasRenderer = true,
             RequestExtensions = true,
             ExtensionInfo = new ExtensionInfo { Source = "github-app", Name = "demo" },
+            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:window-1", Name = "Built-in" },
             CanvasHandler = handler
         };
 
@@ -360,6 +386,8 @@ public class CanvasTests
         Assert.True(clone.RequestExtensions);
         Assert.NotNull(clone.ExtensionInfo);
         Assert.Equal("github-app", clone.ExtensionInfo!.Source);
+        Assert.NotNull(clone.CanvasProvider);
+        Assert.Equal("app:builtin:window-1", clone.CanvasProvider!.Id);
         Assert.Same(handler, clone.CanvasHandler);
 
         // Mutating the clone's list does not affect the original.
@@ -376,6 +404,7 @@ public class CanvasTests
             Canvases = new[] { new CanvasDeclaration { Id = "c1", DisplayName = "C", Description = "d" } },
             RequestCanvasRenderer = true,
             ExtensionInfo = new ExtensionInfo { Source = "s", Name = "n" },
+            CanvasProvider = new CanvasProviderIdentity { Id = "app:builtin:window-2" },
             CanvasHandler = handler
         };
 
@@ -385,6 +414,8 @@ public class CanvasTests
         Assert.Single(clone.Canvases!);
         Assert.True(clone.RequestCanvasRenderer);
         Assert.NotNull(clone.ExtensionInfo);
+        Assert.NotNull(clone.CanvasProvider);
+        Assert.Equal("app:builtin:window-2", clone.CanvasProvider!.Id);
         Assert.Same(handler, clone.CanvasHandler);
     }
 

@@ -8,7 +8,7 @@ use github_copilot_sdk::handler::{McpAuthHandler, McpAuthRequest, McpAuthResult}
 use github_copilot_sdk::rpc::{McpAppsCallToolRequest, McpListToolsRequest};
 use github_copilot_sdk::session::Session;
 use github_copilot_sdk::session_events::{McpOauthRequestReason, McpServerStatus};
-use github_copilot_sdk::{McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
+use github_copilot_sdk::{IndexMap, McpHttpServerConfig, McpServerConfig, RequestId, SessionId};
 use parking_lot::Mutex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -40,7 +40,7 @@ async fn should_satisfy_mcp_oauth_using_host_provided_token() {
                 .create_session(
                     ctx.approve_all_session_config()
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -129,7 +129,7 @@ async fn should_request_replacement_tokens_across_mcp_oauth_lifecycle() {
                     ctx.approve_all_session_config()
                         .with_enable_mcp_apps(true)
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -194,7 +194,7 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .create_session(
                     ctx.approve_all_session_config()
                         .with_mcp_auth_handler(handler.clone())
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),
@@ -208,6 +208,18 @@ async fn should_cancel_pending_mcp_oauth_request() {
                 .expect("create session");
 
             wait_for_mcp_server_status(&session, server_name, McpServerStatus::NeedsAuth).await;
+
+            // The MCP connection is kicked off by session.create, but the SDK only registers its
+            // `mcp.oauth_required` event interest once create returns. If the server's initial 401
+            // wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+            // so `handler.request` is briefly `None` even after `needs-auth` is observed. A later
+            // auth retry (now that interest is registered) invokes the callback with the same
+            // `Initial` reason. Wait for the callback rather than sampling it the instant
+            // `needs-auth` first appears, which is what made this test flaky.
+            wait_for_condition("MCP OAuth request reaching the host callback", || async {
+                handler.request.lock().is_some()
+            })
+            .await;
 
             let request = handler
                 .request
@@ -250,7 +262,7 @@ async fn should_resolve_pending_mcp_oauth_request_through_rpc() {
                     ctx.approve_all_session_config()
                         .with_enable_mcp_apps(true)
                         .with_mcp_auth_handler(handler)
-                        .with_mcp_servers(HashMap::from([(
+                        .with_mcp_servers(IndexMap::from([(
                             server_name.to_string(),
                             McpServerConfig::Http(McpHttpServerConfig {
                                 tools: Some(vec!["*".to_string()]),

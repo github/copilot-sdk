@@ -152,6 +152,28 @@ func TestCustomAgentConfig_JSONIncludesModel(t *testing.T) {
 	}
 }
 
+func TestCustomAgentConfig_JSONIncludesReasoningEffort(t *testing.T) {
+	cfg := CustomAgentConfig{
+		Name:            "reasoning-agent",
+		Prompt:          "Think carefully.",
+		ReasoningEffort: "high",
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal CustomAgentConfig: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal CustomAgentConfig: %v", err)
+	}
+
+	if decoded["reasoningEffort"] != "high" {
+		t.Errorf("expected reasoningEffort 'high', got %v", decoded["reasoningEffort"])
+	}
+}
+
 func TestCustomAgentConfig_JSONIncludesEmptyTools(t *testing.T) {
 	cfg := CustomAgentConfig{
 		Name:   "no-tools-agent",
@@ -203,6 +225,57 @@ func TestCustomAgentConfig_JSONOmitsNilTools(t *testing.T) {
 	}
 }
 
+func TestToolResult_JSONIncludesToolReferences(t *testing.T) {
+	result := ToolResult{
+		TextResultForLLM: "found 2 tools",
+		ResultType:       "success",
+		ToolReferences:   []string{"get_weather", "check_status"},
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ToolResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ToolResult: %v", err)
+	}
+
+	rawRefs, present := decoded["toolReferences"]
+	if !present {
+		t.Fatal("expected toolReferences to be present")
+	}
+	refs, ok := rawRefs.([]any)
+	if !ok {
+		t.Fatalf("expected toolReferences array, got %T", rawRefs)
+	}
+	if len(refs) != 2 || refs[0] != "get_weather" || refs[1] != "check_status" {
+		t.Errorf("unexpected toolReferences: %v", refs)
+	}
+}
+
+func TestToolResult_JSONOmitsNilToolReferences(t *testing.T) {
+	result := ToolResult{
+		TextResultForLLM: "ok",
+		ResultType:       "success",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal ToolResult: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal ToolResult: %v", err)
+	}
+
+	if _, present := decoded["toolReferences"]; present {
+		t.Errorf("expected toolReferences to be omitted for nil slice, got %v", decoded["toolReferences"])
+	}
+}
+
 func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
 	cfg := CustomAgentConfig{
 		Name:   "no-model-agent",
@@ -221,6 +294,9 @@ func TestCustomAgentConfig_JSONOmitsModelWhenEmpty(t *testing.T) {
 
 	if _, present := decoded["model"]; present {
 		t.Errorf("expected model to be omitted when empty, got %v", decoded["model"])
+	}
+	if _, present := decoded["reasoningEffort"]; present {
+		t.Errorf("expected reasoningEffort to be omitted when empty, got %v", decoded["reasoningEffort"])
 	}
 }
 

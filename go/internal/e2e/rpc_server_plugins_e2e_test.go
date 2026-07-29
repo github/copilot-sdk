@@ -58,6 +58,7 @@ func TestRpcServerPlugins(t *testing.T) {
 		listed := findPortedInstalledPlugin(afterInstall.Plugins, portedPluginName, portedMarketplaceName)
 		if listed == nil {
 			t.Fatalf("Expected installed plugin %q in marketplace %q", portedPluginName, portedMarketplaceName)
+			return
 		}
 		if !listed.Enabled {
 			t.Fatal("Expected listed marketplace plugin to be enabled")
@@ -229,6 +230,7 @@ func TestRpcServerPlugins(t *testing.T) {
 		mine := findPortedMarketplace(list.Marketplaces, portedMarketplaceName)
 		if mine == nil {
 			t.Fatalf("Expected marketplace %q in list %+v", portedMarketplaceName, list.Marketplaces)
+			return
 		}
 		if mine.IsDefault != nil && *mine.IsDefault {
 			t.Fatal("Expected local marketplace not to be marked default")
@@ -311,7 +313,10 @@ func newStartedPortedClient(t *testing.T, ctx *testharness.TestContext, opts ...
 
 func newStartedIsolatedPortedClient(t *testing.T, ctx *testharness.TestContext) *copilot.Client {
 	t.Helper()
-	home := t.TempDir()
+	home, err := os.MkdirTemp(ctx.WorkDir, "plugin-home-")
+	if err != nil {
+		t.Fatalf("Failed to create isolated plugin home: %v", err)
+	}
 	return newStartedPortedClient(t, ctx, func(opts *copilot.ClientOptions) {
 		opts.Env = append(opts.Env,
 			"COPILOT_HOME="+home,

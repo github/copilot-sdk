@@ -12,17 +12,18 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
+import com.github.copilot.rpc.CopilotExpAssignmentResponse;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
+import com.github.copilot.rpc.ExpConfigEntry;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -899,8 +900,10 @@ public class SessionRequestBuilderTest {
     @Test
     void testBuildRequestsPropagateAndSerializeExpAssignments() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
-        JsonNode createAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-create\"}]}");
-        JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
+        var createAssignments = new CopilotExpAssignmentResponse()
+                .setConfigs(List.of(new ExpConfigEntry().setId("exp-create")));
+        var resumeAssignments = new CopilotExpAssignmentResponse()
+                .setConfigs(List.of(new ExpConfigEntry().setId("exp-resume")));
 
         var createConfig = new SessionConfig().setExpAssignments(createAssignments);
         CreateSessionRequest createRequest = SessionRequestBuilder.buildCreateRequest(createConfig, "session-1");
@@ -936,8 +939,10 @@ public class SessionRequestBuilderTest {
     @Test
     void testClonePreservesAndForwardsExpAssignments() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
-        JsonNode createAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-create\"}]}");
-        JsonNode resumeAssignments = mapper.readTree("{\"Configs\":[{\"Id\":\"exp-resume\"}]}");
+        var createAssignments = new CopilotExpAssignmentResponse()
+                .setConfigs(List.of(new ExpConfigEntry().setId("exp-create")));
+        var resumeAssignments = new CopilotExpAssignmentResponse()
+                .setConfigs(List.of(new ExpConfigEntry().setId("exp-resume")));
 
         var createConfig = new SessionConfig().setExpAssignments(createAssignments);
         SessionConfig createClone = createConfig.clone();

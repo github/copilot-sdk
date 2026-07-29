@@ -10,7 +10,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -178,6 +177,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("largeOutput")
     private LargeToolOutputConfig largeOutput;
 
+    @JsonProperty("toolSearch")
+    private ToolSearchConfig toolSearch;
+
     @JsonProperty("memory")
     private MemoryConfiguration memory;
 
@@ -212,7 +214,11 @@ public final class ResumeSessionRequest {
     private String remoteSession;
 
     @JsonProperty("expAssignments")
-    private JsonNode expAssignments;
+    private CopilotExpAssignmentResponse expAssignments;
+
+    @JsonProperty("enableManagedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableManagedSettings;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -836,6 +842,16 @@ public final class ResumeSessionRequest {
         this.largeOutput = largeOutput;
     }
 
+    /** Gets tool-search config. @return the tool-search config */
+    public ToolSearchConfig getToolSearch() {
+        return toolSearch;
+    }
+
+    /** Sets tool-search config. @param toolSearch the tool-search config */
+    public void setToolSearch(ToolSearchConfig toolSearch) {
+        this.toolSearch = toolSearch;
+    }
+
     /** Gets memory config. @return the memory config */
     public MemoryConfiguration getMemory() {
         return memory;
@@ -971,14 +987,37 @@ public final class ResumeSessionRequest {
     }
 
     /** Gets the ExP assignment data. @return the ExP assignment data */
-    public JsonNode getExpAssignments() {
+    public CopilotExpAssignmentResponse getExpAssignments() {
         return expAssignments;
     }
 
     /**
      * Sets the ExP assignment data. @param expAssignments the ExP assignment data
      */
-    public void setExpAssignments(JsonNode expAssignments) {
+    public void setExpAssignments(CopilotExpAssignmentResponse expAssignments) {
         this.expAssignments = expAssignments;
+    }
+
+    /**
+     * Gets the self-fetch managed settings flag. @return the flag, or {@code null}
+     * if not set
+     */
+    public Boolean getEnableManagedSettings() {
+        return enableManagedSettings;
+    }
+
+    /**
+     * Sets the self-fetch managed settings flag. @param enableManagedSettings the
+     * flag
+     */
+    public void setEnableManagedSettings(boolean enableManagedSettings) {
+        this.enableManagedSettings = enableManagedSettings;
+    }
+
+    /**
+     * Clears the enableManagedSettings setting, reverting to the default behavior.
+     */
+    public void clearEnableManagedSettings() {
+        this.enableManagedSettings = null;
     }
 }

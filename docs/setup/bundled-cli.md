@@ -47,7 +47,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-5.4" });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 
@@ -66,7 +66,7 @@ from copilot.session import PermissionHandler
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
 response = await session.send_and_wait("Hello!")
 print(response.data.content)
 
@@ -79,7 +79,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not bundle the CLI. You must install the CLI separately or set `Connection` to point to an existing binary. See [Local CLI Setup](./local-cli.md) for details.
+> Unlike Node.js, Python, and .NET, the Go SDK does not include a CLI as an automatic dependency. With no explicit path, `NewClient(nil)` uses an embedded CLI when available, then falls back to `copilot` on `PATH`. To embed a CLI, run the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli) at build time. You can also set `COPILOT_CLI_PATH` or point a `Connection` at an existing binary. See [Local CLI Setup](./local-cli.md) for details.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -101,7 +101,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 	if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
 		fmt.Println(d.Content)
@@ -117,7 +117,7 @@ if err := client.Start(ctx); err != nil {
 }
 defer client.Stop()
 
-session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
     fmt.Println(d.Content)
@@ -132,7 +132,7 @@ if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
 ```csharp
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(
-    new SessionConfig { Model = "gpt-4.1" });
+    new SessionConfig { Model = "gpt-5.4" });
 
 var response = await session.SendAndWaitAsync(
     new MessageOptions { Prompt = "Hello!" });
@@ -145,7 +145,7 @@ Console.WriteLine(response?.Data.Content);
 <summary><strong>Java</strong></summary>
 
 > [!NOTE]
-> The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `Connection` or the `COPILOT_CLI_PATH` environment variable.
+> The Java SDK does not bundle or embed the Copilot CLI. Install the CLI separately and either make `copilot` available on your `PATH` or set its location with `setCliPath(...)` (or connect to a running CLI server with `setCliUrl(...)`).
 
 ```java
 import com.github.copilot.CopilotClient;
@@ -158,7 +158,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -219,7 +219,7 @@ If you manage your own model provider keys, users don't need GitHub accounts at 
 const client = new CopilotClient();
 
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5.4",
     provider: {
         type: "openai",
         baseUrl: "https://api.openai.com/v1",
@@ -241,7 +241,7 @@ const client = new CopilotClient();
 const sessionId = `project-${projectName}`;
 const session = await client.createSession({
     sessionId,
-    model: "gpt-4.1",
+    model: "gpt-5.4",
 });
 
 // User closes app...

@@ -87,6 +87,11 @@ from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
 
+# Fixed name of the runtime's built-in tool-search tool. A client can replace
+# its behavior by registering a tool with this exact name and
+# ``overrides_built_in_tool=True``.
+_TOOL_SEARCH_TOOL_NAME = "tool_search_tool"
+
 
 if TYPE_CHECKING:
     from .session_fs_provider import SessionFsProvider
@@ -1012,6 +1017,30 @@ ErrorOccurredHandler = Callable[
 ]
 
 
+class AgentStopHookInput(TypedDict):
+    """Input for the agent-stop hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    stopReason: NotRequired[str]
+    transcriptPath: NotRequired[str]
+    stopHookActive: NotRequired[bool]
+
+
+class AgentStopHookOutput(TypedDict, total=False):
+    """Output for the agent-stop hook."""
+
+    decision: Literal["block"]
+    reason: str
+
+
+AgentStopHandler = Callable[
+    [AgentStopHookInput, dict[str, str]],
+    AgentStopHookOutput | None | Awaitable[AgentStopHookOutput | None],
+]
+
+
 class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
@@ -1023,6 +1052,7 @@ class SessionHooks(TypedDict, total=False):
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
+    on_agent_stop: AgentStopHandler
 
 
 # ============================================================================
@@ -1075,6 +1105,9 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
     # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
     model: NotRequired[str]
+    # Reasoning effort for this agent's model. When omitted, the runtime resolves
+    # model configuration, then inherits the parent effort only for the same model.
+    reasoning_effort: NotRequired[ReasoningEffort]
 
 
 class DefaultAgentConfig(TypedDict, total=False):
@@ -1134,6 +1167,28 @@ class LargeToolOutputConfig(TypedDict, total=False):
     output_directory: str
 
 
+class ToolSearchConfig(TypedDict, total=False):
+    """
+    Override for the runtime's built-in tool-search behavior.
+
+    Tool search lets the model discover tools on demand instead of loading every
+    tool definition up front. When the total tool count exceeds the deferral
+    threshold, MCP and external tools are marked as deferred and surfaced through
+    the built-in ``tool_search_tool``.
+
+    To override the tool-search tool's implementation, register a :class:`Tool`
+    named ``tool_search_tool`` with ``overrides_built_in_tool=True``. To customize
+    the in-prompt tool-search guidance, use the ``tool_instructions`` section of
+    the system message in ``"customize"`` mode.
+    """
+
+    # Toggle that enables or disables tool search.
+    enabled: bool
+    # Overrides the total tool count at which MCP and external tools are
+    # automatically deferred behind tool search.
+    defer_threshold: int
+
+
 class MemoryConfiguration(TypedDict):
     """
     Configuration for session memory.
@@ -1153,7 +1208,8 @@ class MemoryConfiguration(TypedDict):
 class AzureProviderOptions(TypedDict, total=False):
     """Azure-specific provider configuration"""
 
-    api_version: str  # Azure API version. Defaults to "2024-10-21".
+    # Azure API version. When omitted, the runtime uses the GA versionless v1 route.
+    api_version: str
 
 
 class ProviderTokenArgs(TypedDict):
@@ -1932,11 +1988,25 @@ class CopilotSession:
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
+            # The built-in tool-search tool receives a snapshot of the session's
+            # currently initialized tools so an override can filter the live
+            # catalog without issuing its own RPC. Fetch it only for that tool to
+            # avoid a round-trip on every tool call; a failed fetch leaves the
+            # snapshot as None rather than failing the tool.
+            available_tools = None
+            if tool_name == _TOOL_SEARCH_TOOL_NAME:
+                try:
+                    metadata = await self.rpc.tools.get_current_metadata()
+                    available_tools = metadata.tools
+                except Exception:
+                    available_tools = None
+
             invocation = ToolInvocation(
                 session_id=self.session_id,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
                 arguments=arguments,
+                available_tools=available_tools,
             )
 
             with trace_context(traceparent, tracestate):
@@ -1997,6 +2067,7 @@ class CopilotSession:
                             text_result_for_llm=tool_result.text_result_for_llm,
                             error=tool_result.error,
                             result_type=tool_result.result_type,
+                            tool_references=tool_result.tool_references,
                             tool_telemetry=tool_result.tool_telemetry,
                         ),
                     )
@@ -2676,6 +2747,7 @@ class CopilotSession:
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
+            "agentStop": hooks.get("on_agent_stop"),
         }
 
         handler = handler_map.get(hook_type)
@@ -2692,6 +2764,8 @@ class CopilotSession:
             transformed: dict[str, Any] = dict(input_data)
             if "cwd" in transformed:
                 transformed["workingDirectory"] = transformed.pop("cwd")
+            if "stop_hook_active" in transformed:
+                transformed["stopHookActive"] = transformed.pop("stop_hook_active")
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
@@ -2850,7 +2924,7 @@ class CopilotSession:
         is preserved.
 
         Args:
-            model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+            model: Model ID to switch to (e.g., "gpt-5.4", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
             reasoning_summary: Optional reasoning summary mode for supported
@@ -2864,7 +2938,7 @@ class CopilotSession:
             Exception: If the session has been destroyed or the connection fails.
 
         Example:
-            >>> await session.set_model("gpt-4.1")
+            >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
         """
         rpc_caps = None

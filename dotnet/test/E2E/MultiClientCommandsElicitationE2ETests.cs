@@ -59,7 +59,7 @@ public class MultiClientCommandsElicitationE2ETests
         await Ctx.ConfigureForTestAsync("multi_client", _testName);
 
         // Trigger connection so we can read the port
-        var initSession = await Client1.CreateSessionAsync(new SessionConfig
+        var initSession = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -102,7 +102,7 @@ public class MultiClientCommandsElicitationE2ETests
     [Fact]
     public async Task Client_Receives_Commands_Changed_When_Another_Client_Joins_With_Commands()
     {
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -120,7 +120,7 @@ public class MultiClientCommandsElicitationE2ETests
         });
 
         // Client2 joins with commands
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Commands =
@@ -148,7 +148,7 @@ public class MultiClientCommandsElicitationE2ETests
     public async Task Capabilities_Changed_Fires_When_Second_Client_Joins_With_Elicitation_Handler()
     {
         // Client1 creates session without elicitation
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -168,7 +168,7 @@ public class MultiClientCommandsElicitationE2ETests
         });
 
         // Client2 joins WITH elicitation handler — triggers capabilities.changed
-        var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        var session2 = await Ctx.ResumeSessionAsync(Client2, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
@@ -194,7 +194,7 @@ public class MultiClientCommandsElicitationE2ETests
     public async Task Capabilities_Changed_Fires_When_Elicitation_Provider_Disconnects()
     {
         // Client1 creates session without elicitation
-        var session1 = await Client1.CreateSessionAsync(new SessionConfig
+        var session1 = await Ctx.CreateSessionAsync(Client1, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -222,7 +222,7 @@ public class MultiClientCommandsElicitationE2ETests
         });
 
         // Client3 joins WITH elicitation handler
-        await _client3.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
+        await Ctx.ResumeSessionAsync(_client3, session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult

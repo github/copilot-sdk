@@ -5,7 +5,7 @@
 using Xunit;
 using GitHub.Copilot.Test.Harness;
 
-// Each E2E test class fixture spins up its own Copilot CLI subprocess plus a CapiProxy
+// Each E2E test class fixture spins up its own Copilot CLI subprocess plus a ReplayProxy
 // (replaying HTTP proxy) Node.js subprocess. With ~25 test classes, running them in parallel
 // would launch ~50 long-lived Node.js processes simultaneously and exhaust both file
 // descriptors and memory on developer machines and CI runners (especially Windows). Tests
@@ -15,9 +15,4 @@ using GitHub.Copilot.Test.Harness;
 // semaphore that limits concurrent fixtures to a small number (e.g. 2-3).
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-// TEMPORARY: isolate the ambient process environment around every test in the
-// in-process job so directly-constructed clients cannot pick up ambient CI
-// credentials and reach the live API. No-op outside the in-process job. Delete
-// together with InProcessEnvIsolation.cs once the runtime stops reading the
-// ambient process environment host-side.
 [assembly: InProcessEnvIsolation]

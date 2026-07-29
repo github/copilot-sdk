@@ -28,7 +28,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             await using var client = CreateSessionFsClient(providerRoot);
 
-            var session = await client.CreateSessionAsync(new SessionConfig
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
@@ -58,7 +58,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             await using var client = CreateSessionFsClient(providerRoot);
             Func<CopilotSession, SessionFsProvider> createSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot);
 
-            var session1 = await client.CreateSessionAsync(new SessionConfig
+            var session1 = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = createSessionFsHandler,
@@ -72,7 +72,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var eventsPath = GetStoredPath(providerRoot, sessionId, $"{SessionFsConfig.SessionStatePath}/events.jsonl");
             await WaitForConditionAsync(() => File.Exists(eventsPath));
 
-            var session2 = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            var session2 = await Ctx.ResumeSessionAsync(client, sessionId, new ResumeSessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = createSessionFsHandler,
@@ -97,7 +97,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             await using var client1 = CreateSessionFsClient(providerRoot, useStdio: false, tcpConnectionToken: "session-fs-shared-token");
             var createSessionFsHandler = (Func<CopilotSession, SessionFsProvider>)(s => new TestSessionFsHandler(s.SessionId, providerRoot));
 
-            _ = await client1.CreateSessionAsync(new SessionConfig
+            _ = await Ctx.CreateSessionAsync(client1, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = createSessionFsHandler,
@@ -319,7 +319,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var suppliedFileContent = new string('x', largeContentSize);
 
             await using var client = CreateSessionFsClient(providerRoot);
-            var session = await client.CreateSessionAsync(new SessionConfig
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
@@ -361,7 +361,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         try
         {
             await using var client = CreateSessionFsClient(providerRoot);
-            var session = await client.CreateSessionAsync(new SessionConfig
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
@@ -400,7 +400,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         try
         {
             await using var client = CreateSessionFsClient(providerRoot);
-            var session = await client.CreateSessionAsync(new SessionConfig
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
@@ -433,7 +433,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         try
         {
             await using var client = CreateSessionFsClient(providerRoot);
-            var session = await client.CreateSessionAsync(new SessionConfig
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
                 CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),

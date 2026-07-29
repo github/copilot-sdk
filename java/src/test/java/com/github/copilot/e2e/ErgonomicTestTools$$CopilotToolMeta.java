@@ -32,7 +32,7 @@ public final class ErgonomicTestTools$$CopilotToolMeta implements CopilotToolMet
                     Map<String, Object> args = invocation.getArguments();
                     String phase = (String) args.get("phase");
                     return CompletableFuture.completedFuture(instance.setCurrentPhase(phase));
-                }, null, null, null),
+                }, null, null, null, null),
                 new ToolDefinition(
                         "search_items", "Search for items by keyword", Map
                                 .of("type", "object", "properties",
@@ -44,11 +44,11 @@ public final class ErgonomicTestTools$$CopilotToolMeta implements CopilotToolMet
                             Map<String, Object> args = invocation.getArguments();
                             String keyword = (String) args.get("keyword");
                             return CompletableFuture.completedFuture(instance.searchItems(keyword));
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("get_status", "Returns the current status",
                         Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
                             return CompletableFuture.completedFuture(instance.getStatus());
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("combine_values", "Combines two values into a single string", Map.of(
                         "type", "object", "properties", Map
                                 .ofEntries(
@@ -63,6 +63,6 @@ public final class ErgonomicTestTools$$CopilotToolMeta implements CopilotToolMet
                             String value1 = (String) args.get("value1");
                             String value2 = (String) args.get("value2");
                             return CompletableFuture.completedFuture(instance.combineValues(value1, value2));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

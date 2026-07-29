@@ -14,6 +14,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+  copilot-requests: write
 tools:
   github:
     toolsets: [default]
@@ -24,10 +25,12 @@ safe-outputs:
     allowed: [bug, enhancement, question, documentation, sdk/dotnet, sdk/go, sdk/java, sdk/nodejs, sdk/python, priority/high, priority/low, testing, security, needs-info, duplicate]
     max: 10
     target: triggering
+    issue-intent: true
   update-issue:
     target: triggering
   close-issue:
     target: triggering
+    issue-intent: true
 timeout-minutes: 10
 ---
 

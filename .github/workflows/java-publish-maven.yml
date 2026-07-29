@@ -22,6 +22,34 @@ on:
         type: boolean
         required: false
         default: false
+  workflow_call:
+    inputs:
+      releaseVersion:
+        description: "Release version (e.g., 1.0.0). If empty, derives from pom.xml by removing -SNAPSHOT"
+        required: false
+        type: string
+      developmentVersion:
+        description: "Next development version (e.g., 1.0.1-SNAPSHOT). If empty, increments patch version"
+        required: false
+        type: string
+      prerelease:
+        description: "Is this a prerelease?"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      JAVA_RELEASE_TOKEN:
+        required: true
+      JAVA_RELEASE_GITHUB_TOKEN:
+        required: true
+      JAVA_MAVEN_CENTRAL_USERNAME:
+        required: true
+      JAVA_MAVEN_CENTRAL_PASSWORD:
+        required: true
+      JAVA_GPG_SECRET_KEY:
+        required: true
+      JAVA_GPG_PASSPHRASE:
+        required: true
 
 permissions:
   contents: write
@@ -144,10 +172,10 @@ jobs:
               exit 1
             fi
           else
-            # Split version: supports "0.1.32", "0.1.32-java.0", and "0.1.32-java-preview.0" formats
+            # Split version: supports "0.1.32", "0.1.32-preview.0", "0.1.32-java.0", and "0.1.32-java-preview.0" formats
             # Validate RELEASE_VERSION format explicitly to provide clear errors
-            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(beta-)?java(-preview)?\.[0-9]+)?$'; then
-              echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid. Expected format: M.M.P, M.M.P-java.N, M.M.P-java-preview.N, M.M.P-beta-java.N, or M.M.P-beta-java-preview.N (e.g., 1.2.3, 1.2.3-java.0, 1.2.3-java-preview.0, 1.2.3-beta-java.0, or 1.2.3-beta-java-preview.0)." >&2
+            if ! echo "$RELEASE_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-(preview|(beta-)?java(-preview)?)\.[0-9]+)?$'; then
+              echo "Error: RELEASE_VERSION '$RELEASE_VERSION' is invalid. Expected format: M.M.P, M.M.P-preview.N, M.M.P-java.N, M.M.P-java-preview.N, M.M.P-beta-java.N, or M.M.P-beta-java-preview.N (e.g., 1.2.3, 1.2.3-preview.0, 1.2.3-java.0, 1.2.3-java-preview.0, 1.2.3-beta-java.0, or 1.2.3-beta-java-preview.0)." >&2
               exit 1
             fi
             # Extract the base M.M.P portion (before any qualifier)

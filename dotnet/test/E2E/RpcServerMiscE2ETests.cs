@@ -235,7 +235,7 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             env["GITHUB_TOKEN"] = "";
         }
 
-        var options = new CopilotClientOptions { Environment = env };
+        var options = new CopilotClientOptions();
         if (!autoInjectGitHubToken)
         {
             options.UseLoggedInUser = false;
@@ -243,7 +243,8 @@ public class RpcServerMiscE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var client = Ctx.CreateClient(
             options: options,
-            autoInjectGitHubToken: autoInjectGitHubToken);
+            autoInjectGitHubToken: autoInjectGitHubToken,
+            environment: env);
         await client.StartAsync();
         return (client, home);
     }

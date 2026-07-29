@@ -32,6 +32,8 @@ public record SessionModelSwitchToParams(
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode to request for supported model clients */
     @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
+    /** Output verbosity level to request for supported models */
+    @JsonProperty("verbosity") Verbosity verbosity,
     /** Override individual model capabilities resolved by the runtime */
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier. */

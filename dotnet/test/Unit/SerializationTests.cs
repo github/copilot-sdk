@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Xunit;
+using System.Collections.Generic;
 using System.Text.Json;
 #if !NET8_0_OR_GREATER
 using System.Runtime.Serialization;
@@ -488,24 +489,28 @@ public class SerializationTests
     {
         var options = GetSerializerOptions();
 
-        using var createAssignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-create"}]}""");
         var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
         var createRequest = CreateInternalRequest(
             createRequestType,
             ("SessionId", "session-id"),
-            ("ExpAssignments", createAssignments.RootElement.Clone()));
+            ("ExpAssignments", new CopilotExpAssignmentResponse
+            {
+                Configs = new List<ExpConfigEntry> { new() { Id = "exp-create" } },
+            }));
 
         var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
         using var createDocument = JsonDocument.Parse(createJson);
         var createRoot = createDocument.RootElement;
         Assert.Equal("exp-create", createRoot.GetProperty("expAssignments").GetProperty("Configs")[0].GetProperty("Id").GetString());
 
-        using var resumeAssignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-resume"}]}""");
         var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
         var resumeRequest = CreateInternalRequest(
             resumeRequestType,
             ("SessionId", "session-id"),
-            ("ExpAssignments", resumeAssignments.RootElement.Clone()));
+            ("ExpAssignments", new CopilotExpAssignmentResponse
+            {
+                Configs = new List<ExpConfigEntry> { new() { Id = "exp-resume" } },
+            }));
 
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
@@ -540,38 +545,36 @@ public class SerializationTests
     [Fact]
     public void SessionConfigClone_PreservesExpAssignments()
     {
-        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-create"}]}""");
-
         var config = new SessionConfig
         {
             SessionId = "session-id",
-            ExpAssignments = assignments.RootElement.Clone(),
+            ExpAssignments = new CopilotExpAssignmentResponse
+            {
+                Configs = new List<ExpConfigEntry> { new() { Id = "exp-create" } },
+            },
         };
 
         var clone = config.Clone();
 
-        Assert.True(clone.ExpAssignments.HasValue);
-        Assert.Equal(
-            "exp-create",
-            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+        Assert.NotNull(clone.ExpAssignments);
+        Assert.Equal("exp-create", clone.ExpAssignments!.Configs[0].Id);
     }
 
     [Fact]
     public void ResumeSessionConfigClone_PreservesExpAssignments()
     {
-        using var assignments = JsonDocument.Parse("""{"Configs":[{"Id":"exp-resume"}]}""");
-
         var config = new ResumeSessionConfig
         {
-            ExpAssignments = assignments.RootElement.Clone(),
+            ExpAssignments = new CopilotExpAssignmentResponse
+            {
+                Configs = new List<ExpConfigEntry> { new() { Id = "exp-resume" } },
+            },
         };
 
         var clone = config.Clone();
 
-        Assert.True(clone.ExpAssignments.HasValue);
-        Assert.Equal(
-            "exp-resume",
-            clone.ExpAssignments!.Value.GetProperty("Configs")[0].GetProperty("Id").GetString());
+        Assert.NotNull(clone.ExpAssignments);
+        Assert.Equal("exp-resume", clone.ExpAssignments!.Configs[0].Id);
     }
 
     [Fact]
@@ -788,6 +791,48 @@ public class SerializationTests
     }
 
     [Fact]
+    public void AgentStopHookInput_DeserializesWireFields_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var input = JsonSerializer.Deserialize<AgentStopHookInput>(
+            """
+            {
+              "sessionId": "session-1",
+              "timestamp": 1700000000000,
+              "cwd": "/repo",
+              "stopReason": "end_turn",
+              "transcriptPath": "/tmp/transcript.jsonl",
+              "stop_hook_active": true
+            }
+            """,
+            options);
+
+        Assert.NotNull(input);
+        Assert.Equal("session-1", input.SessionId);
+        Assert.Equal("/repo", input.WorkingDirectory);
+        Assert.Equal("end_turn", input.StopReason);
+        Assert.Equal("/tmp/transcript.jsonl", input.TranscriptPath);
+        Assert.True(input.StopHookActive);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1700000000000), input.Timestamp);
+    }
+
+    [Fact]
+    public void AgentStopHookOutput_SerializesBlockDecision_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var output = new AgentStopHookOutput
+        {
+            Decision = "block",
+            Reason = "finish the remaining work"
+        };
+
+        var json = JsonSerializer.SerializeToElement(output, options);
+
+        Assert.Equal("block", json.GetProperty("decision").GetString());
+        Assert.Equal("finish the remaining work", json.GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public void HooksInvokeResponse_SerializesPreMcpToolCallHookOutput_WithMetaToUse()
     {
         var options = GetSerializerOptions();
@@ -854,6 +899,48 @@ public class SerializationTests
             Assert.Equal(JsonValueKind.Null, outputProp.ValueKind);
         }
         // else: property omitted, which is fine (runtime treats undefined output as no-op)
+    }
+
+    [Fact]
+    public void ToolResultObject_SerializesToolReferences_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new ToolResultObject
+        {
+            TextResultForLlm = "found 2 tools",
+            ResultType = "success",
+            ToolReferences = ["get_weather", "check_status"],
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("found 2 tools", root.GetProperty("textResultForLlm").GetString());
+        var refs = root.GetProperty("toolReferences");
+        Assert.Equal(JsonValueKind.Array, refs.ValueKind);
+        Assert.Equal(2, refs.GetArrayLength());
+        Assert.Equal("get_weather", refs[0].GetString());
+        Assert.Equal("check_status", refs[1].GetString());
+
+        var deserialized = JsonSerializer.Deserialize<ToolResultObject>(json, options);
+        Assert.NotNull(deserialized);
+        string[] expectedReferences = ["get_weather", "check_status"];
+        Assert.Equal(expectedReferences, deserialized!.ToolReferences);
+    }
+
+    [Fact]
+    public void ToolResultObject_OmitsToolReferences_WhenNull_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var original = new ToolResultObject
+        {
+            TextResultForLlm = "ok",
+            ResultType = "success",
+        };
+
+        var json = JsonSerializer.Serialize(original, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.False(document.RootElement.TryGetProperty("toolReferences", out _));
     }
 
     private static JsonSerializerOptions GetSerializerOptions()

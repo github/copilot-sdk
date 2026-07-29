@@ -13,9 +13,8 @@
 //! Enable the `derive` feature for `schema_for`, which generates JSON
 //! Schema from Rust types via `schemars`.
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
+use indexmap::IndexMap;
 /// Re-export of [`schemars::JsonSchema`] for deriving tool parameter schemas.
 #[cfg(feature = "derive")]
 pub use schemars::JsonSchema;
@@ -80,14 +79,14 @@ pub fn schema_for<T: schemars::JsonSchema>() -> serde_json::Value {
 /// tool.parameters = tool_parameters(serde_json::json!({"type": "object"}));
 /// # let _ = tool;
 /// ```
-pub fn tool_parameters(schema: serde_json::Value) -> HashMap<String, serde_json::Value> {
+pub fn tool_parameters(schema: serde_json::Value) -> IndexMap<String, serde_json::Value> {
     try_tool_parameters(schema).expect("tool parameter schema must be a JSON object")
 }
 
 /// Fallible variant of [`tool_parameters`] for callers handling dynamic schema input.
 pub fn try_tool_parameters(
     schema: serde_json::Value,
-) -> Result<HashMap<String, serde_json::Value>, serde_json::Error> {
+) -> Result<IndexMap<String, serde_json::Value>, serde_json::Error> {
     serde_json::from_value(schema)
 }
 
@@ -174,6 +173,7 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
         session_log: None,
         error: None,
         tool_telemetry: None,
+        tool_references: None,
     }))
 }
 
@@ -404,6 +404,44 @@ mod tests {
     }
 
     #[test]
+    fn tool_parameters_serialize_in_deterministic_order() {
+        // Regression: `Tool.parameters` was a `HashMap`, whose per-instance
+        // random iteration order made the serialized top-level schema keys
+        // differ between constructions (and between sessions), busting the
+        // model provider's prompt cache. `IndexMap` keeps the order stable.
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "url": { "type": "string" },
+                "count": { "type": "integer" }
+            },
+            "required": ["url"],
+            "additionalProperties": false
+        });
+
+        let build = || Tool {
+            name: "fetch".to_string(),
+            parameters: tool_parameters(schema.clone()),
+            ..Default::default()
+        };
+
+        let expected = serde_json::to_string(&build()).expect("serialize tool");
+        for _ in 0..64 {
+            let actual = serde_json::to_string(&build()).expect("serialize tool");
+            assert_eq!(actual, expected);
+        }
+
+        // Pin the exact top-level key order so a regression to any
+        // order-randomizing container is caught, not just internal drift.
+        let tool = build();
+        let keys: Vec<&str> = tool.parameters.keys().map(String::as_str).collect();
+        assert_eq!(
+            keys,
+            ["additionalProperties", "properties", "required", "type"]
+        );
+    }
+
+    #[test]
     fn convert_mcp_call_tool_result_collects_text_and_binary_content() {
         let result = convert_mcp_call_tool_result(&serde_json::json!({
             "isError": true,
@@ -566,6 +604,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "echo".to_string(),
             arguments: serde_json::json!({"msg": "hello"}),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -606,6 +645,7 @@ mod tests {
             tool_call_id: "tc1".to_string(),
             tool_name: "weather".to_string(),
             arguments: serde_json::json!({"city": "Seattle"}),
+            available_tools: None,
             traceparent: None,
             tracestate: None,
         };
@@ -688,6 +728,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"city": "Seattle", "unit": "celsius"}),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -707,6 +748,7 @@ mod tests {
                 tool_call_id: "tc1".to_string(),
                 tool_name: "get_weather".to_string(),
                 arguments: serde_json::json!({"wrong_field": 42}),
+                available_tools: None,
                 traceparent: None,
                 tracestate: None,
             };
@@ -728,6 +770,7 @@ mod tests {
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
                     arguments: serde_json::json!({"city": "Portland"}),
+                    available_tools: None,
                     traceparent: None,
                     tracestate: None,
                 })

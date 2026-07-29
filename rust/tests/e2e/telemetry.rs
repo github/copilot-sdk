@@ -13,6 +13,11 @@ use super::support::{assistant_message_content, with_e2e_context};
 
 #[tokio::test]
 async fn should_export_file_telemetry_for_sdk_interactions() {
+    // Telemetry lowers to environment variables the in-process worker cannot receive
+    // per-client; covered by the default (stdio) transport. See issue #1934.
+    if super::support::skip_inprocess("telemetry configuration is not honored in-process") {
+        return;
+    }
     with_e2e_context(
         "telemetry",
         "should_export_file_telemetry_for_sdk_interactions",

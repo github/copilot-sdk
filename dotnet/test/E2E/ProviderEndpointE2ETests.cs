@@ -23,15 +23,16 @@ public class ProviderEndpointE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         {
             ["COPILOT_ALLOW_GET_PROVIDER_ENDPOINT"] = "true",
         };
-        return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env });
+        return Ctx.CreateClient(environment: env);
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task ShouldReturnByokProviderEndpointWhenCustomProviderIsConfigured()
     {
         var client = CreateProviderEndpointClient();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Provider = new ProviderConfig
@@ -64,11 +65,12 @@ public class ProviderEndpointE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     }
 
     [Fact]
+    [Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
     public async Task ShouldReturnCapiProviderEndpointForOAuthAuthenticatedSession()
     {
         var client = CreateProviderEndpointClient();
 
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

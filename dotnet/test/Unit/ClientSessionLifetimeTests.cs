@@ -33,6 +33,20 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task DisposeAsync_Requests_Runtime_Shutdown_For_Owned_Process()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        using var process = StartExitedProcess();
+        await ReplaceConnectionCliProcessAsync(client, process);
+
+        await client.DisposeAsync();
+
+        Assert.Equal(1, server.RuntimeShutdownCount);
+    }
+
+    [Fact]
     public async Task StopAsync_Does_Not_Throw_When_Runtime_Shutdown_Fails()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -188,6 +202,57 @@ public sealed class ClientSessionLifetimeTests
         }));
         Assert.Contains(sessionId, exception.Message);
         AssertSessionCount(client, sessions: 1);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_CustomAgent_ReasoningEffort()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents =
+            [
+                new CustomAgentConfig
+                {
+                    Name = "reasoning-agent",
+                    Prompt = "Think carefully.",
+                    ReasoningEffort = "high"
+                }
+            ],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var agent = Assert.Single(request.Params.GetProperty("customAgents").EnumerateArray());
+        Assert.Equal("high", agent.GetProperty("reasoningEffort").GetString());
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Omits_CustomAgent_ReasoningEffort_When_Unset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents =
+            [
+                new CustomAgentConfig
+                {
+                    Name = "default-agent",
+                    Prompt = "Use runtime defaults."
+                }
+            ],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var agent = Assert.Single(request.Params.GetProperty("customAgents").EnumerateArray());
+        Assert.False(agent.TryGetProperty("reasoningEffort", out _));
     }
 
     [Fact]

@@ -134,7 +134,7 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                 assert_eq!(request.summary, PLAN_SUMMARY);
                 assert_eq!(
                     request.actions,
-                    ["interactive", "autopilot", "exit_only"].map(str::to_string)
+                    ["autopilot", "interactive", "exit_only"].map(str::to_string)
                 );
                 assert_eq!(request.recommended_action, "interactive");
 
@@ -146,8 +146,8 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                 assert_eq!(
                     requested_data.actions,
                     [
-                        ExitPlanModeAction::Interactive,
                         ExitPlanModeAction::Autopilot,
+                        ExitPlanModeAction::Interactive,
                         ExitPlanModeAction::ExitOnly,
                     ]
                 );

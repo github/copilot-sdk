@@ -96,6 +96,15 @@ class CopilotRequestContext:
     """Id of the runtime session that triggered this request, when in scope.
     Absent for out-of-session requests (e.g. the startup model catalog)."""
 
+    agent_id: str | None = None
+    """Stable per-agent-instance id for the agent trajectory that issued this request."""
+
+    parent_agent_id: str | None = None
+    """Id of the parent agent when this request was issued by a subagent."""
+
+    interaction_type: str | None = None
+    """Runtime classification for the interaction that produced this request."""
+
     _bridge: _CopilotWebSocketResponseBridge | None = field(default=None, repr=False)
 
 
@@ -253,6 +262,9 @@ class CopilotRequestHandler:
         ctx = CopilotRequestContext(
             request_id=exchange.request_id,
             session_id=exchange.session_id,
+            agent_id=exchange.agent_id,
+            parent_agent_id=exchange.parent_agent_id,
+            interaction_type=exchange.interaction_type,
             transport=exchange.transport,
             url=exchange.url,
             headers=exchange.headers,
@@ -382,6 +394,9 @@ class _CopilotRequestExchange:
     ) -> None:
         self.request_id = request_id
         self.session_id: str | None = None
+        self.agent_id: str | None = None
+        self.parent_agent_id: str | None = None
+        self.interaction_type: str | None = None
         self.method: str = "GET"
         self.url: str = ""
         self.headers: dict[str, list[str]] = {}
@@ -397,6 +412,9 @@ class _CopilotRequestExchange:
     def set_context(self, params: LlmInferenceHTTPRequestStartRequest) -> None:
         """Fill in the request context once the matching start frame arrives."""
         self.session_id = params.session_id
+        self.agent_id = params.agent_id
+        self.parent_agent_id = params.parent_agent_id
+        self.interaction_type = params.interaction_type
         self.method = params.method
         self.url = params.url
         self.headers = params.headers

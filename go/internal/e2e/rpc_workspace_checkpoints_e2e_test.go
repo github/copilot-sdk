@@ -33,6 +33,11 @@ func TestRPCWorkspaceCheckpointsE2E(t *testing.T) {
 	})
 
 	t.Run("should return nil or empty content for unknown checkpoint", func(t *testing.T) {
+		// In-process, session.workspaces.readCheckpoint is answered by the native
+		// runtime, which decodes the checkpoint number as a u32 and rejects the
+		// large sentinel this test uses. Covered by the default (stdio) transport.
+		// Mirrors Rust's should_return_null_or_empty_content_for_unknown_checkpoint.
+		testharness.SkipIfInProcess(t, "readCheckpoint decodes the id as u32 in-process")
 		session := createWorkspaceRPCSession(t, client)
 		defer session.Disconnect()
 

@@ -26,12 +26,13 @@ import threading
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
+from ._ffi_runtime_host import FfiRuntimeHost
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
     CopilotClientMode,
@@ -58,6 +59,7 @@ from ._telemetry import get_trace_context
 from .canvas import (
     CanvasDeclaration,
     CanvasHandler,
+    CanvasProviderIdentity,
     ExtensionInfo,
 )
 from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
@@ -71,6 +73,8 @@ from .generated.rpc import (
     RemoteSessionMode,
     ServerRpc,
     _ConnectResult,
+    _HookInvokeRequest,
+    _HookInvokeResponse,
     from_datetime,
     register_client_global_api_handlers,
     register_client_session_api_handlers,
@@ -106,6 +110,7 @@ from .session import (
     SessionHooks,
     SessionLimitsConfig,
     SystemMessageConfig,
+    ToolSearchConfig,
     UserInputHandler,
     _capabilities_to_dict,
     _PermissionHandlerFn,
@@ -138,6 +143,71 @@ class CloudSessionOptions:
     """Options for creating a remote session in the cloud."""
 
     repository: CloudSessionRepository | None = None
+
+
+ExpFlagValue = str | int | float | bool | None
+"""A single ExP (Experiment Platform) flag value.
+
+ExP assignments resolve to a string, number, boolean, or ``None``.
+"""
+
+
+@dataclass
+class ExpConfigEntry:
+    """A single configuration entry in a :class:`CopilotExpAssignmentResponse`.
+
+    Each entry carries an identifier and a bag of typed parameter values.
+    """
+
+    id: str
+    """Identifier of the configuration entry."""
+    parameters: dict[str, ExpFlagValue] = field(default_factory=dict)
+    """Parameter values keyed by parameter name."""
+
+
+@dataclass
+class CopilotExpAssignmentResponse:
+    """ExP ("flight") assignment data.
+
+    Uses the same JSON shape the Copilot CLI fetches from the experimentation
+    service. Serialized on the wire with PascalCase keys to match the contract
+    consumed by the runtime.
+    """
+
+    features: list[str] = field(default_factory=list)
+    """Enabled feature names."""
+    flights: dict[str, str] = field(default_factory=dict)
+    """Assigned flights keyed by flight name."""
+    configs: list[ExpConfigEntry] = field(default_factory=list)
+    """Configuration entries carrying typed parameter values."""
+    assignment_context: str = ""
+    """Assignment context string forwarded to CAPI and telemetry."""
+    parameter_groups: Any | None = None
+    """Opaque parameter-group payload passed through untouched. Optional."""
+    flighting_version: int | None = None
+    """Version of the flighting configuration. Optional."""
+    impression_id: str | None = None
+    """Impression identifier for the assignment. Optional."""
+
+
+def _exp_assignment_response_to_dict(
+    response: CopilotExpAssignmentResponse,
+) -> dict[str, Any]:
+    wire: dict[str, Any] = {
+        "Features": list(response.features),
+        "Flights": dict(response.flights),
+        "Configs": [
+            {"Id": entry.id, "Parameters": dict(entry.parameters)} for entry in response.configs
+        ],
+        "AssignmentContext": response.assignment_context,
+    }
+    if response.parameter_groups is not None:
+        wire["ParameterGroups"] = response.parameter_groups
+    if response.flighting_version is not None:
+        wire["FlightingVersion"] = response.flighting_version
+    if response.impression_id is not None:
+        wire["ImpressionId"] = response.impression_id
+    return wire
 
 
 class CapiSessionOptions(TypedDict, total=False):
@@ -254,6 +324,16 @@ def _session_limits_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     return wire
 
 
+def _tool_search_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``ToolSearchConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "enabled" in config:
+        wire["enabled"] = config["enabled"]
+    if "defer_threshold" in config:
+        wire["deferThreshold"] = config["defer_threshold"]
+    return wire
+
+
 class TelemetryConfig(TypedDict, total=False):
     """Configuration for OpenTelemetry integration with the Copilot CLI."""
 
@@ -348,6 +428,33 @@ class RuntimeConnection:
         """
         return UriRuntimeConnection(url=url, connection_token=connection_token)
 
+    @staticmethod
+    def for_inprocess() -> InProcessRuntimeConnection:
+        """Host the runtime **in-process** via its native C ABI (FFI).
+
+        **Experimental.** The in-process (FFI) transport is experimental and its
+        behavior may change or be removed in a future release.
+
+        Instead of spawning the runtime as a child process, the SDK loads the
+        runtime's native shared library into this process and drives JSON-RPC
+        over its C ABI.
+
+        Because the runtime loads into this single shared process, per-client
+        options that lower to environment variables or a working directory
+        cannot be honored: :attr:`CopilotClientOptions.env`,
+        :attr:`CopilotClientOptions.telemetry`, and
+        :attr:`CopilotClientOptions.working_directory` are rejected with this
+        transport. Set those on the host process before creating the client.
+        Set ``COPILOT_CLI_PATH`` only when using an externally provisioned
+        compatible runtime package.
+
+        Note:
+            Pre-provision the native runtime with
+            ``python -m copilot download-runtime --in-process`` when automatic
+            downloads are disabled.
+        """
+        return InProcessRuntimeConnection()
+
 
 @dataclass
 class ChildProcessRuntimeConnection(RuntimeConnection):
@@ -361,6 +468,13 @@ class ChildProcessRuntimeConnection(RuntimeConnection):
 
     args: Sequence[str] = ()
     """Extra command-line arguments passed to the runtime process."""
+
+    env: dict[str, str] | None = None
+    """Per-connection environment variables for the spawned child process.
+
+    When set, do not also set :attr:`CopilotClientOptions.env` — the client
+    rejects setting environment in both places. ``None`` inherits the
+    client-level env (or the current process env)."""
 
 
 @dataclass
@@ -399,6 +513,19 @@ class UriRuntimeConnection(RuntimeConnection):
     """Shared secret to authenticate the connection."""
 
 
+@dataclass
+class InProcessRuntimeConnection(RuntimeConnection):
+    """Hosts the runtime in-process via its native C ABI (FFI).
+
+    **Experimental.** The in-process (FFI) transport is experimental and its
+    behavior may change or be removed in a future release.
+
+    Construct via :meth:`RuntimeConnection.for_inprocess`. The runtime's native
+    shared library is loaded into this process and JSON-RPC is driven over its
+    C ABI.
+    """
+
+
 class _GitHubTelemetryAdapter:
     """Adapts a user-provided ``on_github_telemetry`` callback to the generated
     ``GitHubTelemetryHandler`` protocol.
@@ -417,6 +544,25 @@ class _GitHubTelemetryAdapter:
                 await result
         except Exception:
             logger.warning("Error handling gitHubTelemetry.event notification", exc_info=True)
+
+
+class _HooksAdapter:
+    """Adapts session-scoped hook dispatch to the generated ``HooksHandler`` protocol.
+
+    ``hooks.invoke`` is a client-global RPC method whose payload carries a
+    ``sessionId``. This adapter routes each invocation to the matching session's
+    registered hook handlers.
+    """
+
+    def __init__(self, get_session: Callable[[str], CopilotSession | None]) -> None:
+        self._get_session = get_session
+
+    async def invoke(self, params: _HookInvokeRequest) -> _HookInvokeResponse:
+        session = self._get_session(params.session_id)
+        if session is None:
+            raise ValueError(f"unknown session {params.session_id}")
+        output = await session._handle_hooks_invoke(params.hook_type.value, params.input)
+        return _HookInvokeResponse(output=output)
 
 
 @dataclass
@@ -1062,15 +1208,23 @@ _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS = 10
 _CLI_PROCESS_EXIT_TIMEOUT_SECONDS = 5
 
 
-def _get_or_download_cli() -> str | None:
+def _get_or_download_cli(*, include_runtime_lib: bool = False) -> str | None:
     """Get the cached CLI binary, downloading if necessary.
 
     Returns the path to the CLI binary, or None if unavailable (dev install
     with no pinned version, or auto-download disabled).
+
+    When ``include_runtime_lib`` is set, also ensures the native in-process FFI
+    runtime is available (downloading it on first use).
     """
     from ._cli_download import get_or_download_cli
 
-    return get_or_download_cli()
+    cli_path = get_or_download_cli()
+    if cli_path and include_runtime_lib:
+        from ._cli_download import ensure_runtime_library
+
+        ensure_runtime_library(cli_path)
+    return cli_path
 
 
 def _extract_transform_callbacks(
@@ -1106,6 +1260,78 @@ def _extract_transform_callbacks(
 
     wire_payload = {**wire_system_message, "sections": wire_sections}
     return wire_payload, callbacks
+
+
+_DEFAULT_CONNECTION_ENV_VAR = "COPILOT_SDK_DEFAULT_CONNECTION"
+
+
+def _resolve_default_connection(env: Mapping[str, str]) -> RuntimeConnection:
+    """Resolve the transport when the caller supplies no explicit connection.
+
+    Honors the ``COPILOT_SDK_DEFAULT_CONNECTION`` override (``"inprocess"`` or
+    ``"stdio"``); defaults to stdio. Matches the Node/.NET/Rust default-transport
+    override so the CI matrix can run the whole suite under either transport.
+    """
+    value = env.get(_DEFAULT_CONNECTION_ENV_VAR)
+    if value is None or value == "":
+        return RuntimeConnection.for_stdio()
+    normalized = value.strip().lower()
+    if normalized == "inprocess":
+        return RuntimeConnection.for_inprocess()
+    if normalized == "stdio":
+        return RuntimeConnection.for_stdio()
+    raise ValueError(
+        f"Invalid {_DEFAULT_CONNECTION_ENV_VAR}={value!r}. Expected 'inprocess', 'stdio', or unset."
+    )
+
+
+def _validate_environment_options(
+    options: _CopilotClientOptions, connection: RuntimeConnection
+) -> None:
+    """Validate env/telemetry/working-directory options against the transport.
+
+    Per-client environment is only representable for child-process transports
+    (each client owns its own OS process). The in-process (FFI) transport loads
+    the native runtime into the shared host process, whose single environment
+    block and process-global working directory cannot carry per-client values,
+    so options that lower to them are rejected there (fail loud, not silent).
+    """
+    if isinstance(connection, InProcessRuntimeConnection):
+        if options.env is not None:
+            raise ValueError(
+                "env is not supported with RuntimeConnection.for_inprocess(): the "
+                "in-process transport loads the native runtime into the shared host "
+                "process, whose single environment block cannot carry per-client "
+                "values. Set the variables on the host process environment instead."
+            )
+        if options.telemetry is not None:
+            raise ValueError(
+                "telemetry is not supported with RuntimeConnection.for_inprocess(): "
+                "telemetry configuration is lowered to environment variables read by "
+                "native runtime code running in the shared host process, so per-client "
+                "telemetry cannot be honored in-process. Configure telemetry via the "
+                "host process environment, or use a child-process transport."
+            )
+        if options.working_directory is not None:
+            raise ValueError(
+                "working_directory is not supported with RuntimeConnection.for_inprocess(): "
+                "the native runtime shares the host process working directory, so a "
+                "per-client working directory cannot be honored in-process. Use a "
+                "child-process "
+                "transport, or set the process working directory before creating the client."
+            )
+        return
+
+    if (
+        isinstance(connection, ChildProcessRuntimeConnection)
+        and connection.env is not None
+        and options.env is not None
+    ):
+        raise ValueError(
+            "Set environment variables via either the client-level env argument or "
+            "ChildProcessRuntimeConnection.env, not both. Prefer the connection-level "
+            "env for child-process transports."
+        )
 
 
 class CopilotClient:
@@ -1165,10 +1391,12 @@ class CopilotClient:
         """
         Initialize a new CopilotClient.
 
-        All process-management options (``working_directory``, ``log_level``,
-        ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
-        (stdio / tcp connections). They are ignored when connecting to an
-        existing runtime via :meth:`RuntimeConnection.for_uri`.
+        Runtime options apply to locally hosted connections. The in-process
+        transport supports typed runtime options such as ``log_level``,
+        ``github_token``, and ``base_directory``, but rejects per-client
+        ``working_directory``, ``env``, and ``telemetry``. Options are ignored
+        when connecting to an existing runtime via
+        :meth:`RuntimeConnection.for_uri`.
 
         Args:
             connection: How to reach the runtime. Defaults to
@@ -1242,8 +1470,11 @@ class CopilotClient:
             mode=mode,
         )
         connection = (
-            options.connection if options.connection is not None else RuntimeConnection.for_stdio()
+            options.connection
+            if options.connection is not None
+            else _resolve_default_connection(os.environ)
         )
+        _validate_environment_options(options, connection)
         _require_storage_for_empty_mode(
             mode=options.mode,
             base_directory=options.base_directory,
@@ -1259,6 +1490,9 @@ class CopilotClient:
         # Resolve connection-mode-specific state.
         self._actual_host: str = "localhost"
         self._is_external_server: bool = isinstance(connection, UriRuntimeConnection)
+        self._cli_path_source: str | None = None
+        self._ffi_host: FfiRuntimeHost | None = None
+        self._inprocess_runtime_path: str | None = None
 
         if isinstance(connection, UriRuntimeConnection):
             if connection.connection_token is not None and len(connection.connection_token) == 0:
@@ -1266,6 +1500,15 @@ class CopilotClient:
             self._actual_host, actual_port = self._parse_cli_url(connection.url)
             self._runtime_port: int | None = actual_port
             self._effective_connection_token: str | None = connection.connection_token
+        elif isinstance(connection, InProcessRuntimeConnection):
+            # In-process (FFI): no child process and no per-connection token.
+            self._runtime_port = None
+            self._effective_connection_token = None
+            self._inprocess_runtime_path = self._resolve_runtime_entrypoint(
+                None, include_runtime_lib=True
+            )
+            if options.use_logged_in_user is None:
+                options.use_logged_in_user = not bool(options.github_token)
         else:
             assert isinstance(connection, ChildProcessRuntimeConnection)
             self._runtime_port = None
@@ -1285,26 +1528,17 @@ class CopilotClient:
                 self._effective_connection_token = None
 
             # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > downloaded binary.
-            effective_env = options.env if options.env is not None else os.environ
-            self._cli_path_source: str | None = "explicit"
-            if connection.path is None:
-                env_cli_path = effective_env.get("COPILOT_CLI_PATH")
-                if env_cli_path:
-                    connection.path = env_cli_path
-                    self._cli_path_source = "environment"
-                else:
-                    downloaded_path = _get_or_download_cli()
-                    if downloaded_path:
-                        connection.path = downloaded_path
-                        self._cli_path_source = "downloaded"
-                    else:
-                        raise RuntimeError(
-                            "Copilot CLI not found. Install a published wheel (which "
-                            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
-                            "or pass an explicit path via "
-                            "RuntimeConnection.for_stdio(path=...) / "
-                            "RuntimeConnection.for_tcp(path=...)."
-                        )
+            # Select the environment by identity, not truthiness, so an intentionally
+            # empty per-connection or client env stays authoritative (the spawned child
+            # receives that empty mapping) instead of falling back to os.environ and
+            # unexpectedly honoring a host COPILOT_CLI_PATH.
+            if connection.env is not None:
+                effective_env: Mapping[str, str] = connection.env
+            elif options.env is not None:
+                effective_env = options.env
+            else:
+                effective_env = os.environ
+            connection.path = self._resolve_runtime_entrypoint(connection.path, env=effective_env)
 
             # Resolve use_logged_in_user default
             if options.use_logged_in_user is None:
@@ -1329,6 +1563,58 @@ class CopilotClient:
             _validate_session_fs_config(options.session_fs)
         self._session_fs_config = options.session_fs
         self._request_handler = options.request_handler
+
+    def _resolve_runtime_entrypoint(
+        self,
+        path: str | None,
+        *,
+        env: Mapping[str, str] | None = None,
+        include_runtime_lib: bool = False,
+    ) -> str:
+        """Resolve the runtime executable path (explicit > env > downloaded).
+
+        Sets ``self._cli_path_source`` for diagnostics. When
+        ``include_runtime_lib`` is set (in-process transport), also ensures the
+        native runtime library is downloaded alongside the CLI.
+
+        Raises:
+            RuntimeError: If no runtime path can be resolved.
+        """
+        if path is not None:
+            self._cli_path_source = "explicit"
+            return self._ensure_runtime_lib(path) if include_runtime_lib else path
+
+        lookup = env if env is not None else os.environ
+        env_cli_path = lookup.get("COPILOT_CLI_PATH")
+        if env_cli_path:
+            self._cli_path_source = "environment"
+            return self._ensure_runtime_lib(env_cli_path) if include_runtime_lib else env_cli_path
+
+        downloaded_path = _get_or_download_cli(include_runtime_lib=include_runtime_lib)
+        if downloaded_path:
+            self._cli_path_source = "downloaded"
+            return downloaded_path
+
+        raise RuntimeError(
+            "Copilot CLI not found. Install a published wheel (which "
+            "auto-downloads the CLI on first use), set COPILOT_CLI_PATH, "
+            "or pass an explicit path via "
+            "RuntimeConnection.for_stdio(path=...) / "
+            "RuntimeConnection.for_tcp(path=...)."
+        )
+
+    @staticmethod
+    def _ensure_runtime_lib(cli_path: str) -> str:
+        """Ensure the in-process runtime library sits next to a user-supplied CLI.
+
+        For explicit/``COPILOT_CLI_PATH`` entrypoints, the native library may
+        already be bundled (dev ``prebuilds`` layout); otherwise it is fetched on
+        first use. Returns ``cli_path`` unchanged.
+        """
+        from ._cli_download import ensure_runtime_library
+
+        ensure_runtime_library(cli_path)
+        return cli_path
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1568,7 +1854,11 @@ class CopilotClient:
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
 
-        if self._rpc is not None and self._cli_process is not None and not self._is_external_server:
+        if (
+            self._rpc is not None
+            and (self._cli_process is not None or self._ffi_host is not None)
+            and not self._is_external_server
+        ):
             runtime_shutdown_start = time.perf_counter()
             try:
                 await self._rpc.runtime.shutdown(timeout=_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS)
@@ -1597,6 +1887,15 @@ class CopilotClient:
         # Clear models cache
         async with self._models_cache_lock:
             self._models_cache = None
+
+        # Dispose the in-process FFI host and release the loaded native library.
+        if self._ffi_host is not None:
+            try:
+                self._ffi_host.dispose()
+            except Exception:
+                logger.debug("Error while disposing in-process FFI host", exc_info=True)
+            self._ffi_host = None
+            self._process = None
 
         # Close TCP socket wrappers without treating them as owned processes.
         if self._process is not None and self._process is not self._cli_process:
@@ -1691,6 +1990,15 @@ class CopilotClient:
             except Exception:
                 logger.debug("Error while force-stopping Copilot CLI process", exc_info=True)
 
+        # Force-dispose the in-process FFI host before tearing down JSON-RPC.
+        if self._ffi_host is not None:
+            try:
+                self._ffi_host.dispose()
+            except Exception:
+                logger.debug("Error while force-disposing in-process FFI host", exc_info=True)
+            self._ffi_host = None
+            self._process = None
+
         # Then clean up the JSON-RPC client
         if self._client:
             try:
@@ -1722,6 +2030,7 @@ class CopilotClient:
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
+        tool_search: ToolSearchConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
@@ -1780,8 +2089,10 @@ class CopilotClient:
         request_extensions: bool | None = None,
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
+        canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1913,6 +2224,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1952,6 +2270,8 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 if tool.defer is not None:
                     definition["defer"] = tool.defer
+                if tool.metadata is not None:
+                    definition["metadata"] = tool.metadata
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -1995,6 +2315,9 @@ class CopilotClient:
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
         if wire_system_message:
             payload["systemMessage"] = wire_system_message
+
+        if tool_search is not None:
+            payload["toolSearch"] = _tool_search_to_wire(tool_search)
 
         if available_tools is not None:
             payload["availableTools"] = available_tools
@@ -2040,9 +2363,13 @@ class CopilotClient:
         if cloud is not None:
             payload["cloud"] = _cloud_session_options_to_dict(cloud)
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
+
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
 
         # Add working directory if provided
         if working_directory:
@@ -2186,6 +2513,8 @@ class CopilotClient:
             payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
+        if canvas_provider is not None:
+            payload["canvasProvider"] = canvas_provider.to_dict()
 
         if not self._client:
             raise RuntimeError("Client not connected")
@@ -2373,6 +2702,7 @@ class CopilotClient:
         context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
+        tool_search: ToolSearchConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
@@ -2431,9 +2761,11 @@ class CopilotClient:
         request_extensions: bool | None = None,
         extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
+        canvas_provider: CanvasProviderIdentity | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
-        exp_assignments: dict[str, Any] | None = None,
+        exp_assignments: CopilotExpAssignmentResponse | None = None,
+        enable_managed_settings: bool | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2566,6 +2898,13 @@ class CopilotClient:
                 malformed payloads are dropped by the runtime (fail-open). This
                 is an internal/trusted-integrator option. Sent on the wire as
                 ``expAssignments``.
+            enable_managed_settings: Opt-in flag. When ``True``, the runtime
+                self-fetches enterprise managed settings (bypass-permissions
+                policy) at session bootstrap using the session's ``github_token``.
+                Requires ``github_token`` to be set; if omitted, the runtime is
+                expected to reject session creation (fail-closed). When unset,
+                behaves exactly as before. Sent on the wire as
+                ``enableManagedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2607,6 +2946,8 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 if tool.defer is not None:
                     definition["defer"] = tool.defer
+                if tool.metadata is not None:
+                    definition["metadata"] = tool.metadata
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -2647,6 +2988,8 @@ class CopilotClient:
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
         if wire_system_message:
             payload["systemMessage"] = wire_system_message
+        if tool_search is not None:
+            payload["toolSearch"] = _tool_search_to_wire(tool_search)
         if available_tools is not None:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
@@ -2717,9 +3060,13 @@ class CopilotClient:
         if remote_session is not None:
             payload["remoteSession"] = remote_session.value
 
-        # Add ExP assignment data if provided (opaque JSON, trusted integrator)
+        # Add ExP assignment data if provided (trusted integrator)
         if exp_assignments is not None:
-            payload["expAssignments"] = exp_assignments
+            payload["expAssignments"] = _exp_assignment_response_to_dict(exp_assignments)
+
+        # Opt the runtime into self-fetching enterprise managed settings
+        if enable_managed_settings is not None:
+            payload["enableManagedSettings"] = enable_managed_settings
 
         if working_directory:
             payload["workingDirectory"] = working_directory
@@ -2809,6 +3156,8 @@ class CopilotClient:
             payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
+        if canvas_provider is not None:
+            payload["canvasProvider"] = canvas_provider.to_dict()
 
         if not self._client:
             raise RuntimeError("Client not connected")
@@ -3063,7 +3412,7 @@ class CopilotClient:
         Example:
             >>> sessions = await client.list_sessions()
             >>> for session in sessions:
-            ...     print(f"Session: {session.sessionId}")
+            ...     print(f"Session: {session.session_id}")
             >>> # Filter sessions by repository
             >>> from copilot.client import SessionListFilter
             >>> filtered = await client.list_sessions(SessionListFilter(repository="owner/repo"))
@@ -3503,6 +3852,8 @@ class CopilotClient:
             wire_agent["skills"] = agent["skills"]
         if "model" in agent:
             wire_agent["model"] = agent["model"]
+        if "reasoning_effort" in agent:
+            wire_agent["reasoningEffort"] = agent["reasoning_effort"]
         return wire_agent
 
     def _convert_default_agent_to_wire_format(
@@ -3526,11 +3877,15 @@ class CopilotClient:
         """Start the runtime process.
 
         This spawns the runtime as a subprocess using the configured transport
-        mode (stdio or TCP).
+        mode (stdio or TCP), or hosts it in-process for the FFI transport.
 
         Raises:
             RuntimeError: If the server fails to start or times out.
         """
+        if isinstance(self._connection, InProcessRuntimeConnection):
+            await self._start_inprocess_ffi()
+            return
+
         assert isinstance(self._connection, ChildProcessRuntimeConnection)
         conn = self._connection
         opts = self._options
@@ -3583,8 +3938,13 @@ class CopilotClient:
             },
         )
 
-        # Get environment variables
-        if opts.env is None:
+        # Get environment variables. Per-connection env (ChildProcessRuntimeConnection.env)
+        # takes precedence over the client-level env; the constructor already rejects
+        # setting both. When neither is set, inherit the current process environment.
+        conn_env = conn.env if isinstance(conn, ChildProcessRuntimeConnection) else None
+        if conn_env is not None:
+            env = dict(conn_env)
+        elif opts.env is None:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
@@ -3699,6 +4059,69 @@ class CopilotClient:
         except TimeoutError:
             raise RuntimeError("Timeout waiting for CLI server to start")
 
+    async def _start_inprocess_ffi(self) -> None:
+        """Host the runtime in-process via the native FFI library.
+
+        Loads the native runtime library and opens the FFI JSON-RPC connection.
+
+        Raises:
+            RuntimeError: If the native library is missing or startup fails.
+        """
+        assert isinstance(self._connection, InProcessRuntimeConnection)
+        runtime_path = self._inprocess_runtime_path
+        assert runtime_path is not None  # resolved in __init__
+
+        logger.info(
+            "CopilotClient._start_inprocess_ffi hosting Copilot runtime in-process",
+            extra={"runtime_path": runtime_path, "runtime_path_source": self._cli_path_source},
+        )
+
+        opts = self._options
+        args: list[str] = []
+        if opts.log_level:
+            args.extend(["--log-level", opts.log_level])
+        if opts.github_token:
+            args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
+        if not opts.use_logged_in_user:
+            args.append("--no-auto-login")
+        if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
+            args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
+        if opts.enable_remote_sessions:
+            args.append("--remote")
+
+        environment: dict[str, str] = {}
+        if opts.github_token:
+            environment["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
+        if opts.base_directory:
+            environment["COPILOT_HOME"] = opts.base_directory
+        if opts.mode == "empty":
+            environment["COPILOT_DISABLE_KEYTAR"] = "1"
+
+        host = FfiRuntimeHost.create(
+            runtime_path,
+            environment=environment or None,
+            args=tuple(args),
+        )
+
+        # Track the host and expose its process-like adapter *before* the blocking
+        # handshake. asyncio.to_thread keeps running host_start after a cancellation
+        # (a thread can't be interrupted), and CancelledError bypasses start()'s
+        # `except Exception`, so assigning here — as .NET does before StartAsync —
+        # keeps a completed native host owned so stop()/force_stop() can dispose it
+        # instead of leaking it.
+        self._ffi_host = host
+        self._process = host.process
+
+        ffi_start = time.perf_counter()
+        # Native startup may block, so run the handshake off the event loop.
+        await asyncio.to_thread(host.start_blocking)
+        log_timing(
+            logger,
+            logging.DEBUG,
+            "CopilotClient._start_inprocess_ffi FFI host started",
+            ffi_start,
+        )
+
     async def _connect_to_server(self) -> None:
         """Connect to the runtime via the configured transport.
 
@@ -3708,7 +4131,9 @@ class CopilotClient:
             RuntimeError: If the connection fails.
         """
         setup_start = time.perf_counter()
-        if isinstance(self._connection, StdioRuntimeConnection):
+        if isinstance(self._connection, (StdioRuntimeConnection, InProcessRuntimeConnection)):
+            # The in-process FFI host exposes a process-like adapter (stdin/stdout),
+            # so the same stdio JSON-RPC wiring drives it unchanged.
             await self._connect_via_stdio()
         else:
             await self._connect_via_tcp()
@@ -3768,7 +4193,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -3895,7 +4319,6 @@ class CopilotClient:
         self._client.set_request_handler(
             "autoModeSwitch.request", self._handle_auto_mode_switch_request
         )
-        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
@@ -3985,15 +4408,18 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
-        if llm_inference_adapter is None and github_telemetry_adapter is None:
-            return
         register_client_global_api_handlers(
             self._client,
             ClientGlobalApiHandlers(
+                hooks=_HooksAdapter(self._get_session),
                 llm_inference=llm_inference_adapter,
                 git_hub_telemetry=github_telemetry_adapter,
             ),
         )
+
+    def _get_session(self, session_id: str) -> CopilotSession | None:
+        with self._sessions_lock:
+            return self._sessions.get(session_id)
 
     async def _set_llm_inference_provider(self) -> None:
         if self._request_handler is None or self._rpc is None:
@@ -4066,34 +4492,6 @@ class CopilotClient:
 
         response = await session._handle_auto_mode_switch_request(params)
         return {"response": response}
-
-    async def _handle_hooks_invoke(self, params: dict) -> dict:
-        """
-        Handle a hooks invocation from the CLI server.
-
-        Args:
-            params: The hooks invocation parameters from the server.
-
-        Returns:
-            A dict containing the hook output.
-
-        Raises:
-            ValueError: If the request payload is invalid.
-        """
-        session_id = params.get("sessionId")
-        hook_type = params.get("hookType")
-        input_data = params.get("input")
-
-        if not session_id or not hook_type:
-            raise ValueError("invalid hooks invoke payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
-        output = await session._handle_hooks_invoke(hook_type, input_data)
-        return {"output": output}
 
     async def _handle_system_message_transform(self, params: dict) -> dict:
         """Handle a systemMessage.transform request from the CLI server."""

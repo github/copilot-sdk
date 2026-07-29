@@ -57,6 +57,22 @@ public class ForwardCompatibilityTest {
     }
 
     @Test
+    void parse_internalEventType_returnsUnknownSessionEvent() throws Exception {
+        String json = """
+                {
+                    "id": "12345678-1234-1234-1234-123456789abc",
+                    "timestamp": "2026-06-15T10:30:00Z",
+                    "type": "session.memory_changed",
+                    "data": {}
+                }
+                """;
+        SessionEvent result = MAPPER.readValue(json, SessionEvent.class);
+
+        assertInstanceOf(UnknownSessionEvent.class, result);
+        assertEquals("session.memory_changed", result.getType());
+    }
+
+    @Test
     void parse_unknownEventType_preservesOriginalType() throws Exception {
         String json = """
                 {

@@ -35,6 +35,8 @@ public final class SessionRpc {
     public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
+    /** API methods for the {@code factory} namespace. */
+    public final SessionFactoryApi factory;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
     /** API methods for the {@code mode} namespace. */
@@ -112,6 +114,7 @@ public final class SessionRpc {
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
+        this.factory = new SessionFactoryApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
@@ -171,6 +174,22 @@ public final class SessionRpc {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.send", _p, SessionSendResult.class);
+    }
+
+    /**
+     * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
     }
 
     /**

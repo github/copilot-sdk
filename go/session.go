@@ -13,6 +13,11 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+// toolSearchToolName is the fixed name of the runtime's built-in tool-search
+// tool. A client can replace its behavior by registering a [Tool] with this
+// exact name and OverridesBuiltInTool set to true.
+const toolSearchToolName = "tool_search_tool"
+
 type sessionHandler struct {
 	id uint64
 	fn SessionEventHandler
@@ -163,6 +168,7 @@ func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
 			InstanceID:    data.InstanceID,
 			Status:        data.Status,
 			Title:         data.Title,
+			Icon:          data.Icon,
 			URL:           data.URL,
 		})
 	case *SessionCanvasClosedData:
@@ -802,6 +808,17 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 			return nil, fmt.Errorf("invalid hook input: %w", err)
 		}
 		return hooks.OnErrorOccurred(input, invocation)
+
+	case "agentStop":
+		if hooks.OnAgentStop == nil {
+			return nil, nil
+		}
+		var input AgentStopHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnAgentStop(input, invocation)
+
 	default:
 		return nil, nil
 	}
@@ -1513,6 +1530,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		TraceContext: ctx,
 	}
 
+	// The built-in tool-search tool receives a snapshot of the session's
+	// currently initialized tools so an override can filter the live catalog
+	// without issuing its own RPC. Fetch it only for that tool to avoid a
+	// round-trip on every tool call; a failed fetch leaves the snapshot nil
+	// rather than failing the tool.
+	if toolName == toolSearchToolName {
+		if metadata, mErr := s.RPC.Tools.GetCurrentMetadata(ctx); mErr == nil && metadata != nil {
+			invocation.AvailableTools = metadata.Tools
+		}
+	}
+
 	result, err := handler(invocation)
 	if err != nil {
 		errMsg := err.Error()
@@ -1542,6 +1570,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		TextResultForLlm: textResultForLLM,
 		ToolTelemetry:    result.ToolTelemetry,
 		ResultType:       &effectiveResultType,
+		ToolReferences:   result.ToolReferences,
 	}
 	if result.Error != "" {
 		rpcResult.Error = &result.Error
@@ -1735,7 +1764,7 @@ type SetModelOptions struct {
 //
 // Example:
 //
-//	if err := session.SetModel(context.Background(), "gpt-4.1", nil); err != nil {
+//	if err := session.SetModel(context.Background(), "gpt-5.4", nil); err != nil {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
 //	if err := session.SetModel(context.Background(), "claude-sonnet-4.6", &SetModelOptions{ReasoningEffort: new("high")}); err != nil {

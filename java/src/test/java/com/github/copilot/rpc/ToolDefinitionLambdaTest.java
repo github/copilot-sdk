@@ -48,6 +48,9 @@ import com.github.copilot.tool.Param;
 @AllowCopilotExperimental
 class ToolDefinitionLambdaTest {
 
+    private record CustomDateTime(String value) {
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
     private static ToolInvocation invocationOf(Map<String, ?> args) {
@@ -483,6 +486,23 @@ class ToolDefinitionLambdaTest {
         assertNotNull(querySchema);
         assertEquals("string", querySchema.get("type"));
         assertEquals("Search query", querySchema.get("description"));
+    }
+
+    @Test
+    void schema_oneArg_customTypeUsesExplicitSchemaAndCoercion() throws Exception {
+        Param<CustomDateTime> p = Param.of(CustomDateTime.class, "when", "Meeting time")
+                .schema("{\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\"}}}");
+        ToolDefinition tool = ToolDefinition.from("schedule", "Schedules a meeting", p,
+                when -> "scheduled " + when.value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) propertiesOf(tool).get("when");
+        assertNotNull(whenSchema);
+        assertEquals("object", whenSchema.get("type"));
+        assertEquals("Meeting time", whenSchema.get("description"));
+        ObjectNode arguments = JsonNodeFactory.instance.objectNode();
+        arguments.putObject("when").put("value", "2026-07-23T21:00:00Z");
+        Object result = tool.handler().invoke(new ToolInvocation().setArguments(arguments)).get();
+        assertEquals("scheduled 2026-07-23T21:00:00Z", result);
     }
 
     @Test

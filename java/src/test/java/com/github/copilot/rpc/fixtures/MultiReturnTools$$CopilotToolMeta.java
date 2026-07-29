@@ -16,14 +16,14 @@ public final class MultiReturnTools$$CopilotToolMeta implements CopilotToolMetad
         return List.of(new ToolDefinition("string_method", "Returns a string",
                 Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
                     return CompletableFuture.completedFuture(instance.stringMethod());
-                }, null, null, null), new ToolDefinition("void_method", "Void method",
+                }, null, null, null, null), new ToolDefinition("void_method", "Void method",
                         Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
                             instance.voidMethod();
                             return CompletableFuture.completedFuture("Success");
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("async_method", "Async method",
                         Map.of("type", "object", "properties", Map.of(), "required", List.of()), invocation -> {
                             return instance.asyncMethod().thenApply(r -> (Object) r);
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -198,12 +197,17 @@ func TestMCPOAuthE2E(t *testing.T) {
 	t.Run("cancel pending MCP OAuth request", func(t *testing.T) {
 		baseURL := startOAuthMCPServer(t)
 		serverName := "oauth-cancelled-mcp"
+		var mu sync.Mutex
 		var observedRequest copilot.MCPAuthRequest
+		var observed bool
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
+				mu.Lock()
 				observedRequest = request
+				observed = true
+				mu.Unlock()
 				return copilot.MCPAuthResultCancelled(), nil
 			},
 			MCPServers: map[string]copilot.MCPServerConfig{
@@ -219,11 +223,35 @@ func TestMCPOAuthE2E(t *testing.T) {
 		t.Cleanup(func() { session.Disconnect() })
 
 		waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusNeedsAuth)
-		if observedRequest.ServerName != serverName {
-			t.Fatalf("Expected serverName %q, got %q", serverName, observedRequest.ServerName)
+
+		// The MCP connection is kicked off by session.create, but the SDK only registers its
+		// `mcp.oauth_required` event interest once create returns. If the server's initial 401
+		// wins that race, the runtime records `needs-auth` WITHOUT invoking the host callback,
+		// so `observedRequest` is briefly unset even after `needs-auth` is observed. A later
+		// auth retry (now that interest is registered) invokes the callback with the same
+		// `Initial` reason. Wait for the callback rather than sampling it the instant
+		// `needs-auth` first appears, which is what made this test flaky.
+		var request copilot.MCPAuthRequest
+		deadline := time.Now().Add(60 * time.Second)
+		for {
+			mu.Lock()
+			got := observed
+			request = observedRequest
+			mu.Unlock()
+			if got {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s OAuth request did not reach the host callback", serverName)
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
-		if observedRequest.Reason != copilot.MCPOauthRequestReasonInitial {
-			t.Fatalf("Unexpected auth request reason: %q", observedRequest.Reason)
+
+		if request.ServerName != serverName {
+			t.Fatalf("Expected serverName %q, got %q", serverName, request.ServerName)
+		}
+		if request.Reason != copilot.MCPOauthRequestReasonInitial {
+			t.Fatalf("Unexpected auth request reason: %q", request.Reason)
 		}
 	})
 
@@ -306,17 +334,14 @@ type oauthMCPRequest struct {
 func startOAuthMCPServer(t *testing.T) string {
 	t.Helper()
 
-	serverPath, err := filepath.Abs("../../../test/harness/test-mcp-oauth-server.mjs")
-	if err != nil {
-		t.Fatalf("Failed to resolve OAuth MCP server path: %v", err)
-	}
+	serverPath := testharness.RepoPath("test", "harness", "test-mcp-oauth-server.mjs")
 	cmd := exec.Command("node", serverPath)
 	cmd.Env = append(os.Environ(), "EXPECTED_TOKEN="+expectedMCPOAuthToken)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to pipe OAuth MCP server stdout: %v", err)
 	}
-	var stderr strings.Builder
+	var stderr syncBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("Failed to start OAuth MCP server: %v", err)
@@ -360,6 +385,26 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// syncBuffer is a minimal io.Writer whose contents can be read concurrently.
+// os/exec writes to cmd.Stderr on a separate goroutine, so reading a plain
+// strings.Builder while the process is running is a data race (caught by -race).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func fetchOAuthMCPRequests(t *testing.T, baseURL string) []oauthMCPRequest {

@@ -33,6 +33,9 @@ type InternalContext = CopilotRequestContext & { [kBridge]: CopilotWebSocketResp
 export interface CopilotRequestContext {
     readonly requestId: string;
     readonly sessionId?: string;
+    readonly agentId?: string;
+    readonly parentAgentId?: string;
+    readonly interactionType?: string;
     readonly transport: "http" | "websocket";
     url: string;
     headers: LlmInferenceHeaders;
@@ -249,6 +252,9 @@ export class CopilotRequestHandler {
         const ctx: InternalContext = {
             requestId: exchange.requestId,
             sessionId: exchange.sessionId,
+            agentId: exchange.agentId,
+            parentAgentId: exchange.parentAgentId,
+            interactionType: exchange.interactionType,
             transport: exchange.transport,
             url: exchange.url,
             headers: exchange.headers,
@@ -456,6 +462,9 @@ interface BodyQueueItem {
 class CopilotRequestExchange {
     readonly requestId: string;
     sessionId?: string;
+    agentId?: string;
+    parentAgentId?: string;
+    interactionType?: string;
     method = "GET";
     url = "";
     headers: LlmInferenceHeaders = {};
@@ -478,6 +487,9 @@ class CopilotRequestExchange {
     /** Fill in the request context once the matching start frame arrives. */
     setContext(params: LlmInferenceHttpRequestStartRequest): void {
         this.sessionId = params.sessionId;
+        this.agentId = params.agentId;
+        this.parentAgentId = params.parentAgentId;
+        this.interactionType = params.interactionType;
         this.method = params.method;
         this.url = params.url;
         this.headers = params.headers;

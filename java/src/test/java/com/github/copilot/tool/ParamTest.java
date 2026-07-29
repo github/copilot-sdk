@@ -244,6 +244,52 @@ public class ParamTest {
     }
 
     // ------------------------------------------------------------------
+    // Schema override validation
+    // ------------------------------------------------------------------
+
+    @Test
+    void rejectsSchemaWithDefaultValue() {
+        var ex = assertThrows(IllegalArgumentException.class,
+                () -> Param.of(String.class, "x", "desc").schema("{\"type\":\"string\"}").defaultValue("hello"));
+        assertTrue(ex.getMessage().contains("schema"));
+        assertTrue(ex.getMessage().contains("defaultValue"));
+    }
+
+    @Test
+    void rejectsSchemaNotStartingWithBrace() {
+        var ex = assertThrows(IllegalArgumentException.class,
+                () -> Param.of(String.class, "x", "desc").schema("not json"));
+        assertTrue(ex.getMessage().contains("schema"));
+    }
+
+    @Test
+    void rejectsSchemaNotEndingWithBrace() {
+        var ex = assertThrows(IllegalArgumentException.class,
+                () -> Param.of(String.class, "x", "desc").schema("{\"type\":\"string\""));
+        assertTrue(ex.getMessage().contains("schema"));
+    }
+
+    @Test
+    void acceptsValidSchemaJson() {
+        Param<String> p = Param.of(String.class, "x", "desc").schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        assertEquals("{\"type\":\"string\",\"format\":\"date-time\"}", p.schema());
+    }
+
+    @Test
+    void acceptsEmptySchema() {
+        Param<String> p = Param.of(String.class, "x", "desc");
+        assertEquals("", p.schema());
+    }
+
+    @Test
+    void schemaPreservedAcrossFluentCopies() {
+        Param<String> base = Param.of(String.class, "x", "desc").schema("{\"type\":\"string\"}");
+        assertEquals("{\"type\":\"string\"}", base.name("y").schema());
+        assertEquals("{\"type\":\"string\"}", base.description("other").schema());
+        assertEquals("{\"type\":\"string\"}", base.required(false).schema());
+    }
+
+    // ------------------------------------------------------------------
     // Null type rejected
     // ------------------------------------------------------------------
 

@@ -473,7 +473,8 @@ final class CopilotRequestTestSupport {
     }
 
     /** A single request the handler intercepted. */
-    record InterceptedRequest(String url, String sessionId, String body) {
+    record InterceptedRequest(String url, String sessionId, String agentId, String parentAgentId,
+            String interactionType, String body) {
     }
 
     /**
@@ -509,7 +510,8 @@ final class CopilotRequestTestSupport {
                 throws Exception {
             String url = request.uri().toString();
             String body = requestBodyText(request);
-            records.add(new InterceptedRequest(url, ctx.sessionId(), body));
+            records.add(new InterceptedRequest(url, ctx.sessionId(), ctx.agentId(), ctx.parentAgentId(),
+                    ctx.interactionType(), body));
             if (isInferenceUrl(url)) {
                 return buildInferenceResponse(url, body, text);
             }

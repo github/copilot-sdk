@@ -140,6 +140,12 @@ pub struct CopilotRequestContext {
     /// Id of the runtime session that triggered this request, or `None` when it
     /// was issued outside any session (for example the startup model catalog).
     pub session_id: Option<String>,
+    /// Stable per-agent-instance id for the agent trajectory that issued this request.
+    pub agent_id: Option<String>,
+    /// Id of the parent agent when this request was issued by a subagent.
+    pub parent_agent_id: Option<String>,
+    /// Runtime classification for the interaction that produced this request.
+    pub interaction_type: Option<String>,
     /// Transport the runtime would otherwise use.
     pub transport: CopilotRequestTransport,
     /// Absolute request URL.
@@ -594,6 +600,9 @@ struct ResponseState {
 #[derive(Default)]
 struct RequestMeta {
     session_id: Option<String>,
+    agent_id: Option<String>,
+    parent_agent_id: Option<String>,
+    interaction_type: Option<String>,
     method: String,
     url: String,
     headers: HeaderMap,
@@ -630,6 +639,9 @@ impl CopilotRequestExchange {
     fn set_context(&self, params: LlmInferenceHttpRequestStartRequest) {
         let _ = self.meta.set(RequestMeta {
             session_id: params.session_id.map(SessionId::into_inner),
+            agent_id: params.agent_id,
+            parent_agent_id: params.parent_agent_id,
+            interaction_type: params.interaction_type,
             method: params.method,
             url: params.url,
             headers: headers_from_wire(&params.headers),
@@ -649,6 +661,9 @@ impl CopilotRequestExchange {
         CopilotRequestContext {
             request_id: self.request_id.clone(),
             session_id: meta.session_id.clone(),
+            agent_id: meta.agent_id.clone(),
+            parent_agent_id: meta.parent_agent_id.clone(),
+            interaction_type: meta.interaction_type.clone(),
             transport: meta.transport,
             url: meta.url.clone(),
             headers: meta.headers.clone(),

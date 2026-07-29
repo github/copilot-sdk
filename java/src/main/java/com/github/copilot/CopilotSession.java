@@ -78,6 +78,7 @@ import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
+import com.github.copilot.rpc.AgentStopHookInput;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
 import com.github.copilot.rpc.MessageOptions;
@@ -157,6 +158,13 @@ public final class CopilotSession implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(CopilotSession.class.getName());
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
+
+    /**
+     * Fixed name of the runtime's built-in tool-search tool. A client can replace
+     * its behavior by registering a tool with this exact name and
+     * {@code overridesBuiltInTool} set to {@code true}.
+     */
+    private static final String TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
     /**
      * The current active session ID. Initialized to the pre-generated value and may
@@ -899,6 +907,32 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Populates the invocation's available-tools snapshot when it targets the
+     * built-in tool-search tool, so an override can filter the live catalog without
+     * issuing its own RPC. The snapshot is fetched only for that tool to avoid a
+     * round-trip on every ordinary tool call; a failed fetch leaves the snapshot
+     * {@code null} rather than failing the tool. Shared by both server-to-client
+     * tool dispatch paths ({@link RpcHandlerDispatcher} and
+     * {@link #executeToolAndRespondAsync}).
+     *
+     * @param toolName
+     *            the name of the tool being invoked
+     * @param invocation
+     *            the invocation to populate in place
+     */
+    void populateToolSearchMetadata(String toolName, com.github.copilot.rpc.ToolInvocation invocation) {
+        if (!TOOL_SEARCH_TOOL_NAME.equals(toolName)) {
+            return;
+        }
+        try {
+            var metadata = getRpc().tools.getCurrentMetadata().join();
+            invocation.setAvailableTools(metadata.tools());
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
+        }
+    }
+
+    /**
      * Executes a tool handler and sends the result back via
      * {@code session.tools.handlePendingToolCall}.
      */
@@ -911,6 +945,8 @@ public final class CopilotSession implements AutoCloseable {
                         : (arguments != null ? MAPPER.valueToTree(arguments) : null);
                 var invocation = new com.github.copilot.rpc.ToolInvocation().setSessionId(sessionId)
                         .setToolCallId(toolCallId).setToolName(toolName).setArguments(argumentsNode);
+
+                populateToolSearchMetadata(toolName, invocation);
 
                 tool.handler().invoke(invocation).thenAccept(result -> {
                     try {
@@ -1564,7 +1600,7 @@ public final class CopilotSession implements AutoCloseable {
                 return;
             }
             upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
-                    data.canvasId(), data.title(), data.status(), data.url(), data.input()));
+                    data.canvasId(), data.icon(), data.title(), data.status(), data.url(), data.input()));
         }
     }
 
@@ -1845,6 +1881,16 @@ public final class CopilotSession implements AutoCloseable {
                         return endResult.thenApply(output -> (Object) output);
                     }
                     break;
+                case "agentStop" :
+                    if (hooks.getOnAgentStop() != null) {
+                        AgentStopHookInput stopInput = MAPPER.treeToValue(input, AgentStopHookInput.class);
+                        var stopResult = hooks.getOnAgentStop().handle(stopInput, invocation);
+                        if (stopResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return stopResult.thenApply(output -> (Object) output);
+                    }
+                    break;
                 default :
                     LOG.fine("Unhandled hook type: " + hookType);
             }
@@ -1910,12 +1956,12 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * <pre>{@code
-     * session.setModel("gpt-4.1").get();
+     * session.setModel("gpt-5.4").get();
      * session.setModel("claude-sonnet-4.6", "high").get();
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
      *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
@@ -1927,7 +1973,7 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
         return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null))
+                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null))
                 .thenApply(r -> null);
     }
 
@@ -1945,7 +1991,7 @@ public final class CopilotSession implements AutoCloseable {
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
      *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
@@ -1970,7 +2016,7 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level; {@code null} to use default
      * @param reasoningSummary
@@ -2008,7 +2054,7 @@ public final class CopilotSession implements AutoCloseable {
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, generatedCapabilities, null)).thenApply(r -> null);
+                generatedReasoningSummary, null, generatedCapabilities, null)).thenApply(r -> null);
     }
 
     /**
@@ -2018,11 +2064,11 @@ public final class CopilotSession implements AutoCloseable {
      * preserved.
      *
      * <pre>{@code
-     * session.setModel("gpt-4.1").get();
+     * session.setModel("gpt-5.4").get();
      * }</pre>
      *
      * @param model
-     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated

@@ -83,14 +83,32 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantServerToolProgress:
+		var d AssistantServerToolProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantStreamingDelta:
 		var d AssistantStreamingDeltaData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantToolCallDelta:
+		var d AssistantToolCallDeltaData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantTurnEnd:
 		var d AssistantTurnEndData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAssistantTurnRetry:
+		var d AssistantTurnRetryData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -233,8 +251,32 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeMCPPromptsListChanged:
+		var d MCPPromptsListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPResourcesListChanged:
+		var d MCPResourcesListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeMCPToolsListChanged:
+		var d MCPToolsListChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeModelCallFailure:
 		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallStart:
+		var d ModelCallStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -265,6 +307,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSamplingRequested:
 		var d SamplingRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionAutoModeResolved:
+		var d SessionAutoModeResolvedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -397,6 +445,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionLimitsExhaustedRequested:
 		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionManagedSettingsEnforced:
+		var d SessionManagedSettingsEnforcedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionManagedSettingsResolved:
+		var d SessionManagedSettingsResolvedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -619,6 +679,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeToolExecutionStart:
 		var d ToolExecutionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolSearchActivated:
+		var d ToolSearchActivatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -1218,6 +1284,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		Content             string                           `json:"content"`
 		Contents            []json.RawMessage                `json:"contents,omitzero"`
 		DetailedContent     *string                          `json:"detailedContent,omitempty"`
+		MCPMeta             any                              `json:"mcpMeta,omitempty"`
 		StructuredContent   any                              `json:"structuredContent,omitempty"`
 		UIResource          *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
@@ -1248,6 +1315,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.DetailedContent = raw.DetailedContent
+	r.MCPMeta = raw.MCPMeta
 	r.StructuredContent = raw.StructuredContent
 	r.UIResource = raw.UIResource
 	return nil

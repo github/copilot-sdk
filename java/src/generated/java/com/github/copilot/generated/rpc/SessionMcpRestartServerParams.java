@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Server name and opaque configuration for an individual MCP server restart.
+ * Server name and optional replacement configuration for an individual MCP server restart. Omit `config` for a config-free restart-by-name of an already-configured server.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -28,7 +28,7 @@ public record SessionMcpRestartServerParams(
     @JsonProperty("sessionId") String sessionId,
     /** Name of the MCP server to restart */
     @JsonProperty("serverName") String serverName,
-    /** Opaque server configuration (MCPServerConfig). Marked internal: an in-process runtime shape supplied only by in-process CLI callers. */
+    /** Replacement MCP server configuration (stdio process or remote HTTP/SSE). Omit to restart the server with its already-registered configuration (config-free restart-by-name). */
     @JsonProperty("config") Object config
 ) {
 }

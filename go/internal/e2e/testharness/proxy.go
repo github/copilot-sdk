@@ -38,11 +38,14 @@ func (p *CapiProxy) Start() (string, error) {
 		return p.proxyURL, nil
 	}
 
-	// The harness server is in the shared test directory
-	serverPath := "../../../test/harness/server.ts"
+	// The harness server is in the shared test directory. Anchor the path to
+	// the repo root (not the process cwd), because the in-process (FFI)
+	// transport os.Chdir's into a per-test temp workdir, which would otherwise
+	// break the cwd-relative resolution.
+	serverPath := RepoPath("test", "harness", "server.ts")
 
 	p.cmd = exec.Command("npx", "tsx", serverPath)
-	p.cmd.Dir = "." // Will be resolved relative to test execution
+	p.cmd.Dir = RepoPath("test", "harness")
 
 	stdout, err := p.cmd.StdoutPipe()
 	if err != nil {

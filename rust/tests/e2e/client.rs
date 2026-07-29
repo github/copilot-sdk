@@ -6,13 +6,25 @@ use github_copilot_sdk::{
     CliProgram, Client, ClientOptions, Error, ListModelsHandler, Model, Transport,
 };
 
-use super::support::with_e2e_context;
+use super::support::{is_inprocess_default, with_e2e_context};
 
 #[tokio::test]
 async fn should_start_ping_and_stop_stdio_client() {
     with_e2e_context("client", "should_start_ping_and_stop_stdio_client", |ctx| {
         Box::pin(async move {
             let client = ctx.start_client().await;
+            let timings = client.startup_timings().expect("startup timings");
+            if is_inprocess_default() {
+                assert!(timings.program_resolve_ms.is_some());
+                assert!(timings.process_spawn_ms.is_none());
+            } else {
+                assert!(timings.program_resolve_ms.is_none());
+                assert!(timings.process_spawn_ms.is_some());
+            }
+            assert!(timings.port_wait_ms.is_none());
+            assert!(timings.total_ms >= timings.transport_setup_ms);
+            assert!(timings.total_ms >= timings.handshake_ms);
+
             let response = client.ping(Some("hello from rust")).await.expect("ping");
             assert_eq!(response.message, "pong: hello from rust");
             assert!(!response.timestamp.is_empty());
@@ -33,6 +45,13 @@ async fn should_start_ping_and_stop_tcp_client() {
             }))
             .await
             .expect("start TCP client");
+            let timings = client.startup_timings().expect("startup timings");
+            assert_eq!(timings.program_resolve_ms.is_some(), is_inprocess_default());
+            assert!(timings.process_spawn_ms.is_some());
+            assert!(timings.port_wait_ms.is_some());
+            assert!(timings.total_ms >= timings.transport_setup_ms);
+            assert!(timings.total_ms >= timings.handshake_ms);
+
             let response = client.ping(Some("tcp hello")).await.expect("ping");
             assert_eq!(response.message, "pong: tcp hello");
 
@@ -64,8 +83,7 @@ async fn should_get_authenticated_status() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = Client::start(
-                ctx.client_options()
-                    .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN),
             )
             .await
             .expect("start client");
@@ -85,8 +103,7 @@ async fn should_list_models_when_authenticated() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = Client::start(
-                ctx.client_options()
-                    .with_github_token(super::support::DEFAULT_TEST_TOKEN),
+                ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN),
             )
             .await
             .expect("start client");

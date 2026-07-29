@@ -213,14 +213,7 @@ async fn recv_called(receiver: &mut mpsc::UnboundedReceiver<()>, description: &'
 }
 
 fn expanded(text: impl Into<String>, result_type: impl Into<String>) -> ToolResult {
-    ToolResult::Expanded(ToolResultExpanded {
-        text_result_for_llm: text.into(),
-        result_type: result_type.into(),
-        binary_results_for_llm: None,
-        session_log: None,
-        error: None,
-        tool_telemetry: None,
-    })
+    ToolResult::Expanded(ToolResultExpanded::new(text, result_type))
 }
 
 fn weather_tool() -> Tool {

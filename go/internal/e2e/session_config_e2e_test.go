@@ -404,6 +404,7 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 }
 
 func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	t.Run("should enable citations for Anthropic file attachments on create", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		transport := &recordingTransport{}

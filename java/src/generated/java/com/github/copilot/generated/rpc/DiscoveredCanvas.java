@@ -26,6 +26,8 @@ public record DiscoveredCanvas(
     @JsonProperty("displayName") String displayName,
     /** Short, single-sentence description shown to the agent in canvas catalogs. */
     @JsonProperty("description") String description,
+    /** Host-local PNG path for the canvas icon, when supplied */
+    @JsonProperty("icon") String icon,
     /** JSON Schema for canvas open input */
     @JsonProperty("inputSchema") Object inputSchema,
     /** Actions the agent or host may invoke on an open instance */

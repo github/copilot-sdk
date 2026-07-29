@@ -5,10 +5,12 @@
 package com.github.copilot.rpc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -165,6 +167,89 @@ class ParamSchemaTest {
         Map<String, Object> props = (Map<String, Object>) schema.get("properties");
         List<String> keys = List.copyOf(props.keySet());
         assertEquals(List.of("alpha", "beta", "gamma"), keys);
+    }
+
+    // ── buildSchema: schema override ───────────────────────────────────────────
+
+    @Test
+    void buildSchema_withSchemaOverride_usesExplicitSchema() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("string", whenSchema.get("type"));
+        assertEquals("date-time", whenSchema.get("format"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_preservesDescription() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("Meeting time", whenSchema.get("description"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_respectsRequired() {
+        Param<String> p = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, p);
+        @SuppressWarnings("unchecked")
+        List<String> required = (List<String>) schema.get("required");
+        assertTrue(required.contains("when"));
+    }
+
+    @Test
+    void buildSchema_mixedParams_overrideAndAuto() {
+        Param<String> pOverride = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\",\"format\":\"date-time\"}");
+        Param<String> pAuto = Param.of(String.class, "title", "Meeting title");
+        Map<String, Object> schema = ParamSchema.buildSchema("schedule", MAPPER, pOverride, pAuto);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> whenSchema = (Map<String, Object>) props.get("when");
+        assertEquals("date-time", whenSchema.get("format"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> titleSchema = (Map<String, Object>) props.get("title");
+        assertEquals("string", titleSchema.get("type"));
+        // Auto-generated should NOT have format
+        assertFalse(titleSchema.containsKey("format"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_rejectsTrailingJson() {
+        Param<String> param = Param.of(String.class, "when", "Meeting time")
+                .schema("{\"type\":\"string\"} {\"type\":\"integer\"}");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> ParamSchema.buildSchema("schedule", MAPPER, param));
+
+        assertTrue(error.getMessage().contains("Invalid schema JSON"));
+    }
+
+    @Test
+    void buildSchema_withSchemaOverride_preservesDecimalPrecision() {
+        Param<String> param = Param.of(String.class, "value", "Precise value")
+                .schema("{\"type\":\"number\",\"maximum\":1e400,\"multipleOf\":0.12345678901234567890}");
+
+        Map<String, Object> schema = ParamSchema.buildSchema("calculate", MAPPER, param);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> valueSchema = (Map<String, Object>) properties.get("value");
+
+        assertEquals(new BigDecimal("1e400"), valueSchema.get("maximum"));
+        assertEquals(new BigDecimal("0.12345678901234567890"), valueSchema.get("multipleOf"));
     }
 
     // ── forType: primitive and boxed integer types ───────────────────────────────

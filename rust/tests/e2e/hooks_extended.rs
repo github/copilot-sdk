@@ -1,12 +1,13 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::hooks::{
-    ErrorOccurredInput, ErrorOccurredOutput, HookContext, PostToolUseFailureInput,
-    PostToolUseFailureOutput, PostToolUseInput, PostToolUseOutput, PreToolUseInput,
-    PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks, SessionStartInput,
-    SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
+    AgentStopInput, AgentStopOutput, ErrorOccurredInput, ErrorOccurredOutput, HookContext,
+    PostToolUseFailureInput, PostToolUseFailureOutput, PostToolUseInput, PostToolUseOutput,
+    PreToolUseInput, PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks,
+    SessionStartInput, SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
@@ -36,7 +37,7 @@ async fn should_invoke_onsessionstart_hook_on_new_session() {
                 session.send_and_wait("Say hi").await.expect("send");
                 let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
                 assert_eq!(input.source, "new");
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
@@ -68,7 +69,7 @@ async fn should_invoke_onuserpromptsubmitted_hook_when_sending_a_message() {
                 session.send_and_wait("Say hello").await.expect("send");
                 let input = recv_with_timeout(&mut rx, "userPromptSubmitted hook").await;
                 assert!(input.prompt.contains("Say hello"));
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
@@ -100,7 +101,7 @@ async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
                 session.send_and_wait("Say hi").await.expect("send");
                 session.disconnect().await.expect("disconnect session");
                 let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
 
                 client.stop().await.expect("stop client");
@@ -237,7 +238,7 @@ async fn should_invoke_sessionend_hook() {
             session.send_and_wait("Say bye").await.expect("send");
             session.disconnect().await.expect("disconnect session");
             let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
-            assert!(input.timestamp > 0);
+            assert!(input.timestamp > 0.0);
 
             client.stop().await.expect("stop client");
         })
@@ -272,6 +273,48 @@ async fn should_register_erroroccurred_hook() {
                 rx.try_recv()
                     .map(drop)
                     .expect_err("errorOccurred hook should not run");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_invoke_agentstop_hook_and_apply_block_response() {
+    with_e2e_context(
+        "hooks_extended",
+        "should_invoke_agentstop_hook_and_apply_block_response",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        AgentStopHooks {
+                            tx,
+                            call_count: AtomicUsize::new(0),
+                        },
+                    )))
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("Reply with exactly: AGENT_STOP_INITIAL")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                let first = recv_with_timeout(&mut rx, "first agentStop hook").await;
+                let second = recv_with_timeout(&mut rx, "second agentStop hook").await;
+
+                assert_ne!(first.stop_hook_active, Some(true));
+                assert_eq!(second.stop_hook_active, Some(true));
+                assert_eq!(first.stop_reason.as_deref(), Some("end_turn"));
+                assert!(first.transcript_path.is_some());
+                assert!(assistant_message_content(&answer).contains("AGENT_STOP_CONTINUED"));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -412,7 +455,7 @@ async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
                         .as_str()
                         .is_some_and(|path| path.contains("missing.txt"))
                 );
-                assert!(input.timestamp > 0);
+                assert!(input.timestamp > 0.0);
                 assert!(!input.working_directory.as_os_str().is_empty());
                 assert!(
                     assistant_message_content(&answer).contains("HOOK_FAILURE_GUIDANCE_APPLIED")
@@ -439,6 +482,27 @@ struct RecordingHooks {
     pre_tool: Option<mpsc::UnboundedSender<PreToolUseInput>>,
     post_tool: Option<mpsc::UnboundedSender<PostToolUseInput>>,
     post_tool_failure: Option<mpsc::UnboundedSender<PostToolUseFailureInput>>,
+}
+
+struct AgentStopHooks {
+    tx: mpsc::UnboundedSender<AgentStopInput>,
+    call_count: AtomicUsize,
+}
+
+#[async_trait]
+impl SessionHooks for AgentStopHooks {
+    async fn on_agent_stop(
+        &self,
+        input: AgentStopInput,
+        ctx: HookContext,
+    ) -> Option<AgentStopOutput> {
+        assert!(!ctx.session_id.as_str().is_empty());
+        let _ = self.tx.send(input);
+        (self.call_count.fetch_add(1, Ordering::SeqCst) == 0).then(|| AgentStopOutput {
+            decision: Some("block".to_string()),
+            reason: Some("Reply with exactly: AGENT_STOP_CONTINUED".to_string()),
+        })
+    }
 }
 
 impl RecordingHooks {

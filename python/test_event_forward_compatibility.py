@@ -49,6 +49,20 @@ class TestEventForwardCompatibility:
         event = session_event_from_dict(unknown_event)
         assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
 
+    def test_internal_event_type_maps_to_unknown(self):
+        """Internal events should use the forward-compatible raw event path."""
+        internal_event = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "parentId": None,
+            "type": "session.memory_changed",
+            "data": {},
+        }
+
+        event = session_event_from_dict(internal_event)
+        assert event.type == SessionEventType.UNKNOWN
+        assert session_event_to_dict(event)["type"] == "session.memory_changed"
+
     def test_known_event_preserves_top_level_agent_id(self):
         """Known events should preserve the top-level sub-agent envelope ID."""
         known_event = {
@@ -137,6 +151,22 @@ class TestEventForwardCompatibility:
 
         constructed = Data(arguments={"tool_call_id": "call-1"})
         assert constructed.to_dict() == {"arguments": {"tool_call_id": "call-1"}}
+
+    def test_data_shim_preserves_abbreviation_json_keys_on_round_trip(self):
+        """Data.from_dict(x).to_dict() should preserve JSON keys with abbreviations.
+
+        Regression test for github/copilot-sdk#1138: keys like userURL, sessionID,
+        and OAuthToken were rewritten on round-trip because _compat_to_json_key could
+        not reconstruct the original camelCase abbreviation casing.
+        """
+        for key in ["userURL", "sessionID", "XMLPayload", "serverIP", "OAuthToken"]:
+            incoming = {key: 42}
+            assert Data.from_dict(incoming).to_dict() == incoming
+
+    def test_data_shim_preserves_colliding_json_keys_on_round_trip(self):
+        """Data.from_dict(x).to_dict() should preserve keys with the same Python name."""
+        colliding_keys = {"userURL": 42, "userUrl": 43}
+        assert Data.from_dict(colliding_keys).to_dict() == colliding_keys
 
     def test_missing_optional_fields_remain_none_after_parsing(self):
         """Generated event models should leave missing optional fields as None.

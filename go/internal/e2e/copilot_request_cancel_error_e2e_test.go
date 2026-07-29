@@ -54,6 +54,7 @@ func (tr *throwingTransport) RoundTrip(req *http.Request) (*http.Response, error
 }
 
 func TestCopilotRequestError(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	transport := &throwingTransport{}
 	handler := &copilot.CopilotRequestHandler{Transport: transport}
@@ -132,6 +133,7 @@ func waitFor(t *testing.T, predicate func() bool, timeout time.Duration) {
 }
 
 func TestCopilotRequestCancel(t *testing.T) {
+	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	transport := newCancellingTransport()
 	handler := &copilot.CopilotRequestHandler{Transport: transport}

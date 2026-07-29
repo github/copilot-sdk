@@ -19,6 +19,7 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 | [`onSessionStart`](./session-lifecycle.md#session-start) | Session begins | Add context, configure session |
 | [`onSessionEnd`](./session-lifecycle.md#session-end) | Session ends | Cleanup, analytics |
 | [`onErrorOccurred`](./error-handling.md) | Error happens | Custom error handling |
+| [`onAgentStop`](./session-lifecycle.md#agent-stop) | Top-level agent naturally stops | Validate completion or request another turn |
 
 ## Quick start
 
@@ -263,6 +264,7 @@ const session = await client.createSession({
 * **[Post-Tool Use Hook](./post-tool-use.md)** - Transform tool results
 * **[User Prompt Submitted Hook](./user-prompt-submitted.md)** - Modify user prompts
 * **[Session Lifecycle Hooks](./session-lifecycle.md)** - Session start and end
+* **[Agent Stop Hook](./session-lifecycle.md#agent-stop)** - Validate completion before the agent stops
 * **[Error Handling Hook](./error-handling.md)** - Custom error handling
 
 ## See also

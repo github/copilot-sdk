@@ -793,6 +793,7 @@ func TestSession_Capabilities(t *testing.T) {
 				CanvasID:      "counter",
 				InstanceID:    "counter-1",
 				Title:         ptr("Counter"),
+				Icon:          ptr("beaker"),
 				Status:        ptr("ready"),
 				URL:           ptr("https://example.test/counter"),
 				Input:         map[string]any{"seed": float64(1)},
@@ -822,6 +823,7 @@ func TestSession_Capabilities(t *testing.T) {
 				CanvasID:      "counter",
 				InstanceID:    "counter-1",
 				Title:         ptr("Counter Updated"),
+				Icon:          ptr("beaker-filled"),
 				Status:        ptr("reconnected"),
 				URL:           ptr("https://example.test/counter-updated"),
 				Input:         map[string]any{"seed": float64(2)},
@@ -837,6 +839,9 @@ func TestSession_Capabilities(t *testing.T) {
 		}
 		if open[0].Title == nil || *open[0].Title != "Counter Updated" {
 			t.Fatalf("expected updated title, got %+v", open[0].Title)
+		}
+		if open[0].Icon == nil || *open[0].Icon != "beaker-filled" {
+			t.Fatalf("expected updated icon, got %+v", open[0].Icon)
 		}
 		if open[0].Status == nil || *open[0].Status != "reconnected" {
 			t.Fatalf("expected updated status, got %+v", open[0].Status)
@@ -1091,6 +1096,63 @@ func TestSession_PostToolUseFailureHook(t *testing.T) {
 			t.Errorf("expected nil output, got %v", output)
 		}
 	})
+}
+
+func TestSession_AgentStopHook(t *testing.T) {
+	session, cleanup := newTestSession()
+	defer cleanup()
+
+	var captured AgentStopHookInput
+	session.registerHooks(&SessionHooks{
+		OnAgentStop: func(input AgentStopHookInput, invocation HookInvocation) (*AgentStopHookOutput, error) {
+			captured = input
+			if invocation.SessionID != session.SessionID {
+				t.Errorf("expected invocation session ID %q, got %q", session.SessionID, invocation.SessionID)
+			}
+			return &AgentStopHookOutput{
+				Decision: "block",
+				Reason:   "finish the remaining work",
+			}, nil
+		},
+	})
+
+	raw := json.RawMessage(`{
+		"sessionId": "sess-1",
+		"timestamp": 1700000000,
+		"cwd": "/work",
+		"stopReason": "end_turn",
+		"transcriptPath": "/tmp/transcript.jsonl",
+		"stop_hook_active": true
+	}`)
+	output, err := session.handleHooksInvoke("agentStop", raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured.SessionID != "sess-1" {
+		t.Errorf("expected sessionId 'sess-1', got %q", captured.SessionID)
+	}
+	if captured.StopReason != "end_turn" {
+		t.Errorf("expected stopReason 'end_turn', got %q", captured.StopReason)
+	}
+	if captured.TranscriptPath != "/tmp/transcript.jsonl" {
+		t.Errorf("expected transcriptPath '/tmp/transcript.jsonl', got %q", captured.TranscriptPath)
+	}
+	if !captured.StopHookActive {
+		t.Error("expected StopHookActive to be true")
+	}
+	if !captured.Timestamp.Equal(time.UnixMilli(1700000000)) {
+		t.Errorf("expected timestamp %v, got %v", time.UnixMilli(1700000000), captured.Timestamp)
+	}
+	if captured.WorkingDirectory != "/work" {
+		t.Errorf("expected WorkingDirectory '/work', got %q", captured.WorkingDirectory)
+	}
+	out, ok := output.(*AgentStopHookOutput)
+	if !ok {
+		t.Fatalf("expected *AgentStopHookOutput, got %T", output)
+	}
+	if out.Decision != "block" || out.Reason != "finish the remaining work" {
+		t.Errorf("unexpected output: %#v", out)
+	}
 }
 
 func TestSession_HookForwardCompatibility(t *testing.T) {

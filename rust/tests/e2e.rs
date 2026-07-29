@@ -37,6 +37,9 @@ mod github_telemetry;
 mod hooks;
 #[path = "e2e/hooks_extended.rs"]
 mod hooks_extended;
+#[cfg(feature = "bundled-in-process")]
+#[path = "e2e/inprocess.rs"]
+mod inprocess;
 #[path = "e2e/mcp_and_agents.rs"]
 mod mcp_and_agents;
 #[path = "e2e/mcp_oauth.rs"]

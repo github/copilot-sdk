@@ -88,7 +88,7 @@ Use this table to find the right guides based on what you need to do:
 | Getting started quickly | [Default Setup (Bundled CLI)](./bundled-cli.md) |
 | Use your own CLI binary or server | [Local CLI](./local-cli.md) |
 | Users sign in with GitHub | [GitHub OAuth](./github-oauth.md) |
-| Use your own model keys (OpenAI, Azure, etc.) | [BYOK](../auth/byok.md) |
+| Use your own model keys (OpenAI, Azure, and more) | [BYOK](../auth/byok.md) |
 | Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
 | Configure SDK options for concurrent users | [Multi-tenancy and server deployments](./multi-tenancy.md) |

@@ -44,6 +44,7 @@ public class SessionHooks {
     private UserPromptSubmittedHandler onUserPromptSubmitted;
     private SessionStartHandler onSessionStart;
     private SessionEndHandler onSessionEnd;
+    private AgentStopHandler onAgentStop;
 
     /**
      * Gets the pre-tool-use handler.
@@ -207,12 +208,36 @@ public class SessionHooks {
     }
 
     /**
+     * Gets the agent-stop handler.
+     *
+     * @return the handler, or {@code null} if not set
+     * @since 1.0.9
+     */
+    public AgentStopHandler getOnAgentStop() {
+        return onAgentStop;
+    }
+
+    /**
+     * Sets the handler called when the top-level agent reaches a natural stop.
+     *
+     * @param onAgentStop
+     *            the handler
+     * @return this instance for method chaining
+     * @since 1.0.9
+     */
+    public SessionHooks setOnAgentStop(AgentStopHandler onAgentStop) {
+        this.onAgentStop = onAgentStop;
+        return this;
+    }
+
+    /**
      * Returns whether any hooks are registered.
      *
      * @return {@code true} if at least one hook handler is set
      */
     public boolean hasHooks() {
         return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null || onPostToolUseFailure != null
-                || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null;
+                || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null
+                || onAgentStop != null;
     }
 }

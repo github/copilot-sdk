@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync, appendFileSync } from "fs";
+import { appendFileSync, existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
   ChatCompletion,
@@ -19,10 +19,80 @@ import {
   CapturingHttpProxy,
   PerformRequestOptions,
 } from "./capturingHttpProxy";
+import {
+  anthropicMessagesEndpoint,
+  anthropicMessagesRequestToChatCompletion,
+  chatCompletionResponseToAnthropicMessage,
+  chatCompletionResponseToAnthropicSseChunks,
+} from "./anthropicMessagesAdapter";
+import {
+  chatCompletionResponseToResponsesApiMessage,
+  chatCompletionResponseToResponsesApiSseChunks,
+  responsesApiRequestToChatCompletion,
+  responsesEndpoint,
+} from "./responsesApiAdapter";
 import { iife, ShellConfig, sleep } from "./util";
 
 export const workingDirPlaceholder = "${workdir}";
 const chatCompletionEndpoint = "/chat/completions";
+export type ReplayBackend =
+  | "capi"
+  | "anthropic-messages"
+  | "openai-responses"
+  | "openai-completions";
+
+type ReplayProtocol = {
+  endpoint: string;
+  normalizeRequest?: (body: string) => string;
+  responseBody?: (response: ChatCompletion) => unknown;
+  responseChunks: (response: ChatCompletion) => string[];
+  responseEndChunk?: string;
+  errorBody?: (code: string | undefined, message: string) => unknown;
+  canonicalResponse?: boolean;
+};
+
+const chatCompletionsProtocol = {
+  endpoint: chatCompletionEndpoint,
+  responseChunks: (response) =>
+    convertToStreamingResponseChunks(response).map(
+      (chunk) => `data: ${JSON.stringify(chunk)}\n\n`,
+    ),
+  responseEndChunk: "data: [DONE]\n\n",
+  canonicalResponse: true,
+} satisfies ReplayProtocol;
+
+const replayProtocols: Record<ReplayBackend, ReplayProtocol> = {
+  capi: chatCompletionsProtocol,
+  "openai-completions": {
+    ...chatCompletionsProtocol,
+    normalizeRequest: coalesceAdjacentUserMessages,
+  },
+  "anthropic-messages": {
+    endpoint: anthropicMessagesEndpoint,
+    normalizeRequest: (body) =>
+      coalesceAdjacentUserMessages(
+        anthropicMessagesRequestToChatCompletion(body),
+      ),
+    responseBody: chatCompletionResponseToAnthropicMessage,
+    responseChunks: chatCompletionResponseToAnthropicSseChunks,
+    errorBody: (code, message) => {
+      const type = code ?? "rate_limited";
+      return { type: "error", error: { type, message } };
+    },
+  },
+  "openai-responses": {
+    endpoint: responsesEndpoint,
+    normalizeRequest: (body) =>
+      coalesceAdjacentUserMessages(responsesApiRequestToChatCompletion(body)),
+    responseBody: chatCompletionResponseToResponsesApiMessage,
+    responseChunks: chatCompletionResponseToResponsesApiSseChunks,
+  },
+};
+
+const modelEndpoints = new Set(
+  Object.values(replayProtocols).map((protocol) => protocol.endpoint),
+);
+
 const shellConfig =
   process.platform === "win32" ? ShellConfig.powerShell : ShellConfig.bash;
 const normalizedToolNames: Record<string, string> = {
@@ -57,7 +127,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     { toolName: "${shell}", normalizer: normalizeShellExitMarkers },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
     { toolName: "*", normalizer: normalizeAvailableToolNames },
-    { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
+    { toolName: "*", normalizer: normalizeBackgroundAgentStartMessage },
+    { toolName: "read_agent", normalizer: normalizeReadAgentResult },
   ];
 
   /**
@@ -90,6 +161,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         filePath,
         workDir,
         testInfo,
+        backend: "capi",
         toolResultNormalizers: [...this.defaultToolResultNormalizers],
       };
     }
@@ -112,7 +184,10 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     // In CI mode (GITHUB_ACTIONS=true) we never write — the snapshots are read-only.
     // Otherwise tests that exercise only a subset of a multi-conversation snapshot
     // would silently overwrite the file with that subset, breaking subsequent runs.
-    if (this.state && process.env.GITHUB_ACTIONS !== "true") {
+    if (
+      this.state?.backend === "capi" &&
+      process.env.GITHUB_ACTIONS !== "true"
+    ) {
       await writeCapturesToDisk(this.exchanges, this.state);
     }
 
@@ -120,6 +195,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       filePath: config.filePath,
       workDir: config.workDir,
       testInfo: config.testInfo,
+      backend: parseReplayBackend(config.backend),
       toolResultNormalizers: [...this.defaultToolResultNormalizers],
     };
 
@@ -133,15 +209,21 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       this.state.storedData = yaml.parse(content) as NormalizedData;
       normalizeToolResultOrder(this.state.storedData.conversations);
       normalizeStoredUserMessages(this.state.storedData.conversations);
+      normalizeStoredToolMessages(this.state.storedData.conversations);
+      normalizeStoredMessagesForBackend(
+        this.state.storedData.conversations,
+        this.state.backend,
+      );
     }
   }
 
   async stop(skipWritingCache?: boolean): Promise<void> {
     await super.stop();
 
-    // In CI mode we never write — the snapshots are read-only.
+    // CAPI is the authoritative capture path. BYOK modes only verify that the
+    // same canonical snapshots replay through each provider protocol.
     if (
-      this.state &&
+      this.state?.backend === "capi" &&
       !skipWritingCache &&
       process.env.GITHUB_ACTIONS !== "true"
     ) {
@@ -223,17 +305,21 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path === "/exchanges" &&
           options.requestOptions.method === "GET"
         ) {
-          const chatCompletionExchanges = this.exchanges.filter(
-            (e) => e.request.url === chatCompletionEndpoint,
-          );
+          const protocol =
+            replayProtocols[this.state?.backend ?? "capi"];
           const parsedExchanges = await Promise.all(
-            chatCompletionExchanges.map((e) =>
-              parseHttpExchange(
-                e.request.body,
-                e.response?.body,
-                e.request.headers,
+            this.exchanges
+              .filter((exchange) => exchange.request.url === protocol.endpoint)
+              .map((exchange) =>
+                parseHttpExchange(
+                  protocol.normalizeRequest?.(exchange.request.body) ??
+                    exchange.request.body,
+                  protocol.canonicalResponse
+                    ? exchange.response?.body
+                    : undefined,
+                  exchange.request.headers,
+                ),
               ),
-            ),
           );
           options.onResponseStart(200, {});
           options.onData(Buffer.from(JSON.stringify(parsedExchanges)));
@@ -335,16 +421,42 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.onResponseEnd();
           return;
         }
-
-        // Handle /chat/completions endpoint
+        const requestPath = options.requestOptions.path ?? "";
+        const protocol = replayProtocols[state.backend];
         if (
-          state.storedData &&
-          options.requestOptions.path === chatCompletionEndpoint &&
-          options.body
+          modelEndpoints.has(requestPath) &&
+          state.backend !== "capi" &&
+          requestPath !== protocol.endpoint
         ) {
+          const message = `Expected ${protocol.endpoint} for backend ${state.backend}, received ${requestPath}`;
+          options.onResponseStart(400, {
+            "content-type": "application/json",
+            ...commonResponseHeaders,
+          });
+          options.onData(
+            Buffer.from(
+              JSON.stringify({
+                error: { type: "protocol_mismatch", message },
+              }),
+            ),
+          );
+          options.onResponseEnd();
+          return;
+        }
+
+        const isModelRequest = requestPath === protocol.endpoint;
+        // Every protocol enters the existing Chat Completions snapshot matcher.
+        const normalizedBody =
+          isModelRequest && options.body
+            ? (protocol.normalizeRequest?.(options.body) ?? options.body)
+            : options.body;
+        if (state.storedData && isModelRequest && normalizedBody) {
+          const streamingIsRequested =
+            (JSON.parse(normalizedBody) as { stream?: boolean }).stream === true;
+
           const savedError = await findSavedChatCompletionError(
             state.storedData,
-            options.body,
+            normalizedBody,
             state.workDir,
             state.toolResultNormalizers,
           );
@@ -360,14 +472,12 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             options.onResponseStart(savedError.status, headers);
             options.onData(
               Buffer.from(
-                JSON.stringify({
-                  error: {
-                    message:
-                      savedError.message ?? "Rate limited by test snapshot",
-                    type: savedError.code ?? "rate_limited",
-                    code: savedError.code ?? "rate_limited",
-                  },
-                }),
+                JSON.stringify(
+                  (protocol.errorBody ?? openAIErrorBody)(
+                    savedError.code,
+                    savedError.message ?? "Rate limited by test snapshot",
+                  ),
+                ),
               ),
             );
             options.onResponseEnd();
@@ -376,45 +486,19 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
           const savedResponse = await findSavedChatCompletionResponse(
             state.storedData,
-            options.body,
+            normalizedBody,
             state.workDir,
             state.toolResultNormalizers,
           );
 
           if (savedResponse) {
-            const streamingIsRequested =
-              options.body &&
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-                true;
-
-            if (streamingIsRequested) {
-              const headers = {
-                "content-type": "text/event-stream",
-                ...commonResponseHeaders,
-              };
-              options.onResponseStart(200, headers);
-              for (const chunk of convertToStreamingResponseChunks(
-                savedResponse,
-              )) {
-                options.onData(
-                  Buffer.from(`data: ${JSON.stringify(chunk)}\n\n`),
-                );
-                if (this.slowStreaming) {
-                  await sleep(100);
-                }
-              }
-              options.onData(Buffer.from("data: [DONE]\n\n"));
-              options.onResponseEnd();
-            } else {
-              const body = JSON.stringify(savedResponse);
-              const headers = {
-                "content-type": "application/json",
-                ...commonResponseHeaders,
-              };
-              options.onResponseStart(200, headers);
-              options.onData(Buffer.from(body));
-              options.onResponseEnd();
-            }
+            await this.respondWithProtocol(
+              options,
+              protocol,
+              savedResponse,
+              streamingIsRequested,
+              commonResponseHeaders,
+            );
 
             return;
           }
@@ -424,15 +508,11 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           if (
             await isRequestOnlySnapshot(
               state.storedData,
-              options.body,
+              normalizedBody,
               state.workDir,
               state.toolResultNormalizers,
             )
           ) {
-            const streamingIsRequested =
-              options.body &&
-              (JSON.parse(options.body) as { stream?: boolean }).stream ===
-                true;
             const headers = {
               "content-type": streamingIsRequested
                 ? "text/event-stream"
@@ -449,7 +529,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Beyond this point, we're only going to be able to supply responses in CI if we have a snapshot,
         // and we only store snapshots for chat completion. For anything else (e.g., custom-agents fetches),
         // return 404 so the CLI treats them as unavailable instead of erroring.
-        if (options.requestOptions.path !== chatCompletionEndpoint) {
+        if (!isModelRequest) {
           const headers = {
             "content-type": "application/json",
             "x-github-request-id": "proxy-not-found",
@@ -465,13 +545,14 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
         const isCI = process.env.GITHUB_ACTIONS === "true";
-        if (isCI) {
+        if (isCI || state.backend !== "capi") {
           await exitWithNoMatchingRequestError(
             options,
             state.testInfo,
             state.workDir,
             state.toolResultNormalizers,
             state.storedData,
+            normalizedBody,
           );
           return;
         }
@@ -480,6 +561,43 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         options.onError(err as Error | string);
       }
     });
+  }
+
+  private async respondWithProtocol(
+    options: PerformRequestOptions,
+    protocol: ReplayProtocol,
+    response: ChatCompletion,
+    streaming: boolean,
+    commonHeaders: Record<string, string>,
+  ): Promise<void> {
+    if (!streaming) {
+      options.onResponseStart(200, {
+        "content-type": "application/json",
+        ...commonHeaders,
+      });
+      options.onData(
+        Buffer.from(
+          JSON.stringify(protocol.responseBody?.(response) ?? response),
+        ),
+      );
+      options.onResponseEnd();
+      return;
+    }
+
+    options.onResponseStart(200, {
+      "content-type": "text/event-stream",
+      ...commonHeaders,
+    });
+    for (const chunk of protocol.responseChunks(response)) {
+      options.onData(Buffer.from(chunk));
+      if (this.slowStreaming) {
+        await sleep(100);
+      }
+    }
+    if (protocol.responseEndChunk) {
+      options.onData(Buffer.from(protocol.responseEndChunk));
+    }
+    options.onResponseEnd();
   }
 }
 
@@ -591,11 +709,12 @@ async function exitWithNoMatchingRequestError(
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
   storedData?: NormalizedData,
+  requestBody?: string,
 ) {
   let diagnostics: string;
   try {
     const normalized = await parseAndNormalizeRequest(
-      options.body,
+      requestBody ?? options.body,
       workDir,
       toolResultNormalizers,
     );
@@ -604,8 +723,11 @@ async function exitWithNoMatchingRequestError(
     let rawMessages: unknown[] = [];
     try {
       rawMessages =
-        (JSON.parse(options.body ?? "{}") as { messages?: unknown[] })
-          .messages ?? [];
+        (
+          JSON.parse(requestBody ?? options.body ?? "{}") as {
+            messages?: unknown[];
+          }
+        ).messages ?? [];
     } catch {
       /* non-JSON body */
     }
@@ -772,6 +894,60 @@ async function transformHttpExchanges(
   normalizeToolResultOrder(dedupedExchanges);
   normalizeFilenames(dedupedExchanges, workDir);
   return { models: Array.from(dedupedModels), conversations: dedupedExchanges };
+}
+
+function parseReplayBackend(value: unknown): ReplayBackend {
+  if (value === undefined || value === null || value === "") return "capi";
+  if (typeof value === "string" && Object.hasOwn(replayProtocols, value)) {
+    return value as ReplayBackend;
+  }
+  throw new Error(`Unsupported replay backend: ${String(value)}`);
+}
+
+function coalesceAdjacentUserMessages(requestBody: string): string {
+  const request = JSON.parse(requestBody) as {
+    messages?: Array<{
+      role?: string;
+      content?: unknown;
+      [key: string]: unknown;
+    }>;
+  };
+  if (!request.messages) return requestBody;
+
+  const messages: NonNullable<typeof request.messages> = [];
+  for (const message of request.messages) {
+    const previous = messages.at(-1);
+    if (
+      previous?.role === "user" &&
+      message.role === "user" &&
+      typeof previous.content === "string" &&
+      typeof message.content === "string"
+    ) {
+      previous.content = `${previous.content.trimEnd()}\n\n\n${message.content.trimStart()}`;
+    } else {
+      messages.push(message);
+    }
+  }
+
+  for (const message of messages) {
+    if (message.role === "user" && typeof message.content === "string") {
+      message.content = normalizeUserMessage(message.content).replace(
+        /\n{5,}/g,
+        "\n\n\n",
+      );
+    }
+  }
+
+  request.messages = messages;
+  return JSON.stringify(request);
+}
+
+function openAIErrorBody(
+  code: string | undefined,
+  message: string,
+): unknown {
+  const type = code ?? "rate_limited";
+  return { error: { message, type, code: type } };
 }
 
 function normalizeFilenames(
@@ -1048,7 +1224,10 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
-    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
+    .replace(
+      taskCompletionNotificationPattern,
+      taskCompletionNotificationReplacement,
+    )
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1062,9 +1241,9 @@ function normalizeUserMessage(content: string): string {
 }
 
 const taskCompletionNotificationPattern =
-  /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g;
+  /Agent "([^"]+)" \(([^)]+)\) (?:has completed successfully|has finished processing and is now idle)\. Use read_agent with agent_id "[^"]+" to (?:retrieve (?:unread results|the full results)|read the results, or write_agent to send follow-up messages)\./g;
 const taskCompletionNotificationReplacement =
-  'Use read_agent with agent_id "$1" to retrieve the full results.';
+  'Agent "$1" ($2) has completed successfully. Use read_agent with agent_id "$1" to retrieve the full results.';
 
 function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
   for (const conversation of conversations) {
@@ -1074,6 +1253,65 @@ function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
           taskCompletionNotificationPattern,
           taskCompletionNotificationReplacement,
         );
+      }
+    }
+  }
+}
+
+function normalizeStoredMessagesForBackend(
+  conversations: NormalizedConversation[],
+  backend: ReplayBackend,
+) {
+  if (backend === "capi") return;
+
+  for (const conversation of conversations) {
+    conversation.messages = coalesceMessages(
+      conversation.messages,
+      backend !== "openai-completions",
+    );
+  }
+}
+
+function coalesceMessages(
+  messages: NormalizedMessage[],
+  coalesceAssistantMessages: boolean,
+): NormalizedMessage[] {
+  const result: NormalizedMessage[] = [];
+  for (const message of messages) {
+    const previous = result.at(-1);
+    const shouldCoalesce =
+      previous?.role === message.role &&
+      ((coalesceAssistantMessages && message.role === "assistant") ||
+        message.role === "user");
+    if (!shouldCoalesce) {
+      result.push(message);
+      continue;
+    }
+
+    const separator = message.role === "user" ? "\n\n\n" : "";
+    const previousContent = previous.content ?? "";
+    const currentContent = message.content ?? "";
+    const content = `${previousContent}${previousContent && currentContent ? separator : ""}${currentContent}`;
+    if (content) previous.content = content;
+
+    const toolCalls = [
+      ...(previous.tool_calls ?? []),
+      ...(message.tool_calls ?? []),
+    ];
+    if (toolCalls.length) previous.tool_calls = toolCalls;
+  }
+  return result;
+}
+
+// Apply runtime-dependent tool result normalization to snapshots recorded by
+// older CLI versions as well as to live requests.
+function normalizeStoredToolMessages(conversations: NormalizedConversation[]) {
+  for (const conversation of conversations) {
+    for (const message of conversation.messages) {
+      if (message.role === "tool" && typeof message.content === "string") {
+        message.content = normalizeAvailableToolNames(message.content);
+        message.content = normalizeBackgroundAgentStartMessage(message.content);
+        message.content = normalizeReadAgentResult(message.content);
       }
     }
   }
@@ -1163,47 +1401,41 @@ function normalizeGh401AuthMessages(result: string): string {
   return changed ? normalizedLines.join("\n") : result;
 }
 
-function normalizeReadAgentTimings(result: string): string {
-  return result
+function normalizeReadAgentResult(result: string): string {
+  const normalized = result
+    .replace(
+      /^Agent is idle \(waiting for messages\)\./,
+      "Agent completed.",
+    )
+    .replace(/^Agent completed\. (.*), status: idle,/, "Agent completed. $1, status: completed,")
+    .replace(
+      /, total_turns: \d+(?=\r?\n|$)/,
+      ", total_turns: 0, duration: 0s",
+    )
+    .replace(/\r?\n\r?\n\[Turn \d+\]\r?\n/, "\n\n");
+
+  return normalized
     .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
     .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
-// Maps the platform-specific shell tool family names to stable placeholders.
-// On Windows the runtime exposes powershell/read_powershell/stop_powershell/...,
-// on Linux/macOS it exposes bash/read_bash/stop_bash/.... Ordered so that the
-// prefixed names are handled explicitly; \b boundaries keep bare names from
-// matching inside the prefixed ones.
-const shellToolFamilyReplacements: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bread_powershell\b/g, "${read_shell}"],
-  [/\bstop_powershell\b/g, "${stop_shell}"],
-  [/\blist_powershell\b/g, "${list_shell}"],
-  [/\bwrite_powershell\b/g, "${write_shell}"],
-  [/\bpowershell\b/g, "${shell}"],
-  [/\bread_bash\b/g, "${read_shell}"],
-  [/\bstop_bash\b/g, "${stop_shell}"],
-  [/\blist_bash\b/g, "${list_shell}"],
-  [/\bwrite_bash\b/g, "${write_shell}"],
-  [/\bbash\b/g, "${shell}"],
-];
-
-function normalizeShellToolFamilyNames(text: string): string {
-  let result = text;
-  for (const [pattern, replacement] of shellToolFamilyReplacements) {
-    result = result.replace(pattern, replacement);
-  }
-  return result;
-}
-
 // When a model calls a tool that doesn't exist (e.g., the removed report_intent
 // tool), the runtime replies with "Available tools that can be called are <list>."
-// The shell tool family names in that list are platform-specific, so normalize
-// them to placeholders to keep snapshots matching across Windows/Linux/macOS.
+// That enumeration is both platform-specific (shell tool family names differ
+// across OSes) and runtime-version-specific (built-in tools such as write_agent
+// are added or removed over time). Some runtime builds omit the enumeration
+// entirely, so remove the optional suffix and retain only the stable error.
 function normalizeAvailableToolNames(result: string): string {
   return result.replace(
-    /(Available tools that can be called are )([^.]*)/g,
-    (_full, prefix: string, list: string) =>
-      prefix + normalizeShellToolFamilyNames(list),
+    /(Tool '[^']+' does not exist\.) Available tools that can be called are [^.]*\./g,
+    "$1",
+  );
+}
+
+function normalizeBackgroundAgentStartMessage(result: string): string {
+  return result.replace(
+    /^(Agent started in background with agent_id: .*?\. You'll be notified when it completes\. Tell the user you're waiting and end your response, or continue unrelated work until notified\.).*$/s,
+    "$1",
   );
 }
 
@@ -1546,6 +1778,7 @@ type ReplayingCapiProxyState = {
   filePath: string;
   workDir: string;
   testInfo?: { file: string; line?: number };
+  backend: ReplayBackend;
   storedData?: NormalizedData | undefined;
   toolResultNormalizers: ToolResultNormalizer[];
 };

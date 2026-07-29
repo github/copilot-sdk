@@ -7,6 +7,9 @@ use super::support::with_e2e_context;
 
 #[tokio::test]
 async fn session_uses_client_token_when_no_session_token_is_supplied() {
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "per-session-auth",
         "session_uses_client_token_when_no_session_token_is_supplied",
@@ -47,6 +50,9 @@ async fn session_uses_client_token_when_no_session_token_is_supplied() {
 
 #[tokio::test]
 async fn session_token_overrides_client_token() {
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "per-session-auth",
         "session_token_overrides_client_token",
@@ -93,7 +99,11 @@ async fn session_auth_status_is_unauthenticated_without_token() {
         "session_auth_status_is_unauthenticated_without_token",
         |ctx| {
             Box::pin(async move {
-                let client = ctx.start_client().await;
+                let client = github_copilot_sdk::Client::start(
+                    ctx.client_options().with_use_logged_in_user(false),
+                )
+                .await
+                .expect("start client");
                 let session = client
                     .create_session(
                         SessionConfig::default()

@@ -35,7 +35,7 @@ AUTO_MODE_PROMPT = "Explain that auto mode recovered from a rate limit in one sh
 async def mode_ctx(ctx: E2ETestContext):
     """Configure per-token user responses for mode-handler tests."""
     proxy_url = ctx.proxy_url
-    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
+    ctx.add_runtime_env("COPILOT_DEBUG_GITHUB_API_URL", proxy_url)
 
     await ctx.set_copilot_user_by_token(
         MODE_HANDLER_TOKEN,
@@ -119,7 +119,7 @@ class TestModeHandlers:
             assert len(exit_plan_mode_requests) == 1
             request = exit_plan_mode_requests[0]
             assert request["summary"] == PLAN_SUMMARY
-            assert request["actions"] == ["interactive", "autopilot", "exit_only"]
+            assert request["actions"] == ["autopilot", "interactive", "exit_only"]
             assert request["recommendedAction"] == "interactive"
             assert request.get("planContent") is not None
 

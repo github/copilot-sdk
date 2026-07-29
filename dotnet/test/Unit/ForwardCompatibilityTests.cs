@@ -169,6 +169,24 @@ public class ForwardCompatibilityTests
     }
 
     [Fact]
+    public void FromJson_InternalEventType_ReturnsBaseSessionEvent()
+    {
+        var json = """
+            {
+                "id": "12345678-1234-1234-1234-123456789abc",
+                "timestamp": "2026-06-15T10:30:00Z",
+                "type": "session.memory_changed",
+                "data": {}
+            }
+            """;
+
+        var result = SessionEvent.FromJson(json);
+
+        Assert.IsType<SessionEvent>(result);
+        Assert.Equal("unknown", result.Type);
+    }
+
+    [Fact]
     public void FromJson_KnownEventType_WithUnknownEnumInData_PreservesValue()
     {
         var json = """

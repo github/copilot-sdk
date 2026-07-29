@@ -5,6 +5,7 @@
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -41,6 +42,34 @@ public class CopilotToolTests
         Assert.False(function.AdditionalProperties.ContainsKey("is_override"));
         Assert.False(function.AdditionalProperties.ContainsKey("skip_permission"));
         Assert.False(function.AdditionalProperties.ContainsKey("defer"));
+    }
+
+    [Fact]
+    public void DefineTool_Sets_Metadata_In_Additional_Properties()
+    {
+        var metadata = new Dictionary<string, JsonNode?>
+        {
+            ["github.com/copilot:safeForTelemetry"] = new JsonObject
+            {
+                ["name"] = true,
+                ["inputsNames"] = false
+            }
+        };
+
+        var function = CopilotTool.DefineTool(
+            ReturnsOk,
+            new CopilotToolOptions { Metadata = metadata });
+
+        Assert.True(function.AdditionalProperties.TryGetValue("metadata", out var value));
+        Assert.Same(metadata, value);
+    }
+
+    [Fact]
+    public void DefineTool_Omits_Metadata_When_Unset()
+    {
+        var function = CopilotTool.DefineTool(ReturnsOk);
+
+        Assert.False(function.AdditionalProperties.ContainsKey("metadata"));
     }
 
     [Fact]

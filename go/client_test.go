@@ -251,6 +251,82 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsCanvasProviderToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		ExtensionInfo:  &ExtensionInfo{Source: "github-app", Name: "counter-provider"},
+		CanvasProvider: &CanvasProviderIdentity{ID: "app:builtin:window-1", Name: String("Built-in")},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertCanvasProviderForwarded(t, <-createParams, "app:builtin:window-1", "Built-in", "counter-provider")
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-canvas","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-canvas", &ResumeSessionConfig{
+		CanvasProvider: &CanvasProviderIdentity{ID: "app:builtin:window-1"},
+	})
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertCanvasProviderForwarded(t, <-resumeParams, "app:builtin:window-1", "", "")
+}
+
+// assertCanvasProviderForwarded checks the outbound params carry canvasProvider
+// with the expected id. A non-empty wantName asserts the name is present; an
+// empty wantName asserts the name key is omitted from the wire. A non-empty
+// wantExtensionName asserts extensionInfo.name is forwarded alongside it.
+func assertCanvasProviderForwarded(t *testing.T, params json.RawMessage, wantID, wantName, wantExtensionName string) {
+	t.Helper()
+
+	var decoded map[string]any
+	if err := json.Unmarshal(params, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	provider, ok := decoded["canvasProvider"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected canvasProvider object in request params, got %T", decoded["canvasProvider"])
+	}
+	if provider["id"] != wantID {
+		t.Fatalf("expected canvasProvider.id=%q, got %v", wantID, provider["id"])
+	}
+	if wantName == "" {
+		if _, present := provider["name"]; present {
+			t.Fatalf("expected canvasProvider.name to be omitted, got %v", provider["name"])
+		}
+	} else if provider["name"] != wantName {
+		t.Fatalf("expected canvasProvider.name=%q, got %v", wantName, provider["name"])
+	}
+	if wantExtensionName != "" {
+		info, ok := decoded["extensionInfo"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected extensionInfo object in request params, got %T", decoded["extensionInfo"])
+		}
+		if info["name"] != wantExtensionName {
+			t.Fatalf("expected extensionInfo.name=%q, got %v", wantExtensionName, info["name"])
+		}
+	}
+}
+
 func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
@@ -545,6 +621,198 @@ func TestClient_EnvOptions(t *testing.T) {
 		}
 		if len(client.options.Env) != 0 {
 			t.Errorf("Expected 0 environment variables, got %d", len(client.options.Env))
+		}
+	})
+}
+
+func TestClient_InProcessConnection(t *testing.T) {
+	t.Run("requires build tag", func(t *testing.T) {
+		if inProcessAvailable {
+			t.Skip("in-process transport is enabled")
+		}
+
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		err := client.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "-tags copilot_inprocess") {
+			t.Fatalf("Expected build-tag error, got %v", err)
+		}
+	})
+
+	t.Run("uses in-process transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		if !client.useInProcess {
+			t.Error("Expected useInProcess=true for InProcessConnection")
+		}
+		if client.useStdio {
+			t.Error("Expected useStdio=false for InProcessConnection")
+		}
+		if client.isExternalServer {
+			t.Error("Expected isExternalServer=false for InProcessConnection")
+		}
+		if client.cliPath != "" {
+			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("does not resolve COPILOT_CLI_PATH into cliPath at construction", func(t *testing.T) {
+		t.Setenv("COPILOT_CLI_PATH", "/from/env/copilot")
+		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		if client.cliPath != "" {
+			t.Errorf("Expected in-process cliPath to stay empty at construction, got %q", client.cliPath)
+		}
+	})
+
+	t.Run("panics when Env is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Env is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"FOO=bar"},
+		})
+	})
+
+	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when WorkingDirectory is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection:       InProcessConnection{},
+			WorkingDirectory: "/tmp/work",
+		})
+	})
+
+	t.Run("panics when Telemetry is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Telemetry is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Telemetry:  &TelemetryConfig{ExporterType: "file"},
+		})
+	})
+
+	t.Run("forwards typed runtime options", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection:                InProcessConnection{},
+			GitHubToken:               "test-token",
+			UseLoggedInUser:           Bool(false),
+			BaseDirectory:             "/copilot-home",
+			LogLevel:                  "debug",
+			SessionIdleTimeoutSeconds: 30,
+			EnableRemoteSessions:      true,
+			Mode:                      ModeEmpty,
+		})
+
+		config := client.inProcessHostConfig()
+		expectedArgs := []string{
+			"--log-level", "debug",
+			"--auth-token-env", "COPILOT_SDK_AUTH_TOKEN",
+			"--no-auto-login",
+			"--session-idle-timeout", "30",
+			"--remote",
+		}
+		if !reflect.DeepEqual(config.Args, expectedArgs) {
+			t.Fatalf("Expected managed arguments %v, got %v", expectedArgs, config.Args)
+		}
+		expectedEnvironment := map[string]string{
+			"COPILOT_SDK_AUTH_TOKEN": "test-token",
+			"COPILOT_HOME":           "/copilot-home",
+			"COPILOT_DISABLE_KEYTAR": "1",
+		}
+		if !reflect.DeepEqual(config.Environment, expectedEnvironment) {
+			t.Fatalf("Expected managed environment %v, got %v", expectedEnvironment, config.Environment)
+		}
+	})
+}
+
+func TestClient_DefaultConnection(t *testing.T) {
+	t.Run("defaults to stdio when override is unset", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "")
+
+		client := NewClient(nil)
+
+		if !client.useStdio || client.useInProcess {
+			t.Fatalf("Expected stdio default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("selects in-process case-insensitively", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "InPrOcEsS")
+
+		client := NewClient(nil)
+
+		if !client.useInProcess || client.useStdio {
+			t.Fatalf("Expected in-process default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("accepts explicit stdio override", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "STDIO")
+
+		client := NewClient(nil)
+
+		if !client.useStdio || client.useInProcess {
+			t.Fatalf("Expected stdio default, got useStdio=%v useInProcess=%v", client.useStdio, client.useInProcess)
+		}
+	})
+
+	t.Run("explicit connection takes precedence", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "inprocess")
+
+		client := NewClient(&ClientOptions{Connection: TCPConnection{Port: 1234}})
+
+		if client.useInProcess || client.useStdio || client.port != 1234 {
+			t.Fatalf("Expected explicit TCP connection to win, got useStdio=%v useInProcess=%v port=%d", client.useStdio, client.useInProcess, client.port)
+		}
+	})
+
+	t.Run("panics for invalid override", func(t *testing.T) {
+		t.Setenv(defaultConnectionEnvVar, "tcp")
+
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("Expected invalid default connection override to panic")
+			}
+		}()
+		NewClient(nil)
+	})
+}
+
+func TestClient_ConnectionLevelEnv(t *testing.T) {
+	t.Run("rejects env set on both client and connection", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when env is set on both client and connection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: StdioConnection{Env: []string{"A=1"}},
+			Env:        []string{"B=2"},
+		})
+	})
+
+	t.Run("stdio connection env is used when client env is unset", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: StdioConnection{Env: []string{"ONLY=conn"}},
+		})
+		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
+		}
+	})
+
+	t.Run("tcp connection env is used when client env is unset", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: TCPConnection{Port: 9000, Env: []string{"ONLY=conn"}},
+		})
+		if len(client.options.Env) != 1 || client.options.Env[0] != "ONLY=conn" {
+			t.Errorf("Expected connection-level Env to be used, got %v", client.options.Env)
 		}
 	})
 }
@@ -1156,6 +1424,53 @@ func TestToolDefer(t *testing.T) {
 		}
 		if _, ok := m["defer"]; ok {
 			t.Errorf("expected defer to be omitted, got %v", m)
+		}
+	})
+}
+
+func TestToolMetadata(t *testing.T) {
+	t.Run("Metadata is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "my_tool",
+			Description: "A custom tool",
+			Metadata: map[string]any{
+				"github.com/copilot:safeForTelemetry": map[string]any{"name": true, "inputsNames": false},
+			},
+			Handler: func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		meta, ok := m["metadata"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected metadata object, got %v", m)
+		}
+		if _, ok := meta["github.com/copilot:safeForTelemetry"]; !ok {
+			t.Errorf("expected namespaced key preserved, got %v", meta)
+		}
+	})
+
+	t.Run("Metadata omitted when unset", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["metadata"]; ok {
+			t.Errorf("expected metadata to be omitted, got %v", m)
 		}
 	})
 }
@@ -2866,9 +3181,13 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 }
 
 func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-123",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"threshold": 5, "enabled": true}},
+		},
+		AssignmentContext: "ctx-123",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
@@ -2906,10 +3225,50 @@ func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
 	})
 }
 
+func TestCopilotExpAssignmentResponse_MarshalNormalizesNilCollections(t *testing.T) {
+	// A response left with zero-value collections must still serialize the
+	// required fields as JSON arrays/objects, not null, so the runtime does not
+	// treat the payload as malformed.
+	data, err := json.Marshal(&CopilotExpAssignmentResponse{AssignmentContext: "ctx"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	for _, tc := range []struct{ key, want string }{
+		{"Features", "[]"},
+		{"Flights", "{}"},
+		{"Configs", "[]"},
+		{"AssignmentContext", `"ctx"`},
+	} {
+		if got := string(m[tc.key]); got != tc.want {
+			t.Errorf("Expected %s to serialize as %s, got %s", tc.key, tc.want, got)
+		}
+	}
+
+	// A nil Parameters map on an entry must likewise serialize as {}.
+	entryData, err := json.Marshal(ExpConfigEntry{ID: "cfg"})
+	if err != nil {
+		t.Fatalf("Failed to marshal entry: %v", err)
+	}
+	if err := json.Unmarshal(entryData, &m); err != nil {
+		t.Fatalf("Failed to unmarshal entry: %v", err)
+	}
+	if got := string(m["Parameters"]); got != "{}" {
+		t.Errorf("Expected Parameters to serialize as {}, got %s", got)
+	}
+}
+
 func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-456",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"copilot_exp_flag": "treatment"}},
+		},
+		AssignmentContext: "ctx-456",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {

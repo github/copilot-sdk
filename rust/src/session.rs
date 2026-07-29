@@ -12,7 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams, rpc_methods,
+    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
+    ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -40,6 +41,11 @@ use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
     error_codes,
 };
+
+/// Fixed name of the runtime's built-in tool-search tool. A client can replace
+/// its behavior by registering a tool with this exact name and
+/// `overrides_built_in_tool` set to `true`.
+const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -529,6 +535,7 @@ impl Session {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
+            verbosity: None,
             context_tier: opts.context_tier,
             model_capabilities: opts.model_capabilities,
         };
@@ -1433,14 +1440,27 @@ fn spawn_event_loop(
             loop {
                 // `mpsc::UnboundedReceiver::recv` and
                 // `CancellationToken::cancelled` are both cancel-safe per
-                // RFD 400. The selected branch's `await`'d handler is
-                // *not* mid-cancelled by the select — once a branch fires
-                // it runs to completion within the loop's iteration.
-                // Spawned child tasks inside `handle_notification`
-                // (permission/tool/elicitation callbacks) intentionally
-                // outlive the parent loop and own their own cleanup;
-                // this is RFD 400's "spawn background tasks to perform
-                // cancel-unsafe operations" pattern and is correct as-is.
+                // RFD 400.
+                //
+                // Inbound JSON-RPC *requests* are dispatched fire-and-forget:
+                // each `handle_request` runs in its own spawned task that
+                // awaits the handler and sends that request's response. This
+                // mirrors the other Copilot SDKs and moves concurrency to the
+                // request-dispatch boundary, so any slow handler — not just
+                // `userInput.request` (which can stay pending for the full
+                // input backstop of several minutes), but also `exitPlanMode`,
+                // `autoModeSwitch`, hooks, transforms, or canvas/session-FS
+                // providers — cannot park the reader loop and starve sibling
+                // requests or co-emitted notifications. JSON-RPC permits
+                // concurrent requests and out-of-order responses, so the SDK
+                // does not serialize them.
+                //
+                // `handle_notification` is awaited inline because it only
+                // performs fast dispatch work; its slow interactive callbacks
+                // (permission/tool/elicitation) are themselves spawned as child
+                // tasks. All of these spawned tasks intentionally outlive the
+                // parent loop and own their own cleanup — RFD 400's "spawn
+                // background tasks to perform cancel-unsafe operations" pattern.
                 tokio::select! {
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
@@ -1449,16 +1469,33 @@ fn spawn_event_loop(
                         ).await;
                     }
                     Some(request) = requests.recv() => {
-                        let ctx = RequestDispatchContext {
-                            client: &client,
-                            handlers: &handlers,
-                            hooks: hooks.as_deref(),
-                            transforms: transforms.as_deref(),
-                            canvas_handler: canvas_handler.as_ref(),
-                            session_fs_provider: session_fs_provider.as_ref(),
-                            bearer_token_providers: &bearer_token_providers,
-                        };
-                        handle_request(&session_id, ctx, request).await;
+                        // Clone the Arc-backed dispatch context into the task so
+                        // the spawned `handle_request` future is `'static`. All
+                        // clones are cheap (Arc refcount bumps / small maps).
+                        let span = tracing::error_span!("session_request_handler", session_id = %session_id);
+                        let session_id = session_id.clone();
+                        let client = client.clone();
+                        let handlers = handlers.clone();
+                        let hooks = hooks.clone();
+                        let transforms = transforms.clone();
+                        let canvas_handler = canvas_handler.clone();
+                        let session_fs_provider = session_fs_provider.clone();
+                        let bearer_token_providers = bearer_token_providers.clone();
+                        tokio::spawn(
+                            async move {
+                                let ctx = RequestDispatchContext {
+                                    client: &client,
+                                    handlers: &handlers,
+                                    hooks: hooks.as_deref(),
+                                    transforms: transforms.as_deref(),
+                                    canvas_handler: canvas_handler.as_ref(),
+                                    session_fs_provider: session_fs_provider.as_ref(),
+                                    bearer_token_providers: &bearer_token_providers,
+                                };
+                                handle_request(&session_id, ctx, request).await;
+                            }
+                            .instrument(span),
+                        );
                     }
                     else => break,
                 }
@@ -1515,6 +1552,7 @@ fn tool_failure_result(message: impl Into<String>) -> ToolResult {
         session_log: None,
         error: Some(message),
         tool_telemetry: None,
+        tool_references: None,
     })
 }
 
@@ -1848,6 +1886,30 @@ async fn handle_notification(
                     }
                     let tool_call_id = data.tool_call_id.clone();
                     let tool_name = data.tool_name.clone();
+                    // The built-in tool-search tool receives a snapshot of the
+                    // session's currently initialized tools so an override can
+                    // filter the live catalog without issuing its own RPC. Fetch
+                    // it only for that tool to avoid a round-trip on every tool
+                    // call; a failed fetch leaves the snapshot `None` rather than
+                    // failing the tool.
+                    let available_tools = if tool_name == TOOL_SEARCH_TOOL_NAME {
+                        match client
+                            .call(
+                                rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
+                                Some(serde_json::json!({ "sessionId": sid })),
+                            )
+                            .await
+                        {
+                            Ok(value) => {
+                                serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
+                                    .ok()
+                                    .and_then(|result| result.tools)
+                            }
+                            Err(_) => None,
+                        }
+                    } else {
+                        None
+                    };
                     let invocation = ToolInvocation {
                         session_id: sid.clone(),
                         tool_call_id: data.tool_call_id,
@@ -1855,6 +1917,7 @@ async fn handle_notification(
                         arguments: data
                             .arguments
                             .unwrap_or(Value::Object(serde_json::Map::new())),
+                        available_tools,
                         traceparent: data.traceparent,
                         tracestate: data.tracestate,
                     };

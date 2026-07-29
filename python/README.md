@@ -32,6 +32,17 @@ python -m copilot download-runtime
 This caches the runtime binary locally. If you skip this step, the SDK will
 attempt to download it automatically on first use as a fallback.
 
+To pre-provision the native library required by the in-process (FFI) transport
+(see [In-process (FFI) transport](#in-process-ffi-transport)), pass `--in-process`:
+
+```bash
+python -m copilot download-runtime --in-process
+```
+
+This additionally fetches the native runtime library into the versioned runtime
+cache. Stdio/TCP users never download it. When omitted, it is downloaded
+lazily on first use of the in-process transport.
+
 | Platform | Cache path |
 |----------|-----------|
 | Linux | `~/.cache/github-copilot-sdk/cli/<version>/copilot` |
@@ -65,6 +76,7 @@ from copilot import CopilotClient
 from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
+
 async def main():
     # Client automatically starts on enter and cleans up on exit
     async with CopilotClient() as client:
@@ -89,6 +101,7 @@ async def main():
             await session.send("What is 2+2?")
             await done.wait()
 
+
 asyncio.run(main())
 ```
 
@@ -102,6 +115,7 @@ import asyncio
 from copilot import CopilotClient
 from copilot.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
+
 
 async def main():
     client = CopilotClient()
@@ -130,13 +144,14 @@ async def main():
     await session.disconnect()
     await client.stop()
 
+
 asyncio.run(main())
 ```
 
 ## Features
 
 - ✅ Full JSON-RPC protocol support
-- ✅ stdio and TCP transports
+- ✅ stdio, TCP, and in-process (FFI) transports
 - ✅ Real-time streaming events
 - ✅ Session history with `get_events()`
 - ✅ Type hints throughout
@@ -156,6 +171,7 @@ async with CopilotClient() as client:
         on_permission_request=PermissionHandler.approve_all,
         model="gpt-5",
     ) as session:
+
         def on_event(event):
             print(f"Event: {event.type}")
 
@@ -184,8 +200,9 @@ CopilotClient(connection=..., log_level="debug", github_token=..., ...)
 All options are kw-only parameters:
 
 - `connection` (RuntimeConnection | None): How to reach the runtime. Use
-  `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`, or
-  `RuntimeConnection.for_uri(...)`. Defaults to a stdio connection with the bundled binary.
+  `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`,
+  `RuntimeConnection.for_uri(...)`, or `RuntimeConnection.for_inprocess(...)`.
+  Defaults to a stdio connection with the bundled binary.
 - `working_directory` (str | None): Working directory for the CLI process (default: current dir).
 - `log_level` (str): Log level (default: "info").
 - `env` (dict | None): Environment variables for the CLI process.
@@ -204,6 +221,51 @@ All options are kw-only parameters:
 - `RuntimeConnection.for_stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
 - `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
 - `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
+- `RuntimeConnection.for_inprocess()` — host the runtime in-process via its native C ABI (FFI). See [In-process (FFI) transport](#in-process-ffi-transport).
+
+Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
+`env` field for the spawned process. Set it on the returned connection instead of
+the client-level `env` — setting both raises:
+
+```python
+conn = RuntimeConnection.for_stdio()
+conn.env = {"MY_VAR": "value"}
+client = CopilotClient(connection=conn)  # do NOT also pass env=... here
+```
+
+### In-process (FFI) transport
+
+> ⚠️ **Experimental.** The in-process transport loads the runtime's native shared
+> library into your process and drives JSON-RPC over its C ABI (via stdlib
+> `ctypes`), instead of spawning a child process.
+
+```python
+from copilot import CopilotClient, RuntimeConnection
+
+client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+await client.start()
+try:
+    pong = await client.ping("hello")
+    print(pong.message)
+finally:
+    await client.stop()
+```
+
+**Requirements & behavior:**
+
+- Pre-provision the native runtime with
+  `python -m copilot download-runtime --in-process`, or let the SDK download it
+  lazily on first use of this transport.
+- Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
+  runtime package. In-process connections do not accept per-connection paths
+  or raw process arguments.
+- Because the runtime shares this single host process, per-client options that
+  lower to environment variables or a working directory **cannot** be honored and
+  are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`
+  with `for_inprocess()`. Set the corresponding values on the host process
+  environment / working directory before creating the client instead.
+- Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
+  transport by default when no explicit `connection` is supplied.
 
 **`CopilotClient.create_session()`:**
 
@@ -230,14 +292,18 @@ session_id = await client.get_foreground_session_id()
 # Request TUI to display a specific session (TUI+server mode only)
 await client.set_foreground_session_id("session-123")
 
+
 # Subscribe to all lifecycle events
 def on_lifecycle(event):
     print(f"{event.type}: {event.session_id}")
 
+
 unsubscribe = client.on_lifecycle(on_lifecycle)
 
 # Subscribe to specific event type
-unsubscribe = client.on_lifecycle("session.foreground", lambda e: print(f"Foreground: {e.session_id}"))
+unsubscribe = client.on_lifecycle(
+    "session.foreground", lambda e: print(f"Foreground: {e.session_id}")
+)
 
 # Later, to stop receiving events:
 unsubscribe()
@@ -259,13 +325,16 @@ Define tools with automatic JSON schema generation using the `@define_tool` deco
 from pydantic import BaseModel, Field
 from copilot import CopilotClient, define_tool
 
+
 class LookupIssueParams(BaseModel):
     id: str = Field(description="Issue identifier")
+
 
 @define_tool(description="Fetch issue details from our tracker")
 async def lookup_issue(params: LookupIssueParams) -> str:
     issue = await fetch_issue(params.id)
     return issue.summary
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -286,6 +355,7 @@ from copilot import CopilotClient
 from copilot.tools import Tool, ToolInvocation, ToolResult
 from copilot.session import PermissionHandler
 
+
 async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
     issue_id = invocation.arguments["id"]
     issue = await fetch_issue(issue_id)
@@ -294,6 +364,7 @@ async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
         result_type="success",
         session_log=f"Fetched issue {issue_id}",
     )
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -414,6 +485,7 @@ from copilot.session_events import (
 )
 from copilot.session import PermissionHandler
 
+
 async def main():
     async with CopilotClient() as client:
         async with await client.create_session(
@@ -449,6 +521,7 @@ async def main():
             session.on(on_event)
             await session.send("Tell me a short story")
             await done.wait()  # Wait for streaming to complete
+
 
 asyncio.run(main())
 ```
@@ -529,7 +602,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `api_key` (str): API key (optional for local providers like Ollama)
 - `bearer_token` (str): Bearer token for authentication (takes precedence over `api_key`)
 - `wire_api` (str): API format for OpenAI/Azure - `"completions"` or `"responses"` (default: `"completions"`)
-- `azure` (dict): Azure-specific options with `api_version` (default: `"2024-10-21"`)
+- `azure` (dict): Azure-specific options with `api_version`; when omitted, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 
@@ -621,7 +694,10 @@ async with await client.create_session(
     system_message={
         "mode": "customize",
         "sections": {
-            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            "tone": {
+                "action": "replace",
+                "content": "Respond in a warm, professional tone. Be thorough in explanations.",
+            },
             "code_change_rules": {"action": "remove"},
             "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
         },
@@ -640,6 +716,7 @@ You can also pass a transform callback as the `action` instead of a string. The 
 ```python
 def redact_paths(content: str) -> str:
     return content.replace("/home/user", "/***")
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -728,9 +805,7 @@ from copilot.rpc import (
 from copilot.session_events import PermissionRequestShell
 
 
-def on_permission_request(
-    request: PermissionRequest, invocation: dict
-) -> PermissionRequestResult:
+def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
     # ``PermissionRequest`` is a discriminated union — pattern-match on
     # the variant class to access the per-kind fields.
     match request:
@@ -814,6 +889,7 @@ async def handle_user_input(request, invocation):
         "wasFreeform": True,  # Whether the answer was freeform (not from choices)
     }
 
+
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
     model="gpt-5",
@@ -836,11 +912,13 @@ async def on_pre_tool_use(input, invocation):
         "additionalContext": "Extra context for the model",
     }
 
+
 async def on_post_tool_use(input, invocation):
     print(f"Tool {input['toolName']} completed")
     return {
         "additionalContext": "Post-execution notes",
     }
+
 
 async def on_post_tool_use_failure(input, invocation):
     # Fires when a tool's result was a failure. `on_post_tool_use` only fires
@@ -851,11 +929,13 @@ async def on_post_tool_use_failure(input, invocation):
         "additionalContext": f"Retry guidance for {input['toolName']}",
     }
 
+
 async def on_user_prompt_submitted(input, invocation):
     print(f"User prompt: {input['prompt']}")
     return {
         "modifiedPrompt": input["prompt"],  # Optionally modify the prompt
     }
+
 
 async def on_session_start(input, invocation):
     print(f"Session started from: {input['source']}")  # "startup", "resume", "new"
@@ -863,14 +943,17 @@ async def on_session_start(input, invocation):
         "additionalContext": "Session initialization context",
     }
 
+
 async def on_session_end(input, invocation):
     print(f"Session ended: {input['reason']}")
+
 
 async def on_error_occurred(input, invocation):
     print(f"Error in {input['errorContext']}: {input['error']}")
     return {
         "errorHandling": "retry",  # "retry", "skip", or "abort"
     }
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -905,12 +988,14 @@ Register slash commands that users can invoke from the CLI TUI. When the user ty
 ```python
 from copilot.session import CommandDefinition, CommandContext, PermissionHandler
 
+
 async def handle_deploy(ctx: CommandContext) -> None:
     print(f"Deploying with args: {ctx.args}")
     # ctx.session_id  — the session where the command was invoked
     # ctx.command      — full command text (e.g. "/deploy production")
     # ctx.command_name — command name without leading / (e.g. "deploy")
     # ctx.args         — raw argument string (e.g. "production")
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -973,11 +1058,14 @@ Shows a text input dialog with optional constraints:
 name = await session.ui.input("Enter your name:")
 
 # With options
-email = await session.ui.input("Enter email:", {
-    "title": "Email Address",
-    "description": "We'll use this for notifications",
-    "format": "email",
-})
+email = await session.ui.input(
+    "Enter email:",
+    {
+        "title": "Email Address",
+        "description": "We'll use this for notifications",
+        "format": "email",
+    },
+)
 ```
 
 ### Custom Elicitation
@@ -985,17 +1073,19 @@ email = await session.ui.input("Enter email:", {
 For full control, use the `elicitation()` method with a custom JSON schema:
 
 ```python
-result = await session.ui.elicitation({
-    "message": "Configure deployment",
-    "requestedSchema": {
-        "type": "object",
-        "properties": {
-            "region": {"type": "string", "enum": ["us-east-1", "eu-west-1"]},
-            "replicas": {"type": "number", "minimum": 1, "maximum": 10},
+result = await session.ui.elicitation(
+    {
+        "message": "Configure deployment",
+        "requestedSchema": {
+            "type": "object",
+            "properties": {
+                "region": {"type": "string", "enum": ["us-east-1", "eu-west-1"]},
+                "replicas": {"type": "number", "minimum": 1, "maximum": 10},
+            },
+            "required": ["region"],
         },
-        "required": ["region"],
-    },
-})
+    }
+)
 
 if result["action"] == "accept":
     region = result["content"]["region"]
@@ -1008,6 +1098,7 @@ When the server (or an MCP tool) needs to ask the end-user a question, it sends 
 
 ```python
 from copilot.session import ElicitationContext, ElicitationResult, PermissionHandler
+
 
 async def handle_elicitation(
     context: ElicitationContext,
@@ -1024,6 +1115,7 @@ async def handle_elicitation(
         "action": "accept",  # or "decline" or "cancel"
         "content": {"answer": "yes"},
     }
+
 
 async with await client.create_session(
     on_permission_request=PermissionHandler.approve_all,

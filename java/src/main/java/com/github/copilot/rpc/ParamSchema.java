@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.tool.Param;
 
@@ -84,7 +85,21 @@ class ParamSchema {
         Map<String, Object> properties = new LinkedHashMap<>();
 
         for (Param<?> param : params) {
-            Map<String, Object> typeSchema = forType(param.type());
+            Map<String, Object> typeSchema;
+            if (!param.schema().isEmpty()) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parsed = mapper.readerFor(Map.class)
+                            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(param.schema());
+                    typeSchema = parsed;
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Invalid schema JSON for parameter '" + param.name()
+                            + "' in tool '" + toolName + "': " + e.getMessage(), e);
+                }
+            } else {
+                typeSchema = forType(param.type());
+            }
             Map<String, Object> enriched = new LinkedHashMap<>(typeSchema);
             enriched.put("description", param.description());
             if (param.hasDefaultValue()) {

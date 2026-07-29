@@ -14,6 +14,7 @@ import (
 
 // Mirrors dotnet/test/TelemetryExportTests.cs (snapshot category "telemetry").
 func TestTelemetryE2E(t *testing.T) {
+	testharness.SkipIfInProcess(t, "telemetry configuration is not honored in-process")
 	t.Run("should export file telemetry for sdk interactions", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)

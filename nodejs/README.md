@@ -84,9 +84,11 @@ new CopilotClient(options?: CopilotClientOptions)
 **Options:**
 
 - `connection?: RuntimeConnection` - How to connect to the Copilot runtime. Construct via the factory functions on `RuntimeConnection`:
-    - `RuntimeConnection.forStdio({ path?, args? })` (default) — spawn the runtime and communicate over its stdin/stdout.
-    - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args? })` — spawn the runtime as a TCP server.
+    - `RuntimeConnection.forStdio({ path?, args?, env? })` (default) — spawn the runtime and communicate over its stdin/stdout.
+    - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args?, env? })` — spawn the runtime as a TCP server.
     - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`). There is no top-level `cliUrl` shortcut; use this factory for URL-based connections.
+    - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Because the runtime shares this process, `env`, `telemetry`, and `workingDirectory` are rejected with this transport; set them on the host process instead.
+    - The child-process transports (`forStdio`/`forTcp`) also accept a per-connection `env`. Set it there or via the top-level `env` option — not both (setting both throws).
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
 - `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
@@ -749,7 +751,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `apiKey?: string` - API key (optional for local providers like Ollama)
 - `bearerToken?: string` - Bearer token for authentication (takes precedence over apiKey)
 - `wireApi?: "completions" | "responses"` - API format for OpenAI/Azure (default: "completions")
-- `azure?.apiVersion?: string` - Azure API version (default: "2024-10-21")
+- `azure?.apiVersion?: string` - Azure API version; when omitted, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 
@@ -1056,6 +1058,16 @@ const session = await client.createSession({
                 errorHandling: "retry", // "retry", "skip", or "abort"
             };
         },
+
+        // Called when the top-level agent naturally stops
+        onAgentStop: async (input, invocation) => {
+            if (!input.stopHookActive && needsMoreWork()) {
+                return {
+                    decision: "block",
+                    reason: "Run the final validation and fix any failures.",
+                };
+            }
+        },
     },
 });
 ```
@@ -1069,6 +1081,7 @@ const session = await client.createSession({
 - `onSessionStart` - Run logic when a session starts or resumes.
 - `onSessionEnd` - Cleanup or logging when session ends.
 - `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
+- `onAgentStop` - Observe natural top-level agent completion. Return `{ decision: "block", reason }` to request another turn; use `stopHookActive` to avoid repeated blocks.
 
 ## Error Handling
 

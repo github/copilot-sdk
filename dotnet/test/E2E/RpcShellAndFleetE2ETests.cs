@@ -28,7 +28,7 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
     [Fact]
     public async Task Should_Kill_Shell_Process()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var command = OperatingSystem.IsWindows()
             ? "powershell -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 30\""
             : "sleep 30";
