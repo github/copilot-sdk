@@ -14,9 +14,9 @@ import type { CopilotSession } from "./session.js";
 import type { FactoryLimits, FactoryMeta } from "./types.js";
 
 /**
- * The terminal envelope describing a factory run's outcome (status, result,
- * reason). Re-exported so consumers can name the type returned by
- * {@link SessionFactoryApi} methods.
+ * The envelope describing a factory run: its identity, status, and — once it
+ * has completed — its result. `getRun` returns this for an in-flight run too,
+ * so `status` may be `pending` or `running` and the outcome fields absent.
  *
  * `result` is re-typed here rather than taken from the generated wire type. The
  * runtime returns any JSON value — including `null`, a string, a number, or an
@@ -29,6 +29,9 @@ import type { FactoryLimits, FactoryMeta } from "./types.js";
  * regenerating produces the right type directly, and this declaration, the
  * `toPublicFactoryRunResult` boundary helper, and the casts around it should
  * all be deleted. Tracked by github/copilot-agent-runtime#14122.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
  */
 export type FactoryRunResult = Omit<WireFactoryRunResult, "result"> & {
     /** Completed factory result. */
@@ -154,11 +157,25 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
         producer: () => Promise<JsonValue> | JsonValue,
         options?: FactoryStepOptions
     ): Promise<JsonValue>;
-    /** Run thunks concurrently, returning null for a thunk that throws. */
+    /**
+     * Run thunks concurrently and await all of them.
+     *
+     * A thunk that throws becomes `null` in the result array, so one failed
+     * item does not lose the rest. Cancellation and hard runtime failures
+     * (`ResponseError`, `ConnectionError`) are the exception: those propagate
+     * and reject the whole call, because they mean the run itself is in
+     * trouble rather than one item having failed.
+     */
     parallel<TResult>(
         thunks: Array<() => Promise<TResult> | TResult>
     ): Promise<Array<TResult | null>>;
-    /** Run each item through every stage without barriers between stages. */
+    /**
+     * Run each item through every stage without barriers between stages.
+     *
+     * A stage that throws drops that item to `null` and skips its remaining
+     * stages. As with {@link FactoryContext.parallel}, cancellation and hard
+     * runtime failures propagate instead of being recorded per item.
+     */
     pipeline(items: unknown[], ...stages: FactoryPipelineStage[]): Promise<unknown[]>;
     /** Start a named factory progress phase. */
     phase(title: string): void;
@@ -189,12 +206,6 @@ export interface FactoryDefinition<
 }
 
 /**
- * Opaque reusable reference to a defined factory.
- *
- * @experimental Part of the experimental Agent Factories surface and may
- * change or be removed in future SDK or CLI releases.
- */
-/**
  * A deeply immutable view of a value.
  *
  * `defineFactory` deep-freezes the metadata it stores, so the handle's view of
@@ -207,6 +218,12 @@ type DeepReadonly<T> = T extends (infer U)[]
       ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
       : T;
 
+/**
+ * Opaque reusable reference to a defined factory.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
 export interface FactoryHandle<
     TArgs extends JsonValue = JsonValue,
     TResult extends JsonValue | void = JsonValue | void,
