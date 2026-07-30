@@ -278,10 +278,12 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
     ) -> AutoModeSwitchResponse;
 }
 
-/// A [`PermissionHandler`] that approves requests when managed settings are disabled.
+/// A [`PermissionHandler`] that approves ordinary requests when managed settings are disabled.
 ///
 /// When managed settings are enabled, the handler logs an error and returns a
-/// user-not-available decision.
+/// user-not-available decision. As a defense-in-depth fallback, a request marked
+/// as requiring managed approval is left unanswered even if the session flag is
+/// absent.
 #[derive(Debug, Clone)]
 pub struct ApproveAllHandler;
 
