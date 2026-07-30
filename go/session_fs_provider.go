@@ -279,17 +279,17 @@ func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransac
 func toWireSqliteQueryResult(result SessionFSSqliteQueryResult) rpc.SessionFSSqliteQueryResult {
 	columns := result.Columns
 	if columns == nil {
-	columns = []string{}
+		columns = []string{}
 	}
 	rows := result.Rows
 	if rows == nil {
-	rows = []map[string]any{}
+		rows = []map[string]any{}
 	}
 	return rpc.SessionFSSqliteQueryResult{
-	Columns:         columns,
-	Rows:            rows,
-	RowsAffected:    result.RowsAffected,
-	LastInsertRowid: result.LastInsertRowid,
+		Columns:         columns,
+		Rows:            rows,
+		RowsAffected:    result.RowsAffected,
+		LastInsertRowid: result.LastInsertRowid,
 	}
 }
 

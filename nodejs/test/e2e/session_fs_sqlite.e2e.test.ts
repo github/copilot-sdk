@@ -239,10 +239,7 @@ function createTestSessionFsHandlerWithSqlite(
                 } catch (err) {
                     const message = err instanceof Error ? err.message : String(err);
                     if (commitStarted) {
-                        throw new SessionFsSqliteTransactionFailure(
-                            message,
-                            "postCommitAmbiguous"
-                        );
+                        throw new SessionFsSqliteTransactionFailure(message, "postCommitAmbiguous");
                     }
                     if (database.inTransaction) {
                         try {
