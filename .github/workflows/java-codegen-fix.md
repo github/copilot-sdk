@@ -54,7 +54,7 @@ You are an automation agent that fixes Java compilation and test failures caused
 
 A Dependabot PR bumped the `@github/copilot` npm dependency in `java/scripts/codegen/package.json`. The `java-codegen-check` workflow ran the code generator (`java/scripts/codegen/java.ts`) against the new schemas and `mvn verify` subsequently failed. Your job is to fix **both** the code generator script (if needed) and the handwritten SDK/test source code so the build passes.
 
-**❌❌❌ YOU MUST NEVER EDIT any of the java source code in `java/src/generated/` directly.** ✅✅Rather, the way to affect changes in these files is to change the code generator script and re-generate the classes in `java/src/generated`.
+**❌❌❌ YOU MUST NEVER EDIT any of the java source code in `java/sdk/src/generated/` directly.** ✅✅Rather, the way to affect changes in these files is to change the code generator script and re-generate the classes in `java/sdk/src/generated`.
 
 The branch to fix is: `${{ inputs.branch }}`
 The PR number is: `${{ inputs.pr_number }}`
@@ -66,7 +66,7 @@ ${{ inputs.error_summary }}
 
 ## Architecture overview
 
-The code generator (`java/scripts/codegen/java.ts`) reads JSON schemas from `node_modules/@github/copilot/schemas/` and produces Java source files under `java/src/generated/java/`. These generated types are consumed by handwritten code in `java/src/main/java/` (primarily `CopilotSession.java`) and tested by handwritten tests in `java/src/test/java/`.
+The code generator (`java/scripts/codegen/java.ts`) reads JSON schemas from `node_modules/@github/copilot/schemas/` and produces Java source files under `java/sdk/src/generated/java/`. These generated types are consumed by handwritten code in `java/sdk/src/main/java/` (primarily `CopilotSession.java`) and tested by handwritten tests in `java/sdk/src/test/java/`.
 
 When `@github/copilot` is bumped, the schemas may change in ways the code generator does not yet handle. Common schema changes include:
 
@@ -126,7 +126,7 @@ Before making fixes, determine whether the failure is caused by:
 - New schemas exist but no corresponding Java types were generated
 
 **(B) Handwritten code referencing old generated type names/shapes.** Signs:
-- Compilation errors in `java/src/main/java/` or `java/src/test/java/` referencing types that no longer exist
+- Compilation errors in `java/sdk/src/main/java/` or `java/sdk/src/test/java/` referencing types that no longer exist
 - Test data using old JSON field names
 
 Often **both** (A) and (B) apply: the codegen needs fixing first, then handwritten code needs updating.
@@ -162,7 +162,7 @@ If the diagnosis shows the code generator does not handle the new schema format:
 
 4. **Verify the generated output** looks reasonable:
    ```bash
-   git diff --stat java/src/generated/java/
+   git diff --stat java/sdk/src/generated/java/
    ```
 
 **You may ONLY modify `java/scripts/codegen/java.ts`.** Do not modify `package.json`, `package-lock.json`, or any other file under `java/scripts/codegen/`.
@@ -179,12 +179,12 @@ For each attempt:
 2. **Read the generated types** to understand what changed. Check the generated files that the handwritten code references:
    ```bash
    # Example: check what a generated type looks like now
-   cat java/src/generated/java/com/github/copilot/generated/rpc/<TypeName>.java
+   cat java/sdk/src/generated/java/com/github/copilot/generated/rpc/<TypeName>.java
    ```
 
 3. **Fix the affected source files.** You may modify files under:
-   - `java/src/main/java/` — handwritten SDK source code
-   - `java/src/test/java/` — handwritten test code
+   - `java/sdk/src/main/java/` — handwritten SDK source code
+   - `java/sdk/src/test/java/` — handwritten test code
 
    Common fixes:
    - Update type references from old nested types to new standalone types (e.g. `SessionMcpListResultServersItem` → `McpServer`)
@@ -236,12 +236,12 @@ Do **NOT** push broken code.
 
 ## Important constraints
 
-- **NEVER** hand-edit files under `java/src/generated/java/` — these are auto-generated. They are updated by running `cd java/scripts/codegen && npx tsx java.ts`.
-- **NEVER** modify `java/pom.xml` — build config is not in scope
+- **NEVER** hand-edit files under `java/sdk/src/generated/java/` — these are auto-generated. They are updated by running `cd java/scripts/codegen && npx tsx java.ts`.
+- **NEVER** modify `java/sdk/pom.xml` — build config is not in scope
 - **NEVER** modify `java/scripts/codegen/package.json` or `java/scripts/codegen/package-lock.json` — dependency versions are not in scope
 - **NEVER** modify files under `.github/` — workflow files are not in scope
 - You **MAY** modify `java/scripts/codegen/java.ts` to fix the code generator
-- You **MAY** modify files under `java/src/main/java/` and `java/src/test/java/` to fix handwritten code
+- You **MAY** modify files under `java/sdk/src/main/java/` and `java/sdk/src/test/java/` to fix handwritten code
 - Always run `cd java && mvn spotless:apply` before committing to ensure code formatting
 - Maximum 3 fix attempts before reporting failure via `noop`
 - Only push if `mvn verify` passes
