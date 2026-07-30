@@ -964,7 +964,6 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
-                    LOG.log(Level.SEVERE, "Permission handler failed for requestId=" + requestId, ex);
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
                                 requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
@@ -1031,6 +1030,7 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
+                    LOG.log(Level.SEVERE, "Permission handler failed for requestId=" + requestId, ex);
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
