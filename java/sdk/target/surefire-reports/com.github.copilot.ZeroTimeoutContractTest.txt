@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.ZeroTimeoutContractTest
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.203 s -- in com.github.copilot.ZeroTimeoutContractTest

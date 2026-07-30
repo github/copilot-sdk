@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.RpcServerE2ETest
--------------------------------------------------------------------------------
-Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.41 s -- in com.github.copilot.RpcServerE2ETest

@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.SlashCommandsIT
--------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.082 s -- in com.github.copilot.SlashCommandsIT

@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.generated.GeneratedTypesJacksonRoundTripTest
--------------------------------------------------------------------------------
-Tests run: 984, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.184 s -- in com.github.copilot.generated.GeneratedTypesJacksonRoundTripTest

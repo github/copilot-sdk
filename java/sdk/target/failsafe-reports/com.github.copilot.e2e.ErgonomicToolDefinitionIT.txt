@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.e2e.ErgonomicToolDefinitionIT
--------------------------------------------------------------------------------
-Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.329 s -- in com.github.copilot.e2e.ErgonomicToolDefinitionIT

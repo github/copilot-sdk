@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.RpcHandlerDispatcherTest
--------------------------------------------------------------------------------
-Tests run: 27, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.121 s -- in com.github.copilot.RpcHandlerDispatcherTest

@@ -1,4 +1,0 @@
---patch-module
-com.github.copilot.java=_
---add-reads
-com.github.copilot.java=ALL-UNNAMED

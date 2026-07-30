@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.github.copilot.generated.GeneratedEventTypesCoverageTest
--------------------------------------------------------------------------------
-Tests run: 52, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.057 s -- in com.github.copilot.generated.GeneratedEventTypesCoverageTest
