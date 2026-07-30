@@ -227,6 +227,8 @@ def _mcp_servers_to_wire(
             del config["working_directory"]
         wire[name] = config
     return wire
+
+
 def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
     """Convert a ``LargeToolOutputConfig`` mapping to wire format."""
     wire: dict[str, Any] = {}
@@ -1782,15 +1784,10 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. MCP tools from
-                ``mcp_servers`` are named ``<server-key>-<tool-name>``; when
-                using source-qualified filters, prefer
-                ``ToolSet().add_mcp("<server-key>-<tool-name>")`` or the raw
-                ``mcp:<server-key>-<tool-name>`` form. Takes precedence over
-                ``excluded_tools``.
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Use the same
-                MCP naming convention as ``available_tools``. Ignored if
+                including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
@@ -1841,13 +1838,9 @@ class CopilotClient:
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
                 Defaults to `"in-memory"` in empty mode.
-            custom_agents: Custom agent configurations. When an agent's
-                ``tools`` list targets an MCP tool from ``mcp_servers``, use
-                the runtime tool name ``<server-key>-<tool-name>``.
+            custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
-                including tool visibility controls. When
-                ``default_agent.excluded_tools`` targets an MCP tool from
-                ``mcp_servers``, use ``<server-key>-<tool-name>``.
+                including tool visibility controls.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
@@ -2455,15 +2448,10 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. MCP tools from
-                ``mcp_servers`` are named ``<server-key>-<tool-name>``; when
-                using source-qualified filters, prefer
-                ``ToolSet().add_mcp("<server-key>-<tool-name>")`` or the raw
-                ``mcp:<server-key>-<tool-name>`` form. Takes precedence over
-                ``excluded_tools``.
+                included or they will be hidden from the model. Takes precedence
+                over ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Use the same
-                MCP naming convention as ``available_tools``. Ignored if
+                including custom tools registered via ``tools=``. Ignored if
                 ``available_tools`` is set.
             on_user_input_request: Handler for user input requests.
             hooks: Lifecycle hooks for the session.
@@ -2514,13 +2502,9 @@ class CopilotClient:
                 `"persistent"` uses disk-based storage (shared across sessions).
                 `"in-memory"` stores embeddings in memory (discarded on session end).
                 Defaults to `"in-memory"` in empty mode.
-            custom_agents: Custom agent configurations. When an agent's
-                ``tools`` list targets an MCP tool from ``mcp_servers``, use
-                the runtime tool name ``<server-key>-<tool-name>``.
+            custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
-                including tool visibility controls. When
-                ``default_agent.excluded_tools`` targets an MCP tool from
-                ``mcp_servers``, use ``<server-key>-<tool-name>``.
+                including tool visibility controls.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server

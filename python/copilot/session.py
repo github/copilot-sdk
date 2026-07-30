@@ -1031,12 +1031,7 @@ class SessionHooks(TypedDict, total=False):
 
 
 class MCPStdioServerConfig(TypedDict, total=False):
-    """Configuration for a local/stdio MCP server.
-
-    Tools exposed by the runtime are named ``<server-key>-<tool-name>`` in
-    runtime-facing lists such as custom-agent ``tools`` and
-    ``default_agent.excluded_tools``.
-    """
+    """Configuration for a local/stdio MCP server."""
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: NotRequired[Literal["local", "stdio"]]  # Server type
@@ -1048,12 +1043,7 @@ class MCPStdioServerConfig(TypedDict, total=False):
 
 
 class MCPHTTPServerConfig(TypedDict, total=False):
-    """Configuration for a remote MCP server (HTTP or SSE).
-
-    Tools exposed by the runtime are named ``<server-key>-<tool-name>`` in
-    runtime-facing lists such as custom-agent ``tools`` and
-    ``default_agent.excluded_tools``.
-    """
+    """Configuration for a remote MCP server (HTTP or SSE)."""
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: Literal["http", "sse"]  # Server type
@@ -1075,8 +1065,7 @@ class CustomAgentConfig(TypedDict, total=False):
     name: str  # Unique name of the custom agent
     display_name: NotRequired[str]  # Display name for UI purposes
     description: NotRequired[str]  # Description of what the agent does
-    # List of tool names the agent can use. For MCP tools from ``mcp_servers``,
-    # use the runtime tool name ``<server-key>-<tool-name>``.
+    # List of tool names the agent can use
     tools: NotRequired[list[str] | None]
     prompt: str  # The prompt content for the agent
     # MCP servers specific to agent
@@ -1095,9 +1084,8 @@ class DefaultAgentConfig(TypedDict, total=False):
     when no custom agent is selected.
     """
 
-    # List of tool names to exclude from the default agent. For MCP tools from
-    # ``mcp_servers``, use ``<server-key>-<tool-name>``. These tools remain
-    # available to custom sub-agents that reference them.
+    # List of tool names to exclude from the default agent.
+    # These tools remain available to custom sub-agents that reference them.
     excluded_tools: list[str]
 
 

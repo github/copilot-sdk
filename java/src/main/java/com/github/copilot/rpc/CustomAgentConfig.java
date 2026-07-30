@@ -144,9 +144,7 @@ public class CustomAgentConfig {
      * Sets the tools available to this agent.
      * <p>
      * These can reference both built-in tools and custom tools registered in the
-     * session. For MCP tools from {@link SessionConfig#setMcpServers(Map)} or
-     * {@link ResumeSessionConfig#setMcpServers(Map)}, use the runtime tool name
-     * {@code <server-key>-<tool-name>}.
+     * session.
      *
      * @param tools
      *            the list of tool names

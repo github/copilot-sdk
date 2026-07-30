@@ -1512,8 +1512,7 @@ export interface CustomAgentConfig {
     description?: string;
     /**
      * List of tool names the agent can use.
-     * Use null or undefined for all tools. For MCP tools from `mcpServers`,
-     * use the runtime tool name `<server-key>-<tool-name>`.
+     * Use null or undefined for all tools.
      */
     tools?: string[] | null;
     /**
@@ -1878,10 +1877,7 @@ export interface SessionConfigBase {
      * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
      * `mcp:*`, `mcp:<name>`, `custom:*`, `custom:<name>`) as well as the bare
      * name form (exact match across any source). Build this list with
-     * {@link ToolSet} for type safety and readable intent. For MCP tools from
-     * `mcpServers`, the runtime tool name is `<server-key>-<tool-name>`, so
-     * prefer `new ToolSet().addMcp("<server-key>-<tool-name>")` or the raw
-     * `mcp:<server-key>-<tool-name>` form.
+     * {@link ToolSet} for type safety and readable intent.
      *
      * Composes with {@link excludedTools}: a tool is enabled when it matches
      * `availableTools` (or `availableTools` is unset) AND it does not match
@@ -1891,8 +1887,7 @@ export interface SessionConfigBase {
 
     /**
      * List of tool names to disable. Supports the same pattern syntax as
-     * {@link availableTools}. Use the same MCP naming convention when targeting
-     * tools from `mcpServers`.
+     * {@link availableTools}.
      *
      * Always takes precedence over {@link availableTools}: a tool listed here
      * is disabled even if it also matches `availableTools`.
@@ -2122,8 +2117,6 @@ export interface SessionConfigBase {
 
     /**
      * Custom agent configurations for the session.
-     * When an agent `tools` list targets an MCP tool from `mcpServers`, use
-     * `<server-key>-<tool-name>`.
      */
     customAgents?: CustomAgentConfig[];
 
@@ -2131,8 +2124,7 @@ export interface SessionConfigBase {
      * Configuration for the default agent (the built-in agent that handles
      * turns when no custom agent is selected).
      * Use `excludedTools` to hide specific tools from the default agent while keeping
-     * them available to custom sub-agents. For MCP tools from `mcpServers`,
-     * use `<server-key>-<tool-name>`.
+     * them available to custom sub-agents.
      */
     defaultAgent?: DefaultAgentConfig;
 
