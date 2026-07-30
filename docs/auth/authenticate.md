@@ -10,7 +10,7 @@ The GitHub Copilot SDK supports multiple authentication methods to fit different
 | [OAuth GitHub App](#oauth-github-app) | Apps acting on behalf of users via OAuth | Yes |
 | [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server | Yes |
 | [Server-to-server authentication](./server-to-server-tokens.md) | Organization-attributed automation and direct organization billing | No user subscription; organization policy required |
-| [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, and more) | No |
+| [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Microsoft Foundry, OpenAI, and more) | No |
 
 ## GitHub signed-in user
 
@@ -285,16 +285,16 @@ await client.start()
 
 ## BYOK (bring your own key)
 
-BYOK allows you to use your own API keys from model providers like Azure AI Foundry, OpenAI, or Anthropic. This bypasses GitHub Copilot authentication entirely.
+BYOK allows you to use your own API keys from model providers like Microsoft Foundry, OpenAI, or Anthropic. This bypasses GitHub Copilot authentication entirely.
 
 **Key benefits:**
 * No GitHub Copilot subscription required
 * Use enterprise model deployments
 * Direct billing with your model provider
-* Support for Azure AI Foundry, OpenAI, Anthropic, and OpenAI-compatible endpoints
+* Support for Microsoft Foundry, OpenAI, Anthropic, and OpenAI-compatible endpoints
 
 **See the [BYOK documentation](./byok.md) for complete details**, including:
-* Azure AI Foundry setup
+* Microsoft Foundry setup
 * Provider configuration options
 * Limitations and considerations
 * Complete code examples

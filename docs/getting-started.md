@@ -2264,7 +2264,7 @@ Trace context is propagated automatically—no manual instrumentation is needed:
 ## Learn more
 
 * [Authentication Guide](./auth/authenticate.md) - GitHub OAuth, environment variables, and BYOK
-* [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
+* [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Microsoft Foundry, OpenAI, etc.
 * [Node.js SDK Reference](../nodejs/README.md)
 * [Python SDK Reference](../python/README.md)
 * [Go SDK Reference](../go/README.md)

@@ -8,5 +8,5 @@ Configure and deploy the GitHub Copilot SDK for your use case.
 * [Backend services](./backend-services.md): server-side with headless CLI over TCP
 * [Multi-tenancy and server deployments](./multi-tenancy.md): SDK options for multi-user server mode
 * [GitHub OAuth](./github-oauth.md): implement the OAuth flow
-* [Azure managed identity](./azure-managed-identity.md): BYOK with Azure AI Foundry
+* [Azure managed identity](./azure-managed-identity.md): BYOK with Microsoft Foundry
 * [Scaling and multi-tenancy](./scaling.md): horizontal scaling, isolation patterns

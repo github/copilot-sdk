@@ -10,7 +10,7 @@ This style guide applies to all documentation in the `docs/` directory. These do
 
 Use **sentence case** for all headings. Capitalize only the first word and proper nouns.
 
-* `## Quick start: Azure AI Foundry` — not `## Quick Start: Azure AI Foundry`
+* `## Quick start: Microsoft Foundry` — not `## Quick Start: Microsoft Foundry`
 * `# Custom agents and sub-agent orchestration` — not `# Custom Agents & Sub-Agent Orchestration`
 
 Use `and` instead of `&` in headings.
