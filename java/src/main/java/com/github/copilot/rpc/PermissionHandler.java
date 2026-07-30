@@ -18,7 +18,8 @@ import java.util.concurrent.CompletableFuture;
  * <pre>{@code
  * PermissionHandler handler = (request, invocation) -> {
  * 	if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
- * 		return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+ * 		// Obtain an explicit human decision before approving this request.
+ * 		return requestHumanApproval(request);
  * 	}
  *
  * 	// Check the permission kind
@@ -33,6 +34,11 @@ import java.util.concurrent.CompletableFuture;
  * 			.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
  * };
  * }</pre>
+ * <p>
+ * Event-based permission dispatch can use
+ * {@link PermissionRequestResult#noResult()} to let another connected client
+ * answer a pending request. Legacy protocol-v2 callbacks require a decision and
+ * cannot abstain.
  *
  * <p>
  * A pre-built handler that approves all requests is available as
