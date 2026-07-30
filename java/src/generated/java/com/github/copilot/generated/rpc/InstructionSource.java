@@ -40,7 +40,7 @@ public record InstructionSource(
     @JsonProperty("description") String description,
     /** When true, this source starts disabled and must be toggled on by the user */
     @JsonProperty("defaultDisabled") Boolean defaultDisabled,
-    /** The project path this source was discovered from. Only set by sessionless discovery for repository/working-directory sources, where it disambiguates same-named files (e.g. .github/copilot-instructions.md) across multiple workspace roots. The session-scoped getSources leaves it unset. */
+    /** The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset. */
     @JsonProperty("projectPath") String projectPath
 ) {
 }

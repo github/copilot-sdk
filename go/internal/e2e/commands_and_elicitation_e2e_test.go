@@ -53,7 +53,7 @@ func TestCommandsE2E(t *testing.T) {
 		var clientCommands *rpc.CommandList
 		waitForRPCCondition(t, 30*time.Second, "client commands to be listed", func() (bool, error) {
 			var err error
-			clientCommands, err = session.RPC.Commands.List(t.Context(), &rpc.CommandsListRequest{
+			clientCommands, err = session.RPC.Commands.List(t.Context(), &rpc.SessionCommandsListRequest{
 				IncludeBuiltins:       rpcPtr(false),
 				IncludeClientCommands: rpcPtr(true),
 				IncludeSkills:         rpcPtr(false),
@@ -68,7 +68,7 @@ func TestCommandsE2E(t *testing.T) {
 			t.Fatalf("Expected client-command-only list to exclude builtins, got %+v", clientCommands.Commands)
 		}
 
-		builtinCommands, err := session.RPC.Commands.List(t.Context(), &rpc.CommandsListRequest{
+		builtinCommands, err := session.RPC.Commands.List(t.Context(), &rpc.SessionCommandsListRequest{
 			IncludeBuiltins:       rpcPtr(true),
 			IncludeClientCommands: rpcPtr(false),
 			IncludeSkills:         rpcPtr(false),
@@ -93,7 +93,7 @@ func TestCommandsE2E(t *testing.T) {
 		}
 		defer session.Disconnect()
 
-		builtinCommands, err := session.RPC.Commands.List(t.Context(), &rpc.CommandsListRequest{
+		builtinCommands, err := session.RPC.Commands.List(t.Context(), &rpc.SessionCommandsListRequest{
 			IncludeBuiltins:       rpcPtr(true),
 			IncludeClientCommands: rpcPtr(false),
 			IncludeSkills:         rpcPtr(false),
@@ -152,7 +152,7 @@ func TestCommandsE2E(t *testing.T) {
 		defer session.Disconnect()
 
 		waitForRPCCondition(t, 30*time.Second, "registered deploy command", func() (bool, error) {
-			commands, err := session.RPC.Commands.List(t.Context(), &rpc.CommandsListRequest{
+			commands, err := session.RPC.Commands.List(t.Context(), &rpc.SessionCommandsListRequest{
 				IncludeBuiltins:       rpcPtr(false),
 				IncludeClientCommands: rpcPtr(true),
 				IncludeSkills:         rpcPtr(false),

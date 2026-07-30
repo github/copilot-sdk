@@ -15,7 +15,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Custom agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
+ * Agent metadata, including identifiers, display details, source, tools, model, MCP servers, skills, and file path.
  *
  * @since 1.0.0
  */
@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AgentInfo(
-    /** Unique identifier of the custom agent */
+    /** Name of the agent. Use `id` as the stable selection identifier. */
     @JsonProperty("name") String name,
     /** Human-readable display name */
     @JsonProperty("displayName") String displayName,
@@ -39,11 +39,13 @@ public record AgentInfo(
     @JsonProperty("userInvocable") Boolean userInvocable,
     /** Allowed tool names for this agent. Empty array means none; omitted means inherit defaults. */
     @JsonProperty("tools") List<String> tools,
-    /** Preferred model id for this agent. When omitted, inherits the outer agent's model. */
+    /** Authored preferred model id for this agent. Runtime model selection may choose a different model; omitted means no authored preference. */
     @JsonProperty("model") String model,
     /** MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema. */
     @JsonProperty("mcpServers") Map<String, Object> mcpServers,
     /** Skill names preloaded into this agent's context. Omitted means none. */
-    @JsonProperty("skills") List<String> skills
+    @JsonProperty("skills") List<String> skills,
+    /** Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at invocation time. Omitted from `session.agent.list` unless `includePrompt` is true. */
+    @JsonProperty("prompt") String prompt
 ) {
 }

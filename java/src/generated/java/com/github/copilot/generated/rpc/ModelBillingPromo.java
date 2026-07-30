@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Active server-driven promotion for a model, including its discount and expiry.
+ * Active server-driven promotion for a model, including its discount and optional expiry.
  *
  * @since 1.0.0
  */
@@ -25,9 +25,9 @@ public record ModelBillingPromo(
     @JsonProperty("id") String id,
     /** Percentage discount (0-100) applied while the promotion is active. May be fractional. */
     @JsonProperty("discountPercent") Double discountPercent,
-    /** UTC ISO 8601 timestamp marking when the promotion ends. Always present: the API only surfaces a promo whose expiry parses and is in the future. Consumers should treat a past value as expired. */
+    /** UTC ISO 8601 timestamp marking when the promotion ends. Optional: an open-ended promotion omits this field. When present, the API only surfaces a promo whose expiry parses and is in the future, so consumers should treat a past value as expired. */
     @JsonProperty("endsAt") String endsAt,
-    /** Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it. */
+    /** Human-readable promotion message. Does not include the expiry timestamp; consumers may format endsAt and append it when present. */
     @JsonProperty("message") String message
 ) {
 }

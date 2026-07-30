@@ -47,7 +47,25 @@ public final class SessionAutoModeResolvedEvent extends SessionEvent {
         /** Classifier confidence for the predicted label, when available */
         @JsonProperty("confidence") Double confidence,
         /** Ordered candidate model list the router returned, when not a fallback */
-        @JsonProperty("candidateModels") List<String> candidateModels
+        @JsonProperty("candidateModels") List<String> candidateModels,
+        /** The routing method the server applied, when Auto Intent ran */
+        @JsonProperty("routingMethod") String routingMethod,
+        /** Models offered to the router for this resolution */
+        @JsonProperty("availableModels") List<String> availableModels,
+        /** Whether the router fell back to the standard Auto selection */
+        @JsonProperty("fallback") Boolean fallback,
+        /** Server-provided reason for falling back, when available */
+        @JsonProperty("fallbackReason") String fallbackReason,
+        /** Whether a sticky model choice overrode the router result */
+        @JsonProperty("stickyOverride") Boolean stickyOverride,
+        /** Server-reported router processing time in milliseconds */
+        @JsonProperty("routerLatencyMs") Double routerLatencyMs,
+        /** End-to-end client wait time for the router request in milliseconds */
+        @JsonProperty("endToEndLatencyMs") Double endToEndLatencyMs,
+        /** The chosen model's score shortfall relative to the top candidate */
+        @JsonProperty("chosenShortfall") Double chosenShortfall,
+        /** Whether the routed prompt contained an image */
+        @JsonProperty("hasImage") Boolean hasImage
     ) {
     }
 }

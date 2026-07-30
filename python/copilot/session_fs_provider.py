@@ -34,10 +34,18 @@ from .generated.rpc import (
     SessionFSReadFileResult,
     SessionFSSqliteExistsResult,
     SessionFSSqliteQueryType,
+    SessionFSSqliteTransactionErrorClass,
+    SessionFSSqliteTransactionStatement,
     SessionFSStatResult,
 )
 from .generated.rpc import (
     SessionFSSqliteQueryResult as _GeneratedSqliteQueryResult,
+)
+from .generated.rpc import (
+    SessionFSSqliteTransactionError as _GeneratedSqliteTransactionError,
+)
+from .generated.rpc import (
+    SessionFSSqliteTransactionResult as _GeneratedSqliteTransactionResult,
 )
 
 
@@ -130,9 +138,43 @@ class SessionFsSqliteProvider(abc.ABC):
         no result set is produced; the adapter will substitute an empty result.
         """
 
+    async def sqlite_transaction(
+        self,
+        statements: list[SessionFSSqliteTransactionStatement],
+    ) -> list[SessionFsSqliteQueryResult]:
+        """Execute ``statements`` atomically against the per-session database.
+
+        Return one result per statement, in order.  Raise
+        :class:`SessionFsSqliteTransactionFailure` to tell the runtime how the
+        failure should be classified; any other exception is reported as
+        ``fatal``.
+        """
+        raise SessionFsSqliteTransactionFailure(
+            "SQLite transactions are not supported by this SessionFs provider",
+            SessionFSSqliteTransactionErrorClass.FATAL,
+        )
+
     @abc.abstractmethod
     async def sqlite_exists(self) -> bool:
         """Return whether the provider has a SQLite database for this session."""
+
+
+class SessionFsSqliteTransactionFailure(Exception):
+    """Raised by a provider to classify a failed SQLite transaction.
+
+    ``busy_or_locked`` guarantees the transaction rolled back and is safe to
+    retry; ``post_commit_ambiguous`` must never be retried.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        error_class: SessionFSSqliteTransactionErrorClass = (
+            SessionFSSqliteTransactionErrorClass.FATAL
+        ),
+    ) -> None:
+        super().__init__(message)
+        self.error_class = error_class
 
 
 @dataclass
@@ -292,6 +334,45 @@ class _SessionFsAdapter:
             rows=result.rows,
             rows_affected=result.rows_affected,
             last_insert_rowid=result.last_insert_rowid,
+        )
+
+    async def sqlite_transaction(self, params: Any) -> _GeneratedSqliteTransactionResult:
+        if not isinstance(self._p, SessionFsSqliteProvider):
+            return _GeneratedSqliteTransactionResult(
+                results=[],
+                error=_GeneratedSqliteTransactionError(
+                    error_class=SessionFSSqliteTransactionErrorClass.FATAL,
+                    message="SQLite is not supported by this SessionFs provider",
+                ),
+            )
+        try:
+            results = await self._p.sqlite_transaction(list(params.statements))
+        except SessionFsSqliteTransactionFailure as exc:
+            return _GeneratedSqliteTransactionResult(
+                results=[],
+                error=_GeneratedSqliteTransactionError(
+                    error_class=exc.error_class,
+                    message=str(exc),
+                ),
+            )
+        except Exception as exc:
+            return _GeneratedSqliteTransactionResult(
+                results=[],
+                error=_GeneratedSqliteTransactionError(
+                    error_class=SessionFSSqliteTransactionErrorClass.FATAL,
+                    message=str(exc),
+                ),
+            )
+        return _GeneratedSqliteTransactionResult(
+            results=[
+                _GeneratedSqliteQueryResult(
+                    columns=result.columns,
+                    rows=result.rows,
+                    rows_affected=result.rows_affected,
+                    last_insert_rowid=result.last_insert_rowid,
+                )
+                for result in results
+            ],
         )
 
     async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:

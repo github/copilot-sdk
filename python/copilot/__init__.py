@@ -178,6 +178,7 @@ from .session_fs_provider import (
     SessionFsProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
+    SessionFsSqliteTransactionFailure,
     create_session_fs_adapter,
 )
 from .tools import (
@@ -324,6 +325,7 @@ __all__ = [
     "SessionFsProvider",
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
+    "SessionFsSqliteTransactionFailure",
     "SessionHooks",
     "SessionLimitsConfig",
     "SessionLifecycleEvent",

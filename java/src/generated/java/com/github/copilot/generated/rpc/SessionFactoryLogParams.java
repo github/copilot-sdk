@@ -29,6 +29,8 @@ public record SessionFactoryLogParams(
     @JsonProperty("sessionId") String sessionId,
     /** Factory run identifier. */
     @JsonProperty("runId") String runId,
+    /** Opaque token identifying the current factory execution attempt. */
+    @JsonProperty("executionToken") String executionToken,
     /** Ordered progress lines to append. */
     @JsonProperty("lines") List<FactoryLogLine> lines
 ) {

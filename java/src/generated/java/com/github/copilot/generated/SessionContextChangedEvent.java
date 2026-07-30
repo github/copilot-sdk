@@ -49,7 +49,9 @@ public final class SessionContextChangedEvent extends SessionEvent {
         /** Head commit of current git branch at session start time */
         @JsonProperty("headCommit") String headCommit,
         /** Base commit of current git branch at session start time */
-        @JsonProperty("baseCommit") String baseCommit
+        @JsonProperty("baseCommit") String baseCommit,
+        /** Set on the immediate preliminary event of a working-directory change, before the git context is resolved. A settled follow-up event (enriched with git context, or cwd-only for a non-repository) is always emitted afterward, so observers may defer to it. Absent on standalone/final events (e.g. relay context changes). */
+        @JsonProperty("pendingGitContext") Boolean pendingGitContext
     ) {
     }
 }

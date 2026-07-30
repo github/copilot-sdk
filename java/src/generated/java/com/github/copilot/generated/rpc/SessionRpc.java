@@ -85,6 +85,8 @@ public final class SessionRpc {
     public final SessionMetadataApi metadata;
     /** API methods for the {@code settings} namespace. */
     public final SessionSettingsApi settings;
+    /** API methods for the {@code contentExclusion} namespace. */
+    public final SessionContentExclusionApi contentExclusion;
     /** API methods for the {@code shell} namespace. */
     public final SessionShellApi shell;
     /** API methods for the {@code history} namespace. */
@@ -95,6 +97,8 @@ public final class SessionRpc {
     public final SessionEventLogApi eventLog;
     /** API methods for the {@code usage} namespace. */
     public final SessionUsageApi usage;
+    /** API methods for the {@code limitPrediction} namespace. */
+    public final SessionLimitPredictionApi limitPrediction;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
     /** API methods for the {@code visibility} namespace. */
@@ -139,11 +143,13 @@ public final class SessionRpc {
         this.permissions = new SessionPermissionsApi(caller, sessionId);
         this.metadata = new SessionMetadataApi(caller, sessionId);
         this.settings = new SessionSettingsApi(caller, sessionId);
+        this.contentExclusion = new SessionContentExclusionApi(caller, sessionId);
         this.shell = new SessionShellApi(caller, sessionId);
         this.history = new SessionHistoryApi(caller, sessionId);
         this.queue = new SessionQueueApi(caller, sessionId);
         this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
+        this.limitPrediction = new SessionLimitPredictionApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
         this.visibility = new SessionVisibilityApi(caller, sessionId);
         this.schedule = new SessionScheduleApi(caller, sessionId);
@@ -193,6 +199,22 @@ public final class SessionRpc {
     }
 
     /**
+     * Internal request for sending a system notification.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> sendSystemNotification(SessionSendSystemNotificationParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.sendSystemNotification", _p, Void.class);
+    }
+
+    /**
      * Parameters for aborting the current turn
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -206,6 +228,33 @@ public final class SessionRpc {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.abort", _p, SessionAbortResult.class);
+    }
+
+    /**
+     * Parameters for interrupting the main agent turn.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionInterruptMainTurnResult> interruptMainTurn(SessionInterruptMainTurnParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.interruptMainTurn", _p, SessionInterruptMainTurnResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> cancelAllBackgroundAgents() {
+        return caller.invoke("session.cancelAllBackgroundAgents", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
     /**

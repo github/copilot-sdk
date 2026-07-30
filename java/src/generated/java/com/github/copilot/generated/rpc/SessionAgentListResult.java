@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Custom agents available to the session.
+ * Agents available to the session.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionAgentListResult(
-    /** Available custom agents */
+    /** Available agents */
     @JsonProperty("agents") List<AgentInfo> agents
 ) {
 }

@@ -18,6 +18,8 @@ import {
     type SessionFsFileInfo,
     type SessionFsSqliteQueryResult,
     type SessionFsSqliteQueryType,
+    type SessionFsSqliteStatement,
+    SessionFsSqliteTransactionFailure,
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -207,41 +209,56 @@ function createTestSessionFsHandlerWithSqlite(
                 params?: Record<string, string | number | null>
             ): Promise<SessionFsSqliteQueryResult | undefined> {
                 sqliteCalls.push({ sessionId: session.sessionId, queryType, query });
-
+                return runStatement(getOrCreateDb(), queryType, query, params);
+            },
+            async transaction(
+                statements: SessionFsSqliteStatement[]
+            ): Promise<SessionFsSqliteQueryResult[]> {
                 const database = getOrCreateDb();
-                const trimmed = query.trim();
-                if (trimmed.length === 0) {
-                    return undefined;
-                }
-
-                switch (queryType) {
-                    case "exec":
-                        database.exec(trimmed);
-                        return undefined;
-
-                    case "query": {
-                        const stmt = database.prepare(trimmed);
-                        const rows = (params ? stmt.all(params) : stmt.all()) as Record<
-                            string,
-                            unknown
-                        >[];
-                        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-                        return { rows, columns, rowsAffected: 0 };
+                let commitStarted = false;
+                try {
+                    database.exec("BEGIN IMMEDIATE");
+                    const results = statements.map((statement) => {
+                        sqliteCalls.push({
+                            sessionId: session.sessionId,
+                            queryType: statement.queryType,
+                            query: statement.query,
+                        });
+                        return (
+                            runStatement(
+                                database,
+                                statement.queryType,
+                                statement.query,
+                                statement.params
+                            ) ?? { rows: [], columns: [], rowsAffected: 0 }
+                        );
+                    });
+                    commitStarted = true;
+                    database.exec("COMMIT");
+                    return results;
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    if (commitStarted) {
+                        throw new SessionFsSqliteTransactionFailure(message, "postCommitAmbiguous");
                     }
-
-                    case "run": {
-                        const stmt = database.prepare(trimmed);
-                        const result = params ? stmt.run(params) : stmt.run();
-                        return {
-                            rows: [],
-                            columns: [],
-                            rowsAffected: Number(result.changes),
-                            lastInsertRowid:
-                                result.lastInsertRowid !== undefined
-                                    ? Number(result.lastInsertRowid)
-                                    : undefined,
-                        };
+                    if (database.inTransaction) {
+                        try {
+                            database.exec("ROLLBACK");
+                        } catch (rollbackError) {
+                            const rollbackMessage =
+                                rollbackError instanceof Error
+                                    ? rollbackError.message
+                                    : String(rollbackError);
+                            throw new SessionFsSqliteTransactionFailure(
+                                `${message}; rollback failed: ${rollbackMessage}`,
+                                "fatal"
+                            );
+                        }
                     }
+                    throw new SessionFsSqliteTransactionFailure(
+                        message,
+                        /busy|locked/i.test(message) ? "busyOrLocked" : "fatal"
+                    );
                 }
             },
             async exists(): Promise<boolean> {
@@ -249,4 +266,43 @@ function createTestSessionFsHandlerWithSqlite(
             },
         },
     };
+}
+
+function runStatement(
+    database: DatabaseSync,
+    queryType: SessionFsSqliteQueryType,
+    query: string,
+    params?: Record<string, string | number | null>
+): SessionFsSqliteQueryResult | undefined {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) {
+        return undefined;
+    }
+
+    switch (queryType) {
+        case "exec":
+            database.exec(trimmed);
+            return undefined;
+
+        case "query": {
+            const stmt = database.prepare(trimmed);
+            const rows = (params ? stmt.all(params) : stmt.all()) as Record<string, unknown>[];
+            const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+            return { rows, columns, rowsAffected: 0 };
+        }
+
+        case "run": {
+            const stmt = database.prepare(trimmed);
+            const result = params ? stmt.run(params) : stmt.run();
+            return {
+                rows: [],
+                columns: [],
+                rowsAffected: Number(result.changes),
+                lastInsertRowid:
+                    result.lastInsertRowid !== undefined
+                        ? Number(result.lastInsertRowid)
+                        : undefined,
+            };
+        }
+    }
 }

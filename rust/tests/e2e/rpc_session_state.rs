@@ -5,8 +5,8 @@ use github_copilot_sdk::rpc::{
     MetadataRecomputeContextTokensRequest, MetadataRecordContextChangeRequest,
     MetadataSetWorkingDirectoryRequest, MetadataSnapshotCurrentMode, ModeSetRequest,
     ModelSetReasoningEffortRequest, ModelSwitchToRequest, NameSetAutoRequest, NameSetRequest,
-    PermissionsSetApproveAllRequest, PlanUpdateRequest, SessionSetCredentialsParams,
-    SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
+    PermissionsResetSessionApprovalsRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
+    SessionSetCredentialsParams, SessionUpdateOptionsParams, SessionWorkingDirectoryContext,
     SessionWorkingDirectoryContextHostType, SessionsForkRequest, ShutdownRequest,
     TelemetrySetFeatureOverridesRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
@@ -1023,7 +1023,7 @@ async fn should_call_session_usage_and_permission_rpcs() {
                     session
                         .rpc()
                         .permissions()
-                        .reset_session_approvals()
+                        .reset_session_approvals(PermissionsResetSessionApprovalsRequest::default())
                         .await
                         .expect("reset approvals")
                         .success

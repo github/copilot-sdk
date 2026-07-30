@@ -551,8 +551,8 @@ class GeneratedRpcApiCoverageTest {
 
         assertEquals(1, stub.calls.size());
         assertEquals("session.history.compact", stub.calls.get(0).method());
-        var params = (Map<?, ?>) stub.calls.get(0).params();
-        assertEquals("sess-hist", params.get("sessionId"));
+        var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
+        assertEquals("sess-hist", params.get("sessionId").asText());
     }
 
     @Test
