@@ -26,6 +26,12 @@ public static class PermissionHandler
         PermissionRequestWrite write => write.ManagedApprovalRequired is true,
         PermissionRequestRead read => read.ManagedApprovalRequired is true,
         PermissionRequestUrl url => url.ManagedApprovalRequired is true,
-        _ => false,
+        PermissionRequestMcp
+            or PermissionRequestMemory
+            or PermissionRequestCustomTool
+            or PermissionRequestHook
+            or PermissionRequestExtensionManagement
+            or PermissionRequestExtensionPermissionAccess => false,
+        _ => true,
     };
 }

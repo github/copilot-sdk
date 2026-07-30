@@ -80,4 +80,14 @@ public class PermissionHandlerTests
 
         Assert.IsType<PermissionDecisionNoResult>(decision);
     }
+
+    [Fact]
+    public async Task ApproveAllLeavesUnknownRequestPending()
+    {
+        var request = new PermissionRequest { Kind = "future-managed-kind" };
+
+        var decision = await PermissionHandler.ApproveAll(request, new PermissionInvocation());
+
+        Assert.IsType<PermissionDecisionNoResult>(decision);
+    }
 }
