@@ -304,7 +304,9 @@ class TestRpcServer:
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            await session.send("Record a turn for sessions.list discriminator coverage", mode="enqueue")
+            await session.send(
+                "Record a turn for sessions.list discriminator coverage", mode="enqueue"
+            )
             await asyncio.sleep(0.2)
             save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
             assert save is not None
@@ -358,6 +360,9 @@ class TestRpcServer:
             try:
                 await client.stop()
             except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
                 pass
 
     async def test_should_enrich_basic_session_metadata(self, ctx: E2ETestContext):
