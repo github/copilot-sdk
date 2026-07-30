@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
@@ -58,13 +60,9 @@ def test_approve_all_leaves_managed_request_pending_when_session_flag_is_absent(
         managed_approval_required=True,
     )
 
-    assert isinstance(
-        PermissionHandler.approve_all(
-            request,
-            {"session_id": "session-1", "managed_settings_enabled": False},
-        ),
-        PermissionNoResult,
-    )
+    legacy_invocation: Any = {"session_id": "session-1"}
+
+    assert isinstance(PermissionHandler.approve_all(request, legacy_invocation), PermissionNoResult)
 
 
 async def test_legacy_permission_callback_rejects_no_result() -> None:
