@@ -194,11 +194,24 @@ export interface FactoryDefinition<
  * @experimental Part of the experimental Agent Factories surface and may
  * change or be removed in future SDK or CLI releases.
  */
+/**
+ * A deeply immutable view of a value.
+ *
+ * `defineFactory` deep-freezes the metadata it stores, so the handle's view of
+ * it has to be readonly all the way down or `handle.meta.name = "..."` and
+ * `handle.meta.phases.push(...)` would compile and then throw at runtime.
+ */
+type DeepReadonly<T> = T extends (infer U)[]
+    ? readonly DeepReadonly<U>[]
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T;
+
 export interface FactoryHandle<
     TArgs extends JsonValue = JsonValue,
     TResult extends JsonValue | void = JsonValue | void,
 > {
-    readonly meta: FactoryMeta;
+    readonly meta: DeepReadonly<FactoryMeta>;
     readonly [factoryHandleBrand]: {
         readonly args: TArgs;
         readonly result: TResult;
@@ -422,7 +435,7 @@ export function defineFactory<
         meta,
         run: definition.run,
     };
-    const handle = Object.freeze({ meta }) as FactoryHandle<TArgs, TResult>;
+    const handle = Object.freeze({ meta }) as unknown as FactoryHandle<TArgs, TResult>;
 
     factoryHandles.set(handle, stored);
     return handle;

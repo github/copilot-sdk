@@ -69,6 +69,18 @@ describe("factories", () => {
         meta.name = "no-limits";
         meta.phases.length = 0;
 
+        // The stored metadata is deep-frozen, so the handle's view of it must be
+        // readonly all the way down. Assert both halves: the mutation is a type
+        // error, and it also throws at runtime.
+        expect(() => {
+            // @ts-expect-error handle.meta is deeply readonly.
+            handle.meta.name = "mutated";
+        }).toThrow(TypeError);
+        expect(() => {
+            // @ts-expect-error handle.meta.phases is a readonly array.
+            handle.meta.phases.push({ title: "late" });
+        }).toThrow(TypeError);
+
         const session = new CopilotSession("session-1", {} as never);
         session.registerFactories([handle]);
         const result = await session.clientSessionApis.factory!.execute({
