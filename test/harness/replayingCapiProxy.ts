@@ -1747,6 +1747,7 @@ export type ToolResultNormalizer = {
 export type CopilotUserResponse = {
   login: string;
   copilot_plan?: string;
+  token_based_billing?: boolean;
   is_mcp_enabled?: boolean;
   endpoints?: {
     api?: string;
