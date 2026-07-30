@@ -134,6 +134,28 @@
     </dependencies>
 
     <build>
+        <!--
+            Enable Maven resource filtering for copilot-runtime.properties so that
+            ${project.version} is replaced with the actual artifact version at
+            build time. NativeRuntimeLoader reads this resource to determine the
+            version-keyed cache directory for native binary extraction.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>copilot-runtime.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>copilot-runtime.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <pluginManagement>
             <plugins>
                 <plugin>
