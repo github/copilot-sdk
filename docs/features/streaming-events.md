@@ -210,7 +210,7 @@ session.on(AssistantMessageDeltaEvent.class, event ->
 </details>
 
 > [!TIP]
-> **(Python / Go)** These SDKs use separate, per-event data types (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
+> **(Python / Go)** These SDKs use separate, per-event data types (for example, `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
 >
 > [!TIP]
 > **(.NET)** The .NET SDK uses separate, strongly-typed data classes per event (e.g., `AssistantMessageDeltaData`), so only the relevant fields exist on each type.
