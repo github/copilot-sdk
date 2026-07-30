@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -31,9 +32,8 @@ import java.util.Properties;
  * <li><strong>Classpath resource</strong>
  * {@code native/<classifier>/runtime.node} — extracted atomically to
  * {@code ~/.copilot/runtime-cache/<version>/<classifier>/runtime.node}.</li>
- * <li><strong>Bundled-CLI sibling</strong> — {@code runtime.node} in the
- * directory where the in-process runtime was installed alongside the bundled
- * CLI binary. Used only when the classpath resource is absent.</li>
+ * <li>{@code runtime.node} alongside the bundled {@code copilot}
+ * executable.</li>
  * </ol>
  */
 public final class NativeRuntimeLoader {
@@ -106,22 +106,16 @@ public final class NativeRuntimeLoader {
      */
     public static Path resolve() throws IOException {
         String cliPathEnv = System.getenv(COPILOT_CLI_PATH_ENV);
-
-        // Source 1: COPILOT_CLI_PATH as explicit runtime override.
-        // Checked before any classpath or platform work so the override is usable
-        // even when those resources are unavailable.
-        if (cliPathEnv != null && !cliPathEnv.isBlank()) {
-            return resolveFromExplicitPath(cliPathEnv);
+        Path cliOverride = resolveFromCliPath(cliPathEnv);
+        if (cliOverride != null) {
+            return cliOverride;
         }
 
         ClassLoader loader = NativeRuntimeLoader.class.getClassLoader();
         String classifier = PlatformDetector.detectClassifier();
         String version = readVersion(loader);
         Path cacheBase = defaultCacheBase();
-        Path bundledCliDir = findBundledCliDirectory();
-
-        return resolveFromClasspathOrBundledCli(cacheBase, loader, classifier, version, bundledCliDir,
-                DEFAULT_PUBLISHER);
+        return resolve(null, findCliOnPath(), cacheBase, loader, classifier, version);
     }
 
     /**
@@ -176,7 +170,25 @@ public final class NativeRuntimeLoader {
      */
     static Path resolve(String cliPathEnv, Path cacheBase, ClassLoader loader, String classifier, String version)
             throws IOException {
-        return resolve(cliPathEnv, cacheBase, loader, classifier, version, null, DEFAULT_PUBLISHER);
+        return resolve(cliPathEnv, null, cacheBase, loader, classifier, version);
+    }
+
+    static Path resolve(String cliPathEnv, String bundledCliPath, Path cacheBase, ClassLoader loader, String classifier,
+            String version) throws IOException {
+        Path cliOverride = resolveFromCliPath(cliPathEnv);
+        if (cliOverride != null) {
+            return cliOverride;
+        }
+
+        try {
+            return extractToCache(cacheBase, loader, classifier, version);
+        } catch (FileNotFoundException ex) {
+            Path bundledRuntime = resolveFromCliPath(bundledCliPath);
+            if (bundledRuntime != null) {
+                return bundledRuntime;
+            }
+            throw ex;
+        }
     }
 
     /**
@@ -240,32 +252,11 @@ public final class NativeRuntimeLoader {
         if (cliPathEnv != null && !cliPathEnv.isBlank()) {
             return resolveFromExplicitPath(cliPathEnv);
         }
-        return resolveFromClasspathOrBundledCli(cacheBase, loader, classifier, version, bundledCliDir, publisher);
-    }
-
-    /**
-     * Resolves an explicit {@code runtime.node} override from the path given by
-     * {@code COPILOT_CLI_PATH}. The path is treated as the direct location of the
-     * {@code runtime.node} binary itself — a non-blank value that does not refer to
-     * a regular, non-empty file is a configuration error; no silent fallback
-     * occurs.
-     *
-     * @param pathStr
-     *            non-blank value of the {@code COPILOT_CLI_PATH} environment
-     *            variable
-     * @return the validated path
-     * @throws IOException
-     *             if file-attribute probing fails
-     * @throws IllegalStateException
-     *             if the path does not refer to a regular, non-empty file
-     */
-    static Path resolveFromExplicitPath(String pathStr) throws IOException {
-        Path path = Path.of(pathStr);
-        if (!isValidCachedFile(path)) {
-            throw new IllegalStateException(COPILOT_CLI_PATH_ENV + " is set to '" + pathStr
-                    + "' but does not refer to a regular, non-empty file. " + "Set " + COPILOT_CLI_PATH_ENV
-                    + " to the absolute path of the " + RUNTIME_FILENAME
-                    + " binary, or unset it to use the classpath resource.");
+        Path cliPath = Path.of(cliPathStr).toAbsolutePath().normalize();
+        Path parent = cliPath.getParent();
+        Path candidate = parent.resolve(RUNTIME_FILENAME);
+        if (Files.isRegularFile(candidate) && Files.size(candidate) > 0) {
+            return candidate;
         }
         return path;
     }
@@ -341,12 +332,9 @@ public final class NativeRuntimeLoader {
         Path temp = Files.createTempFile(cacheDir, "runtime-tmp-", ".node");
         try {
             copyResourceToTemp(resource, resourcePath, temp);
-            publisher.publish(temp, cached);
-            temp = null; // transfer ownership; do not delete in finally
+            publishAtomically(temp, cached);
         } finally {
-            if (temp != null) {
-                tryDelete(temp);
-            }
+            tryDelete(temp);
         }
 
         return cached;
@@ -395,6 +383,53 @@ public final class NativeRuntimeLoader {
         try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
             channel.force(true);
         }
+    }
+
+    private static void publishAtomically(Path temp, Path cached) throws IOException {
+        try {
+            Files.move(temp, cached, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException ex) {
+            throw new IllegalStateException(
+                    "Filesystem does not support atomic moves; cannot safely publish runtime.node to " + cached, ex);
+        } catch (FileAlreadyExistsException ex) {
+            // Another process won the race — accept the winner if it is a valid file.
+            if (isValidCachedFile(cached)) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "Concurrent extraction race: target already exists but is not a valid file: " + cached, ex);
+        }
+    }
+
+    private static String findCliOnPath() {
+        String pathValue = System.getenv("PATH");
+        if (pathValue == null || pathValue.isBlank()) {
+            return null;
+        }
+
+        String[] executableNames = isWindows()
+                ? new String[]{"copilot.exe", "copilot.cmd", "copilot.bat", "copilot"}
+                : new String[]{"copilot"};
+        for (String directory : pathValue.split(java.io.File.pathSeparator)) {
+            if (directory.isBlank()) {
+                continue;
+            }
+            for (String executableName : executableNames) {
+                Path candidate = Path.of(directory, executableName);
+                if (Files.isRegularFile(candidate)) {
+                    try {
+                        return candidate.toRealPath().toString();
+                    } catch (IOException ignored) {
+                        return candidate.toAbsolutePath().normalize().toString();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 
     private static void tryDelete(Path path) {

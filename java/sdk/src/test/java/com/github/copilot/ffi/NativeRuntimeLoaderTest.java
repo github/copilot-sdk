@@ -31,8 +31,10 @@ import org.junit.jupiter.api.io.TempDir;
 class NativeRuntimeLoaderTest {
 
     private static final String TEST_CLASSIFIER = "linux-x64";
+    private static final String OTHER_CLASSIFIER = "darwin-arm64";
     private static final String TEST_VERSION = "1.2.3-test";
     private static final byte[] FAKE_BINARY_CONTENT = "fake runtime.node binary content".getBytes();
+    private static final byte[] OTHER_BINARY_CONTENT = "other runtime.node binary content".getBytes();
 
     // -------------------------------------------------------------------------
     // Version properties resource reading
@@ -99,6 +101,34 @@ class NativeRuntimeLoaderTest {
     void explicitOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
         // Source 1: runtime.node directly specified via COPILOT_CLI_PATH
         Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.createFile(runtimeNode); // empty file
+
+        assertNull(NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString()));
+    }
+
+    @Test
+    void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath(@TempDir Path tempDir) throws Exception {
+        Path workingDirectory = Path.of("").toAbsolutePath();
+        Path fakeCliDir = tempDir.resolve("cli-dir");
+        Files.createDirectories(fakeCliDir);
+        Path fakeCliPath = fakeCliDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
+        Path runtimeNode = fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+
+        Path relativeCliPath = workingDirectory.relativize(fakeCliPath);
+
+        assertEquals(runtimeNode, NativeRuntimeLoader.resolveFromCliPath(relativeCliPath.toString()));
+    }
+
+    @Test
+    void cliPathOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
+        // Create a valid runtime.node alongside the fake CLI path
+        Path fakeCliDir = tempDir.resolve("cli-dir");
+        Files.createDirectories(fakeCliDir);
+        Path fakeCliPath = fakeCliDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
+        Path runtimeNode = fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.write(runtimeNode, FAKE_BINARY_CONTENT);
 
         // Source 2 is also available (should be ignored)
@@ -183,11 +213,29 @@ class NativeRuntimeLoaderTest {
     @Test
     void extractToCacheFiltersClasspathByClassifier(@TempDir Path tempDir) throws Exception {
         Path cacheBase = tempDir.resolve("cache");
-        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        writeRuntimeResource(tempDir, OTHER_CLASSIFIER, OTHER_BINARY_CONTENT);
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
 
         Path result = NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
 
         assertTrue(result.toString().contains(TEST_CLASSIFIER), "Cache path must include the classifier: " + result);
+        assertBytesEqual(FAKE_BINARY_CONTENT, Files.readAllBytes(result));
+    }
+
+    @Test
+    void extractToCacheRepairsInvalidCacheEntry(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        Path cached = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
+                .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.createDirectories(cached.getParent());
+        Files.createFile(cached);
+        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+
+        Path result = NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
+
+        assertEquals(cached, result);
+        assertBytesEqual(FAKE_BINARY_CONTENT, Files.readAllBytes(result));
     }
 
     // -------------------------------------------------------------------------
@@ -338,6 +386,9 @@ class NativeRuntimeLoaderTest {
             assertTrue(Files.isRegularFile(result));
             assertTrue(Files.size(result) > 0);
         }
+        try (var files = Files.list(expected.getParent())) {
+            assertEquals(List.of(expected), files.toList(), "Concurrent extraction must clean up temporary files");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -366,6 +417,21 @@ class NativeRuntimeLoaderTest {
                 () -> NativeRuntimeLoader.resolve(null, cacheBase, emptyLoader, TEST_CLASSIFIER, TEST_VERSION));
     }
 
+    @Test
+    void resolveFallsBackToRuntimeAlongsideBundledCli(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
+        Path bundledCli = tempDir.resolve("copilot");
+        Files.createFile(bundledCli);
+        Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+
+        Path result = NativeRuntimeLoader.resolve(null, bundledCli.toString(), cacheBase, emptyLoader, TEST_CLASSIFIER,
+                TEST_VERSION);
+
+        assertEquals(runtimeNode, result);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -377,10 +443,14 @@ class NativeRuntimeLoaderTest {
     }
 
     private static ClassLoader classLoaderWithRuntimeResource(Path tempDir, String classifier) throws IOException {
+        writeRuntimeResource(tempDir, classifier, FAKE_BINARY_CONTENT);
+        return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+    }
+
+    private static void writeRuntimeResource(Path tempDir, String classifier, byte[] content) throws IOException {
         Path resourceDir = tempDir.resolve("native").resolve(classifier);
         Files.createDirectories(resourceDir);
-        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
-        return new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+        Files.write(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), content);
     }
 
     private static void assertBytesEqual(byte[] expected, byte[] actual) {
