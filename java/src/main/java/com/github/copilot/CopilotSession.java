@@ -185,6 +185,7 @@ public final class CopilotSession implements AutoCloseable {
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
+    private volatile boolean managedSettingsEnabled;
     private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
@@ -1013,6 +1014,7 @@ public final class CopilotSession implements AutoCloseable {
             try {
                 var invocation = new PermissionInvocation();
                 invocation.setSessionId(sessionId);
+                invocation.setManagedSettingsEnabled(managedSettingsEnabled);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
                         PermissionRequestResultKind kind = new PermissionRequestResultKind(result.getKind());
@@ -1378,6 +1380,10 @@ public final class CopilotSession implements AutoCloseable {
         permissionHandler.set(handler);
     }
 
+    void setManagedSettingsEnabled(boolean managedSettingsEnabled) {
+        this.managedSettingsEnabled = managedSettingsEnabled;
+    }
+
     void registerMcpAuthHandler(McpAuthHandler handler) {
         mcpAuthHandler.set(handler);
     }
@@ -1403,6 +1409,7 @@ public final class CopilotSession implements AutoCloseable {
             PermissionRequest request = MAPPER.treeToValue(permissionRequestData, PermissionRequest.class);
             var invocation = new PermissionInvocation();
             invocation.setSessionId(sessionId);
+            invocation.setManagedSettingsEnabled(managedSettingsEnabled);
             return handler.handle(request, invocation).exceptionally(ex -> {
                 LOG.log(Level.SEVERE, "Permission handler threw an exception", ex);
                 PermissionRequestResult result = new PermissionRequestResult();

@@ -36,7 +36,7 @@ import { CopilotClient, approveAll } from "@github/copilot-sdk";
 const client = new CopilotClient();
 await client.start();
 
-// approveAll approves ordinary requests; managed requests still require a human decision.
+// approveAll is only valid when managed settings are disabled.
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -862,7 +862,7 @@ An `onPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `approveAll` helper to approve ordinary permission requests automatically:
+Use the built-in `approveAll` helper when managed settings are disabled:
 
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
@@ -873,7 +873,7 @@ const session = await client.createSession({
 });
 ```
 
-For requests with `managedApprovalRequired: true`, `approveAll` returns `{ kind: "no-result" }`. The request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+When `enableManagedSettings` is true for the session, `approveAll` throws. Use a custom handler for managed sessions; request-level `managedApprovalRequired` remains available for human-facing confirmation logic.
 
 ### Custom Permission Handler
 

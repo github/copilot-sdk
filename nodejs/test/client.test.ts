@@ -25,16 +25,19 @@ describe("approveAll", () => {
         url: "https://api.example.com/data",
         intention: "Fetch domain data",
     };
-    const invocation = { sessionId: "session-1" };
+    const invocation = { sessionId: "session-1", managedSettingsEnabled: false };
 
     it("approves ordinary permission requests", () => {
         expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
     });
 
-    it("leaves managed permission requests pending for human approval", () => {
-        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
-            kind: "no-result",
-        });
+    it("rejects use when managed settings are enabled", () => {
+        expect(() =>
+            approveAll(
+                { ...request, managedApprovalRequired: false },
+                { ...invocation, managedSettingsEnabled: true }
+            )
+        ).toThrow("approveAll cannot be used when managed settings are enabled");
     });
 });
 

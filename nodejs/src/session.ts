@@ -423,6 +423,7 @@ export class CopilotSession {
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
+    private readonly managedSettingsEnabled: boolean;
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
@@ -591,10 +592,11 @@ export class CopilotSession {
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
-        options?: { mcpAuthHandler?: McpAuthHandler }
+        options?: { mcpAuthHandler?: McpAuthHandler; managedSettingsEnabled?: boolean }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
+        this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
     }
 
     /**
@@ -1108,6 +1110,7 @@ export class CopilotSession {
         try {
             const result = await this.permissionHandler!(permissionRequest, {
                 sessionId: this.sessionId,
+                managedSettingsEnabled: this.managedSettingsEnabled,
             });
             if (result.kind === "no-result") {
                 return;

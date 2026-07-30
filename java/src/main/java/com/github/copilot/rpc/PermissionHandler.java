@@ -47,19 +47,15 @@ import java.util.concurrent.CompletableFuture;
 public interface PermissionHandler {
 
     /**
-     * A pre-built handler that approves ordinary permission requests.
-     * <p>
-     * Requests that require managed approval return {@code no-result}. This leaves
-     * event-based requests unanswered so another client can handle them. Legacy
-     * protocol v2 callbacks cannot defer a response and fail closed; a custom v2
-     * handler must complete its future with the human's explicit decision.
+     * A pre-built handler that approves permission requests when managed settings
+     * are disabled.
      *
      * @since 1.0.11
      */
-    PermissionHandler APPROVE_ALL = (request,
-            invocation) -> CompletableFuture.completedFuture(Boolean.TRUE.equals(request.getManagedApprovalRequired())
-                    ? PermissionRequestResult.noResult()
-                    : PermissionRequestResult.approveOnce());
+    PermissionHandler APPROVE_ALL = (request, invocation) -> invocation.isManagedSettingsEnabled()
+            ? CompletableFuture.failedFuture(
+                    new IllegalStateException("APPROVE_ALL cannot be used when managed settings are enabled"))
+            : CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
 
     /**
      * Handles a permission request from the assistant.

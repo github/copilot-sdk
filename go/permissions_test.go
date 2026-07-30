@@ -28,17 +28,16 @@ func TestPermissionEventExposesManagedApprovalRequired(t *testing.T) {
 	}
 }
 
-func TestApproveAllLeavesManagedRequestPending(t *testing.T) {
-	required := true
+func TestApproveAllReturnsErrorWhenManagedSettingsEnabled(t *testing.T) {
 	decision, err := copilot.PermissionHandler.ApproveAll(
-		&copilot.PermissionRequestRead{ManagedApprovalRequired: &required},
-		copilot.PermissionInvocation{SessionID: "session-1"},
+		&copilot.PermissionRequestRead{},
+		copilot.PermissionInvocation{SessionID: "session-1", ManagedSettingsEnabled: true},
 	)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected an error")
 	}
-	if _, ok := decision.(*rpc.PermissionDecisionNoResult); !ok {
-		t.Fatalf("expected PermissionDecisionNoResult, got %T", decision)
+	if decision != nil {
+		t.Fatalf("expected no decision, got %T", decision)
 	}
 }
 

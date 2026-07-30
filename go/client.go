@@ -907,6 +907,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// routed to a registered session.
 	initializeSession := func(sessionID string) (*Session, error) {
 		s := newSession(sessionID, c.client, "")
+		s.managedSettings = config.EnableManagedSettings != nil && *config.EnableManagedSettings
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -1228,6 +1229,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
+	session.managedSettings = config.EnableManagedSettings != nil && *config.EnableManagedSettings
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)

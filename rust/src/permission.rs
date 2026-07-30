@@ -119,8 +119,10 @@ impl PermissionHandler for PolicyHandler {
             Policy::Predicate(f) => f(&data),
         };
         if approved {
-            if data.managed_approval_required == Some(true) {
-                PermissionResult::no_result()
+            if matches!(self.policy, Policy::ApproveAll) && data.managed_settings_enabled {
+                PermissionResult::Error(
+                    "approve-all policy cannot be used when managed settings are enabled".into(),
+                )
             } else {
                 PermissionResult::approve_once()
             }
@@ -152,14 +154,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_all_leaves_managed_request_pending() {
+    async fn approve_all_errors_when_managed_settings_enabled() {
         let h = approve_all();
         let mut request = data();
-        request.managed_approval_required = Some(true);
+        request.managed_settings_enabled = true;
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::NoResult
+            PermissionResult::Error(_)
         ));
     }
 
@@ -184,14 +186,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_if_leaves_managed_approval_pending_when_predicate_approves() {
+    async fn approve_if_can_approve_managed_request() {
         let h = approve_if(|_| true);
         let mut request = data();
         request.managed_approval_required = Some(true);
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::NoResult
+            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
         ));
     }
 

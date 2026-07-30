@@ -10,12 +10,11 @@ namespace GitHub.Copilot;
 public static class PermissionHandler
 {
     /// <summary>
-    /// A permission handler that approves ordinary requests and leaves managed
-    /// requests pending for an explicit human decision.
+    /// A permission handler that approves requests when managed settings are disabled.
     /// </summary>
     public static Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>> ApproveAll { get; } =
-        (request, _) => Task.FromResult(
-            request.ManagedApprovalRequired == true
-                ? PermissionDecision.NoResult()
-                : PermissionDecision.ApproveOnce());
+        (_, invocation) => invocation.ManagedSettingsEnabled
+            ? Task.FromException<PermissionDecision>(
+                new InvalidOperationException("ApproveAll cannot be used when managed settings are enabled"))
+            : Task.FromResult(PermissionDecision.ApproveOnce());
 }

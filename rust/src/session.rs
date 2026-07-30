@@ -57,6 +57,7 @@ const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 #[derive(Clone)]
 pub(crate) struct SessionHandlers {
     pub permission: Option<Arc<dyn PermissionHandler>>,
+    pub managed_settings_enabled: bool,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
     pub user_input: Option<Arc<dyn UserInputHandler>>,
@@ -894,6 +895,7 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
+            managed_settings_enabled: wire.enable_managed_settings == Some(true),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1159,6 +1161,7 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
+            managed_settings_enabled: wire.enable_managed_settings == Some(true),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1520,7 +1523,10 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
-fn permission_request_data(event_data: &Value) -> PermissionRequestData {
+fn permission_request_data(
+    event_data: &Value,
+    managed_settings_enabled: bool,
+) -> PermissionRequestData {
     let request_data = event_data
         .get("permissionRequest")
         .cloned()
@@ -1531,12 +1537,14 @@ fn permission_request_data(event_data: &Value) -> PermissionRequestData {
     match serde_json::from_value::<PermissionRequestData>(request_data) {
         Ok(mut data) => {
             data.extra = event_data.clone();
+            data.managed_settings_enabled = managed_settings_enabled;
             data
         }
         Err(_) => PermissionRequestData {
             kind: None,
             tool_call_id: None,
             managed_approval_required,
+            managed_settings_enabled,
             extra: event_data.clone(),
         },
     }
@@ -1549,6 +1557,10 @@ fn permission_request_data(event_data: &Value) -> PermissionRequestData {
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
         PermissionResult::NoResult => None,
+        PermissionResult::Error(message) => {
+            tracing::error!(error = %message, "permission handler failed");
+            Some(serde_json::json!({ "kind": "user-not-available" }))
+        }
         PermissionResult::Decision(decision) => Some(
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
@@ -1727,7 +1739,10 @@ async fn handle_notification(
             };
             let client = client.clone();
             let sid = session_id.clone();
-            let data = permission_request_data(&notification.event.data);
+            let data = permission_request_data(
+                &notification.event.data,
+                handlers.managed_settings_enabled,
+            );
             let span = tracing::error_span!(
                 "permission_request_handler",
                 session_id = %sid,
@@ -2559,14 +2574,17 @@ mod tests {
 
     #[test]
     fn permission_request_data_reads_nested_managed_approval_metadata() {
-        let data = permission_request_data(&json!({
-            "requestId": "permission-1",
-            "permissionRequest": {
-                "kind": "read",
-                "managedApprovalRequired": true,
-                "path": "/workspace/file.txt"
-            }
-        }));
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
 
         assert_eq!(data.managed_approval_required, Some(true));
         assert_eq!(
@@ -2577,14 +2595,17 @@ mod tests {
 
     #[test]
     fn permission_request_data_preserves_managed_flag_when_other_fields_are_malformed() {
-        let data = permission_request_data(&json!({
-            "requestId": "permission-1",
-            "permissionRequest": {
-                "kind": "read",
-                "managedApprovalRequired": true,
-                "toolCallId": 42
-            }
-        }));
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "toolCallId": 42
+                }
+            }),
+            false,
+        );
 
         assert_eq!(data.managed_approval_required, Some(true));
         assert_eq!(data.extra["requestId"], "permission-1");

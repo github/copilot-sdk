@@ -360,8 +360,13 @@ class PermissionNoResult:
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
+class PermissionInvocation(TypedDict):
+    session_id: str
+    managed_settings_enabled: bool
+
+
 _PermissionHandlerFn = Callable[
-    [PermissionRequest, dict[str, str]],
+    [PermissionRequest, PermissionInvocation],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
 ]
 
@@ -369,10 +374,10 @@ _PermissionHandlerFn = Callable[
 class PermissionHandler:
     @staticmethod
     def approve_all(
-        request: PermissionRequest, invocation: dict[str, str]
+        request: PermissionRequest, invocation: PermissionInvocation
     ) -> PermissionRequestResult:
-        if request.managed_approval_required is True:
-            return PermissionNoResult()
+        if invocation["managed_settings_enabled"]:
+            raise RuntimeError("approve_all cannot be used when managed settings are enabled")
         return PermissionDecisionApproveOnce()
 
 
@@ -1449,7 +1454,11 @@ class CopilotSession:
     """
 
     def __init__(
-        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+        self,
+        session_id: str,
+        client: Any,
+        workspace_path: os.PathLike[str] | str | None = None,
+        managed_settings_enabled: bool = False,
     ):
         """
         Initialize a new CopilotSession.
@@ -1465,6 +1474,7 @@ class CopilotSession:
                 (when infinite sessions enabled).
         """
         self.session_id = session_id
+        self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
@@ -2102,7 +2112,13 @@ class CopilotSession:
         """Execute a permission handler and respond via RPC."""
         try:
             handler_start = time.perf_counter()
-            result = handler(permission_request, {"session_id": self.session_id})
+            result = handler(
+                permission_request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2528,7 +2544,13 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            result = handler(request, {"session_id": self.session_id})
+            result = handler(
+                request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(

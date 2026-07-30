@@ -1,5 +1,7 @@
+import pytest
+
 from copilot.rpc import PermissionDecisionApproveOnce
-from copilot.session import PermissionHandler, PermissionNoResult
+from copilot.session import PermissionHandler
 from copilot.session_events import PermissionRequestedData, PermissionRequestRead
 
 
@@ -20,16 +22,18 @@ def test_permission_event_exposes_managed_approval_required() -> None:
     assert data.to_dict()["permissionRequest"]["managedApprovalRequired"] is True
 
 
-def test_approve_all_leaves_managed_request_pending() -> None:
+def test_approve_all_errors_when_managed_settings_enabled() -> None:
     request = PermissionRequestRead(
         intention="Read managed content",
         path="/workspace/file.txt",
         managed_approval_required=True,
     )
 
-    assert isinstance(
-        PermissionHandler.approve_all(request, {"sessionId": "session-1"}), PermissionNoResult
-    )
+    with pytest.raises(RuntimeError, match="managed settings are enabled"):
+        PermissionHandler.approve_all(
+            request,
+            {"session_id": "session-1", "managed_settings_enabled": True},
+        )
 
 
 def test_approve_all_approves_ordinary_request() -> None:
@@ -39,6 +43,9 @@ def test_approve_all_approves_ordinary_request() -> None:
     )
 
     assert isinstance(
-        PermissionHandler.approve_all(request, {"sessionId": "session-1"}),
+        PermissionHandler.approve_all(
+            request,
+            {"session_id": "session-1", "managed_settings_enabled": False},
+        ),
         PermissionDecisionApproveOnce,
     )

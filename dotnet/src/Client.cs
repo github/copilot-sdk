@@ -783,7 +783,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _logger,
             this);
         session.RegisterTools(config.Tools ?? []);
-        session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterPermissionHandler(
+            config.OnPermissionRequest,
+            config.EnableManagedSettings is true);
         session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);

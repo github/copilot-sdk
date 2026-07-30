@@ -102,14 +102,16 @@ public class PermissionRequestResultTest {
     }
 
     @Test
-    void testApproveAllLeavesManagedRequestPending() {
+    void testApproveAllFailsWhenManagedSettingsEnabled() {
         var request = new PermissionRequest();
         request.setKind("read");
         request.setManagedApprovalRequired(true);
 
-        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+        var invocation = new PermissionInvocation().setManagedSettingsEnabled(true);
+        var error = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> PermissionHandler.APPROVE_ALL.handle(request, invocation).join());
 
-        assertEquals("no-result", result.getKind());
+        assertTrue(error.getCause() instanceof IllegalStateException);
     }
 
     @Test

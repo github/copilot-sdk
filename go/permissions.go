@@ -1,18 +1,19 @@
 package copilot
 
 import (
+	"errors"
+
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // PermissionHandler provides pre-built OnPermissionRequest implementations.
 var PermissionHandler = struct {
-	// ApproveAll approves ordinary permission requests. Requests that require
-	// managed approval remain pending for an explicit human decision.
+	// ApproveAll approves permission requests when managed settings are disabled.
 	ApproveAll PermissionHandlerFunc
 }{
-	ApproveAll: func(request PermissionRequest, _ PermissionInvocation) (rpc.PermissionDecision, error) {
-		if request.RequiresManagedApproval() {
-			return &rpc.PermissionDecisionNoResult{}, nil
+	ApproveAll: func(_ PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error) {
+		if invocation.ManagedSettingsEnabled {
+			return nil, errors.New("ApproveAll cannot be used when managed settings are enabled")
 		}
 		return &rpc.PermissionDecisionApproveOnce{}, nil
 	},

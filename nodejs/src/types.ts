@@ -1138,14 +1138,18 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 export type PermissionHandler = (
     request: PermissionRequest,
-    invocation: { sessionId: string }
+    invocation: { sessionId: string; managedSettingsEnabled: boolean }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 /**
- * Approves permission requests unless managed policy requires an explicit human decision.
+ * Approves permission requests for sessions without managed settings.
  */
-export const approveAll: PermissionHandler = (request) =>
-    request.managedApprovalRequired ? { kind: "no-result" } : { kind: "approve-once" };
+export const approveAll: PermissionHandler = (_request, invocation) => {
+    if (invocation.managedSettingsEnabled) {
+        throw new Error("approveAll cannot be used when managed settings are enabled");
+    }
+    return { kind: "approve-once" };
+};
 
 export const defaultJoinSessionPermissionHandler: PermissionHandler =
     (): PermissionRequestResult => ({

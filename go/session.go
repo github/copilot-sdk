@@ -67,6 +67,7 @@ type Session struct {
 	toolHandlersM         sync.RWMutex
 	permissionHandler     PermissionHandlerFunc
 	permissionMux         sync.RWMutex
+	managedSettings       bool
 	mcpAuthHandler        MCPAuthHandler
 	mcpAuthMu             sync.RWMutex
 	userInputHandler      UserInputHandler
@@ -1593,7 +1594,8 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	}()
 
 	invocation := PermissionInvocation{
-		SessionID: s.SessionID,
+		SessionID:              s.SessionID,
+		ManagedSettingsEnabled: s.managedSettings,
 	}
 
 	decision, err := handler(permissionRequest, invocation)

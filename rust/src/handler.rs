@@ -45,6 +45,8 @@ pub enum PermissionResult {
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
+    /// The handler could not safely decide the request.
+    Error(String),
 }
 
 impl PermissionResult {
@@ -273,8 +275,7 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
     ) -> AutoModeSwitchResponse;
 }
 
-/// A [`PermissionHandler`] that approves ordinary requests. Requests that
-/// require managed approval remain pending for an explicit human decision.
+/// A [`PermissionHandler`] that approves requests when managed settings are disabled.
 #[derive(Debug, Clone)]
 pub struct ApproveAllHandler;
 
@@ -286,8 +287,10 @@ impl PermissionHandler for ApproveAllHandler {
         _request_id: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
-        if data.managed_approval_required == Some(true) {
-            PermissionResult::no_result()
+        if data.managed_settings_enabled {
+            PermissionResult::Error(
+                "ApproveAllHandler cannot be used when managed settings are enabled".into(),
+            )
         } else {
             PermissionResult::approve_once()
         }
@@ -330,18 +333,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_all_handler_leaves_managed_request_pending() {
+    async fn approve_all_handler_errors_when_managed_settings_enabled() {
         let result = ApproveAllHandler
             .handle(
                 SessionId::from("s1"),
                 RequestId::new("1"),
                 PermissionRequestData {
-                    managed_approval_required: Some(true),
+                    managed_settings_enabled: true,
                     ..Default::default()
                 },
             )
             .await;
-        assert!(matches!(result, PermissionResult::NoResult));
+        assert!(matches!(result, PermissionResult::Error(_)));
     }
 
     #[tokio::test]

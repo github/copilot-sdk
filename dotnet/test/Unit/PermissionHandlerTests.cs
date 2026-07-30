@@ -41,7 +41,7 @@ public class PermissionHandlerTests
     }
 
     [Fact]
-    public async Task ApproveAllLeavesManagedRequestPending()
+    public async Task ApproveAllThrowsWhenManagedSettingsEnabled()
     {
         var request = new PermissionRequest
         {
@@ -49,9 +49,11 @@ public class PermissionHandlerTests
             ManagedApprovalRequired = true,
         };
 
-        var decision = await PermissionHandler.ApproveAll(request, new PermissionInvocation());
-
-        Assert.IsType<PermissionDecisionNoResult>(decision);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PermissionHandler.ApproveAll(request, new PermissionInvocation
+            {
+                ManagedSettingsEnabled = true,
+            }));
     }
 
     [Fact]
