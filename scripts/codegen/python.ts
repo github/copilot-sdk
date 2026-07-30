@@ -272,6 +272,33 @@ function postProcessExternalUnionAliasesForPython(code: string, aliases: Map<str
     return code.replace(/\n{3,}/g, "\n\n");
 }
 
+type PyDiscriminatorValue = string | boolean;
+
+function pyDiscriminatorConstValue(schema: JSONSchema7): PyDiscriminatorValue | undefined {
+    if (typeof schema.const === "string" || typeof schema.const === "boolean") {
+        return schema.const;
+    }
+    return undefined;
+}
+
+function pyDiscriminatorMatchPattern(value: PyDiscriminatorValue): string {
+    if (typeof value === "boolean") {
+        return value ? "True" : "False";
+    }
+    return JSON.stringify(value);
+}
+
+function pyDiscriminatorLiteral(value: PyDiscriminatorValue): string {
+    if (typeof value === "boolean") {
+        return value ? "True" : "False";
+    }
+    return JSON.stringify(value);
+}
+
+function pyDiscriminatorClassVarType(value: PyDiscriminatorValue): "str" | "bool" {
+    return typeof value === "boolean" ? "bool" : "str";
+}
+
 /**
  * Replace flat-merged dataclasses emitted by quicktype for $ref-based
  * discriminated unions with proper Python unions: a `Name = VariantA | ...`
@@ -293,7 +320,7 @@ function postProcessExternalUnionAliasesForPython(code: string, aliases: Map<str
 interface ResolvedRefBasedUnion {
     aliasName: string;
     discriminatorProp: string;
-    dispatch: Array<{ value: string; typeName: string }>;
+    dispatch: Array<{ value: PyDiscriminatorValue; typeName: string }>;
 }
 function postProcessRefBasedDiscriminatedUnionsForPython(
     code: string,
@@ -304,7 +331,7 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
         aliasName: string;
         variantNames: string[];
         discriminatorProp: string;
-        dispatch: Array<{ value: string; typeName: string }>;
+        dispatch: Array<{ value: PyDiscriminatorValue; typeName: string }>;
         description: string | undefined;
     }
     const unions: UnionInfo[] = [];
@@ -333,8 +360,12 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
             const discProp = (resolvedVariants[i].properties as Record<string, JSONSchema7>)[
                 discriminator.property
             ];
+            const discValue = pyDiscriminatorConstValue(discProp);
+            if (discValue === undefined) {
+                throw new Error(`Missing discriminator const on ${variantRefNames[i]}`);
+            }
             return {
-                value: String(discProp.const),
+                value: discValue,
                 typeName: toPascalCase(variantRefNames[i]),
             };
         });
@@ -387,7 +418,7 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
     for (const union of unions) {
         const actualAliasName = resolveActualName(union.aliasName);
         const actualVariantNames: string[] = [];
-        const actualDispatch: Array<{ value: string; typeName: string }> = [];
+        const actualDispatch: Array<{ value: PyDiscriminatorValue; typeName: string }> = [];
         let allResolved = true;
         for (let i = 0; i < union.variantNames.length; i++) {
             const actual = resolveActualName(union.variantNames[i]);
@@ -450,7 +481,9 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
         dispatcherLines.push(`    kind = obj.get(${JSON.stringify(union.discriminatorProp)})`);
         dispatcherLines.push(`    match kind:`);
         for (const m of actualDispatch) {
-            dispatcherLines.push(`        case ${JSON.stringify(m.value)}: return ${m.typeName}.from_dict(obj)`);
+            dispatcherLines.push(
+                `        case ${pyDiscriminatorMatchPattern(m.value)}: return ${m.typeName}.from_dict(obj)`
+            );
         }
         dispatcherLines.push(
             `        case _: raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
@@ -500,7 +533,7 @@ function postProcessDiscriminatorDefaultsForPython(
     unions: ResolvedRefBasedUnion[]
 ): string {
     // Build variant lookup: variant class name → { prop, value }.
-    const variantInfo = new Map<string, { prop: string; value: string }>();
+    const variantInfo = new Map<string, { prop: string; value: PyDiscriminatorValue }>();
     for (const union of unions) {
         for (const d of union.dispatch) {
             // First-wins; multiple unions referencing the same variant share a
@@ -571,9 +604,10 @@ function postProcessDiscriminatorDefaultsForPython(
             continue;
         }
         const fieldIndent = (block[fieldIdx].match(/^(\s+)/) ?? ["", ""])[1];
-        const literal = JSON.stringify(info.value);
+        const literal = pyDiscriminatorLiteral(info.value);
+        const classVarType = pyDiscriminatorClassVarType(info.value);
         // Replace the field with a class-level constant.
-        block[fieldIdx] = `${fieldIndent}${info.prop}: ClassVar[str] = ${literal}`;
+        block[fieldIdx] = `${fieldIndent}${info.prop}: ClassVar[${classVarType}] = ${literal}`;
         usedClassVar = true;
 
         // Drop any field-trailing docstring lines that immediately followed the
@@ -1590,7 +1624,7 @@ function tryEmitPyRefBasedDiscriminatedUnion(
     if (!discriminator) return undefined;
 
     const variantTypeNames: string[] = [];
-    const dispatch: Array<{ value: string; typeName: string }> = [];
+    const dispatch: Array<{ value: PyDiscriminatorValue; typeName: string }> = [];
     for (let i = 0; i < variants.length; i++) {
         const variantTypeName = toPascalCase(variantRefNames[i]);
         const variantSchema = resolveObjectSchema(variants[i], ctx.definitions);
@@ -1599,7 +1633,11 @@ function tryEmitPyRefBasedDiscriminatedUnion(
         }
         variantTypeNames.push(variantTypeName);
         const discProp = resolvedVariants[i].properties?.[discriminator.property] as JSONSchema7;
-        dispatch.push({ value: String(discProp.const), typeName: variantTypeName });
+        const discValue = pyDiscriminatorConstValue(discProp);
+        if (discValue === undefined) {
+            throw new Error(`Missing discriminator const on ${variantRefNames[i]}`);
+        }
+        dispatch.push({ value: discValue, typeName: variantTypeName });
     }
 
     if (!ctx.aliasesByName.has(aliasName)) {
@@ -1627,7 +1665,7 @@ function tryEmitPyRefBasedDiscriminatedUnion(
         lines.push(`    match kind:`);
         for (const m of dispatch) {
             lines.push(
-                `        case ${JSON.stringify(m.value)}: return ${m.typeName}.from_dict(obj)`
+                `        case ${pyDiscriminatorMatchPattern(m.value)}: return ${m.typeName}.from_dict(obj)`
             );
         }
         lines.push(
