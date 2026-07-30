@@ -23,8 +23,7 @@ use crate::types::{PermissionRequestData, RequestId, SessionId};
 /// are disabled.
 ///
 /// When managed settings are enabled, the handler logs an error and returns a
-/// user-not-available decision. Requests that require managed approval remain
-/// pending for an explicit human decision.
+/// user-not-available decision.
 pub fn approve_all() -> Arc<dyn PermissionHandler> {
     Arc::new(PolicyHandler {
         policy: Policy::ApproveAll,

@@ -927,7 +927,7 @@ The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-
 | `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
 | `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
 | `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
-| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)  | —                                                                       |
+| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                     |
 
 ### Resuming Sessions
 

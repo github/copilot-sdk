@@ -847,7 +847,8 @@ async def on_permission_request(
 
 The handler returns a ``PermissionRequestResult``, which is an alias for
 ``PermissionDecision | PermissionNoResult`` (the generated wire-level
-union of every decision variant, plus a small sentinel for v1 servers).
+union of every decision variant, plus a sentinel that suppresses this SDK
+client's response).
 Approval decisions are present-tense — they describe the decision to
 apply, not the past-tense outcome reported back on `permission.completed`
 session events.
@@ -857,7 +858,7 @@ session events.
 | `PermissionDecisionApproveOnce()`             | Allow this single request                                                                   |
 | `PermissionDecisionReject(feedback="…")`      | Deny the request (optional feedback string forwarded to the LLM)                            |
 | `PermissionDecisionUserNotAvailable()`        | Deny the request because no user is available to confirm it (the default)                   |
-| `PermissionNoResult()`                        | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+| `PermissionNoResult()`                        | Suppress this SDK client's response so another connected client can answer the pending request |
 
 Several richer variants (``PermissionDecisionApproveForSession``,
 ``PermissionDecisionApproveForLocation``, ``PermissionDecisionApprovePermanently``,
