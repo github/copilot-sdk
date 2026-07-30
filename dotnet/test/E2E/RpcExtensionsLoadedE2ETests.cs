@@ -321,7 +321,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     }
 
     [Fact]
-    public async Task Reload_Preserves_Disabled_State_Across_Calls()
+    public async Task Reload_Restores_Globally_Enabled_State()
     {
         var extName = CreateUserExtension(prefix: "persistent-disable");
         var extId = $"user:{extName}";
@@ -339,11 +339,12 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
         await session.Rpc.Extensions.DisableAsync(extId);
         await WaitForExtensionAsync(session, extId, ExtensionStatus.Disabled);
 
-        // Reload re-runs discovery and respects the per-session disabled set,
-        // so the extension stays disabled and is not re-launched.
+        // Reload re-reads persisted global settings, where the extension remains enabled,
+        // so the session-local disabled state is cleared and the extension is re-launched.
         await session.Rpc.Extensions.ReloadAsync();
 
-        var afterReload = await WaitForExtensionAsync(session, extId, ExtensionStatus.Disabled);
-        Assert.Null(afterReload.Pid);
+        var afterReload = await WaitForExtensionAsync(session, extId, ExtensionStatus.Running);
+        Assert.NotNull(afterReload.Pid);
+        Assert.True(afterReload.Pid > 0);
     }
 }
