@@ -251,14 +251,12 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                 Ok(result) => results.push(result),
                 Err(e) => {
                     let _ = db.execute_batch("ROLLBACK");
-                    return Err(SessionFsSqliteTransactionError::fatal(e.to_string()));
+                    return Err(Self::classify_error_message(e.to_string()));
                 }
             }
         }
-        db.execute_batch("COMMIT").map_err(|e| {
-            let _ = db.execute_batch("ROLLBACK");
-            Self::classify_sqlite_error(&e)
-        })?;
+        db.execute_batch("COMMIT")
+            .map_err(|e| SessionFsSqliteTransactionError::post_commit_ambiguous(e.to_string()))?;
         Ok(results)
     }
 
@@ -269,7 +267,10 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
 
 impl InMemorySqliteProvider {
     fn classify_sqlite_error(error: &rusqlite::Error) -> SessionFsSqliteTransactionError {
-        let message = error.to_string();
+        Self::classify_error_message(error.to_string())
+    }
+
+    fn classify_error_message(message: String) -> SessionFsSqliteTransactionError {
         if message.contains("locked") || message.contains("busy") {
             SessionFsSqliteTransactionError::busy_or_locked(message)
         } else {

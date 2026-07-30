@@ -58,6 +58,13 @@ type SessionFSProvider interface {
 type SessionFSSqliteProvider interface {
 	// SqliteQuery executes a SQLite query against the provider's per-session database.
 	SqliteQuery(queryType rpc.SessionFSSqliteQueryType, query string, params map[string]any) (*SessionFSSqliteQueryResult, error)
+	// SqliteExists checks whether the provider has a SQLite database for the session.
+	SqliteExists() (bool, error)
+}
+
+// SessionFSSqliteTransactionProvider is an optional interface that a
+// [SessionFSSqliteProvider] may also implement to support atomic transactions.
+type SessionFSSqliteTransactionProvider interface {
 	// SqliteTransaction executes statements atomically against the provider's
 	// per-session database, applying busy handling to every statement and rolling
 	// the whole batch back if any statement fails. It returns one result per
@@ -67,12 +74,10 @@ type SessionFSSqliteProvider interface {
 	// the runtime; any other error is reported as
 	// [rpc.SessionFSSqliteTransactionErrorClassFatal].
 	SqliteTransaction(statements []rpc.SessionFSSqliteTransactionStatement) ([]SessionFSSqliteQueryResult, error)
-	// SqliteExists checks whether the provider has a SQLite database for the session.
-	SqliteExists() (bool, error)
 }
 
 // SessionFSSqliteTransactionFailure classifies a SQLite transaction failure for
-// the runtime. Return it from [SessionFSSqliteProvider.SqliteTransaction] with
+// the runtime. Return it from [SessionFSSqliteTransactionProvider.SqliteTransaction] with
 // [rpc.SessionFSSqliteTransactionErrorClassBusyOrLocked] when SQLite reported
 // BUSY or LOCKED before commit and the transaction was rolled back, so the
 // runtime knows the call is safe to retry.
@@ -242,21 +247,12 @@ func (a *sessionFSAdapter) SqliteQuery(request *rpc.SessionFSSqliteQueryRequest)
 			RowsAffected: 0,
 		}, nil
 	}
-	var wireRowid *int64
-	if result.LastInsertRowid != nil {
-		rowid := *result.LastInsertRowid
-		wireRowid = &rowid
-	}
-	return &rpc.SessionFSSqliteQueryResult{
-		Columns:         result.Columns,
-		Rows:            result.Rows,
-		RowsAffected:    result.RowsAffected,
-		LastInsertRowid: wireRowid,
-	}, nil
+	wireResult := toWireSqliteQueryResult(*result)
+	return &wireResult, nil
 }
 
 func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransactionRequest) (*rpc.SessionFSSqliteTransactionResult, error) {
-	sp, ok := a.provider.(SessionFSSqliteProvider)
+	sp, ok := a.provider.(SessionFSSqliteTransactionProvider)
 	if !ok {
 		return &rpc.SessionFSSqliteTransactionResult{
 			Results: []rpc.SessionFSSqliteQueryResult{},
@@ -275,19 +271,26 @@ func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransac
 	}
 	wireResults := make([]rpc.SessionFSSqliteQueryResult, 0, len(results))
 	for _, result := range results {
-		var wireRowid *int64
-		if result.LastInsertRowid != nil {
-			rowid := *result.LastInsertRowid
-			wireRowid = &rowid
-		}
-		wireResults = append(wireResults, rpc.SessionFSSqliteQueryResult{
-			Columns:         result.Columns,
-			Rows:            result.Rows,
-			RowsAffected:    result.RowsAffected,
-			LastInsertRowid: wireRowid,
-		})
+		wireResults = append(wireResults, toWireSqliteQueryResult(result))
 	}
 	return &rpc.SessionFSSqliteTransactionResult{Results: wireResults}, nil
+}
+
+func toWireSqliteQueryResult(result SessionFSSqliteQueryResult) rpc.SessionFSSqliteQueryResult {
+	columns := result.Columns
+	if columns == nil {
+	columns = []string{}
+	}
+	rows := result.Rows
+	if rows == nil {
+	rows = []map[string]any{}
+	}
+	return rpc.SessionFSSqliteQueryResult{
+	Columns:         columns,
+	Rows:            rows,
+	RowsAffected:    result.RowsAffected,
+	LastInsertRowid: result.LastInsertRowid,
+	}
 }
 
 func (a *sessionFSAdapter) SqliteExists(request *rpc.SessionFSSqliteExistsRequest) (*rpc.SessionFSSqliteExistsResult, error) {

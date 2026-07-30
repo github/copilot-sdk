@@ -28,26 +28,13 @@ public final class ServerSessionsApi {
 
     /**
      * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
-     * <p>
-     * Invokes the method with no params, applying the runtime defaults.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsOpenResult> open() {
-        return open(null);
-    }
-
-    /**
-     * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionsOpenResult> open(SessionsOpenParams params) {
-        return caller.invoke("sessions.open", params == null ? java.util.Map.of() : params, SessionsOpenResult.class);
+        return caller.invoke("sessions.open", params, SessionsOpenResult.class);
     }
 
     /**

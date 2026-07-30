@@ -91,7 +91,7 @@ export interface SessionFsSqliteProvider {
      * @param statements - Statements to execute in order inside a single transaction.
      * @returns One result per statement, in the same order.
      */
-    transaction(statements: SessionFsSqliteStatement[]): Promise<SessionFsSqliteQueryResult[]>;
+    transaction?(statements: SessionFsSqliteStatement[]): Promise<SessionFsSqliteQueryResult[]>;
 
     /**
      * Check whether the per-session database already exists, without creating it.
@@ -268,8 +268,14 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
         sqliteTransaction: async ({ statements }) => {
-            if (!provider.sqlite) {
-                throw new Error("SQLite is not supported by this provider");
+            if (!provider.sqlite?.transaction) {
+                return {
+                    results: [],
+                    error: {
+                        errorClass: "fatal",
+                        message: "SQLite transactions are not supported by this provider",
+                    },
+                };
             }
             try {
                 const results = await provider.sqlite.transaction(

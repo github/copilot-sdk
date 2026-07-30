@@ -26,7 +26,7 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
                     .exec(ShellExecRequest {
                         command: delayed_write_command(&started_path, &marker_path),
                         cwd: Some(ctx.work_dir().display().to_string()),
-                        timeout: Some(200),
+                        timeout: Some(shell_timeout_ms()),
                     })
                     .await
                     .expect("execute timed command");
@@ -316,6 +316,11 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
     )
 }
 
+#[cfg(windows)]
+fn shell_timeout_ms() -> i64 {
+    2_000
+}
+
 #[cfg(not(windows))]
 fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
     format!(
@@ -323,6 +328,11 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
         started_path.display(),
         marker_path.display()
     )
+}
+
+#[cfg(not(windows))]
+fn shell_timeout_ms() -> i64 {
+    200
 }
 
 #[cfg(windows)]

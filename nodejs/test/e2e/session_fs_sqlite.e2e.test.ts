@@ -215,8 +215,9 @@ function createTestSessionFsHandlerWithSqlite(
                 statements: SessionFsSqliteStatement[]
             ): Promise<SessionFsSqliteQueryResult[]> {
                 const database = getOrCreateDb();
-                database.exec("BEGIN IMMEDIATE");
+                let commitStarted = false;
                 try {
+                    database.exec("BEGIN IMMEDIATE");
                     const results = statements.map((statement) => {
                         sqliteCalls.push({
                             sessionId: session.sessionId,
@@ -232,11 +233,31 @@ function createTestSessionFsHandlerWithSqlite(
                             ) ?? { rows: [], columns: [], rowsAffected: 0 }
                         );
                     });
+                    commitStarted = true;
                     database.exec("COMMIT");
                     return results;
                 } catch (err) {
-                    database.exec("ROLLBACK");
                     const message = err instanceof Error ? err.message : String(err);
+                    if (commitStarted) {
+                        throw new SessionFsSqliteTransactionFailure(
+                            message,
+                            "postCommitAmbiguous"
+                        );
+                    }
+                    if (database.inTransaction) {
+                        try {
+                            database.exec("ROLLBACK");
+                        } catch (rollbackError) {
+                            const rollbackMessage =
+                                rollbackError instanceof Error
+                                    ? rollbackError.message
+                                    : String(rollbackError);
+                            throw new SessionFsSqliteTransactionFailure(
+                                `${message}; rollback failed: ${rollbackMessage}`,
+                                "fatal"
+                            );
+                        }
+                    }
                     throw new SessionFsSqliteTransactionFailure(
                         message,
                         /busy|locked/i.test(message) ? "busyOrLocked" : "fatal"

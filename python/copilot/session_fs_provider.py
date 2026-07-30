@@ -138,7 +138,6 @@ class SessionFsSqliteProvider(abc.ABC):
         no result set is produced; the adapter will substitute an empty result.
         """
 
-    @abc.abstractmethod
     async def sqlite_transaction(
         self,
         statements: list[SessionFSSqliteTransactionStatement],
@@ -150,6 +149,10 @@ class SessionFsSqliteProvider(abc.ABC):
         failure should be classified; any other exception is reported as
         ``fatal``.
         """
+        raise SessionFsSqliteTransactionFailure(
+            "SQLite transactions are not supported by this SessionFs provider",
+            SessionFSSqliteTransactionErrorClass.FATAL,
+        )
 
     @abc.abstractmethod
     async def sqlite_exists(self) -> bool:

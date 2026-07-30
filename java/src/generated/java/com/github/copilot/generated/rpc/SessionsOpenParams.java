@@ -8,27 +8,33 @@
 package com.github.copilot.generated.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import javax.annotation.processing.Generated;
 
 /**
- * Parameters for creating a new local session.
+ * Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
-@javax.annotation.processing.Generated("copilot-sdk-codegen")
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = SessionsOpenCreate.class, name = "create"),
+    @JsonSubTypes.Type(value = SessionsOpenResume.class, name = "resume"),
+    @JsonSubTypes.Type(value = SessionsOpenResumeLast.class, name = "resumeLast"),
+    @JsonSubTypes.Type(value = SessionsOpenAttach.class, name = "attach"),
+    @JsonSubTypes.Type(value = SessionsOpenRemote.class, name = "remote"),
+    @JsonSubTypes.Type(value = SessionsOpenCloud.class, name = "cloud"),
+    @JsonSubTypes.Type(value = SessionsOpenHandoff.class, name = "handoff")
+})
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionsOpenParams(
-    /** Create a new local session. */
-    @JsonProperty("kind") String kind,
-    /** Session construction options. */
-    @JsonProperty("options") SessionOpenOptions options,
-    /** Whether to emit session.start during creation. Defaults to true. */
-    @JsonProperty("emitStart") Boolean emitStart
-) {
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+public abstract class SessionsOpenParams {
+
+    /**
+     * Returns the discriminator value for this variant.
+     *
+     * @return the kind discriminator
+     */
+    public abstract String getKind();
 }

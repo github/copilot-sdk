@@ -643,7 +643,8 @@ def create_test_session_fs_handler(provider_root: Path):
 
 
 def provider_path(provider_root: Path, session_id: str, path: str) -> Path:
-    return provider_root / session_id / path.lstrip("/")
+    relative_path = path.replace("\\", "/").lstrip("/")
+    return provider_root / session_id / relative_path
 
 
 def find_tool_call_result(messages: list[SessionEvent], tool_name: str) -> str | None:

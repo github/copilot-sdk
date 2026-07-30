@@ -256,6 +256,17 @@ function resolveRef(schema: JSONSchema7 | undefined): JSONSchema7 | undefined {
     return schema;
 }
 
+function hasOmissionSentinel(schema: JSONSchema7): boolean {
+    return (schema.anyOf ?? []).some(
+        (variant) =>
+            typeof variant === "object"
+            && variant !== null
+            && typeof (variant as JSONSchema7).not === "object"
+            && (variant as JSONSchema7).not !== null
+            && Object.keys((variant as JSONSchema7).not as object).length === 0
+    );
+}
+
 /**
  * Resolve a method's params schema to the object schema that carries its properties.
  *
@@ -268,7 +279,15 @@ function resolveMethodParamsSchema(method: RpcMethodNode): JSONSchema7 | undefin
     if (!params || typeof params !== "object") return undefined;
     if (params.properties) return params;
     if (!Array.isArray(params.anyOf)) return undefined;
-    return resolveAnyOfVariants(params.anyOf as JSONSchema7[]).find((variant) => !!variant.properties);
+    const objectVariants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]).filter((variant) => !!variant.properties);
+    return hasOmissionSentinel(params) && objectVariants.length === 1 ? objectVariants[0] : undefined;
+}
+
+function resolveMethodParamsUnionSchema(method: RpcMethodNode): JSONSchema7 | undefined {
+    const params = resolveRef(method.params ?? undefined);
+    if (!params || typeof params !== "object" || !Array.isArray(params.anyOf)) return undefined;
+    const variants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]);
+    return variants.length > 1 && findDiscriminator(variants) ? params : undefined;
 }
 
 /** Extract the definition name from a $ref string (e.g., "#/definitions/Foo" → "Foo") */
@@ -1394,6 +1413,16 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
             } else if (paramsSchema?.$ref) {
                 paramsSchema = resolveRef(paramsSchema) as JSONSchema7;
             }
+            const paramsUnionSchema = resolveMethodParamsUnionSchema(method);
+            if (paramsUnionSchema) {
+                const paramsClassName = `${className}Params`;
+                if (!generatedClasses.has(paramsClassName)) {
+                    generatedClasses.set(paramsClassName, true);
+                    await generatePolymorphicResultClass(paramsClassName, paramsUnionSchema, packageName, packageDir);
+                    allFiles.push(`${paramsClassName}.java`);
+                }
+                paramsSchema = null;
+            }
             if (paramsSchema && !paramsSchema.properties) {
                 paramsSchema = resolveMethodParamsSchema(method) ?? paramsSchema;
             }
@@ -1687,6 +1716,9 @@ function addWrapperResultImports(resultType: string, allImports: Set<string>, pa
  * callers supply it explicitly.
  */
 function wrapperParamsClassName(method: RpcMethodNode, isSession: boolean): string | null {
+    if (resolveMethodParamsUnionSchema(method)) {
+        return rpcMethodToClassName(method.rpcMethod) + "Params";
+    }
     const params = resolveMethodParamsSchema(method);
     if (!params) return null;
     const props = params.properties ?? {};
@@ -1704,7 +1736,7 @@ function methodHasSessionId(method: RpcMethodNode): boolean {
 /** True if the method's params object may be omitted entirely */
 function methodParamsAreOptional(method: RpcMethodNode): boolean {
     const params = resolveRef(method.params ?? undefined);
-    return !!params && typeof params === "object" && !params.properties && Array.isArray(params.anyOf);
+    return !!params && typeof params === "object" && hasOmissionSentinel(params);
 }
 
 /**

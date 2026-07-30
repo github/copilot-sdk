@@ -540,8 +540,12 @@ pub trait SessionFsSqliteProvider: Send + Sync {
     /// must never be retried.
     async fn sqlite_transaction(
         &self,
-        statements: &[SessionFsSqliteTransactionStatement],
-    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError>;
+        _statements: &[SessionFsSqliteTransactionStatement],
+    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+        Err(SessionFsSqliteTransactionError::fatal(
+            "SQLite transactions are not supported by this SessionFs provider",
+        ))
+    }
 
     /// Check whether the provider has a SQLite database for this session.
     async fn sqlite_exists(&self) -> Result<bool, FsError>;
@@ -570,6 +574,14 @@ impl SessionFsSqliteTransactionError {
     pub fn busy_or_locked(message: impl Into<String>) -> Self {
         Self {
             error_class: SessionFsSqliteTransactionErrorClass::BusyOrLocked,
+            message: message.into(),
+        }
+    }
+
+    /// Create a `PostCommitAmbiguous` transaction error with the given message.
+    pub fn post_commit_ambiguous(message: impl Into<String>) -> Self {
+        Self {
+            error_class: SessionFsSqliteTransactionErrorClass::PostCommitAmbiguous,
             message: message.into(),
         }
     }

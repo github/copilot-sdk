@@ -17,7 +17,7 @@ internal record SqliteCall(string SessionId, string QueryType, string Query);
 /// for file operations instead of touching disk.
 /// </summary>
 internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<SqliteCall> sqliteCalls)
-    : SessionFsProvider, ISessionFsSqliteProvider
+    : SessionFsProvider, ISessionFsSqliteProvider, ISessionFsSqliteTransactionProvider
 {
     internal ConcurrentDictionary<string, string> Files { get; } = new();
     private readonly ConcurrentDictionary<string, byte> _directories = new();
@@ -61,8 +61,22 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
                 .Select(statement => RunStatement(db, transaction, statement.QueryType, statement.Query, statement.Params)
                     ?? new SessionFsSqliteResult())
                 .ToList();
-            transaction.Commit();
+            try
+            {
+                transaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                throw new SessionFsSqliteTransactionException(
+                    ex.Message,
+                    SessionFsSqliteTransactionErrorClass.PostCommitAmbiguous,
+                    ex);
+            }
             return Task.FromResult(results);
+        }
+        catch (SessionFsSqliteTransactionException)
+        {
+            throw;
         }
         catch (SqliteException ex)
         {

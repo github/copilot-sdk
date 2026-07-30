@@ -230,8 +230,8 @@ class RpcWrappersTest {
         assertEquals("session.agent.list", stub.calls.get(0).method());
 
         var params = stub.calls.get(0).params();
-        assertInstanceOf(Map.class, params);
-        assertEquals("sess-999", ((Map<?, ?>) params).get("sessionId"));
+        assertInstanceOf(com.fasterxml.jackson.databind.node.ObjectNode.class, params);
+        assertEquals("sess-999", ((com.fasterxml.jackson.databind.node.ObjectNode) params).get("sessionId").asText());
     }
 
     @Test

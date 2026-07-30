@@ -170,7 +170,6 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
                 )
                 for statement in statements
             ]
-            db.commit()
         except Exception as exc:
             db.rollback()
             message = str(exc)
@@ -180,6 +179,12 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
                 else SessionFSSqliteTransactionErrorClass.FATAL
             )
             raise SessionFsSqliteTransactionFailure(message, error_class) from exc
+        try:
+            db.commit()
+        except Exception as exc:
+            raise SessionFsSqliteTransactionFailure(
+                str(exc), SessionFSSqliteTransactionErrorClass.POST_COMMIT_AMBIGUOUS
+            ) from exc
         return results
 
     def _run_statement(
@@ -203,9 +208,11 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
             return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.EXEC:
-            db.executescript(trimmed)
             if commit:
+                db.executescript(trimmed)
                 db.commit()
+            else:
+                db.execute(trimmed)
             return SessionFsSqliteQueryResult(columns=[], rows=[], rows_affected=0)
 
         if query_type == SessionFSSqliteQueryType.QUERY:

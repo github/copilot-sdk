@@ -30,7 +30,7 @@ public sealed class SessionFsSqliteResult
 
 /// <summary>
 /// One statement in an atomic SQLite transaction passed to
-/// <see cref="ISessionFsSqliteProvider.TransactionAsync"/>.
+/// <see cref="ISessionFsSqliteTransactionProvider.TransactionAsync"/>.
 /// </summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteStatement
@@ -67,6 +67,18 @@ public interface ISessionFsSqliteProvider
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Checks whether the per-session SQLite database already exists, without creating it.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<bool> ExistsAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Optional capability for session filesystem providers that support atomic SQLite transactions.
+/// </summary>
+public interface ISessionFsSqliteTransactionProvider
+{
+    /// <summary>
     /// Executes <paramref name="statements"/> atomically against the per-session database.
     /// </summary>
     /// <param name="statements">Statements to execute in order, inside a single transaction.</param>
@@ -79,16 +91,10 @@ public interface ISessionFsSqliteProvider
     Task<IList<SessionFsSqliteResult>> TransactionAsync(
         IList<SessionFsSqliteStatement> statements,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Checks whether the per-session SQLite database already exists, without creating it.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task<bool> ExistsAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Thrown by an <see cref="ISessionFsSqliteProvider"/> to classify a failed SQLite transaction.
+/// Thrown by an <see cref="ISessionFsSqliteTransactionProvider"/> to classify a failed SQLite transaction.
 /// <see cref="SessionFsSqliteTransactionErrorClass.BusyOrLocked"/> guarantees the transaction
 /// rolled back and is safe to retry; <see cref="SessionFsSqliteTransactionErrorClass.PostCommitAmbiguous"/>
 /// must never be retried.
@@ -355,7 +361,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
             {
                 Rows = result?.Rows?.Select(row => (IDictionary<string, JsonElement>)row.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value)).ToList() ?? [],
+                    kvp => ToJsonElement(kvp.Value))).ToList() ?? [],
                 Columns = result?.Columns ?? [],
                 RowsAffected = result?.RowsAffected ?? 0,
                 LastInsertRowid = result?.LastInsertRowid,
@@ -369,7 +375,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
     async Task<SessionFsSqliteTransactionResult> ISessionFsHandler.SqliteTransactionAsync(SessionFsSqliteTransactionRequest request, CancellationToken cancellationToken)
     {
-        if (this is not ISessionFsSqliteProvider sqliteProvider)
+        if (this is not ISessionFsSqliteTransactionProvider transactionProvider)
         {
             return new SessionFsSqliteTransactionResult
             {
@@ -390,7 +396,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
                 Query = statement.Query,
                 Params = statement.Params?.ToDictionary(kvp => kvp.Key, kvp => JsonElementToValue(kvp.Value)),
             }).ToList();
-            results = await sqliteProvider.TransactionAsync(statements, cancellationToken).ConfigureAwait(false);
+            results = await transactionProvider.TransactionAsync(statements, cancellationToken).ConfigureAwait(false);
         }
         catch (SessionFsSqliteTransactionException ex)
         {
@@ -411,18 +417,32 @@ public abstract class SessionFsProvider : ISessionFsHandler
             };
         }
 
-        return new SessionFsSqliteTransactionResult
+        try
         {
-            Results = results.Select(result => new SessionFsSqliteQueryResult
+            return new SessionFsSqliteTransactionResult
             {
-                Rows = result.Rows?.Select(row => (IDictionary<string, JsonElement>)row.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value)).ToList() ?? [],
-                Columns = result.Columns ?? [],
-                RowsAffected = result.RowsAffected,
-                LastInsertRowid = result.LastInsertRowid,
-            }).ToList(),
-        };
+                Results = results.Select(result => new SessionFsSqliteQueryResult
+                {
+                    Rows = result.Rows?.Select(row => (IDictionary<string, JsonElement>)row.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => ToJsonElement(kvp.Value))).ToList() ?? [],
+                    Columns = result.Columns ?? [],
+                    RowsAffected = result.RowsAffected,
+                    LastInsertRowid = result.LastInsertRowid,
+                }).ToList(),
+            };
+        }
+        catch (Exception ex)
+        {
+            return new SessionFsSqliteTransactionResult
+            {
+                Error = new SessionFsSqliteTransactionError
+                {
+                    ErrorClass = SessionFsSqliteTransactionErrorClass.PostCommitAmbiguous,
+                    Message = ex.Message,
+                },
+            };
+        }
     }
 
     async Task<SessionFsSqliteExistsResult> ISessionFsHandler.SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken)
@@ -451,6 +471,9 @@ public abstract class SessionFsProvider : ISessionFsHandler
             : SessionFsErrorCode.UNKNOWN;
         return new SessionFsError { Code = code, Message = ex.Message };
     }
+
+    private static JsonElement ToJsonElement(object? value) =>
+        CopilotClient.ToJsonElementForWire(value) ?? JsonElement.Parse("null");
 
     private static object? JsonElementToValue(JsonElement element) => element.ValueKind switch
     {
