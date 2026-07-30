@@ -49,7 +49,7 @@ When a callout applies to a specific language, put the qualifier as bold text in
 
 ```markdown
 > [!TIP]
-> **(Python / Go)** These SDKs use a single `Data` class/struct with all fields optional.
+> **(Python / Go)** These SDKs use separate, per-event data types.
 ```
 
 ## Lists
