@@ -12,7 +12,9 @@ import { defineFactory, joinSession } from "@github/copilot-sdk/extension";
 const reviewChanged = defineFactory({
     meta: {
         name: "review-changed",
-        description: "Review changed files and verify the findings",
+        description:
+            "Review changed files and verify the findings. " +
+            "args: { files: string[] } — the paths to review.",
         phases: [{ title: "Review" }, { title: "Verify" }],
         limits: {
             maxConcurrentSubagents: 3,
@@ -40,6 +42,8 @@ const session = await joinSession({ factories: [reviewChanged] });
 ```
 
 Factory metadata contains a stable `name`, a human-readable `description`, declared `phases`, and optional `limits`. Phase entries contain a `title` and optional `detail`.
+
+There is no declared schema for `ctx.args`. The `run_factory` tool forwards `args` verbatim and its parameter is untyped, so **the `description` is the only thing telling an agent what arguments to supply** — state the expected shape there whenever a factory reads `ctx.args`, as the example above does. Arguments supplied by an extension calling `session.factory.run(...)` directly are typed through `defineFactory<TArgs>`, but that typing does not reach the model. A factory that reads `ctx.args` should validate it rather than assume a shape.
 
 `defineFactory<TArgs, TResult>` accepts a `run(context)` function returning `Promise<TResult>`, where `TResult` is `JsonValue | void`. Objects, arrays, strings, numbers, booleans, and `null` are valid results. Returning `undefined` completes the factory with no result. Other non-JSON values are rejected.
 
