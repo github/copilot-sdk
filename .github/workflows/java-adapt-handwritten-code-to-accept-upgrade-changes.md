@@ -51,17 +51,17 @@ You are an automation agent that fixes handwritten Java SDK source and test code
 
 - The branch `${{ inputs.branch }}` already has:
   - Updated `java/scripts/codegen/package.json` with the new version
-  - Regenerated `java/src/generated/java/` code that compiles successfully
+  - Regenerated `java/sdk/src/generated/java/` code that compiles successfully
   - Updated the Java POM CLI/version pin property
 - Your job is ONLY to fix **handwritten** code, NOT generated code.
 
 ## Boundaries
 
-- ❌ Do NOT edit anything under `java/src/generated/java/`
+- ❌ Do NOT edit anything under `java/sdk/src/generated/java/`
 - ❌ Do NOT edit `java/scripts/codegen/java.ts`
-- ❌ Do NOT create or modify tests in the `com.github.copilot.generated` test package (`java/src/test/java/com/github/copilot/sdk/generated/`)
-- ✅ DO edit `java/src/main/java/com/github/copilot/sdk/**`
-- ✅ DO edit `java/src/test/java/com/github/copilot/sdk/**` (excluding the `generated` subpackage)
+- ❌ Do NOT create or modify tests in the `com.github.copilot.generated` test package (`java/sdk/src/test/java/com/github/copilot/sdk/generated/`)
+- ✅ DO edit `java/sdk/src/main/java/com/github/copilot/sdk/**`
+- ✅ DO edit `java/sdk/src/test/java/com/github/copilot/sdk/**` (excluding the `generated` subpackage)
 - ✅ DO add new test methods or test classes if new user-facing API surface is introduced
 
 ## Instructions
@@ -146,7 +146,7 @@ mvn verify -Dskip.test.harness=true
 If this passes, commit and push:
 
 ```bash
-git add java/src/main/java java/src/test/java
+git add java/sdk/src/main/java java/sdk/src/test/java
 git commit -m "Fix handwritten Java code for @github/copilot schema changes
 
 Adapt constructor calls, enum references, and test assertions to match
