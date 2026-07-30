@@ -1893,6 +1893,44 @@ export interface CanvasProviderIdentity {
 }
 
 /**
+ * Static resource ceilings declared by a factory before it runs.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryLimits {
+    /** Maximum number of factory subagents that may run concurrently. Must be positive when present. */
+    maxConcurrentSubagents?: number;
+    /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
+    maxTotalSubagents?: number;
+    /** Maximum AI credits consumed by factory subagents and descendants. This post-paid ceiling is soft. */
+    maxAiCredits?: number;
+    /**
+     * Maximum accumulated active-execution time, in seconds. Active execution includes the entire extension body,
+     * subprocess waits, queued-agent waits, and sleeps. The limit is armed from the remaining headroom when a run
+     * resumes; time between attempts is not counted. Must be finite and positive when present.
+     */
+    timeoutSeconds?: number;
+}
+
+/**
+ * Registration metadata for an extension-authored factory.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryMeta {
+    /** Stable factory name used for invocation. */
+    name: string;
+    /** Human-readable factory description. */
+    description: string;
+    /** Display metadata for the progress phases the factory may report. */
+    phases: Array<{ title: string; detail?: string }>;
+    /** Optional resource ceilings presented to the user before execution. */
+    limits?: FactoryLimits;
+}
+
+/**
  * Provider-scoped options for the Copilot API (CAPI).
  *
  * These settings apply to the built-in Copilot API provider only. They live
