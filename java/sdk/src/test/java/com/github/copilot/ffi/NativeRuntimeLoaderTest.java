@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -63,43 +64,43 @@ class NativeRuntimeLoaderTest {
     }
 
     // -------------------------------------------------------------------------
-    // Source 1: COPILOT_CLI_PATH as explicit runtime override
+    // COPILOT_CLI_PATH override
     // -------------------------------------------------------------------------
 
     @Test
-    void resolveFromExplicitPathReturnsPathWhenFileIsValid(@TempDir Path tempDir) throws Exception {
+    void resolveFromCliPathReturnsSiblingWhenRuntimeNodeExists(@TempDir Path tempDir) throws Exception {
+        Path fakeCliPath = tempDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
         Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.write(runtimeNode, FAKE_BINARY_CONTENT);
 
-        Path result = NativeRuntimeLoader.resolveFromExplicitPath(runtimeNode.toString());
+        Path result = NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString());
 
         assertEquals(runtimeNode, result);
     }
 
     @Test
-    void resolveFromExplicitPathThrowsWhenFileDoesNotExist(@TempDir Path tempDir) {
-        Path missing = tempDir.resolve("nonexistent.node");
+    void resolveFromCliPathReturnsNullWhenRuntimeNodeMissing(@TempDir Path tempDir) throws Exception {
+        Path fakeCliPath = tempDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> NativeRuntimeLoader.resolveFromExplicitPath(missing.toString()));
-        assertTrue(ex.getMessage().contains(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV),
-                "Error must mention the env variable name: " + ex.getMessage());
+        assertNull(NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString()));
     }
 
     @Test
-    void resolveFromExplicitPathThrowsWhenFileIsEmpty(@TempDir Path tempDir) throws Exception {
-        Path empty = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
-        Files.createFile(empty); // zero bytes
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> NativeRuntimeLoader.resolveFromExplicitPath(empty.toString()));
-        assertTrue(ex.getMessage().contains(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV),
-                "Error must mention the env variable name: " + ex.getMessage());
+    void resolveFromCliPathReturnsNullWhenEnvIsNull() throws Exception {
+        assertNull(NativeRuntimeLoader.resolveFromCliPath(null));
     }
 
     @Test
-    void explicitOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
-        // Source 1: runtime.node directly specified via COPILOT_CLI_PATH
+    void resolveFromCliPathReturnsNullWhenEnvIsBlank() throws Exception {
+        assertNull(NativeRuntimeLoader.resolveFromCliPath("   "));
+    }
+
+    @Test
+    void resolveFromCliPathReturnsNullWhenRuntimeNodeIsEmpty(@TempDir Path tempDir) throws Exception {
+        Path fakeCliPath = tempDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
         Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.createFile(runtimeNode); // empty file
 
@@ -135,22 +136,10 @@ class NativeRuntimeLoaderTest {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
-        Path result = NativeRuntimeLoader.resolve(runtimeNode.toString(), cacheBase, loader, TEST_CLASSIFIER,
+        Path result = NativeRuntimeLoader.resolve(fakeCliPath.toString(), cacheBase, loader, TEST_CLASSIFIER,
                 TEST_VERSION);
 
         assertEquals(runtimeNode, result, "Source 1 (COPILOT_CLI_PATH) must take priority over classpath extraction");
-    }
-
-    @Test
-    void explicitOverrideThrowsImmediatelyWhenPathIsInvalid(@TempDir Path tempDir) throws Exception {
-        // Source 2 is available, but source 1 is invalid — must throw, not silently
-        // fall through
-        Path missing = tempDir.resolve("not-a-runtime.node");
-        Path cacheBase = tempDir.resolve("cache");
-        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
-
-        assertThrows(IllegalStateException.class, () -> NativeRuntimeLoader.resolve(missing.toString(), cacheBase,
-                loader, TEST_CLASSIFIER, TEST_VERSION));
     }
 
     // -------------------------------------------------------------------------

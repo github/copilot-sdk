@@ -24,11 +24,9 @@ import java.util.Properties;
  * <p>
  * Resolution order:
  * <ol>
- * <li><strong>{@code COPILOT_CLI_PATH}</strong> — explicit path to the
- * {@code runtime.node} binary. Checked before any classpath or platform work so
- * the override is usable even when those resources are unavailable. A non-blank
- * value that does not refer to a regular, non-empty file is a configuration
- * error; no silent fallback occurs.</li>
+ * <li><strong>{@code COPILOT_CLI_PATH}</strong> — checks for
+ * {@code runtime.node} alongside the configured CLI before any classpath or
+ * platform work.</li>
  * <li><strong>Classpath resource</strong>
  * {@code native/<classifier>/runtime.node} — extracted atomically to
  * {@code ~/.copilot/runtime-cache/<version>/<classifier>/runtime.node}.</li>
@@ -69,11 +67,11 @@ public final class NativeRuntimeLoader {
      */
     static final AtomicPublisher DEFAULT_PUBLISHER = (temp, cached) -> {
         try {
-            Files.move(temp, cached, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(temp, cached, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException ex) {
             throw new IllegalStateException("Filesystem does not support atomic moves; cannot safely publish "
                     + RUNTIME_FILENAME + " to " + cached, ex);
-        } catch (java.nio.file.FileAlreadyExistsException ex) {
+        } catch (FileAlreadyExistsException ex) {
             // Another process won the race — accept the winner if it is a valid file.
             try {
                 if (isValidCachedFile(cached)) {
@@ -148,109 +146,40 @@ public final class NativeRuntimeLoader {
 
     /**
      * Resolves the runtime binary path using the given parameters. Package-private
-     * to allow injection of test doubles in unit tests. Uses
-     * {@link #DEFAULT_PUBLISHER} and no bundled-CLI directory.
-     *
-     * @param cliPathEnv
-     *            value of the {@code COPILOT_CLI_PATH} environment variable, or
-     *            {@code null}
-     * @param cacheBase
-     *            base directory for the extraction cache
-     * @param loader
-     *            class loader used to locate classpath resources
-     * @param classifier
-     *            platform classifier (e.g. {@code linux-x64})
-     * @param version
-     *            SDK version used as the cache key
-     * @return path to the resolved {@code runtime.node} binary
-     * @throws IOException
-     *             if extraction or file I/O fails
-     * @throws IllegalStateException
-     *             if required resources are missing or extraction fails
+     * to allow injection of test doubles in unit tests.
      */
     static Path resolve(String cliPathEnv, Path cacheBase, ClassLoader loader, String classifier, String version)
             throws IOException {
-        return resolve(cliPathEnv, null, cacheBase, loader, classifier, version);
+        return resolve(cliPathEnv, cacheBase, loader, classifier, version, null, DEFAULT_PUBLISHER);
     }
 
     static Path resolve(String cliPathEnv, String bundledCliPath, Path cacheBase, ClassLoader loader, String classifier,
             String version) throws IOException {
-        Path cliOverride = resolveFromCliPath(cliPathEnv);
-        if (cliOverride != null) {
-            return cliOverride;
-        }
-
-        try {
-            return extractToCache(cacheBase, loader, classifier, version);
-        } catch (FileNotFoundException ex) {
-            Path bundledRuntime = resolveFromCliPath(bundledCliPath);
-            if (bundledRuntime != null) {
-                return bundledRuntime;
-            }
-            throw ex;
-        }
+        Path bundledCliDir = bundledCliPath == null ? null : Path.of(bundledCliPath).toAbsolutePath().getParent();
+        return resolve(cliPathEnv, cacheBase, loader, classifier, version, bundledCliDir, DEFAULT_PUBLISHER);
     }
 
-    /**
-     * Resolves the runtime binary path with an optional bundled-CLI directory.
-     * Package-private to allow injection of test doubles in unit tests.
-     *
-     * @param cliPathEnv
-     *            value of the {@code COPILOT_CLI_PATH} environment variable, or
-     *            {@code null}
-     * @param cacheBase
-     *            base directory for the extraction cache
-     * @param loader
-     *            class loader used to locate classpath resources
-     * @param classifier
-     *            platform classifier (e.g. {@code linux-x64})
-     * @param version
-     *            SDK version used as the cache key
-     * @param bundledCliDir
-     *            directory where the bundled CLI binary and its sibling
-     *            {@code runtime.node} reside (source 3), or {@code null} to skip
-     * @return path to the resolved {@code runtime.node} binary
-     * @throws IOException
-     *             if extraction or file I/O fails
-     * @throws IllegalStateException
-     *             if required resources are missing or extraction fails
-     */
     static Path resolve(String cliPathEnv, Path cacheBase, ClassLoader loader, String classifier, String version,
             Path bundledCliDir) throws IOException {
         return resolve(cliPathEnv, cacheBase, loader, classifier, version, bundledCliDir, DEFAULT_PUBLISHER);
     }
 
-    /**
-     * Full-control overload: injects all external dependencies. Package-private for
-     * unit tests.
-     *
-     * @param cliPathEnv
-     *            value of the {@code COPILOT_CLI_PATH} environment variable, or
-     *            {@code null}
-     * @param cacheBase
-     *            base directory for the extraction cache
-     * @param loader
-     *            class loader used to locate classpath resources
-     * @param classifier
-     *            platform classifier (e.g. {@code linux-x64})
-     * @param version
-     *            SDK version used as the cache key
-     * @param bundledCliDir
-     *            directory where the bundled CLI binary and its sibling
-     *            {@code runtime.node} reside (source 3), or {@code null} to skip
-     * @param publisher
-     *            atomic publish implementation
-     * @return path to the resolved {@code runtime.node} binary
-     * @throws IOException
-     *             if extraction or file I/O fails
-     * @throws IllegalStateException
-     *             if required resources are missing or extraction fails
-     */
     static Path resolve(String cliPathEnv, Path cacheBase, ClassLoader loader, String classifier, String version,
             Path bundledCliDir, AtomicPublisher publisher) throws IOException {
-        // Source 1: COPILOT_CLI_PATH as explicit runtime override.
-        if (cliPathEnv != null && !cliPathEnv.isBlank()) {
-            return resolveFromExplicitPath(cliPathEnv);
+        Path cliOverride = resolveFromCliPath(cliPathEnv);
+        if (cliOverride != null) {
+            return cliOverride;
+        }
+
+        return resolveFromClasspathOrBundledCli(cacheBase, loader, classifier, version, bundledCliDir, publisher);
+    }
+
+    /**
+     * Checks for {@code runtime.node} alongside the configured CLI.
+     */
+    static Path resolveFromCliPath(String cliPathStr) throws IOException {
+        if (cliPathStr == null || cliPathStr.isBlank()) {
+            return null;
         }
         Path cliPath = Path.of(cliPathStr).toAbsolutePath().normalize();
         Path parent = cliPath.getParent();
@@ -258,7 +187,7 @@ public final class NativeRuntimeLoader {
         if (Files.isRegularFile(candidate) && Files.size(candidate) > 0) {
             return candidate;
         }
-        return path;
+        return null;
     }
 
     /**
@@ -332,7 +261,7 @@ public final class NativeRuntimeLoader {
         Path temp = Files.createTempFile(cacheDir, "runtime-tmp-", ".node");
         try {
             copyResourceToTemp(resource, resourcePath, temp);
-            publishAtomically(temp, cached);
+            publisher.publish(temp, cached);
         } finally {
             tryDelete(temp);
         }
@@ -385,22 +314,6 @@ public final class NativeRuntimeLoader {
         }
     }
 
-    private static void publishAtomically(Path temp, Path cached) throws IOException {
-        try {
-            Files.move(temp, cached, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            throw new IllegalStateException(
-                    "Filesystem does not support atomic moves; cannot safely publish runtime.node to " + cached, ex);
-        } catch (FileAlreadyExistsException ex) {
-            // Another process won the race — accept the winner if it is a valid file.
-            if (isValidCachedFile(cached)) {
-                return;
-            }
-            throw new IllegalStateException(
-                    "Concurrent extraction race: target already exists but is not a valid file: " + cached, ex);
-        }
-    }
-
     private static String findCliOnPath() {
         String pathValue = System.getenv("PATH");
         if (pathValue == null || pathValue.isBlank()) {
@@ -444,19 +357,4 @@ public final class NativeRuntimeLoader {
         return Path.of(System.getProperty("user.home"), ".copilot", "runtime-cache");
     }
 
-    /**
-     * Returns the directory where the bundled CLI binary and its sibling
-     * {@code runtime.node} reside, or {@code null} if the bundled CLI has not been
-     * installed.
-     *
-     * <p>
-     * This is a placeholder for a future embedded-CLI installation step. When the
-     * bundled CLI is implemented, this method will return the installation
-     * directory.
-     *
-     * @return installation directory, or {@code null}
-     */
-    private static Path findBundledCliDirectory() {
-        return null;
-    }
 }
