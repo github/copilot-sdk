@@ -12,6 +12,8 @@ Working directory: `copilot-sdk/1917-java-embed-rust-cli-runtime-remove-before-m
 
 ---
 
+✅✅✅YOU MUST READ THE ENTIRE ADR 007 before proceeding. `java/docs/adr/adr-007-native-bundling-strategy.md` ✅✅✅
+
 ## Goal
 
 Embed the Copilot runtime (`runtime.node` cdylib) directly into the Java SDK so that consumers no longer need an externally installed Copilot CLI. The SDK will:
