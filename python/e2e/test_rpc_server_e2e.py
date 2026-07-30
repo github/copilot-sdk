@@ -6,7 +6,6 @@ Mirrors ``dotnet/test/RpcServerTests.cs`` (snapshot category ``rpc_server``).
 
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
 from datetime import UTC, datetime
@@ -56,7 +55,7 @@ from copilot.rpc import (
 )
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, wait_for_condition
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -307,16 +306,33 @@ class TestRpcServer:
             await session.send(
                 "Record a turn for sessions.list discriminator coverage", mode="enqueue"
             )
-            await asyncio.sleep(0.2)
-            save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
-            assert save is not None
 
-            listed = await client.rpc.sessions.list(
-                SessionsListRequest(
-                    filter=SessionListFilter(cwd=str(working_directory)),
-                    metadata_limit=0,
+            listed = None
+
+            async def session_is_listed() -> bool:
+                nonlocal listed
+                # Re-save on every attempt: on slower runners the enqueued turn is not
+                # necessarily recorded yet when the first save runs, so a single save
+                # followed by a fixed sleep races the CLI's own persistence.
+                save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
+                assert save is not None
+                listed = await client.rpc.sessions.list(
+                    SessionsListRequest(
+                        filter=SessionListFilter(cwd=str(working_directory)),
+                        metadata_limit=0,
+                    )
                 )
+                return any(item.session_id == session_id for item in listed.sessions or [])
+
+            await wait_for_condition(
+                session_is_listed,
+                timeout=60.0,
+                timeout_message=(
+                    "Timed out waiting for the saved session to be returned by sessions.list."
+                ),
             )
+
+            assert listed is not None
             assert listed.sessions is not None
             assert len(listed.sessions) >= 1
             matching = [item for item in listed.sessions if item.session_id == session_id]
