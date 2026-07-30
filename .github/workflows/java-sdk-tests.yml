@@ -96,7 +96,7 @@ jobs:
         run: |
           echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
           java -version
-          mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
+          mvn -pl sdk jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 
       - name: Upload test results for site generation
         if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
@@ -104,9 +104,9 @@ jobs:
         with:
           name: test-results-for-site
           path: |
-            java/target/jacoco-test-results/sdk-tests.exec
-            java/target/surefire-reports/
-            java/target/surefire-reports-isolated/
+            java/sdk/target/jacoco-test-results/sdk-tests.exec
+            java/sdk/target/surefire-reports/
+            java/sdk/target/surefire-reports-isolated/
           retention-days: 1
 
       - name: Generate Test Report Summary
@@ -121,7 +121,7 @@ jobs:
         with:
           name: java-test-results-jdk-${{ matrix.test-jdk }}
           path: |
-            java/target/surefire-reports/
-            java/target/surefire-reports-isolated/
-            java/target/failsafe-reports/
+            java/sdk/target/surefire-reports/
+            java/sdk/target/surefire-reports-isolated/
+            java/sdk/target/failsafe-reports/
           retention-days: 7
