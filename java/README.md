@@ -67,7 +67,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.9-preview.1-01-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.10-preview.0-SNAPSHOT'
 ```
 
 ## Quick Start
