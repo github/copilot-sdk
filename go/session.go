@@ -366,10 +366,16 @@ func canvasResultError(err error) error {
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
-func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
+func newSession(
+	sessionID string,
+	client *jsonrpc2.Client,
+	workspacePath string,
+	managedSettings bool,
+) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
+		managedSettings:   managedSettings,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
