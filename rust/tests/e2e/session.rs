@@ -457,11 +457,17 @@ async fn should_abort_a_session() {
             assert!(messages
                 .iter()
                 .any(|event| event.parsed_type() == SessionEventType::Abort));
-            let answer = session
-                .send_and_wait("What is 2+2?")
+            let answer_events = session.subscribe();
+            session
+                .send("What is 2+2?")
                 .await
-                .expect("send after abort")
-                .expect("assistant message");
+                .expect("send after abort");
+            let answer = wait_for_event(
+                answer_events,
+                "assistant message after abort",
+                |event| event.parsed_type() == SessionEventType::AssistantMessage,
+            )
+            .await;
             assert!(assistant_message_content(&answer).contains('4'));
 
             session.disconnect().await.expect("disconnect session");

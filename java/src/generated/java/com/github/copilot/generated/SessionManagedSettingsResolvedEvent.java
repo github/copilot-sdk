@@ -45,6 +45,8 @@ public final class SessionManagedSettingsResolvedEvent extends SessionEvent {
         @JsonProperty("failClosed") Boolean failClosed,
         /** Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true. */
         @JsonProperty("bypassPermissionsDisabled") Boolean bypassPermissionsDisabled,
+        /** Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`. */
+        @JsonProperty("permissionsAllowIntersected") Boolean permissionsAllowIntersected,
         /** The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force. */
         @JsonProperty("managedKeys") List<String> managedKeys,
         /** The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force. */

@@ -256,6 +256,40 @@ function resolveRef(schema: JSONSchema7 | undefined): JSONSchema7 | undefined {
     return schema;
 }
 
+function hasOmissionSentinel(schema: JSONSchema7): boolean {
+    return (schema.anyOf ?? []).some(
+        (variant) =>
+            typeof variant === "object"
+            && variant !== null
+            && typeof (variant as JSONSchema7).not === "object"
+            && (variant as JSONSchema7).not !== null
+            && Object.keys((variant as JSONSchema7).not as object).length === 0
+    );
+}
+
+/**
+ * Resolve a method's params schema to the object schema that carries its properties.
+ *
+ * Methods whose params object is entirely optional are published as
+ * `anyOf: [{ not: {} }, { ...object }]`, so the properties live on a variant
+ * rather than on the schema itself.
+ */
+function resolveMethodParamsSchema(method: RpcMethodNode): JSONSchema7 | undefined {
+    const params = resolveRef(method.params ?? undefined);
+    if (!params || typeof params !== "object") return undefined;
+    if (params.properties) return params;
+    if (!Array.isArray(params.anyOf)) return undefined;
+    const objectVariants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]).filter((variant) => !!variant.properties);
+    return hasOmissionSentinel(params) && objectVariants.length === 1 ? objectVariants[0] : undefined;
+}
+
+function resolveMethodParamsUnionSchema(method: RpcMethodNode): JSONSchema7 | undefined {
+    const params = resolveRef(method.params ?? undefined);
+    if (!params || typeof params !== "object" || !Array.isArray(params.anyOf)) return undefined;
+    const variants = resolveAnyOfVariants(params.anyOf as JSONSchema7[]);
+    return variants.length > 1 && findDiscriminator(variants) ? params : undefined;
+}
+
 /** Extract the definition name from a $ref string (e.g., "#/definitions/Foo" → "Foo") */
 function extractRefName(schema: JSONSchema7 | null | undefined): string | null {
     if (!schema?.$ref) return null;
@@ -820,6 +854,10 @@ async function generateSessionEventBaseClass(
     lines.push(`    @JsonProperty("parentId")`);
     lines.push(`    private UUID parentId;`);
     lines.push("");
+    lines.push(`    /** Sub-agent instance identifier. Absent for events from the root/main agent and session-level events. */`);
+    lines.push(`    @JsonProperty("agentId")`);
+    lines.push(`    private String agentId;`);
+    lines.push("");
     lines.push(`    /** When true, the event is transient and not persisted to the session event log on disk. */`);
     lines.push(`    @JsonProperty("ephemeral")`);
     lines.push(`    private Boolean ephemeral;`);
@@ -839,6 +877,9 @@ async function generateSessionEventBaseClass(
     lines.push("");
     lines.push(`    public UUID getParentId() { return parentId; }`);
     lines.push(`    public void setParentId(UUID parentId) { this.parentId = parentId; }`);
+    lines.push("");
+    lines.push(`    public String getAgentId() { return agentId; }`);
+    lines.push(`    public void setAgentId(String agentId) { this.agentId = agentId; }`);
     lines.push("");
     lines.push(`    public Boolean getEphemeral() { return ephemeral; }`);
     lines.push(`    public void setEphemeral(Boolean ephemeral) { this.ephemeral = ephemeral; }`);
@@ -1372,6 +1413,19 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
             } else if (paramsSchema?.$ref) {
                 paramsSchema = resolveRef(paramsSchema) as JSONSchema7;
             }
+            const paramsUnionSchema = resolveMethodParamsUnionSchema(method);
+            if (paramsUnionSchema) {
+                const paramsClassName = `${className}Params`;
+                if (!generatedClasses.has(paramsClassName)) {
+                    generatedClasses.set(paramsClassName, true);
+                    await generatePolymorphicResultClass(paramsClassName, paramsUnionSchema, packageName, packageDir);
+                    allFiles.push(`${paramsClassName}.java`);
+                }
+                paramsSchema = null;
+            }
+            if (paramsSchema && !paramsSchema.properties) {
+                paramsSchema = resolveMethodParamsSchema(method) ?? paramsSchema;
+            }
             if (paramsSchema && typeof paramsSchema === "object" && paramsSchema.properties) {
                 const paramsClassName = `${className}Params`;
                 if (!generatedClasses.has(paramsClassName)) {
@@ -1662,9 +1716,11 @@ function addWrapperResultImports(resultType: string, allImports: Set<string>, pa
  * callers supply it explicitly.
  */
 function wrapperParamsClassName(method: RpcMethodNode, isSession: boolean): string | null {
-    let params = method.params;
-    if (params?.$ref) params = resolveRef(params) as JSONSchema7;
-    if (!params || typeof params !== "object") return null;
+    if (resolveMethodParamsUnionSchema(method)) {
+        return rpcMethodToClassName(method.rpcMethod) + "Params";
+    }
+    const params = resolveMethodParamsSchema(method);
+    if (!params) return null;
     const props = params.properties ?? {};
     const userProps = Object.keys(props).filter((k) => !isSession || k !== "sessionId");
     if (userProps.length === 0) return null;
@@ -1673,9 +1729,14 @@ function wrapperParamsClassName(method: RpcMethodNode, isSession: boolean): stri
 
 /** True if the method's params schema contains a "sessionId" property */
 function methodHasSessionId(method: RpcMethodNode): boolean {
-    let params = method.params;
-    if (params?.$ref) params = resolveRef(params) as JSONSchema7;
+    const params = resolveMethodParamsSchema(method);
     return !!params?.properties && "sessionId" in params.properties;
+}
+
+/** True if the method's params object may be omitted entirely */
+function methodParamsAreOptional(method: RpcMethodNode): boolean {
+    const params = resolveRef(method.params ?? undefined);
+    return !!params && typeof params === "object" && hasOmissionSentinel(params);
 }
 
 /**
@@ -1692,6 +1753,7 @@ function generateApiMethod(
     const paramsClass = wrapperParamsClassName(method, isSession);
     const hasSessionId = methodHasSessionId(method);
     const hasExtraParams = paramsClass !== null;
+    const paramsOptional = hasExtraParams && methodParamsAreOptional(method);
     let needsMapper = false;
 
     const lines: string[] = [];
@@ -1700,25 +1762,38 @@ function generateApiMethod(
     const description = (method.params as JSONSchema7 | null)?.description
         ?? (method.result as JSONSchema7 | null)?.description
         ?? `Invokes {@code ${method.rpcMethod}}.`;
-    lines.push(`    /**`);
-    lines.push(`     * ${description}`);
-    if (isSession && hasExtraParams && hasSessionId) {
-        lines.push(`     * <p>`);
-        lines.push(`     * Note: the {@code sessionId} field in the params record is overridden`);
-        lines.push(`     * by the session-scoped wrapper; any value provided is ignored.`);
+    const pushJavadoc = (extraLines: string[] = [], includeSessionIdNote = true): void => {
+        lines.push(`    /**`);
+        lines.push(`     * ${description}`);
+        if (includeSessionIdNote && isSession && hasExtraParams && hasSessionId) {
+            lines.push(`     * <p>`);
+            lines.push(`     * Note: the {@code sessionId} field in the params record is overridden`);
+            lines.push(`     * by the session-scoped wrapper; any value provided is ignored.`);
+        }
+        lines.push(...extraLines);
+        if (method.stability === "experimental") {
+            lines.push(`     *`);
+            lines.push(`     * @apiNote This method is experimental and may change in a future version.`);
+        }
+        lines.push(`     * @since 1.0.0`);
+        lines.push(`     */`);
+        if (method.deprecated) {
+            lines.push(`    @Deprecated`);
+        }
+        if (method.stability === "experimental") {
+            lines.push(`    @CopilotExperimental`);
+        }
+    };
+
+    if (paramsOptional) {
+        pushJavadoc([`     * <p>`, `     * Invokes the method with no params, applying the runtime defaults.`], false);
+        lines.push(`    public CompletableFuture<${resultClass}> ${key}() {`);
+        lines.push(`        return ${key}(null);`);
+        lines.push(`    }`);
+        lines.push(``);
     }
-    if (method.stability === "experimental") {
-        lines.push(`     *`);
-        lines.push(`     * @apiNote This method is experimental and may change in a future version.`);
-    }
-    lines.push(`     * @since 1.0.0`);
-    lines.push(`     */`);
-    if (method.deprecated) {
-        lines.push(`    @Deprecated`);
-    }
-    if (method.stability === "experimental") {
-        lines.push(`    @CopilotExperimental`);
-    }
+
+    pushJavadoc();
 
     // Signature
     if (hasExtraParams) {
@@ -1732,7 +1807,10 @@ function generateApiMethod(
         if (hasExtraParams) {
             // Merge sessionId into the params using Jackson ObjectNode
             needsMapper = true;
-            lines.push(`        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);`);
+            const paramsNode = paramsOptional
+                ? `params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params)`
+                : `MAPPER.valueToTree(params)`;
+            lines.push(`        com.fasterxml.jackson.databind.node.ObjectNode _p = ${paramsNode};`);
             lines.push(`        _p.put("sessionId", ${sessionIdExpr});`);
             lines.push(`        return caller.invoke("${method.rpcMethod}", _p, ${wrapperResultTypeExpression(resultClass)});`);
         } else if (hasSessionId) {
@@ -1743,7 +1821,8 @@ function generateApiMethod(
     } else {
         // Server-side: pass params directly (or empty map if no params)
         if (hasExtraParams) {
-            lines.push(`        return caller.invoke("${method.rpcMethod}", params, ${wrapperResultTypeExpression(resultClass)});`);
+            const paramsArg = paramsOptional ? `params == null ? java.util.Map.of() : params` : `params`;
+            lines.push(`        return caller.invoke("${method.rpcMethod}", ${paramsArg}, ${wrapperResultTypeExpression(resultClass)});`);
         } else {
             lines.push(`        return caller.invoke("${method.rpcMethod}", java.util.Map.of(), ${wrapperResultTypeExpression(resultClass)});`);
         }

@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.Test.E2E;
 
+[Trait(E2ETestTraits.Backend, E2ETestTraits.CapiOnly)]
 public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "mode_handlers", output)
 {
@@ -24,7 +25,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = CreateAuthenticatedClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -60,7 +61,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal(summary, request.Summary);
-        Assert.Equal(["interactive", "autopilot", "exit_only"], request.Actions);
+        Assert.Equal(["autopilot", "interactive", "exit_only"], request.Actions);
         Assert.Equal("interactive", request.RecommendedAction);
         Assert.NotNull(request.PlanContent);
 
@@ -92,7 +93,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = CreateAuthenticatedClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,

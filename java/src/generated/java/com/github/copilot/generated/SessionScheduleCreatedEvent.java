@@ -51,7 +51,9 @@ public final class SessionScheduleCreatedEvent extends SessionEvent {
         /** True for a self-paced (`dynamic`) schedule: no fixed cadence; the model arms each next run via the `manage_schedule` `wakeup` action. `nextRunAt` is model-controlled rather than auto-computed. */
         @JsonProperty("selfPaced") Boolean selfPaced,
         /** Optional user-facing label shown in the timeline instead of the actual prompt (e.g. `/skill-name args` when the prompt is a skill invocation expansion) */
-        @JsonProperty("displayPrompt") String displayPrompt
+        @JsonProperty("displayPrompt") String displayPrompt,
+        /** Who created the schedule (`user` or `model`). Persisted so a resumed session keeps gating non-user schedules from firing skills that opted out of model invocation. Absent on entries created before this field existed; a missing origin fails closed (treated the same as a non-user origin), so such a schedule may not resolve a `disable-model-invocation` skill. */
+        @JsonProperty("origin") ScheduleOrigin origin
     ) {
     }
 }

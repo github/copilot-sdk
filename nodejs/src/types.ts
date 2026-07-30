@@ -43,6 +43,9 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
+export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
+export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
@@ -1476,6 +1479,49 @@ export type ErrorOccurredHandler = (
 ) => Promise<ErrorOccurredHookOutput | void> | ErrorOccurredHookOutput | void;
 
 /**
+ * Input for the agent-stop hook.
+ *
+ * Fires for the top-level (main) agent when it reaches a natural terminal stop
+ * — i.e. the agent has gone idle without a pending non-terminal tool call and
+ * was not aborted or blocked by a rejected tool. (For sub-agents, the runtime
+ * fires a separate sub-agent stop lifecycle.)
+ */
+export interface AgentStopHookInput extends BaseHookInput {
+    /** Why the agent stopped (for example, `"end_turn"`). */
+    stopReason?: string;
+    /** Path to the on-disk session transcript, when available. */
+    transcriptPath?: string;
+    /**
+     * True when this stop is a re-entry triggered by a previous agent-stop
+     * `block` decision (Claude-compatible `stop_hook_active` semantics). Lets a
+     * handler avoid blocking indefinitely.
+     */
+    stopHookActive?: boolean;
+}
+
+/**
+ * Output for the agent-stop hook.
+ *
+ * Return `{ decision: "block", reason }` to keep the agent running: the
+ * `reason` is enqueued as a follow-up user message so the agent continues
+ * working (for example, to remediate findings surfaced by the hook). The
+ * runtime caps consecutive blocks to prevent runaway loops. Returning nothing
+ * (or omitting `decision`) lets the agent stop normally.
+ */
+export interface AgentStopHookOutput {
+    decision?: "block";
+    reason?: string;
+}
+
+/**
+ * Handler for the agent-stop hook.
+ */
+export type AgentStopHandler = (
+    input: AgentStopHookInput,
+    invocation: { sessionId: string }
+) => Promise<AgentStopHookOutput | void> | AgentStopHookOutput | void;
+
+/**
  * Configuration for session hooks
  */
 export interface SessionHooks {
@@ -1525,6 +1571,16 @@ export interface SessionHooks {
      * Called when an error occurs
      */
     onErrorOccurred?: ErrorOccurredHandler;
+
+    /**
+     * Called when the top-level agent reaches a natural terminal stop (it went
+     * idle without pending work and was not aborted). Return
+     * `{ decision: "block", reason }` to keep the agent running with `reason`
+     * enqueued as a follow-up message — for example, to have the agent
+     * remediate findings the handler surfaced. Returning nothing lets the
+     * agent stop.
+     */
+    onAgentStop?: AgentStopHandler;
 }
 
 // ============================================================================
@@ -1643,8 +1699,8 @@ export interface CustomAgentConfig {
     model?: string;
     /**
      * Reasoning effort level for this agent's model.
-     * When omitted, no per-agent override is sent and the backend chooses its
-     * default. The parent session effort is not inherited.
+     * When omitted, the runtime resolves the effort from model configuration,
+     * then inherits the parent effort only if this agent uses the same model.
      */
     reasoningEffort?: ReasoningEffort;
 }
@@ -1859,6 +1915,45 @@ export interface CapiSessionOptions {
      * @default true
      */
     enableWebSocketResponses?: boolean;
+}
+
+/**
+ * A single ExP (Experiment Platform) flag value. ExP assignments resolve to a
+ * string, number, boolean, or `null`.
+ */
+export type ExpFlagValue = string | number | boolean | null;
+
+/**
+ * A single configuration entry in a {@link CopilotExpAssignmentResponse}. Each
+ * entry carries an identifier and a bag of typed parameter values.
+ */
+export interface ExpConfigEntry {
+    /** Identifier of the configuration entry. */
+    Id: string;
+    /** Parameter values keyed by parameter name. */
+    Parameters: Record<string, ExpFlagValue>;
+}
+
+/**
+ * ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+ * fetches from the experimentation service. Field names are PascalCase to match
+ * the on-the-wire contract consumed by the runtime.
+ */
+export interface CopilotExpAssignmentResponse {
+    /** Enabled feature names. */
+    Features: string[];
+    /** Assigned flights keyed by flight name. */
+    Flights: Record<string, string>;
+    /** Configuration entries carrying typed parameter values. */
+    Configs: ExpConfigEntry[];
+    /** Opaque parameter-group payload passed through untouched. */
+    ParameterGroups?: unknown;
+    /** Version of the flighting configuration. */
+    FlightingVersion?: number;
+    /** Impression identifier for the assignment. */
+    ImpressionId?: string;
+    /** Assignment context string forwarded to CAPI and telemetry. */
+    AssignmentContext: string;
 }
 
 /**
@@ -2428,7 +2523,7 @@ export interface SessionConfigBase {
      *
      * @internal
      */
-    expAssignments?: Record<string, unknown>;
+    expAssignments?: CopilotExpAssignmentResponse;
 }
 
 /**
@@ -2580,7 +2675,7 @@ export interface ProviderConfig {
      */
     azure?: {
         /**
-         * API version. Defaults to "2024-10-21".
+         * API version. When omitted, the runtime uses the GA versionless v1 route.
          */
         apiVersion?: string;
     };

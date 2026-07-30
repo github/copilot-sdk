@@ -78,6 +78,7 @@ import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ElicitationSchema;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GetMessagesResponse;
+import com.github.copilot.rpc.AgentStopHookInput;
 import com.github.copilot.rpc.HookInvocation;
 import com.github.copilot.rpc.InputOptions;
 import com.github.copilot.rpc.MessageOptions;
@@ -1880,6 +1881,16 @@ public final class CopilotSession implements AutoCloseable {
                         return endResult.thenApply(output -> (Object) output);
                     }
                     break;
+                case "agentStop" :
+                    if (hooks.getOnAgentStop() != null) {
+                        AgentStopHookInput stopInput = MAPPER.treeToValue(input, AgentStopHookInput.class);
+                        var stopResult = hooks.getOnAgentStop().handle(stopInput, invocation);
+                        if (stopResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return stopResult.thenApply(output -> (Object) output);
+                    }
+                    break;
                 default :
                     LOG.fine("Unhandled hook type: " + hookType);
             }
@@ -1962,7 +1973,8 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
         return getRpc().model
-                .switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null))
+                .switchTo(
+                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null, null, null, null))
                 .thenApply(r -> null);
     }
 
@@ -2043,7 +2055,7 @@ public final class CopilotSession implements AutoCloseable {
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, null, generatedCapabilities, null)).thenApply(r -> null);
+                generatedReasoningSummary, null, generatedCapabilities, null, null)).thenApply(r -> null);
     }
 
     /**

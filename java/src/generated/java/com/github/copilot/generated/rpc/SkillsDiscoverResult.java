@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SkillsDiscoverResult(
     /** All discovered skills across all sources */
-    @JsonProperty("skills") List<ServerSkill> skills
+    @JsonProperty("skills") List<ServerSkill> skills,
+    /** Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers. */
+    @JsonProperty("errors") List<String> errors
 ) {
 }

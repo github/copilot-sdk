@@ -1872,6 +1872,67 @@ public sealed class ErrorOccurredHookOutput
 }
 
 /// <summary>
+/// Input for an agent-stop hook.
+/// </summary>
+public sealed class AgentStopHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the agent stopped.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason the agent stopped.
+    /// </summary>
+    [JsonPropertyName("stopReason")]
+    public string? StopReason { get; set; }
+
+    /// <summary>
+    /// Path to the on-disk session transcript.
+    /// </summary>
+    [JsonPropertyName("transcriptPath")]
+    public string? TranscriptPath { get; set; }
+
+    /// <summary>
+    /// Whether this stop follows a previous block decision from the hook.
+    /// </summary>
+    [JsonPropertyName("stop_hook_active")]
+    public bool? StopHookActive { get; set; }
+}
+
+/// <summary>
+/// Output for an agent-stop hook.
+/// </summary>
+public sealed class AgentStopHookOutput
+{
+    /// <summary>
+    /// Set to <c>"block"</c> to keep the agent running.
+    /// </summary>
+    [JsonPropertyName("decision")]
+    public string? Decision { get; set; }
+
+    /// <summary>
+    /// Follow-up instruction supplied when the stop is blocked.
+    /// </summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}
+
+/// <summary>
 /// Hook handlers configuration for a session.
 /// </summary>
 public sealed class SessionHooks
@@ -1917,6 +1978,11 @@ public sealed class SessionHooks
     /// Handler called when an error occurs.
     /// </summary>
     public Func<ErrorOccurredHookInput, HookInvocation, Task<ErrorOccurredHookOutput?>>? OnErrorOccurred { get; set; }
+
+    /// <summary>
+    /// Handler called when the top-level agent reaches a natural stop.
+    /// </summary>
+    public Func<AgentStopHookInput, HookInvocation, Task<AgentStopHookOutput?>>? OnAgentStop { get; set; }
 }
 
 /// <summary>
@@ -2275,7 +2341,7 @@ public sealed class CapiSessionOptions
 public sealed class AzureOptions
 {
     /// <summary>
-    /// Azure OpenAI API version to use (e.g., "2024-02-01").
+    /// Azure OpenAI API version. When omitted, the runtime uses the GA versionless v1 route.
     /// </summary>
     [JsonPropertyName("apiVersion")]
     public string? ApiVersion { get; set; }
@@ -2660,8 +2726,8 @@ public sealed class CustomAgentConfig
 
     /// <summary>
     /// Reasoning effort level for this agent's model.
-    /// When omitted, no per-agent override is sent and the backend chooses its
-    /// default. The parent session effort is not inherited.
+    /// When omitted, the runtime resolves model configuration, then inherits
+    /// the parent effort only if this agent uses the same model.
     /// </summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -2831,6 +2897,64 @@ public struct SetModelOptions
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
+}
+
+/// <summary>
+/// A single configuration entry in a <see cref="CopilotExpAssignmentResponse"/>.
+/// Each entry carries an identifier and a bag of typed parameter values.
+/// </summary>
+public sealed class ExpConfigEntry
+{
+    /// <summary>Identifier of the configuration entry.</summary>
+    [JsonPropertyName("Id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Parameter values keyed by parameter name. Each value is a scalar string,
+    /// number, boolean, or <c>null</c>.
+    /// </summary>
+    [JsonPropertyName("Parameters")]
+    public IDictionary<string, JsonValue?> Parameters { get; set; } = new Dictionary<string, JsonValue?>();
+}
+
+/// <summary>
+/// ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+/// fetches from the experimentation service. Property names serialize as
+/// PascalCase (<c>Features</c>, <c>Flights</c>, ...) to match the on-the-wire
+/// contract consumed by the runtime.
+/// </summary>
+public sealed class CopilotExpAssignmentResponse
+{
+    /// <summary>Enabled feature names.</summary>
+    [JsonPropertyName("Features")]
+    public IList<string> Features { get; set; } = new List<string>();
+
+    /// <summary>Assigned flights keyed by flight name.</summary>
+    [JsonPropertyName("Flights")]
+    public IDictionary<string, string> Flights { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>Configuration entries carrying typed parameter values.</summary>
+    [JsonPropertyName("Configs")]
+    public IList<ExpConfigEntry> Configs { get; set; } = new List<ExpConfigEntry>();
+
+    /// <summary>Opaque parameter-group payload passed through untouched. Optional.</summary>
+    [JsonPropertyName("ParameterGroups")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? ParameterGroups { get; set; }
+
+    /// <summary>Version of the flighting configuration. Optional.</summary>
+    [JsonPropertyName("FlightingVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? FlightingVersion { get; set; }
+
+    /// <summary>Impression identifier for the assignment. Optional.</summary>
+    [JsonPropertyName("ImpressionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImpressionId { get; set; }
+
+    /// <summary>Assignment context string forwarded to CAPI and telemetry.</summary>
+    [JsonPropertyName("AssignmentContext")]
+    public string AssignmentContext { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -3339,7 +3463,7 @@ public abstract class SessionConfigBase
     /// completion. It is not part of the broadly advertised public surface.
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public JsonElement? ExpAssignments { get; set; }
+    public CopilotExpAssignmentResponse? ExpAssignments { get; set; }
 
     /// <summary>
     /// Opt-in: when <c>true</c>, the runtime self-fetches enterprise managed
@@ -4041,6 +4165,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(AutoModeSwitchRequest))]
 [JsonSerializable(typeof(AutoModeSwitchResponse))]
 [JsonSerializable(typeof(CustomAgentConfig))]
+[JsonSerializable(typeof(CopilotExpAssignmentResponse))]
+[JsonSerializable(typeof(ExpConfigEntry))]
 [JsonSerializable(typeof(ExitPlanModeRequest))]
 [JsonSerializable(typeof(ExitPlanModeResult))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]

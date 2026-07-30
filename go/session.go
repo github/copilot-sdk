@@ -808,6 +808,17 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 			return nil, fmt.Errorf("invalid hook input: %w", err)
 		}
 		return hooks.OnErrorOccurred(input, invocation)
+
+	case "agentStop":
+		if hooks.OnAgentStop == nil {
+			return nil, nil
+		}
+		var input AgentStopHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnAgentStop(input, invocation)
+
 	default:
 		return nil, nil
 	}

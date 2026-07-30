@@ -5,6 +5,7 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -20,13 +21,13 @@ public sealed class E2ETestContext : IAsyncDisposable
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
     public ILogger? Logger { get; set; }
 
-    private readonly CapiProxy _proxy;
+    private readonly ReplayProxy _proxy;
     private readonly string _repoRoot;
     private readonly object _clientsLock = new();
     private readonly List<CopilotClient> _persistentClients = [];
     private readonly List<CopilotClient> _transientClients = [];
 
-    private E2ETestContext(string homeDir, string workDir, string proxyUrl, CapiProxy proxy, string repoRoot)
+    private E2ETestContext(string homeDir, string workDir, string proxyUrl, ReplayProxy proxy, string repoRoot)
     {
         HomeDir = homeDir;
         WorkDir = workDir;
@@ -50,7 +51,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         homeDir = ResolveSymlinks(homeDir);
         workDir = ResolveSymlinks(workDir);
 
-        var proxy = new CapiProxy();
+        var proxy = new ReplayProxy();
         var proxyUrl = await proxy.StartAsync();
         await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
             Login: "e2e-test-user",
@@ -141,20 +142,40 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
         // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        // runnable index.js ships in the installed platform package
-        // (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        // runnable index.js ships in the installed platform package.
         var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
-        if (Directory.Exists(githubModules))
-        {
-            var candidate = Directory.EnumerateDirectories(githubModules, "copilot-*")
-                .Select(dir => Path.Join(dir, "index.js"))
-                .FirstOrDefault(File.Exists);
-            if (candidate != null)
-                return candidate;
-        }
+        var packagePrefix = GetCliPackagePrefix();
+        var candidates = Directory.Exists(githubModules)
+            ? Directory.EnumerateDirectories(githubModules, $"{packagePrefix}-*", SearchOption.TopDirectoryOnly)
+                .Select(directory => Path.Join(directory, "index.js"))
+                .Where(File.Exists)
+                .ToArray()
+            : [];
 
-        throw new InvalidOperationException(
-            $"CLI not found under {githubModules}. Run 'npm install' in the nodejs directory first.");
+        return candidates.Length switch
+        {
+            1 => candidates[0],
+            0 => throw new InvalidOperationException(
+                $"CLI package matching '{packagePrefix}-*' not found under {githubModules}. " +
+                "Run 'npm install' in the nodejs directory first."),
+            _ => throw new InvalidOperationException(
+                $"Multiple CLI packages matching '{packagePrefix}-*' found under {githubModules}: " +
+                string.Join(", ", candidates.Select(Path.GetDirectoryName))),
+        };
+    }
+
+    private static string GetCliPackagePrefix()
+    {
+        var platform = OperatingSystem.IsWindows()
+            ? "win32"
+            : OperatingSystem.IsMacOS()
+                ? "darwin"
+                : OperatingSystem.IsLinux()
+                    ? RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
+                        ? "linuxmusl"
+                        : "linux"
+                    : throw new PlatformNotSupportedException("Unsupported operating system for Copilot CLI E2E tests.");
+        return $"copilot-{platform}";
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
@@ -163,7 +184,10 @@ public sealed class E2ETestContext : IAsyncDisposable
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         var sanitizedName = Regex.Replace(testName!, @"[^a-zA-Z0-9]", "_").ToLowerInvariant();
         var snapshotPath = Path.Combine(_repoRoot, "test", "snapshots", testFile, $"{sanitizedName}.yaml");
-        await _proxy.ConfigureAsync(snapshotPath, WorkDir);
+        await _proxy.ConfigureAsync(
+            snapshotPath,
+            WorkDir,
+            E2ETestBackendConfiguration.Current.ToWireName());
     }
 
     public Task<List<ParsedHttpExchange>> GetExchangesAsync()
@@ -350,6 +374,25 @@ public sealed class E2ETestContext : IAsyncDisposable
             }
         }
         return client;
+    }
+
+    public Task<CopilotSession> CreateSessionAsync(
+        CopilotClient client,
+        SessionConfig? config = null)
+    {
+        config ??= new SessionConfig();
+        E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
+        return client.CreateSessionAsync(config);
+    }
+
+    public Task<CopilotSession> ResumeSessionAsync(
+        CopilotClient client,
+        string sessionId,
+        ResumeSessionConfig? config = null)
+    {
+        config ??= new ResumeSessionConfig();
+        E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
+        return client.ResumeSessionAsync(sessionId, config);
     }
 
     public void UntrackClient(CopilotClient client)

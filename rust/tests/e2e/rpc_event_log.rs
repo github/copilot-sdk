@@ -45,6 +45,7 @@ async fn should_read_persisted_events_from_beginning() {
                     .read(EventLogReadRequest {
                         agent_scope: None,
                         cursor: None,
+                        include_ephemeral: None,
                         max: Some(100),
                         types: Some(json!("*")),
                         wait_ms: Some(0),
@@ -90,6 +91,7 @@ async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
                     .read(EventLogReadRequest {
                         agent_scope: None,
                         cursor: Some(tail.cursor),
+                        include_ephemeral: None,
                         max: Some(10),
                         types: Some(json!("*")),
                         wait_ms: Some(0),
@@ -172,6 +174,7 @@ async fn should_longpoll_with_types_filter_for_titlechanged_event() {
                 let read_future = event_log.read(EventLogReadRequest {
                     agent_scope: None,
                     cursor: Some(tail.cursor),
+                    include_ephemeral: None,
                     max: Some(10),
                     types: Some(json!(["session.title_changed"])),
                     wait_ms: Some(5_000),

@@ -72,13 +72,26 @@ public final class ServerPluginsMarketplacesApi {
 
     /**
      * Optional marketplace name; omit to refresh all.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<PluginsMarketplacesRefreshResult> refresh() {
-        return caller.invoke("plugins.marketplaces.refresh", java.util.Map.of(), PluginsMarketplacesRefreshResult.class);
+        return refresh(null);
+    }
+
+    /**
+     * Optional marketplace name; omit to refresh all.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<PluginsMarketplacesRefreshResult> refresh(PluginsMarketplacesRefreshParams params) {
+        return caller.invoke("plugins.marketplaces.refresh", params == null ? java.util.Map.of() : params, PluginsMarketplacesRefreshResult.class);
     }
 
 }

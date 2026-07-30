@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional model identifier to scope the endpoint snapshot to.
+ * Request parameters for the {@code session.provider.getEndpoint} RPC method.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionProviderGetEndpointParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Model identifier the caller intends to use against the returned endpoint. Used to pick the correct wire shape. Omit to use whichever model the session is currently using. */
+    @JsonProperty("modelId") String modelId
 ) {
 }

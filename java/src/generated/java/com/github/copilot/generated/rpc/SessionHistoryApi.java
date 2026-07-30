@@ -32,13 +32,31 @@ public final class SessionHistoryApi {
 
     /**
      * Optional compaction parameters.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionHistoryCompactResult> compact() {
-        return caller.invoke("session.history.compact", java.util.Map.of("sessionId", this.sessionId), SessionHistoryCompactResult.class);
+        return compact(null);
+    }
+
+    /**
+     * Optional compaction parameters.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionHistoryCompactResult> compact(SessionHistoryCompactParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.history.compact", _p, SessionHistoryCompactResult.class);
     }
 
     /**
@@ -55,6 +73,49 @@ public final class SessionHistoryApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.history.truncate", _p, SessionHistoryTruncateResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionHistoryListRewindPointsResult> listRewindPoints() {
+        return caller.invoke("session.history.listRewindPoints", java.util.Map.of("sessionId", this.sessionId), SessionHistoryListRewindPointsResult.class);
+    }
+
+    /**
+     * Event boundary to preview for conversation-and-files rewind.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionHistoryPreviewRewindResult> previewRewind(SessionHistoryPreviewRewindParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.history.previewRewind", _p, SessionHistoryPreviewRewindResult.class);
+    }
+
+    /**
+     * Boundary and mode for rewinding session history.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionHistoryRewindResult> rewind(SessionHistoryRewindParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.history.rewind", _p, SessionHistoryRewindResult.class);
     }
 
     /**

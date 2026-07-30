@@ -70,6 +70,20 @@ let pong = client.ping("hello").await?;
 client.stop().await?;
 ```
 
+After `Client::start` succeeds, inspect its startup cost without parsing logs:
+
+```rust,ignore
+let timings = client.startup_timings().expect("started by Client::start");
+println!(
+    "startup={}ms transport={}ms handshake={}ms",
+    timings.total_ms, timings.transport_setup_ms, timings.handshake_ms
+);
+```
+
+Transport-specific phases are optional. For example, `port_wait_ms` is present
+only for TCP and `process_spawn_ms` is absent for external and in-process
+transports.
+
 **`ClientOptions`:**
 
 | Field               | Type                        | Description                                                       |

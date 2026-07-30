@@ -591,7 +591,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
 - `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
-- `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
+- `Azure.APIVersion` (string): Azure API version; when empty, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 
@@ -646,7 +646,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
 
 ```go
-client, err := copilot.NewClient(copilot.ClientOptions{
+client := copilot.NewClient(&copilot.ClientOptions{
     Telemetry: &copilot.TelemetryConfig{
         OTLPEndpoint: "http://localhost:4318",
     },

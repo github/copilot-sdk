@@ -33,6 +33,7 @@ from copilot.rpc import (
     ModeSetRequest,
     NameSetAutoRequest,
     NameSetRequest,
+    PermissionsResetSessionApprovalsRequest,
     PermissionsSetApproveAllRequest,
     PlanUpdateRequest,
     SessionSetCredentialsParams,
@@ -259,7 +260,6 @@ class TestRpcSessionState:
     ):
         first_dir = _create_unique_directory(ctx, "metadata-first")
         second_dir = _create_unique_directory(ctx, "metadata-second")
-        context_dir = _create_unique_directory(ctx, "metadata-context")
         branch = f"rpc-context-{uuid.uuid4().hex}"
 
         session = await ctx.client.create_session(
@@ -304,10 +304,13 @@ class TestRpcSessionState:
 
             unsubscribe = session.on(on_event)
             try:
+                # For local sessions the CLI treats the session cwd as authoritative, so a
+                # record_context_change that reports a divergent cwd is ignored and emits
+                # no event. Report the current working directory (second_dir) to observe it.
                 result = await session.rpc.metadata.record_context_change(
                     MetadataRecordContextChangeRequest(
                         context=SessionWorkingDirectoryContext(
-                            cwd=context_dir,
+                            cwd=second_dir,
                             git_root=first_dir,
                             branch=branch,
                             repository="github/copilot-sdk-e2e",
@@ -321,7 +324,7 @@ class TestRpcSessionState:
                 assert result is not None
 
                 event = await asyncio.wait_for(context_future, timeout=15.0)
-                assert _path_equals(context_dir, event.data.cwd)
+                assert _path_equals(second_dir, event.data.cwd)
                 assert _path_equals(first_dir, event.data.git_root)
                 assert event.data.branch == branch
                 assert event.data.repository == "github/copilot-sdk-e2e"
@@ -592,7 +595,9 @@ class TestRpcSessionState:
                 )
                 assert approve_all.success
 
-                reset = await session.rpc.permissions.reset_session_approvals()
+                reset = await session.rpc.permissions.reset_session_approvals(
+                    PermissionsResetSessionApprovalsRequest()
+                )
                 assert reset.success
             finally:
                 await session.rpc.permissions.set_approve_all(

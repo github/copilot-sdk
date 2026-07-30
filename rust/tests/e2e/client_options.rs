@@ -5,8 +5,8 @@ use github_copilot_sdk::canvas::CanvasDeclaration;
 use github_copilot_sdk::rpc::{OpenCanvasInstance, RemoteSessionMode};
 use github_copilot_sdk::session_events::{ReasoningSummary, SessionLimitsConfig};
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, ExtensionInfo, ProviderConfig, ResumeSessionConfig,
-    SessionConfig, SessionId, Transport,
+    CliProgram, Client, ClientOptions, CopilotExpAssignmentResponse, ExtensionInfo, ProviderConfig,
+    ResumeSessionConfig, SessionConfig, SessionId, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -72,7 +72,11 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
                 .with_request_extensions(true)
                 .with_extension_sdk_path(path_string(&extension_sdk_path))
                 .with_extension_info(ExtensionInfo::new("github-app", "rust-e2e-extension"))
-                .with_exp_assignments(json!({ "feature": "enabled" })),
+                .with_exp_assignments(CopilotExpAssignmentResponse {
+                    flights: HashMap::from([("feature".to_string(), "enabled".to_string())]),
+                    assignment_context: "ctx".to_string(),
+                    ..Default::default()
+                }),
         )
         .await
         .expect("create session");
@@ -135,7 +139,10 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
         params["canvases"][0]["description"],
         json!("Canvas description")
     );
-    assert_eq!(params["expAssignments"]["feature"], json!("enabled"));
+    assert_eq!(
+        params["expAssignments"]["Flights"]["feature"],
+        json!("enabled")
+    );
 
     let update = fake.captured_request("session.options.update");
     let update_params = update.params.as_object().expect("options update params");
@@ -251,7 +258,11 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
                 .with_custom_agents_local_only(true)
                 .with_coauthor_enabled(false)
                 .with_manage_schedule_enabled(false)
-                .with_exp_assignments(json!({ "resumeFeature": "enabled" })),
+                .with_exp_assignments(CopilotExpAssignmentResponse {
+                    flights: HashMap::from([("resumeFeature".to_string(), "enabled".to_string())]),
+                    assignment_context: "ctx".to_string(),
+                    ..Default::default()
+                }),
         )
         .await
         .expect("resume session");
@@ -298,7 +309,10 @@ async fn should_forward_advanced_session_resume_options_to_the_cli() {
         params["extensionInfo"],
         json!({ "source": "github-app", "name": "rust-e2e-extension" })
     );
-    assert_eq!(params["expAssignments"]["resumeFeature"], json!("enabled"));
+    assert_eq!(
+        params["expAssignments"]["Flights"]["resumeFeature"],
+        json!("enabled")
+    );
 
     let update = fake.captured_request("session.options.update");
     let update_params = update.params.as_object().expect("options update params");

@@ -50,7 +50,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 1. Install [Python 3.8+](https://www.python.org/downloads/)
 1. Install [uv](https://github.com/astral-sh/uv)
-1. Install dependencies: `cd python && uv pip install -e ".[dev]"`
+1. Install dependencies: `cd python && uv pip install -e . --group dev`
 
 ### Go SDK
 

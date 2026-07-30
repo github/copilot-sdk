@@ -44,6 +44,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("shellToolInfo") ToolExecutionStartShellToolInfo shellToolInfo,
         /** Model identifier that generated this tool call */
         @JsonProperty("model") String model,
+        @JsonProperty("rte") Boolean rte,
         /** Name of the MCP server hosting this tool, when the tool is an MCP tool */
         @JsonProperty("mcpServerName") String mcpServerName,
         /** Original tool name on the MCP server, when the tool is an MCP tool */

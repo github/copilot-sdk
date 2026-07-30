@@ -1017,6 +1017,30 @@ ErrorOccurredHandler = Callable[
 ]
 
 
+class AgentStopHookInput(TypedDict):
+    """Input for the agent-stop hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    stopReason: NotRequired[str]
+    transcriptPath: NotRequired[str]
+    stopHookActive: NotRequired[bool]
+
+
+class AgentStopHookOutput(TypedDict, total=False):
+    """Output for the agent-stop hook."""
+
+    decision: Literal["block"]
+    reason: str
+
+
+AgentStopHandler = Callable[
+    [AgentStopHookInput, dict[str, str]],
+    AgentStopHookOutput | None | Awaitable[AgentStopHookOutput | None],
+]
+
+
 class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
@@ -1028,6 +1052,7 @@ class SessionHooks(TypedDict, total=False):
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
+    on_agent_stop: AgentStopHandler
 
 
 # ============================================================================
@@ -1080,8 +1105,8 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
     # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
     model: NotRequired[str]
-    # Reasoning effort for this agent's model. When omitted, no per-agent override
-    # is sent and the backend chooses its default; the parent effort is not inherited.
+    # Reasoning effort for this agent's model. When omitted, the runtime resolves
+    # model configuration, then inherits the parent effort only for the same model.
     reasoning_effort: NotRequired[ReasoningEffort]
 
 
@@ -1183,7 +1208,8 @@ class MemoryConfiguration(TypedDict):
 class AzureProviderOptions(TypedDict, total=False):
     """Azure-specific provider configuration"""
 
-    api_version: str  # Azure API version. Defaults to "2024-10-21".
+    # Azure API version. When omitted, the runtime uses the GA versionless v1 route.
+    api_version: str
 
 
 class ProviderTokenArgs(TypedDict):
@@ -2721,6 +2747,7 @@ class CopilotSession:
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
+            "agentStop": hooks.get("on_agent_stop"),
         }
 
         handler = handler_map.get(hook_type)
@@ -2737,6 +2764,8 @@ class CopilotSession:
             transformed: dict[str, Any] = dict(input_data)
             if "cwd" in transformed:
                 transformed["workingDirectory"] = transformed.pop("cwd")
+            if "stop_hook_active" in transformed:
+                transformed["stopHookActive"] = transformed.pop("stop_hook_active")
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)

@@ -34,6 +34,9 @@ from .client import (
     CloudSessionOptions,
     CloudSessionRepository,
     CopilotClient,
+    CopilotExpAssignmentResponse,
+    ExpConfigEntry,
+    ExpFlagValue,
     GetAuthStatusResponse,
     GetStatusResponse,
     InProcessRuntimeConnection,
@@ -89,6 +92,9 @@ from .generated.session_events import (
     SessionEventType,
 )
 from .session import (
+    AgentStopHandler,
+    AgentStopHookInput,
+    AgentStopHookOutput,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -172,6 +178,7 @@ from .session_fs_provider import (
     SessionFsProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
+    SessionFsSqliteTransactionFailure,
     create_session_fs_adapter,
 )
 from .tools import (
@@ -193,6 +200,9 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "AgentStopHandler",
+    "AgentStopHookInput",
+    "AgentStopHookOutput",
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
@@ -213,6 +223,7 @@ __all__ = [
     "CommandDefinition",
     "CopilotClient",
     "CopilotClientMode",
+    "CopilotExpAssignmentResponse",
     "CopilotSession",
     "CopilotRequestContext",
     "CopilotRequestHandler",
@@ -227,6 +238,8 @@ __all__ = [
     "ErrorOccurredHandler",
     "ErrorOccurredHookInput",
     "ErrorOccurredHookOutput",
+    "ExpConfigEntry",
+    "ExpFlagValue",
     "ExitPlanModeHandler",
     "ExitPlanModeRequest",
     "ExitPlanModeResult",
@@ -312,6 +325,7 @@ __all__ = [
     "SessionFsProvider",
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
+    "SessionFsSqliteTransactionFailure",
     "SessionHooks",
     "SessionLimitsConfig",
     "SessionLifecycleEvent",

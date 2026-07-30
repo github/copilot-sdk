@@ -1095,7 +1095,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
-            config.Hooks.OnErrorOccurred != null);
+            config.Hooks.OnErrorOccurred != null ||
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
@@ -1320,7 +1321,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
-            config.Hooks.OnErrorOccurred != null);
+            config.Hooks.OnErrorOccurred != null ||
+            config.Hooks.OnAgentStop != null);
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
@@ -2758,7 +2760,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001
@@ -2864,7 +2866,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
-        [property: JsonPropertyName("expAssignments")] JsonElement? ExpAssignments = null,
+        [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null);
 #pragma warning restore GHCP001

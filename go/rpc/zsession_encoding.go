@@ -107,6 +107,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAssistantTurnRetry:
+		var d AssistantTurnRetryData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAssistantTurnStart:
 		var d AssistantTurnStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -197,6 +203,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeFactoryRunUpdated:
+		var d FactoryRunUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeHookEnd:
 		var d HookEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -265,6 +277,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeModelCallFailure:
 		var d ModelCallFailureData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeModelCallStart:
+		var d ModelCallStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -433,6 +451,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionLimitsExhaustedRequested:
 		var d SessionLimitsExhaustedRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionManagedSettingsEnforced:
+		var d SessionManagedSettingsEnforcedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -661,6 +685,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeToolExecutionStart:
 		var d ToolExecutionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeToolSearchActivated:
+		var d ToolSearchActivatedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -1346,6 +1376,12 @@ func unmarshalSystemNotification(data []byte) (SystemNotification, error) {
 			return nil, err
 		}
 		return &d, nil
+	case SystemNotificationTypeUnclassified:
+		var d SystemNotificationUnclassified
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	default:
 		return &RawSystemNotification{Discriminator: raw.Type, Raw: data}, nil
 	}
@@ -1419,6 +1455,17 @@ func (r SystemNotificationShellCompleted) MarshalJSON() ([]byte, error) {
 
 func (r SystemNotificationShellDetachedCompleted) MarshalJSON() ([]byte, error) {
 	type alias SystemNotificationShellDetachedCompleted
+	return json.Marshal(struct {
+		Type SystemNotificationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationUnclassified
 	return json.Marshal(struct {
 		Type SystemNotificationType `json:"type"`
 		alias
@@ -1869,6 +1916,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
 		RequestID         string          `json:"requestId"`
 		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
+		RiskAssessment    any             `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1890,6 +1938,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	}
 	r.RequestID = raw.RequestID
 	r.ResolvedByHook = raw.ResolvedByHook
+	r.RiskAssessment = raw.RiskAssessment
 	return nil
 }
 

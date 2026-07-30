@@ -34,7 +34,7 @@ public class TelemetryExportE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             },
         });
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EchoTelemetryMarker, toolName, "Echoes a marker string for telemetry validation.")],
             OnPermissionRequest = PermissionHandler.ApproveAll,

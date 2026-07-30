@@ -198,6 +198,26 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFSSqliteQueryType, query string, params map[string]any) (*copilot.SessionFSSqliteQueryResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.runQueryLocked(queryType, query), nil
+}
+
+func (p *inMemorySqliteProvider) SqliteTransaction(statements []rpc.SessionFSSqliteTransactionStatement) ([]copilot.SessionFSSqliteQueryResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	results := make([]copilot.SessionFSSqliteQueryResult, 0, len(statements))
+	for _, statement := range statements {
+		results = append(results, *p.runQueryLocked(statement.QueryType, statement.Query))
+	}
+	return results, nil
+}
+
+// runQueryLocked returns canned results based on query type. The agent doesn't
+// know or care whether a real SQLite database is behind this — it just receives
+// SQL tool results. These stubs return plausible responses so the agent can
+// proceed normally without pulling in a real SQLite dependency.
+//
+// Callers must hold p.mu.
+func (p *inMemorySqliteProvider) runQueryLocked(queryType rpc.SessionFSSqliteQueryType, query string) *copilot.SessionFSSqliteQueryResult {
 	p.hadQuery = true
 	*p.sqliteCalls = append(*p.sqliteCalls, sqliteCall{
 		SessionID: p.sessionID,
@@ -205,14 +225,10 @@ func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFSSqliteQueryT
 		Query:     query,
 	})
 
-	// Return canned results based on query type. The agent doesn't know or care
-	// whether a real SQLite database is behind this — it just receives SQL tool
-	// results. These stubs return plausible responses so the agent can proceed
-	// normally without pulling in a real SQLite dependency.
 	upper := strings.ToUpper(strings.TrimSpace(query))
 	switch queryType {
 	case rpc.SessionFSSqliteQueryTypeExec:
-		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}
 	case rpc.SessionFSSqliteQueryTypeRun:
 		lastID := int64(1)
 		return &copilot.SessionFSSqliteQueryResult{
@@ -220,17 +236,34 @@ func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFSSqliteQueryT
 			Rows:            []map[string]any{},
 			RowsAffected:    1,
 			LastInsertRowid: &lastID,
-		}, nil
+		}
 	case rpc.SessionFSSqliteQueryTypeQuery:
-		if strings.Contains(upper, "SELECT") {
+		// Only the "items" table the test asks the agent to create is modelled
+		// here. The runtime also reads its own bookkeeping tables (for example
+		// inbox_entries) through this provider and deserializes those rows into
+		// typed structs, so returning the canned item row for every SELECT would
+		// make the runtime reject rows it cannot parse.
+		if strings.Contains(upper, "SELECT") && readsTable(upper, "ITEMS") {
 			return &copilot.SessionFSSqliteQueryResult{
 				Columns: []string{"id", "name"},
 				Rows:    []map[string]any{{"id": "a1", "name": "Widget"}},
-			}, nil
+			}
 		}
-		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+		return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}
 	}
-	return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}, nil
+	return &copilot.SessionFSSqliteQueryResult{Columns: []string{}, Rows: []map[string]any{}}
+}
+
+// readsTable reports whether an upper-cased SQL statement selects from the given
+// table, tolerating the quoting styles the agent may emit.
+func readsTable(upperQuery string, table string) bool {
+	names := []string{table, `"` + table + `"`, "`" + table + "`", "[" + table + "]", "MAIN." + table}
+	for _, name := range names {
+		if strings.Contains(upperQuery, "FROM "+name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {

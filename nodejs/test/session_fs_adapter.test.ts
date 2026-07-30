@@ -67,6 +67,20 @@ describe("SessionFsAdapter", () => {
                         rowsAffected: 0,
                     };
                 },
+                async transaction(statements) {
+                    return statements.map((statement) => ({
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [
+                            {
+                                sessionId,
+                                query: statement.query,
+                                queryType: statement.queryType,
+                                answer: statement.params?.answer,
+                            },
+                        ],
+                        rowsAffected: 0,
+                    }));
+                },
                 async exists() {
                     return true;
                 },
@@ -205,6 +219,7 @@ describe("SessionFsAdapter", () => {
                 rename: () => Promise.reject(error),
                 sqlite: {
                     query: () => Promise.reject(error),
+                    transaction: () => Promise.reject(error),
                     exists: () => Promise.reject(error),
                 },
             };
@@ -243,6 +258,14 @@ describe("SessionFsAdapter", () => {
             handler.sqliteQuery({ sessionId, query: "select 1", queryType: "query" })
         ).rejects.toThrow("missing file");
         await expect(handler.sqliteExists({ sessionId })).rejects.toThrow("missing file");
+
+        // sqliteTransaction reports a classified result-level error instead
+        const transaction = await handler.sqliteTransaction({
+            sessionId,
+            statements: [{ query: "select 1", queryType: "query" }],
+        });
+        expect(transaction.results).toEqual([]);
+        expect(transaction.error).toEqual({ errorClass: "fatal", message: "missing file" });
 
         const unknownProvider = createSessionFsAdapter(makeThrowingProvider(makeError("bad path")));
         const unknownError = await unknownProvider.writeFile({

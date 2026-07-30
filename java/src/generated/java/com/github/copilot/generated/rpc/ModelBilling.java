@@ -27,7 +27,7 @@ public record ModelBilling(
     @JsonProperty("tokenPrices") ModelBillingTokenPrices tokenPrices,
     /** Whole-number percentage discount (0-100) applied to usage billed through this model. Populated for the synthetic `auto` model, where requests routed by auto-mode are billed at a reduced rate; absent for concrete models. */
     @JsonProperty("discountPercent") Long discountPercent,
-    /** Active server-driven promotion for this model, if any. Present when the model is being promoted with a time-boxed discount. */
+    /** Active server-driven promotion for this model, if any. Present when the model is being promoted with a discount, which may be time-boxed or open-ended. */
     @JsonProperty("promo") ModelBillingPromo promo
 ) {
 }

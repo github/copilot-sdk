@@ -31,14 +31,32 @@ public final class SessionAgentApi {
     }
 
     /**
-     * Identifies the target session.
+     * Controls whether built-in agents and authored prompt text are included.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionAgentListResult> list() {
-        return caller.invoke("session.agent.list", java.util.Map.of("sessionId", this.sessionId), SessionAgentListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Controls whether built-in agents and authored prompt text are included.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionAgentListResult> list(SessionAgentListParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.agent.list", _p, SessionAgentListResult.class);
     }
 
     /**

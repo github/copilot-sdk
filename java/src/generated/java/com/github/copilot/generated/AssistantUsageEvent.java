@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -45,6 +46,8 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("cacheReadTokens") Long cacheReadTokens,
         /** Number of tokens written to prompt cache */
         @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
+        /** Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state. */
+        @JsonProperty("cacheExpiresAt") OffsetDateTime cacheExpiresAt,
         /** Number of output tokens used for reasoning (e.g., chain-of-thought) */
         @JsonProperty("reasoningTokens") Long reasoningTokens,
         /** Model multiplier cost for billing purposes */
@@ -57,12 +60,15 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
         @JsonProperty("initiator") String initiator,
+        /** Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request. */
+        @JsonProperty("interactionType") String interactionType,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        @JsonProperty("rte") Boolean rte,
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Parent tool call ID when this usage originates from a sub-agent */

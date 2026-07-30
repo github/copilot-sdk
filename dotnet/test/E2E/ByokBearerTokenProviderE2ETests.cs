@@ -36,6 +36,7 @@ namespace GitHub.Copilot.Test.E2E;
 ///   and the resulting token reaches that provider's endpoint.</item>
 /// </list>
 /// </remarks>
+[Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
 public class ByokBearerTokenProviderE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "byok_bearer_token_provider", output)
 {

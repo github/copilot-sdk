@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>
  * When using a BYOK (Bring Your Own Key) setup with Azure OpenAI, this class
  * allows you to specify Azure-specific settings such as the API version to use.
+ * When no API version is set, the runtime uses the GA versionless v1 route.
  *
  * <h2>Example Usage</h2>
  *
@@ -32,7 +33,8 @@ public class AzureOptions {
     /**
      * Gets the Azure OpenAI API version.
      *
-     * @return the API version string
+     * @return the API version string, or {@code null} to use the GA versionless v1
+     *         route
      */
     public String getApiVersion() {
         return apiVersion;
@@ -41,7 +43,8 @@ public class AzureOptions {
     /**
      * Sets the Azure OpenAI API version to use.
      * <p>
-     * Examples: {@code "2024-02-01"}, {@code "2023-12-01-preview"}
+     * Examples: {@code "2024-02-01"}, {@code "2023-12-01-preview"} When this option
+     * is not set, the runtime uses the GA versionless v1 route.
      *
      * @param apiVersion
      *            the API version string
