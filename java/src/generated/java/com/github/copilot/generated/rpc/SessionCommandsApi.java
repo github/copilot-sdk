@@ -32,13 +32,31 @@ public final class SessionCommandsApi {
 
     /**
      * Optional filters controlling which command sources to include in the listing.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionCommandsListResult> list() {
-        return caller.invoke("session.commands.list", java.util.Map.of("sessionId", this.sessionId), SessionCommandsListResult.class);
+        return list(null);
+    }
+
+    /**
+     * Optional filters controlling which command sources to include in the listing.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionCommandsListResult> list(SessionCommandsListParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.list", _p, SessionCommandsListResult.class);
     }
 
     /**

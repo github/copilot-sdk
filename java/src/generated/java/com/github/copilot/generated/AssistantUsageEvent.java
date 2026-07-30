@@ -60,12 +60,15 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
         @JsonProperty("initiator") String initiator,
+        /** Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request. */
+        @JsonProperty("interactionType") String interactionType,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        @JsonProperty("rte") Boolean rte,
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Parent tool call ID when this usage originates from a sub-agent */

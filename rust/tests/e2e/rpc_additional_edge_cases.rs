@@ -1,6 +1,7 @@
 use github_copilot_sdk::rpc::{
-    ModeSetRequest, NameSetRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
-    ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    ModeSetRequest, NameSetRequest, PermissionsResetSessionApprovalsRequest,
+    PermissionsSetApproveAllRequest, PlanUpdateRequest, ShellExecRequest,
+    WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::session_events::SessionMode;
 
@@ -365,7 +366,7 @@ async fn permissions_reset_session_approvals_on_fresh_session_is_noop() {
                 let result = session
                     .rpc()
                     .permissions()
-                    .reset_session_approvals()
+                    .reset_session_approvals(PermissionsResetSessionApprovalsRequest::default())
                     .await
                     .expect("reset approvals");
                 assert!(result.success);

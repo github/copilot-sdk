@@ -2053,6 +2053,7 @@ let mut options = ClientOptions::default();
 options.transport = Transport::External {
     host: "localhost".to_string(),
     port: 4321,
+    connection_token: None,
 };
 let client = Client::start(options).await?;
 

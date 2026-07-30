@@ -2553,7 +2553,8 @@ public class SessionEventDeserializationTest {
         assertEquals("Task completed successfully", castedEvent.getData().summary());
 
         // Verify setData round-trip
-        castedEvent.setData(new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", null));
+        castedEvent.setData(
+                new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", null, null, null, null));
         assertEquals("New summary", castedEvent.getData().summary());
     }
 

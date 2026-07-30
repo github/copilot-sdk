@@ -62,6 +62,36 @@ type SessionFSSqliteProvider interface {
 	SqliteExists() (bool, error)
 }
 
+// SessionFSSqliteTransactionProvider is an optional interface that a
+// [SessionFSSqliteProvider] may also implement to support atomic transactions.
+type SessionFSSqliteTransactionProvider interface {
+	// SqliteTransaction executes statements atomically against the provider's
+	// per-session database, applying busy handling to every statement and rolling
+	// the whole batch back if any statement fails. It returns one result per
+	// statement, in the same order.
+	//
+	// Return a [*SessionFSSqliteTransactionFailure] to classify the failure for
+	// the runtime; any other error is reported as
+	// [rpc.SessionFSSqliteTransactionErrorClassFatal].
+	SqliteTransaction(statements []rpc.SessionFSSqliteTransactionStatement) ([]SessionFSSqliteQueryResult, error)
+}
+
+// SessionFSSqliteTransactionFailure classifies a SQLite transaction failure for
+// the runtime. Return it from [SessionFSSqliteTransactionProvider.SqliteTransaction] with
+// [rpc.SessionFSSqliteTransactionErrorClassBusyOrLocked] when SQLite reported
+// BUSY or LOCKED before commit and the transaction was rolled back, so the
+// runtime knows the call is safe to retry.
+type SessionFSSqliteTransactionFailure struct {
+	// Class is the failure classification reported to the runtime.
+	Class rpc.SessionFSSqliteTransactionErrorClass
+	// Message describes the failure.
+	Message string
+}
+
+func (e *SessionFSSqliteTransactionFailure) Error() string {
+	return e.Message
+}
+
 // SessionFSSqliteQueryResult holds the result of a SQLite query execution.
 // Same shape as the generated RPC type but without the Error field,
 // since providers signal errors by returning a Go error.
@@ -217,17 +247,50 @@ func (a *sessionFSAdapter) SqliteQuery(request *rpc.SessionFSSqliteQueryRequest)
 			RowsAffected: 0,
 		}, nil
 	}
-	var wireRowid *int64
-	if result.LastInsertRowid != nil {
-		rowid := *result.LastInsertRowid
-		wireRowid = &rowid
+	wireResult := toWireSqliteQueryResult(*result)
+	return &wireResult, nil
+}
+
+func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransactionRequest) (*rpc.SessionFSSqliteTransactionResult, error) {
+	sp, ok := a.provider.(SessionFSSqliteTransactionProvider)
+	if !ok {
+		return &rpc.SessionFSSqliteTransactionResult{
+			Results: []rpc.SessionFSSqliteQueryResult{},
+			Error: &rpc.SessionFSSqliteTransactionError{
+				ErrorClass: rpc.SessionFSSqliteTransactionErrorClassFatal,
+				Message:    "SQLite is not supported by this session filesystem provider",
+			},
+		}, nil
 	}
-	return &rpc.SessionFSSqliteQueryResult{
-		Columns:         result.Columns,
-		Rows:            result.Rows,
+	results, err := sp.SqliteTransaction(request.Statements)
+	if err != nil {
+		return &rpc.SessionFSSqliteTransactionResult{
+			Results: []rpc.SessionFSSqliteQueryResult{},
+			Error:   toSessionFSSqliteTransactionError(err),
+		}, nil
+	}
+	wireResults := make([]rpc.SessionFSSqliteQueryResult, 0, len(results))
+	for _, result := range results {
+		wireResults = append(wireResults, toWireSqliteQueryResult(result))
+	}
+	return &rpc.SessionFSSqliteTransactionResult{Results: wireResults}, nil
+}
+
+func toWireSqliteQueryResult(result SessionFSSqliteQueryResult) rpc.SessionFSSqliteQueryResult {
+	columns := result.Columns
+	if columns == nil {
+		columns = []string{}
+	}
+	rows := result.Rows
+	if rows == nil {
+		rows = []map[string]any{}
+	}
+	return rpc.SessionFSSqliteQueryResult{
+		Columns:         columns,
+		Rows:            rows,
 		RowsAffected:    result.RowsAffected,
-		LastInsertRowid: wireRowid,
-	}, nil
+		LastInsertRowid: result.LastInsertRowid,
+	}
 }
 
 func (a *sessionFSAdapter) SqliteExists(request *rpc.SessionFSSqliteExistsRequest) (*rpc.SessionFSSqliteExistsResult, error) {
@@ -249,4 +312,18 @@ func toSessionFSError(err error) *rpc.SessionFSError {
 	}
 	msg := err.Error()
 	return &rpc.SessionFSError{Code: code, Message: &msg}
+}
+
+func toSessionFSSqliteTransactionError(err error) *rpc.SessionFSSqliteTransactionError {
+	var failure *SessionFSSqliteTransactionFailure
+	if errors.As(err, &failure) {
+		return &rpc.SessionFSSqliteTransactionError{
+			ErrorClass: failure.Class,
+			Message:    failure.Message,
+		}
+	}
+	return &rpc.SessionFSSqliteTransactionError{
+		ErrorClass: rpc.SessionFSSqliteTransactionErrorClassFatal,
+		Message:    err.Error(),
+	}
 }

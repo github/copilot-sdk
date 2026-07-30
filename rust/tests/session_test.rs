@@ -4309,7 +4309,7 @@ async fn command_execute_handler_error_propagates_to_ack() {
 use github_copilot_sdk::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions,
     SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError, SessionFsSqliteTransactionStatement,
 };
 
 struct RecordingFsProvider {
@@ -4429,6 +4429,24 @@ impl SessionFsSqliteProvider for RecordingFsProvider {
             rows_affected: 0,
             last_insert_rowid: None,
         }))
+    }
+
+    async fn sqlite_transaction(
+        &self,
+        statements: &[SessionFsSqliteTransactionStatement],
+    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+        let mut results = Vec::with_capacity(statements.len());
+        for statement in statements {
+            let result = self
+                .sqlite_query(
+                    statement.query_type.clone(),
+                    &statement.query,
+                    statement.params.as_ref(),
+                )
+                .await?;
+            results.push(result.unwrap_or_default());
+        }
+        Ok(results)
     }
 
     async fn sqlite_exists(&self) -> Result<bool, FsError> {
@@ -4617,6 +4635,13 @@ async fn session_fs_maps_sqlite_errors_to_results() {
                 FsErrorKind::Other,
                 "sqlite unavailable",
             ))
+        }
+
+        async fn sqlite_transaction(
+            &self,
+            _statements: &[SessionFsSqliteTransactionStatement],
+        ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+            Err(SessionFsSqliteTransactionError::fatal("sqlite unavailable"))
         }
 
         async fn sqlite_exists(&self) -> Result<bool, FsError> {

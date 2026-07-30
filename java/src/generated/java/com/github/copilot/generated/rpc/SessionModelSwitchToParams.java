@@ -37,6 +37,8 @@ public record SessionModelSwitchToParams(
     /** Override individual model capabilities resolved by the runtime */
     @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
     /** Explicit context tier for the selected model. `"default"` / `"long_context"` apply the requested tier; omit this field to use normal model behavior with no explicit tier. */
-    @JsonProperty("contextTier") ContextTier contextTier
+    @JsonProperty("contextTier") ContextTier contextTier,
+    /** When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active). */
+    @JsonProperty("deferIfModelChangeQueued") Boolean deferIfModelChangeQueued
 ) {
 }

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional filters controlling which command sources to include in the listing.
+ * Request parameters for the {@code session.commands.list} RPC method.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,12 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionCommandsListParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Include runtime built-in commands */
+    @JsonProperty("includeBuiltins") Boolean includeBuiltins,
+    /** Include enabled user-invocable skills and commands */
+    @JsonProperty("includeSkills") Boolean includeSkills,
+    /** Include commands registered by protocol clients, including SDK clients and extensions */
+    @JsonProperty("includeClientCommands") Boolean includeClientCommands
 ) {
 }

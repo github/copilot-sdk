@@ -42,6 +42,108 @@ public final class SessionScheduleApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> hydrate() {
+        return caller.invoke("session.schedule.hydrate", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleHasSelfPacedResult> hasSelfPaced() {
+        return caller.invoke("session.schedule.hasSelfPaced", java.util.Map.of("sessionId", this.sessionId), SessionScheduleHasSelfPacedResult.class);
+    }
+
+    /**
+     * Register a relative-interval scheduled prompt.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleAddResult> add(SessionScheduleAddParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.schedule.add", _p, SessionScheduleAddResult.class);
+    }
+
+    /**
+     * Register a cron scheduled prompt.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleAddCronResult> addCron(SessionScheduleAddCronParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.schedule.addCron", _p, SessionScheduleAddCronResult.class);
+    }
+
+    /**
+     * Register an absolute-time scheduled prompt.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleAddAtResult> addAt(SessionScheduleAddAtParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.schedule.addAt", _p, SessionScheduleAddAtResult.class);
+    }
+
+    /**
+     * Register a self-paced scheduled prompt.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleAddSelfPacedResult> addSelfPaced(SessionScheduleAddSelfPacedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.schedule.addSelfPaced", _p, SessionScheduleAddSelfPacedResult.class);
+    }
+
+    /**
+     * Re-arm a self-paced scheduled prompt.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionScheduleRearmSelfPacedResult> rearmSelfPaced(SessionScheduleRearmSelfPacedParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.schedule.rearmSelfPaced", _p, SessionScheduleRearmSelfPacedResult.class);
+    }
+
+    /**
      * Identifier of the scheduled prompt to remove.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

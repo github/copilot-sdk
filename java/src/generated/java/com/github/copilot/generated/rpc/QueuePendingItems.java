@@ -21,9 +21,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record QueuePendingItems(
+    /** Stable opaque id for the canonical queued item. Batch rows share one id. */
+    @JsonProperty("id") String id,
     /** Whether this item is a queued user message or a queued slash command / model change */
     @JsonProperty("kind") QueuePendingItemsKind kind,
     /** Human-readable text to display for this queue entry in the UI */
-    @JsonProperty("displayText") String displayText
+    @JsonProperty("displayText") String displayText,
+    /** Agent mode stored on this queued entry, as stamped when it was enqueued. Items without an explicit mode report interactive. This is not necessarily the mode that will constrain the turn: a plan or autopilot session applies its own write gate, continuation loop and permission posture to every drained item regardless of the mode stored here. */
+    @JsonProperty("agentMode") SendAgentMode agentMode
 ) {
 }

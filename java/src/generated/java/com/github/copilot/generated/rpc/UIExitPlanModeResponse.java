@@ -28,6 +28,8 @@ public record UIExitPlanModeResponse(
     /** Whether subsequent edits should be auto-approved without confirmation. */
     @JsonProperty("autoApproveEdits") Boolean autoApproveEdits,
     /** Feedback from the user when they declined the plan or requested changes. */
-    @JsonProperty("feedback") String feedback
+    @JsonProperty("feedback") String feedback,
+    /** When true, the agent is instructed to end its turn without starting implementation so the client can restore the session model and auto-submit a fresh implementation turn on it. Set only when a distinct plan configuration (a different model, reasoning effort, or context tier) actually ran the planning turn. */
+    @JsonProperty("deferImplementation") Boolean deferImplementation
 ) {
 }

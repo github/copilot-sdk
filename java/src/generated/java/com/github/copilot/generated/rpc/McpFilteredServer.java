@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * MCP server filtered by policy, with name, reason, optional redacted reason, and enterprise login.
+ * MCP server filtered by policy, with name, reason, and optional redacted reason.
  *
  * @since 1.0.0
  */
@@ -27,7 +27,7 @@ public record McpFilteredServer(
     @JsonProperty("reason") String reason,
     /** PII-free filter reason */
     @JsonProperty("redactedReason") String redactedReason,
-    /** Enterprise login associated with an allowlist policy */
+    /** Deprecated. This field is no longer populated. */
     @JsonProperty("enterpriseName") String enterpriseName
 ) {
 }

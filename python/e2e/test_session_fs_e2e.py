@@ -280,6 +280,8 @@ class TestSessionFs:
             SessionFSSqliteExistsRequest,
             SessionFSSqliteQueryRequest,
             SessionFSSqliteQueryType,
+            SessionFSSqliteTransactionErrorClass,
+            SessionFSSqliteTransactionRequest,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -403,6 +405,15 @@ class TestSessionFs:
             assert sqlite_query.error is not None
             assert sqlite_query.error.code == SessionFSErrorCode.UNKNOWN
 
+            sqlite_transaction = await handler.sqlite_transaction(
+                SessionFSSqliteTransactionRequest(session_id=session_id, statements=[])
+            )
+            assert sqlite_transaction.results == []
+            assert sqlite_transaction.error is not None
+            assert (
+                sqlite_transaction.error.error_class == SessionFSSqliteTransactionErrorClass.FATAL
+            )
+
             sqlite_exists = await handler.sqlite_exists(
                 SessionFSSqliteExistsRequest(session_id=session_id)
             )
@@ -429,6 +440,8 @@ class TestSessionFs:
             SessionFSSqliteExistsRequest,
             SessionFSSqliteQueryRequest,
             SessionFSSqliteQueryType,
+            SessionFSSqliteTransactionErrorClass,
+            SessionFSSqliteTransactionRequest,
             SessionFSStatRequest,
             SessionFSWriteFileRequest,
         )
@@ -536,6 +549,12 @@ class TestSessionFs:
         assert sqlite_query.columns == []
         assert sqlite_query.rows == []
         assert sqlite_query.rows_affected == 0
+        sqlite_transaction = await handler.sqlite_transaction(
+            SessionFSSqliteTransactionRequest(session_id=sid, statements=[])
+        )
+        assert sqlite_transaction.results == []
+        assert sqlite_transaction.error is not None
+        assert sqlite_transaction.error.error_class == SessionFSSqliteTransactionErrorClass.FATAL
         sqlite_exists = await handler.sqlite_exists(SessionFSSqliteExistsRequest(session_id=sid))
         assert sqlite_exists.exists is False
 
@@ -624,7 +643,8 @@ def create_test_session_fs_handler(provider_root: Path):
 
 
 def provider_path(provider_root: Path, session_id: str, path: str) -> Path:
-    return provider_root / session_id / path.lstrip("/")
+    relative_path = path.replace("\\", "/").lstrip("/")
+    return provider_root / session_id / relative_path
 
 
 def find_tool_call_result(messages: list[SessionEvent], tool_name: str) -> str | None:

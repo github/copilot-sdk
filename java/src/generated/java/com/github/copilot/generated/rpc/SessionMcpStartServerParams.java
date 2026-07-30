@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Server name and configuration for an individual MCP server start.
+ * Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -28,7 +28,7 @@ public record SessionMcpStartServerParams(
     @JsonProperty("sessionId") String sessionId,
     /** Name of the MCP server to start */
     @JsonProperty("serverName") String serverName,
-    /** MCP server configuration (stdio process or remote HTTP/SSE) */
+    /** MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name). */
     @JsonProperty("config") Object config
 ) {
 }

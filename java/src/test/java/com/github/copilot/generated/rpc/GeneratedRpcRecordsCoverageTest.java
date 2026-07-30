@@ -87,7 +87,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListParams_record() {
-        var params = new SessionAgentListParams("sess-3");
+        var params = new SessionAgentListParams("sess-3", null, null);
         assertEquals("sess-3", params.sessionId());
     }
 
@@ -234,8 +234,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryCompactParams_record() {
-        var params = new SessionHistoryCompactParams("sess-22");
+        var params = new SessionHistoryCompactParams("sess-22", "focus on the API surface",
+                SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, 4096L);
         assertEquals("sess-22", params.sessionId());
+        assertEquals("focus on the API surface", params.customInstructions());
+        assertEquals(SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, params.trigger());
+        assertEquals(4096L, params.tokenLimit());
     }
 
     @Test
@@ -321,13 +325,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null, null, null,
+                null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-4.5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.verbosity());
         assertNull(params.modelCapabilities());
+        assertNull(params.deferIfModelChangeQueued());
     }
 
     @Test
@@ -462,7 +468,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentListResult_with_items() {
         var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null);
+                null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -473,7 +479,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null,
+        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
                 null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
@@ -490,7 +496,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null);
+        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -499,7 +505,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionAgentSelectResult_nested() {
         var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -614,8 +620,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryTruncateResult_record() {
-        var result = new SessionHistoryTruncateResult(3L);
+        var result = new SessionHistoryTruncateResult(3L, false, null);
         assertEquals(3L, result.eventsRemoved());
+        assertEquals(false, result.checkpointCleanupFailed());
+        assertNull(result.checkpointCleanupError());
     }
 
     @Test
@@ -652,8 +660,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = new SessionModelSwitchToResult("gpt-5");
+        var result = new SessionModelSwitchToResult("gpt-5", true);
         assertEquals("gpt-5", result.modelId());
+        assertEquals(true, result.deferred());
     }
 
     @Test
@@ -842,7 +851,7 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true, null);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, capabilities, null, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());
