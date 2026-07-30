@@ -810,7 +810,7 @@ from copilot.session_events import PermissionRequestShell
 
 
 def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
-    if request.managed_approval_required is True:
+    if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()
 
     # ``PermissionRequest`` is a discriminated union — pattern-match on
@@ -835,7 +835,7 @@ Async handlers are also supported:
 async def on_permission_request(
     request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
-    if request.managed_approval_required is True:
+    if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()
 
     # Simulate an async approval check (e.g., prompting a user over a network)

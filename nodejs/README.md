@@ -885,7 +885,7 @@ import type { PermissionRequest, PermissionRequestResult } from "@github/copilot
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: (request: PermissionRequest, invocation): PermissionRequestResult => {
-        if (request.managedApprovalRequired === true) {
+        if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
             // Leave the request pending for the host's human-facing confirmation flow.
             return { kind: "no-result" };
         }
