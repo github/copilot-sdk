@@ -5451,8 +5451,9 @@ pub struct PermissionRequestData {
     /// Whether managed settings are enabled for this session.
     #[serde(default)]
     pub managed_settings_enabled: bool,
-    /// The full permission request params from the CLI. The shape varies by
-    /// permission type and CLI version, so we preserve it as `Value`.
+    /// The full permission event params from the CLI, including the request ID
+    /// and nested permission request. The shape varies by permission type and
+    /// CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
     pub extra: Value,
 }
