@@ -36,7 +36,8 @@ public class PermissionHandlerTests
             SerializerOptions);
 
         Assert.NotNull(data);
-        Assert.True(data.PermissionRequest.ManagedApprovalRequired);
+        var request = Assert.IsType<PermissionRequestRead>(data.PermissionRequest);
+        Assert.True(request.ManagedApprovalRequired);
     }
 
     [Fact]
