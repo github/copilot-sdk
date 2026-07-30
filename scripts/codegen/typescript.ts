@@ -57,6 +57,69 @@ function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
 }
 
+/**
+ * Tag each strippable candidate in `candidates` with `@internal`, skipping any that public
+ * declarations still reference. Runs over fully assembled file content so that references from
+ * generated method signatures — not just from other type declarations — are taken into account.
+ */
+function tagInternalTypes(generatedTs: string, candidates: Set<string>): string {
+    let tagged = generatedTs;
+    for (const intType of strippableInternalTypes(tagged, candidates)) {
+        tagged = tagged.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+            `$1/** @internal */\n$2`
+        );
+    }
+    return tagged;
+}
+
+/**
+ * Restrict a set of candidate `@internal` type names to those that are safe to strip.
+ *
+ * `@internal` drives `stripInternal`, which deletes the whole declaration from the emitted
+ * `.d.ts`. That is only sound when nothing public still refers to the type: a surviving public
+ * declaration naming a deleted type leaves a dangling reference, which makes the *referring* type
+ * an error type that TypeScript then degrades to `any`. One stripped-but-referenced event type is
+ * therefore enough to erase the type safety of the whole `SessionEvent` union for every consumer,
+ * and `skipLibCheck: true` (a common consumer setting) hides the underlying error.
+ *
+ * So a candidate is dropped when any declaration that is not itself internal mentions it.
+ */
+function strippableInternalTypes(generatedTs: string, candidates: Set<string>): Set<string> {
+    if (candidates.size === 0) return candidates;
+
+    // Split into top-level declaration blocks so each reference can be attributed to its owner.
+    const declaration = /^export (?:interface|type) (\w+)\b/gm;
+    const starts: Array<{ index: number; name: string }> = [];
+    for (let m = declaration.exec(generatedTs); m !== null; m = declaration.exec(generatedTs)) {
+        starts.push({ index: m.index, name: m[1] });
+    }
+    if (starts.length === 0) return candidates;
+    const blocks = starts.map((start, i) => ({
+        name: start.name,
+        text: generatedTs.slice(start.index, i + 1 < starts.length ? starts[i + 1].index : generatedTs.length),
+    }));
+
+    const safe = new Set<string>();
+    for (const candidate of candidates) {
+        const referencedByPublic = blocks.some(
+            (block) =>
+                block.name !== candidate &&
+                !candidates.has(block.name) &&
+                new RegExp(`\\b${candidate}\\b`).test(block.text)
+        );
+        if (referencedByPublic) {
+            console.warn(
+                `  ! ${candidate} is marked internal but is referenced by public declarations; ` +
+                    `keeping it in the emitted .d.ts to avoid a dangling type reference`
+            );
+            continue;
+        }
+        safe.add(candidate);
+    }
+    return safe;
+}
+
 function sanitizeJsDocText(text: string): string {
     return text.trim().replace(/\*\//g, "* /");
 }
@@ -409,12 +472,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
             sessionInternalTypes.add(name);
         }
     }
-    for (const intType of sessionInternalTypes) {
-        annotatedTs = annotatedTs.replace(
-            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
-            `$1/** @internal */\n$2`
-        );
-    }
+    annotatedTs = tagInternalTypes(annotatedTs, sessionInternalTypes);
     const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
@@ -675,13 +733,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 `$1/** @deprecated */\n$2`
             );
         }
-        // Add @internal JSDoc annotations for types from internal methods
-        for (const intType of internalTypes) {
-            annotatedTs = annotatedTs.replace(
-                new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
-                `$1/** @internal */\n$2`
-            );
-        }
+        // @internal tagging happens in a final pass over the assembled file: the client/server
+        // method signatures that reference these types are emitted later, so a per-chunk check
+        // would not see them and would strip a type the public API still names.
         lines.push(annotatedTs);
         lines.push("");
     }
@@ -758,7 +812,7 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(...emitClientGlobalApiRegistration(schema.clientGlobal));
     }
 
-    const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", lines.join("\n"));
+    const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", tagInternalTypes(lines.join("\n"), internalTypes));
     console.log(`  ✓ ${outPath}`);
 }
 

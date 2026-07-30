@@ -2269,7 +2269,6 @@ export interface UsageCheckpointData {
 /**
  * Internal prompt-cache expiration state for one model
  */
-/** @internal */
 export interface UsageCheckpointModelCacheState {
   /**
    * Latest known prompt-cache expiration
@@ -2586,7 +2585,6 @@ export interface CompactionCompleteCompactionTokensUsed {
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
-/** @internal */
 export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
   /**
    * Itemized token usage breakdown
@@ -3269,7 +3267,6 @@ export interface AssistantTurnStartData {
 /**
  * Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
  */
-/** @internal */
 export interface AssistantTurnRetryEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -4206,7 +4203,6 @@ export interface AssistantUsageCopilotUsageTokenDetail {
 /**
  * Internal per-quota snapshot for assistant usage, including entitlement, consumed requests, overage, reset date, and remaining quota.
  */
-/** @internal */
 export interface AssistantUsageQuotaSnapshot {
   /**
    * Total requests allowed by the entitlement
@@ -4421,7 +4417,6 @@ export interface ModelCallFailureRequestFingerprint {
 /**
  * Session event "model.call_start". Model API dispatch metadata for internal telemetry
  */
-/** @internal */
 export interface ModelCallStartEvent {
   /**
    * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
