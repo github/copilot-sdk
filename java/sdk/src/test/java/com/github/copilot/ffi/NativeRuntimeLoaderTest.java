@@ -5,14 +5,16 @@
 package com.github.copilot.ffi;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -59,71 +61,70 @@ class NativeRuntimeLoaderTest {
     }
 
     // -------------------------------------------------------------------------
-    // COPILOT_CLI_PATH override
+    // Source 1: COPILOT_CLI_PATH as explicit runtime override
     // -------------------------------------------------------------------------
 
     @Test
-    void resolveFromCliPathReturnsSiblingWhenRuntimeNodeExists(@TempDir Path tempDir) throws Exception {
-        Path fakeCliPath = tempDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
+    void resolveFromExplicitPathReturnsPathWhenFileIsValid(@TempDir Path tempDir) throws Exception {
         Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.write(runtimeNode, FAKE_BINARY_CONTENT);
 
-        Path result = NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString());
+        Path result = NativeRuntimeLoader.resolveFromExplicitPath(runtimeNode.toString());
 
         assertEquals(runtimeNode, result);
     }
 
     @Test
-    void resolveFromCliPathReturnsNullWhenRuntimeNodeMissing(@TempDir Path tempDir) throws Exception {
-        Path fakeCliPath = tempDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
+    void resolveFromExplicitPathThrowsWhenFileDoesNotExist(@TempDir Path tempDir) {
+        Path missing = tempDir.resolve("nonexistent.node");
 
-        assertNull(NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString()));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> NativeRuntimeLoader.resolveFromExplicitPath(missing.toString()));
+        assertTrue(ex.getMessage().contains(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV),
+                "Error must mention the env variable name: " + ex.getMessage());
     }
 
     @Test
-    void resolveFromCliPathReturnsNullWhenEnvIsNull() throws Exception {
-        assertNull(NativeRuntimeLoader.resolveFromCliPath(null));
+    void resolveFromExplicitPathThrowsWhenFileIsEmpty(@TempDir Path tempDir) throws Exception {
+        Path empty = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.createFile(empty); // zero bytes
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> NativeRuntimeLoader.resolveFromExplicitPath(empty.toString()));
+        assertTrue(ex.getMessage().contains(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV),
+                "Error must mention the env variable name: " + ex.getMessage());
     }
 
     @Test
-    void resolveFromCliPathReturnsNullWhenEnvIsBlank() throws Exception {
-        assertNull(NativeRuntimeLoader.resolveFromCliPath("   "));
-    }
-
-    @Test
-    void resolveFromCliPathReturnsNullWhenRuntimeNodeIsEmpty(@TempDir Path tempDir) throws Exception {
-        Path fakeCliPath = tempDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
+    void explicitOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
+        // Source 1: runtime.node directly specified via COPILOT_CLI_PATH
         Path runtimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
-        Files.createFile(runtimeNode); // empty file
-
-        assertNull(NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString()));
-    }
-
-    @Test
-    void cliPathOverrideTakesPriorityOverClasspathExtraction(@TempDir Path tempDir) throws Exception {
-        // Create a valid runtime.node alongside the fake CLI path
-        Path fakeCliDir = tempDir.resolve("cli-dir");
-        Files.createDirectories(fakeCliDir);
-        Path fakeCliPath = fakeCliDir.resolve("copilot");
-        Files.createFile(fakeCliPath);
-        Path runtimeNode = fakeCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
         Files.write(runtimeNode, FAKE_BINARY_CONTENT);
 
-        // Provide a classpath loader that also has the resource (should be ignored)
+        // Source 2 is also available (should be ignored)
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
-        Path result = NativeRuntimeLoader.resolve(fakeCliPath.toString(), cacheBase, loader, TEST_CLASSIFIER,
+        Path result = NativeRuntimeLoader.resolve(runtimeNode.toString(), cacheBase, loader, TEST_CLASSIFIER,
                 TEST_VERSION);
 
-        assertEquals(runtimeNode, result);
+        assertEquals(runtimeNode, result, "Source 1 (COPILOT_CLI_PATH) must take priority over classpath extraction");
+    }
+
+    @Test
+    void explicitOverrideThrowsImmediatelyWhenPathIsInvalid(@TempDir Path tempDir) throws Exception {
+        // Source 2 is available, but source 1 is invalid — must throw, not silently
+        // fall through
+        Path missing = tempDir.resolve("not-a-runtime.node");
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+
+        assertThrows(IllegalStateException.class, () -> NativeRuntimeLoader.resolve(missing.toString(), cacheBase,
+                loader, TEST_CLASSIFIER, TEST_VERSION));
     }
 
     // -------------------------------------------------------------------------
-    // Classpath extraction to cache
+    // Source 2: classpath extraction to cache
     // -------------------------------------------------------------------------
 
     @Test
@@ -181,14 +182,128 @@ class NativeRuntimeLoaderTest {
 
     @Test
     void extractToCacheFiltersClasspathByClassifier(@TempDir Path tempDir) throws Exception {
-        // Put resources for two classifiers; extraction must target only the requested
-        // one
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
 
         Path result = NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION);
 
         assertTrue(result.toString().contains(TEST_CLASSIFIER), "Cache path must include the classifier: " + result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Source 3: bundled-CLI sibling
+    // -------------------------------------------------------------------------
+
+    @Test
+    void bundledCliSiblingIsUsedWhenClasspathResourceAbsent(@TempDir Path tempDir) throws Exception {
+        Path bundledCliDir = tempDir.resolve("bundled-cli");
+        Files.createDirectories(bundledCliDir);
+        Path runtimeNode = bundledCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader emptyLoader = new URLClassLoader(new URL[0], null); // no classpath resource
+
+        Path result = NativeRuntimeLoader.resolve(null, cacheBase, emptyLoader, TEST_CLASSIFIER, TEST_VERSION,
+                bundledCliDir);
+
+        assertEquals(runtimeNode, result,
+                "Source 3 (bundled-CLI sibling) must be used when classpath resource is absent");
+    }
+
+    @Test
+    void classpathResourceWinsOverBundledCliSibling(@TempDir Path tempDir) throws Exception {
+        // Source 3: bundled CLI dir with runtime.node (should NOT win)
+        Path bundledCliDir = tempDir.resolve("bundled-cli");
+        Files.createDirectories(bundledCliDir);
+        Files.write(bundledCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), "bundled".getBytes());
+
+        // Source 2: classpath resource (should win)
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+
+        Path result = NativeRuntimeLoader.resolve(null, cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION,
+                bundledCliDir);
+
+        Path expectedFromClasspath = cacheBase.resolve(TEST_VERSION).resolve(TEST_CLASSIFIER)
+                .resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        assertEquals(expectedFromClasspath, result,
+                "Source 2 (classpath) must win over source 3 (bundled-CLI sibling)");
+        assertNotEquals(bundledCliDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), result);
+    }
+
+    @Test
+    void bundledCliSiblingIsIgnoredWhenRuntimeNodeMissing(@TempDir Path tempDir) {
+        Path bundledCliDir = tempDir.resolve("bundled-cli-no-runtime");
+        // bundledCliDir doesn't even exist — no runtime.node present
+
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
+
+        // Both source 2 and source 3 absent: must throw (the classpath error)
+        IOException ex = assertThrows(IOException.class, () -> NativeRuntimeLoader.resolve(null, cacheBase, emptyLoader,
+                TEST_CLASSIFIER, TEST_VERSION, bundledCliDir));
+        assertTrue(ex.getMessage().contains("classpath"), "Error should mention classpath: " + ex.getMessage());
+    }
+
+    // -------------------------------------------------------------------------
+    // Atomic publication test seam
+    // -------------------------------------------------------------------------
+
+    @Test
+    void defaultPublisherMovesSourceToTarget(@TempDir Path tempDir) throws Exception {
+        Path temp = Files.createTempFile(tempDir, "runtime-tmp-", ".node");
+        Files.write(temp, FAKE_BINARY_CONTENT);
+        Path target = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+
+        NativeRuntimeLoader.DEFAULT_PUBLISHER.publish(temp, target);
+
+        assertTrue(Files.isRegularFile(target), "Target must exist after publication");
+        assertTrue(Files.size(target) > 0, "Target must be non-empty");
+        assertFalse(Files.exists(temp), "Source temp file must be absent after atomic move");
+    }
+
+    @Test
+    void extractionCleansUpTempFileWhenPublicationFails(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+
+        // Capture the temp path so we can verify it was deleted
+        Path[] capturedTemp = {null};
+        NativeRuntimeLoader.AtomicPublisher failingPublisher = (temp, cached) -> {
+            capturedTemp[0] = temp;
+            throw new AtomicMoveNotSupportedException(temp.toString(), cached.toString(),
+                    "filesystem does not support atomic moves — test");
+        };
+
+        assertThrows(AtomicMoveNotSupportedException.class, () -> NativeRuntimeLoader.extractToCache(cacheBase, loader,
+                TEST_CLASSIFIER, TEST_VERSION, failingPublisher));
+
+        assertNotNull(capturedTemp[0], "Publisher must have been invoked");
+        assertFalse(Files.exists(capturedTemp[0]), "Temp file must be deleted after failed publication");
+    }
+
+    @Test
+    void extractionCleansUpTempFileWhenPublisherThrowsIllegalStateException(@TempDir Path tempDir) throws Exception {
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader loader = classLoaderWithRuntimeResource(tempDir, TEST_CLASSIFIER);
+
+        Path[] capturedTemp = {null};
+        NativeRuntimeLoader.AtomicPublisher unsupportedPublisher = (temp, cached) -> {
+            capturedTemp[0] = temp;
+            // Simulate the wrapping that DEFAULT_PUBLISHER performs for
+            // AtomicMoveNotSupportedException
+            throw new IllegalStateException("Filesystem does not support atomic moves; cannot safely publish "
+                    + NativeRuntimeLoader.RUNTIME_FILENAME + " to " + cached);
+        };
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> NativeRuntimeLoader
+                .extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION, unsupportedPublisher));
+
+        assertTrue(ex.getMessage().contains("atomic moves"),
+                "Error message should describe the atomic-move failure: " + ex.getMessage());
+        assertNotNull(capturedTemp[0], "Publisher must have been invoked");
+        assertFalse(Files.exists(capturedTemp[0]), "Temp file must be deleted after failed atomic publication");
     }
 
     // -------------------------------------------------------------------------
@@ -226,7 +341,7 @@ class NativeRuntimeLoaderTest {
     }
 
     // -------------------------------------------------------------------------
-    // resolve() -- full resolution chain
+    // resolve() -- full three-source resolution chain
     // -------------------------------------------------------------------------
 
     @Test
@@ -242,10 +357,11 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
-    void resolveThrowsWhenNoClasspathResourceAndNoCliOverride(@TempDir Path tempDir) {
+    void resolveThrowsWhenNoSourceIsAvailable(@TempDir Path tempDir) {
         Path cacheBase = tempDir.resolve("cache");
         ClassLoader emptyLoader = new URLClassLoader(new URL[0], null);
 
+        // No CLI env, no classpath resource, no bundled-CLI dir → throw
         assertThrows(IOException.class,
                 () -> NativeRuntimeLoader.resolve(null, cacheBase, emptyLoader, TEST_CLASSIFIER, TEST_VERSION));
     }
