@@ -10,11 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class PlatformDetectorTest {
 
@@ -75,8 +78,11 @@ class PlatformDetectorTest {
     }
 
     @Test
-    void detectClassifierReturnsLinuxX64OnUbuntu() {
-        withSystemProperties("Linux", "amd64", () -> assertEquals("linux-x64", PlatformDetector.detectClassifier()));
+    void detectClassifierReturnsClassifierForCurrentLinuxLibc() {
+        PlatformDetector.LinuxLibc libc = PlatformDetector.detectLinuxLibc();
+        String expected = libc == PlatformDetector.LinuxLibc.MUSL ? "linuxmusl-x64" : "linux-x64";
+
+        withSystemProperties("Linux", "amd64", () -> assertEquals(expected, PlatformDetector.detectClassifier()));
     }
 
     @Test
@@ -116,6 +122,17 @@ class PlatformDetectorTest {
         Arrays.fill(invalidProbe, (byte) 1);
 
         assertThrows(IOException.class, () -> PlatformDetector.detectLinuxLibc(invalidProbe));
+    }
+
+    @Test
+    void detectLinuxLibcReturnsUnknownForTruncatedProgramHeader(@TempDir Path tempDir) throws IOException {
+        byte[] malformedProbe = buildElf64ProbeWithInterp("/lib64/ld-linux-x86-64.so.2");
+        writeLe64(malformedProbe, 32, malformedProbe.length - 1);
+        writeLe16(malformedProbe, 54, 1);
+        Path executable = tempDir.resolve("malformed-elf");
+        Files.write(executable, malformedProbe);
+
+        assertEquals(PlatformDetector.LinuxLibc.UNKNOWN, PlatformDetector.detectLinuxLibc(executable));
     }
 
     private static void withSystemProperties(String osName, String osArch, Runnable action) {

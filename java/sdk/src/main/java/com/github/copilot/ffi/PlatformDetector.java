@@ -26,6 +26,8 @@ public final class PlatformDetector {
     private static final int ELF_CLASS_64 = 2;
     private static final int ELF_DATA_LITTLE_ENDIAN = 1;
     private static final int ELF_DATA_BIG_ENDIAN = 2;
+    private static final int ELF32_PROGRAM_HEADER_SIZE = 32;
+    private static final int ELF64_PROGRAM_HEADER_SIZE = 56;
     private static final int PT_INTERP = 3;
 
     private static final Set<String> SUPPORTED_CLASSIFIERS = Set.of("linux-x64", "linux-arm64", "linuxmusl-x64",
@@ -178,14 +180,17 @@ public final class PlatformDetector {
         long phoff;
         int phentsize;
         int phnum;
+        int minimumPhentsize;
         if (elfClass == ELF_CLASS_64) {
             phoff = readUInt64(probe, 32, littleEndian);
             phentsize = readUInt16(probe, 54, littleEndian);
             phnum = readUInt16(probe, 56, littleEndian);
+            minimumPhentsize = ELF64_PROGRAM_HEADER_SIZE;
         } else if (elfClass == ELF_CLASS_32) {
             phoff = readUInt32(probe, 28, littleEndian);
             phentsize = readUInt16(probe, 42, littleEndian);
             phnum = readUInt16(probe, 44, littleEndian);
+            minimumPhentsize = ELF32_PROGRAM_HEADER_SIZE;
         } else {
             throw new IOException("Unsupported ELF class: " + elfClass);
         }
@@ -193,7 +198,7 @@ public final class PlatformDetector {
         if (phoff < 0 || phoff >= size) {
             throw new IOException("Program header table offset outside probe window: " + phoff);
         }
-        if (phentsize <= 0 || phnum <= 0) {
+        if (phentsize < minimumPhentsize || phnum <= 0) {
             throw new IOException("Invalid ELF program header metadata: phentsize=" + phentsize + ", phnum=" + phnum);
         }
 
