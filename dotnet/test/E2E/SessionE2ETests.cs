@@ -226,20 +226,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Replace_Active_Session_When_Resuming_Using_The_Same_Client()
+    public async Task Should_Reject_Resuming_Active_Session_Using_The_Same_Client()
     {
-        var session1 = await CreateSessionAsync();
+        await using var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        await using var session2 = await Ctx.ResumeSessionAsync(Client, sessionId, new ResumeSessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
-
-        Assert.Equal(sessionId, session2.SessionId);
-        _ = await session1.GetEventsAsync();
-
-        await session1.DisposeAsync();
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Ctx.ResumeSessionAsync(Client, sessionId, new ResumeSessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+            }));
+        Assert.Contains(sessionId, exception.Message);
     }
 
     [Fact]
@@ -986,8 +983,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Resume_Session_With_Custom_Provider()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var sessionId = session.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(session);
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
@@ -1009,7 +1007,5 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             // disconnect may fail since the provider is fake
         }
-
-        await session.DisposeAsync();
     }
 }

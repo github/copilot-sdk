@@ -208,13 +208,14 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         var skillsDir = CreateSkillDir();
 
         // Create a session without skills first
-        var session1 = await CreateSessionAsync();
+        await using var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
         // First message without skill - marker should not appear
         var message1 = await session1.SendAndWaitAsync(new MessageOptions { Prompt = "Say hi." });
         Assert.NotNull(message1);
         Assert.DoesNotContain(SkillMarker, message1!.Data.Content);
+        await SuspendAndUntrackSessionForResumeAsync(session1);
 
         // Resume with skillDirectories - skill should now be active
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig

@@ -774,11 +774,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         SessionConfigBase config,
         Dictionary<string, Func<string, Task<string>>>? transformCallbacks,
         bool hasHooks,
-        string callerName,
-        bool replaceExisting,
-        out CopilotSession? replacedSession)
+        string callerName)
     {
-        replacedSession = null;
         var setupTimestamp = Stopwatch.GetTimestamp();
         var session = new CopilotSession(
             sessionId,
@@ -811,24 +808,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         session.SetCanvasHandler(config.CanvasHandler);
         session.RegisterBearerTokenProviders(BuildBearerTokenCallbacks(config));
-        if (replaceExisting)
-        {
-            CopilotSession? displacedSession = null;
-            _sessions.AddOrUpdate(
-                session.SessionId,
-                session,
-                (_, current) =>
-                {
-                    displacedSession = current;
-                    return session;
-                });
-            replacedSession = displacedSession;
-        }
-        else if (!_sessions.TryAdd(session.SessionId, session))
-        {
-            throw new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
-        }
-
+        RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             callerName + " local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
@@ -1141,9 +1121,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config,
                 transformCallbacks,
                 hasHooks,
-                "CopilotClient.CreateSessionAsync",
-                replaceExisting: false,
-                out _);
+                "CopilotClient.CreateSessionAsync");
         }
         try
         {
@@ -1243,9 +1221,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         config,
                         transformCallbacks,
                         hasHooks,
-                        "CopilotClient.CreateSessionAsync",
-                        replaceExisting: false,
-                        out _);
+                        "CopilotClient.CreateSessionAsync");
                 }
             };
 
@@ -1311,9 +1287,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <remarks>
     /// This allows you to continue a previous conversation, maintaining all conversation history.
     /// The session must have been previously created and not deleted.
-    /// If this client already tracks the session, the returned instance replaces the previous
-    /// <see cref="CopilotSession"/> for event and request routing. Existing references to the
-    /// previous instance remain usable, but no longer receive routed events or requests.
     /// </remarks>
     /// <example>
     /// <code>
@@ -1361,9 +1334,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config,
             transformCallbacks,
             hasHooks,
-            "CopilotClient.ResumeSessionAsync",
-            replaceExisting: true,
-            out var previousSession);
+            "CopilotClient.ResumeSessionAsync");
         try
         {
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
@@ -1462,15 +1433,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            if (previousSession is null)
-            {
-                session.RemoveFromClient();
-            }
-            else
-            {
-                _sessions.TryUpdate(sessionId, previousSession, session);
-            }
-
+            session.RemoveFromClient();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
@@ -2513,6 +2476,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         _sessions.TryGetValue(sessionId, out var session);
         return session;
+    }
+
+    private void RegisterSession(CopilotSession session)
+    {
+        if (!_sessions.TryAdd(session.SessionId, session))
+        {
+            throw new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
+        }
     }
 
     private void RemoveSession(string sessionId)

@@ -202,8 +202,9 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Session_With_Commands_Resumes_Successfully()
     {
-        var session1 = await CreateSessionAsync();
+        await using var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(session1);
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {

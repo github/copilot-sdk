@@ -109,6 +109,20 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         return await Ctx.ResumeSessionAsync(client, sessionId, config);
     }
 
+    protected static async Task SuspendAndUntrackSessionForResumeAsync(CopilotSession session)
+    {
+        await session.Rpc.SuspendAsync();
+
+        // In-process clients host separate runtimes, while session.destroy removes the
+        // session from the current runtime. Untrack locally to exercise resume without
+        // either replacing an active wrapper or destroying the session first.
+        var removeFromClient = typeof(CopilotSession).GetMethod(
+            "RemoveFromClient",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("CopilotSession.RemoveFromClient was not found.");
+        removeFromClient.Invoke(session, null);
+    }
+
     protected static string GetSystemMessage(ParsedHttpExchange exchange)
     {
         return exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.StringContent ?? string.Empty;
