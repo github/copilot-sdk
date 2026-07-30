@@ -1600,6 +1600,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 
 	decision, err := handler(permissionRequest, invocation)
 	if err != nil {
+		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result:    &rpc.PermissionDecisionUserNotAvailable{},

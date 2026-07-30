@@ -961,8 +961,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 requestId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Permission handler failed. SessionId={SessionId}, RequestId={RequestId}", SessionId, requestId);
             try
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());

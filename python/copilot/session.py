@@ -2151,6 +2151,10 @@ class CopilotSession:
                 request_id=request_id,
             )
         except Exception:
+            logger.exception(
+                "Permission handler failed",
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             try:
                 await self.rpc.permissions.handle_pending_permission_request(
                     PermissionDecisionRequest(
