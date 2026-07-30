@@ -1123,7 +1123,11 @@ export class CopilotSession {
             if (this.disconnected) {
                 return;
             }
-            console.error("Permission handler failed", error);
+            console.error("Permission handler failed", {
+                sessionId: this.sessionId,
+                requestId,
+                error,
+            });
             try {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,

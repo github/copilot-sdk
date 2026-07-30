@@ -342,10 +342,11 @@ SystemMessageConfig = (
 
 @dataclass
 class PermissionNoResult:
-    """Sentinel returned by a permission handler to leave the request unanswered.
+    """Sentinel that leaves an event-dispatched permission request unanswered.
 
-    The SDK suppresses its response so another connected client, such as a
-    human-facing host, can answer the pending request.
+    During event-based permission dispatch, the SDK suppresses its response so
+    another connected client, such as a human-facing host, can answer the pending
+    request. Legacy direct callbacks require a concrete decision and cannot abstain.
     """
 
     kind: Literal["no-result"] = "no-result"
