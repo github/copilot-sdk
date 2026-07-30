@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::handler::{PermissionHandler, PermissionResult};
+use crate::handler::{PermissionHandler, PermissionResult, permission_handler_failure};
 use crate::types::{PermissionRequestData, RequestId, SessionId};
 
 /// Return a [`PermissionHandler`] that approves ordinary requests.
@@ -120,8 +120,8 @@ impl PermissionHandler for PolicyHandler {
         };
         if approved {
             if matches!(self.policy, Policy::ApproveAll) && data.managed_settings_enabled {
-                PermissionResult::Error(
-                    "approve-all policy cannot be used when managed settings are enabled".into(),
+                permission_handler_failure(
+                    "approve-all policy cannot be used when managed settings are enabled",
                 )
             } else {
                 PermissionResult::approve_once()
@@ -154,14 +154,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_all_errors_when_managed_settings_enabled() {
+    async fn approve_all_fails_when_managed_settings_enabled() {
         let h = approve_all();
         let mut request = data();
         request.managed_settings_enabled = true;
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Error(_)
+            PermissionResult::Decision(crate::types::PermissionDecision::UserNotAvailable(_))
         ));
     }
 

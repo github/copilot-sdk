@@ -45,8 +45,6 @@ pub enum PermissionResult {
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
-    /// The handler could not safely decide the request.
-    Error(String),
 }
 
 impl PermissionResult {
@@ -83,6 +81,11 @@ impl From<PermissionDecision> for PermissionResult {
     fn from(value: PermissionDecision) -> Self {
         Self::Decision(value)
     }
+}
+
+pub(crate) fn permission_handler_failure(message: &str) -> PermissionResult {
+    tracing::error!(error = message, "permission handler failed");
+    PermissionResult::user_not_available()
 }
 
 /// Response to a user input request.
@@ -288,8 +291,8 @@ impl PermissionHandler for ApproveAllHandler {
         data: PermissionRequestData,
     ) -> PermissionResult {
         if data.managed_settings_enabled {
-            PermissionResult::Error(
-                "ApproveAllHandler cannot be used when managed settings are enabled".into(),
+            permission_handler_failure(
+                "ApproveAllHandler cannot be used when managed settings are enabled",
             )
         } else {
             PermissionResult::approve_once()
@@ -333,7 +336,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_all_handler_errors_when_managed_settings_enabled() {
+    async fn approve_all_handler_fails_when_managed_settings_enabled() {
         let result = ApproveAllHandler
             .handle(
                 SessionId::from("s1"),
@@ -344,7 +347,10 @@ mod tests {
                 },
             )
             .await;
-        assert!(matches!(result, PermissionResult::Error(_)));
+        assert!(matches!(
+            result,
+            PermissionResult::Decision(PermissionDecision::UserNotAvailable(_))
+        ));
     }
 
     #[tokio::test]

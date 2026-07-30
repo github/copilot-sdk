@@ -1557,10 +1557,6 @@ fn permission_request_data(
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
         PermissionResult::NoResult => None,
-        PermissionResult::Error(message) => {
-            tracing::error!(error = %message, "permission handler failed");
-            Some(serde_json::json!({ "kind": "user-not-available" }))
-        }
         PermissionResult::Decision(decision) => Some(
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
