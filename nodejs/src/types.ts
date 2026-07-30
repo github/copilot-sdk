@@ -23,7 +23,6 @@ import type {
     RemoteSessionMode,
     CurrentToolMetadata,
 } from "./generated/rpc.js";
-import type { JsonValue } from "./factory.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
@@ -447,7 +446,7 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
-export type ToolTelemetry = Record<string, { [key: string]: JsonValue } | undefined>;
+export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
 
 export type ToolResultObject = {
     textResultForLlm: string;

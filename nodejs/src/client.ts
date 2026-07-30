@@ -38,7 +38,6 @@ import type {
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
-import type { JsonValue } from "./factory.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
@@ -3002,7 +3001,7 @@ export class CopilotClient {
         sessionId: string;
         hookType: string;
         input: unknown;
-    }): Promise<{ output?: JsonValue }> {
+    }): Promise<{ output?: unknown }> {
         if (
             !params ||
             typeof params.sessionId !== "string" ||
@@ -3017,7 +3016,7 @@ export class CopilotClient {
         }
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
-        return output === undefined ? {} : { output: JSON.parse(JSON.stringify(output)) };
+        return { output };
     }
 
     private async handleSystemMessageTransform(params: {

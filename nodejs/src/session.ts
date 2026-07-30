@@ -1072,7 +1072,7 @@ export class CopilotSession {
             } else if (typeof rawResult === "string") {
                 result = rawResult;
             } else if (isToolResultObject(rawResult)) {
-                result = JSON.parse(JSON.stringify(rawResult));
+                result = rawResult;
             } else {
                 result = JSON.stringify(rawResult);
             }
