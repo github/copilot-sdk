@@ -18,12 +18,12 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type {
     GitHubTelemetryNotification,
-    JsonValue,
     ModelBillingTokenPrices,
     OpenCanvasInstance,
     RemoteSessionMode,
     CurrentToolMetadata,
 } from "./generated/rpc.js";
+import type { JsonValue } from "./factory.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";

@@ -6,7 +6,7 @@ import type {
     FactoryGetRunProgressRequest,
     FactoryProgressPage,
     FactoryRunDetail,
-    FactoryRunResult,
+    FactoryRunResult as WireFactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
 } from "./generated/rpc.js";
@@ -17,7 +17,18 @@ import type { FactoryLimits, FactoryMeta } from "./types.js";
  * The terminal envelope describing a factory run's outcome (status, result,
  * reason). Re-exported so consumers can name the type returned by
  * {@link SessionFactoryApi} methods.
+ *
+ * `result` is re-typed here rather than taken from the generated wire type. The
+ * runtime returns any JSON value — including `null`, a string, a number, or an
+ * array — but the schema models the field as an opaque node, which the
+ * generator renders as an object. Narrowing the correction to this surface
+ * keeps the `x-opaque-json` handling unchanged for every other consumer.
  */
+export type FactoryRunResult = Omit<WireFactoryRunResult, "result"> & {
+    /** Completed factory result. */
+    result?: JsonValue;
+};
+
 export type {
     FactoryAgentSummary,
     FactoryPhaseStatus,
@@ -25,7 +36,6 @@ export type {
     FactoryProgressLine,
     FactoryProgressPage,
     FactoryRunDetail,
-    FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
 } from "./generated/rpc.js";

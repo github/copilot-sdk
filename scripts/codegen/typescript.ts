@@ -38,10 +38,9 @@ import {
     isVoidSchema,
     isSchemaExperimental,
     isSchemaInternal,
-    isOpaqueJson,
-    stripOpaqueJsonMarker,
     appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
+    stripOpaqueJsonMarker,
     loadSchemaJson,
     fixBrandCasing,
     type ApiSchema,
@@ -53,8 +52,6 @@ const TS_EXPERIMENTAL_JSDOC = "/** @experimental */";
 const EXTERNAL_SCHEMA_TS_IMPORT: Record<string, string> = {
     "session-events.schema.json": "./session-events.js",
 };
-export const TYPESCRIPT_JSON_VALUE_DECLARATION =
-    "export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };";
 
 function tsExperimentalJSDoc(indent = ""): string {
     return `${indent}${TS_EXPERIMENTAL_JSDOC}`;
@@ -255,30 +252,6 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
-/**
- * JSON Schema keywords that describe real structure. A node carrying any of
- * these is not an unconstrained value, even when it is also marked
- * `x-opaque-json`.
- */
-const STRUCTURAL_SCHEMA_KEYWORDS = [
-    "anyOf",
-    "oneOf",
-    "allOf",
-    "not",
-    "type",
-    "properties",
-    "patternProperties",
-    "items",
-    "prefixItems",
-    "enum",
-    "const",
-    "$ref",
-] as const;
-
-function hasStructuralConstraints(schema: Record<string, unknown>): boolean {
-    return STRUCTURAL_SCHEMA_KEYWORDS.some((keyword) => schema[keyword] !== undefined);
-}
-
 export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     const root = structuredClone(schema) as JSONSchema7 & {
         definitions?: Record<string, unknown>;
@@ -313,25 +286,11 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
-        // Only a genuinely unconstrained opaque node becomes `JsonValue`. Many
-        // schemas carry `x-opaque-json` alongside real structure (an `anyOf`
-        // union, or `type`/`properties`) so that codegens which model opaque
-        // JSON natively can do so without discarding that structure; collapsing
-        // those to `JsonValue` would silently erase public contracts such as
-        // `McpServerConfig` or `ExternalToolResult`. For those, drop the marker
-        // and let json-schema-to-typescript emit the real shape, exactly as
-        // this codegen did before opaque JSON was representable.
-        if (isOpaqueJson(rewritten as JSONSchema7) && !hasStructuralConstraints(rewritten)) {
-            // Keep the node's documentation metadata — replacing it wholesale
-            // would drop `description` and the stability annotations, so the
-            // generated declaration would lose its JSDoc while its siblings
-            // keep theirs.
-            stripOpaqueJsonMarker(rewritten);
-            rewritten.tsType = "JsonValue";
-            delete rewritten.type;
-            delete rewritten.additionalProperties;
-            return rewritten;
-        }
+        // The TypeScript codegen doesn't distinguish opaque JSON from any
+        // other unconstrained value, so drop the marker before feeding the
+        // schema to json-schema-to-typescript. C# codegen reads the marker
+        // from its own (un-normalized) view of the schema and emits
+        // `JsonElement` instead.
         stripOpaqueJsonMarker(rewritten);
 
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
@@ -435,7 +394,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         strictIndexSignatures: true,
     });
 
-    let annotatedTs = `${TYPESCRIPT_JSON_VALUE_DECLARATION}\n\n${annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC)}`;
+    let annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
     // Add @internal JSDoc annotations for session-event types marked
     // `visibility: "internal"` in the schema. The tag drives `stripInternal`
     // so the whole type is dropped from the published .d.ts.
@@ -587,8 +546,6 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     if (externalSchemaRefs.size > 0) {
         lines.push("");
     }
-    lines.push(TYPESCRIPT_JSON_VALUE_DECLARATION);
-    lines.push("");
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});

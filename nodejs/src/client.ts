@@ -35,10 +35,10 @@ import {
 } from "./generated/rpc.js";
 import type {
     GitHubTelemetryNotification,
-    JsonValue,
     OpenCanvasInstance,
     SessionUpdateOptionsParams,
 } from "./generated/rpc.js";
+import type { JsonValue } from "./factory.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";

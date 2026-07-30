@@ -16,6 +16,10 @@ import type {
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
     FactoryLogLine,
+    FactoryRunRequest,
+    FactoryExecuteResult,
+    FactoryJournalPutRequest,
+    FactoryRunResult as WireFactoryRunResult,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -284,6 +288,20 @@ class FactoryProgressBuffer {
     }
 }
 
+/**
+ * Reconcile the generated envelope with the public one.
+ *
+ * The two are identical at runtime. They differ only in how `result` is typed:
+ * the runtime returns any JSON value, but the schema models the field as an
+ * opaque node, which the generator renders as an object. {@link FactoryRunResult}
+ * corrects that for the factory surface without changing `x-opaque-json`
+ * handling for any other consumer, so the boundary needs a cast rather than a
+ * conversion.
+ */
+function toPublicFactoryRunResult(envelope: WireFactoryRunResult): FactoryRunResult {
+    return envelope as FactoryRunResult;
+}
+
 async function awaitFactoryOperation<TResult>(
     operation: () => Promise<TResult>,
     signal: AbortSignal
@@ -429,13 +447,15 @@ export class CopilotSession {
             }
             const envelope = await this.rpc.factory.run({
                 name,
-                args: options?.args === undefined ? {} : options.args,
+                args: (options?.args === undefined
+                    ? {}
+                    : options.args) as FactoryRunRequest["args"],
                 options: {
                     limits: options?.limits,
                 },
             });
 
-            return envelope;
+            return toPublicFactoryRunResult(envelope);
         }) as SessionFactoryApi["run"],
         resume: (async (runId: string, options?: Parameters<SessionFactoryApi["resume"]>[1]) => {
             let response;
@@ -457,15 +477,15 @@ export class CopilotSession {
                 }
                 throw error;
             }
-            return response.run;
+            return toPublicFactoryRunResult(response.run);
         }) as SessionFactoryApi["resume"],
-        getRun: (runId) => this.rpc.factory.getRun({ runId }),
+        getRun: async (runId) => toPublicFactoryRunResult(await this.rpc.factory.getRun({ runId })),
         waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
         listRuns: async () => (await this.rpc.factory.listRuns()).runs,
         getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
         getRunProgress: (runId, options = {}) =>
             this.rpc.factory.getRunProgress({ runId, ...options }),
-        cancel: (runId) => this.rpc.factory.cancel({ runId }),
+        cancel: async (runId) => toPublicFactoryRunResult(await this.rpc.factory.cancel({ runId })),
     };
 
     /**
@@ -522,7 +542,7 @@ export class CopilotSession {
                         rereadRequested = false;
                         const envelope = await this.rpc.factory.getRun({ runId });
                         if (isFactoryRunTerminal(envelope.status)) {
-                            finish(() => resolve(envelope));
+                            finish(() => resolve(toPublicFactoryRunResult(envelope)));
                             return;
                         }
                     } while (rereadRequested && !settled);
@@ -1330,7 +1350,7 @@ export class CopilotSession {
                 try {
                     const context: FactoryContext = {
                         runId: params.runId,
-                        args: params.args,
+                        args: params.args as JsonValue,
                         session: self,
                         signal: controller.signal,
                         phase: (title: string) => {
@@ -1403,7 +1423,8 @@ export class CopilotSession {
                                         runId: params.runId,
                                         executionToken: params.executionToken,
                                         key,
-                                        resultJson: result,
+                                        resultJson:
+                                            result as FactoryJournalPutRequest["resultJson"],
                                     }),
                                 controller.signal
                             );
@@ -1420,7 +1441,7 @@ export class CopilotSession {
                         return {};
                     }
                     assertFactoryResult(result);
-                    return { result };
+                    return { result } as FactoryExecuteResult;
                 } finally {
                     try {
                         await progress.close();
