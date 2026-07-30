@@ -312,18 +312,19 @@ async function awaitFactoryOperation<TResult>(
 ): Promise<TResult> {
     // The operation is a thunk so an already-aborted run never dispatches the
     // RPC at all, rather than sending it and rejecting locally afterwards.
-    throwIfFactoryAborted(signal);
     let rejectAbort: ((reason?: unknown) => void) | undefined;
+    const abortPromise = new Promise<never>((_resolve, reject) => {
+        rejectAbort = reject;
+    });
     const onAbort = () =>
         rejectAbort?.(signal.reason ?? new DOMException("Factory run was aborted", "AbortError"));
+    // Register before the abort check and before dispatching, so an abort can
+    // neither be missed by a not-yet-attached listener nor start work on an
+    // already-cancelled run.
+    signal.addEventListener("abort", onAbort, { once: true });
     try {
-        return await Promise.race([
-            operation(),
-            new Promise<never>((_resolve, reject) => {
-                rejectAbort = reject;
-                signal.addEventListener("abort", onAbort, { once: true });
-            }),
-        ]);
+        throwIfFactoryAborted(signal);
+        return await Promise.race([operation(), abortPromise]);
     } finally {
         signal.removeEventListener("abort", onAbort);
     }
