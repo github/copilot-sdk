@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use github_copilot_sdk::rpc::{ShellExecRequest, ShellKillRequest, ShellKillSignal};
 
@@ -12,6 +12,7 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
+                let timeout = shell_timeout();
                 let started_path = ctx.work_dir().join("shell-timeout-started.txt");
                 let marker_path = ctx.work_dir().join("shell-timeout-marker.txt");
                 let client = ctx.start_client().await;
@@ -26,13 +27,20 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
                     .exec(ShellExecRequest {
                         command: delayed_write_command(&started_path, &marker_path),
                         cwd: Some(ctx.work_dir().display().to_string()),
-                        timeout: Some(shell_timeout_ms()),
+                        timeout: Some(
+                            timeout
+                                .as_millis()
+                                .try_into()
+                                .expect("shell timeout fits in i64"),
+                        ),
                     })
                     .await
                     .expect("execute timed command");
                 assert!(!result.process_id.trim().is_empty());
 
                 wait_for_exists(&started_path).await;
+                // The cleanup probe should not terminate a process before its timeout expires.
+                tokio::time::sleep(timeout).await;
                 wait_for_process_cleanup(&session, result.process_id, "timed-out command").await;
                 assert!(
                     !marker_path.exists(),
@@ -317,8 +325,8 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
 }
 
 #[cfg(windows)]
-fn shell_timeout_ms() -> i64 {
-    2_000
+fn shell_timeout() -> Duration {
+    Duration::from_secs(2)
 }
 
 #[cfg(not(windows))]
@@ -331,8 +339,8 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
 }
 
 #[cfg(not(windows))]
-fn shell_timeout_ms() -> i64 {
-    200
+fn shell_timeout() -> Duration {
+    Duration::from_millis(200)
 }
 
 #[cfg(windows)]
