@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionPermissionsApi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionPermissionsApi.java</span></div><h1>SessionPermissionsApi.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code permissions} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class SessionPermissionsApi {
+
+<span class="fc" id="L22">    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;</span>
+
+    private final RpcCaller caller;
+    private final String sessionId;
+
+    /** API methods for the {@code permissions.paths} sub-namespace. */
+    public final SessionPermissionsPathsApi paths;
+    /** API methods for the {@code permissions.locations} sub-namespace. */
+    public final SessionPermissionsLocationsApi locations;
+    /** API methods for the {@code permissions.folderTrust} sub-namespace. */
+    public final SessionPermissionsFolderTrustApi folderTrust;
+    /** API methods for the {@code permissions.urls} sub-namespace. */
+    public final SessionPermissionsUrlsApi urls;
+
+    /** @param caller the RPC transport function */
+<span class="fc" id="L37">    SessionPermissionsApi(RpcCaller caller, String sessionId) {</span>
+<span class="fc" id="L38">        this.caller = caller;</span>
+<span class="fc" id="L39">        this.sessionId = sessionId;</span>
+<span class="fc" id="L40">        this.paths = new SessionPermissionsPathsApi(caller, sessionId);</span>
+<span class="fc" id="L41">        this.locations = new SessionPermissionsLocationsApi(caller, sessionId);</span>
+<span class="fc" id="L42">        this.folderTrust = new SessionPermissionsFolderTrustApi(caller, sessionId);</span>
+<span class="fc" id="L43">        this.urls = new SessionPermissionsUrlsApi(caller, sessionId);</span>
+<span class="fc" id="L44">    }</span>
+
+    /**
+     * Patch of permission policy fields to apply (omit a field to leave it unchanged).
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsConfigureResult&gt; configure(SessionPermissionsConfigureParams params) {
+<span class="nc" id="L57">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L58">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L59">        return caller.invoke(&quot;session.permissions.configure&quot;, _p, SessionPermissionsConfigureResult.class);</span>
+    }
+
+    /**
+     * Pending permission request ID and the decision to apply (approve/reject and scope).
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsHandlePendingPermissionRequestResult&gt; handlePendingPermissionRequest(SessionPermissionsHandlePendingPermissionRequestParams params) {
+<span class="fc" id="L73">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="fc" id="L74">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L75">        return caller.invoke(&quot;session.permissions.handlePendingPermissionRequest&quot;, _p, SessionPermissionsHandlePendingPermissionRequestResult.class);</span>
+    }
+
+    /**
+     * No parameters; returns currently-pending permission requests for the session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsPendingRequestsResult&gt; pendingRequests() {
+<span class="nc" id="L86">        return caller.invoke(&quot;session.permissions.pendingRequests&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionPermissionsPendingRequestsResult.class);</span>
+    }
+
+    /**
+     * Allow-all toggle for tool permission requests, with an optional telemetry source.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsSetApproveAllResult&gt; setApproveAll(SessionPermissionsSetApproveAllParams params) {
+<span class="fc" id="L100">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="fc" id="L101">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L102">        return caller.invoke(&quot;session.permissions.setApproveAll&quot;, _p, SessionPermissionsSetApproveAllResult.class);</span>
+    }
+
+    /**
+     * Allow-all mode to apply for the session.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsSetAllowAllResult&gt; setAllowAll(SessionPermissionsSetAllowAllParams params) {
+<span class="nc" id="L116">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L117">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L118">        return caller.invoke(&quot;session.permissions.setAllowAll&quot;, _p, SessionPermissionsSetAllowAllResult.class);</span>
+    }
+
+    /**
+     * No parameters.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsGetAllowAllResult&gt; getAllowAll() {
+<span class="nc" id="L129">        return caller.invoke(&quot;session.permissions.getAllowAll&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionPermissionsGetAllowAllResult.class);</span>
+    }
+
+    /**
+     * Scope and add/remove instructions for modifying session- or location-scoped permission rules.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsModifyRulesResult&gt; modifyRules(SessionPermissionsModifyRulesParams params) {
+<span class="nc" id="L143">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L144">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L145">        return caller.invoke(&quot;session.permissions.modifyRules&quot;, _p, SessionPermissionsModifyRulesResult.class);</span>
+    }
+
+    /**
+     * Toggles whether permission prompts should be bridged into session events for this client.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsSetRequiredResult&gt; setRequired(SessionPermissionsSetRequiredParams params) {
+<span class="nc" id="L159">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L160">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L161">        return caller.invoke(&quot;session.permissions.setRequired&quot;, _p, SessionPermissionsSetRequiredResult.class);</span>
+    }
+
+    /**
+     * Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsResetSessionApprovalsResult&gt; resetSessionApprovals(SessionPermissionsResetSessionApprovalsParams params) {
+<span class="nc" id="L175">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L176">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L177">        return caller.invoke(&quot;session.permissions.resetSessionApprovals&quot;, _p, SessionPermissionsResetSessionApprovalsResult.class);</span>
+    }
+
+    /**
+     * Notification payload describing the permission prompt that the client just rendered.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionPermissionsNotifyPromptShownResult&gt; notifyPromptShown(SessionPermissionsNotifyPromptShownParams params) {
+<span class="nc" id="L191">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L192">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L193">        return caller.invoke(&quot;session.permissions.notifyPromptShown&quot;, _p, SessionPermissionsNotifyPromptShownResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

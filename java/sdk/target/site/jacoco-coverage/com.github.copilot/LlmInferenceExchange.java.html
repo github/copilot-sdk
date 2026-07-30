@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LlmInferenceExchange.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">LlmInferenceExchange.java</span></div><h1>LlmInferenceExchange.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Supplier;
+
+import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkError;
+import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkParams;
+import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartParams;
+import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
+
+/**
+ * One intercepted request in flight. Carries the request context plus the body
+ * byte stream the runtime feeds in via {@code httpRequestChunk} frames, and
+ * emits the consumer's response straight back to the runtime through the
+ * generated {@code llmInference} server API.
+ * &lt;p&gt;
+ * This is the single object the {@link LlmInferenceAdapter} owns and the
+ * {@link CopilotRequestHandler} writes to, replacing the former
+ * provider/sink/request-body/response-channel indirection. The response state
+ * machine is strict: {@link #startResponse} once, then zero or more
+ * {@code writeResponse*} calls, finishing with exactly one of
+ * {@link #endResponse} or {@link #errorResponse}.
+ */
+final class LlmInferenceExchange {
+
+    /**
+     * A single request body frame.
+     *
+     * @param data
+     *            the frame bytes
+     * @param binary
+     *            {@code true} when delivered as binary, {@code false} for UTF-8
+     *            text
+     */
+<span class="fc" id="L50">    record BodyFrame(byte[] data, boolean binary) {</span>
+    }
+
+<span class="fc" id="L53">    private enum ItemKind {</span>
+<span class="fc" id="L54">        CHUNK, END, CANCEL</span>
+    }
+
+<span class="fc" id="L57">    private record BodyItem(ItemKind kind, byte[] data, boolean binary) {</span>
+    }
+
+    private final String requestId;
+    private String method;
+    private final Supplier&lt;ServerLlmInferenceApi&gt; rpcSupplier;
+
+<span class="fc" id="L64">    private final BlockingQueue&lt;BodyItem&gt; body = new LinkedBlockingQueue&lt;&gt;();</span>
+<span class="fc" id="L65">    private final CompletableFuture&lt;Void&gt; cancellation = new CompletableFuture&lt;&gt;();</span>
+
+<span class="fc" id="L67">    private final Object lock = new Object();</span>
+    private boolean started;
+    private boolean finished;
+    private boolean cancelled;
+
+    private CopilotRequestContext context;
+
+<span class="fc" id="L74">    LlmInferenceExchange(String requestId, Supplier&lt;ServerLlmInferenceApi&gt; rpcSupplier) {</span>
+<span class="fc" id="L75">        this.requestId = requestId;</span>
+<span class="fc" id="L76">        this.rpcSupplier = rpcSupplier;</span>
+<span class="fc" id="L77">    }</span>
+
+    String requestId() {
+<span class="fc" id="L80">        return requestId;</span>
+    }
+
+    String method() {
+<span class="fc" id="L84">        return method;</span>
+    }
+
+    void setMethod(String method) {
+<span class="fc" id="L88">        this.method = method;</span>
+<span class="fc" id="L89">    }</span>
+
+    CompletableFuture&lt;Void&gt; cancellation() {
+<span class="fc" id="L92">        return cancellation;</span>
+    }
+
+    CopilotRequestContext context() {
+<span class="fc" id="L96">        return context;</span>
+    }
+
+    void setContext(CopilotRequestContext context) {
+<span class="fc" id="L100">        this.context = context;</span>
+<span class="fc" id="L101">    }</span>
+
+    boolean started() {
+<span class="fc" id="L104">        synchronized (lock) {</span>
+<span class="fc" id="L105">            return started;</span>
+        }
+    }
+
+    boolean finished() {
+<span class="fc" id="L110">        synchronized (lock) {</span>
+<span class="fc" id="L111">            return finished;</span>
+        }
+    }
+
+    boolean cancelled() {
+<span class="fc" id="L116">        synchronized (lock) {</span>
+<span class="fc" id="L117">            return cancelled;</span>
+        }
+    }
+
+    // --- Request body feed (driven by the adapter as chunk frames arrive) ---
+
+    void pushChunk(byte[] data, boolean binary) {
+<span class="fc" id="L124">        body.add(new BodyItem(ItemKind.CHUNK, data, binary));</span>
+<span class="fc" id="L125">    }</span>
+
+    void pushEnd() {
+<span class="fc" id="L128">        body.add(new BodyItem(ItemKind.END, null, false));</span>
+<span class="fc" id="L129">    }</span>
+
+    void pushCancel() {
+<span class="fc" id="L132">        synchronized (lock) {</span>
+<span class="fc" id="L133">            cancelled = true;</span>
+<span class="fc" id="L134">        }</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (!cancellation.isDone()) {</span>
+<span class="fc" id="L136">            cancellation.complete(null);</span>
+        }
+<span class="fc" id="L138">        body.add(new BodyItem(ItemKind.CANCEL, null, false));</span>
+<span class="fc" id="L139">    }</span>
+
+    /**
+     * Reads the next request body frame, blocking until one is available.
+     *
+     * @return the next frame, or {@code null} when the body has ended
+     * @throws InterruptedException
+     *             if interrupted while waiting
+     * @throws CancellationException
+     *             if the runtime cancelled the request
+     */
+    BodyFrame readFrame() throws InterruptedException {
+<span class="fc" id="L151">        BodyItem item = body.take();</span>
+<span class="fc bfc" id="L152" title="All 3 branches covered.">        switch (item.kind()) {</span>
+            case CANCEL -&gt; {
+                // Re-arm the sentinel so subsequent reads keep failing fast.
+<span class="fc" id="L155">                body.add(item);</span>
+<span class="fc" id="L156">                throw new CancellationException(&quot;Request cancelled by runtime&quot;);</span>
+            }
+            case END -&gt; {
+<span class="fc" id="L159">                body.add(item);</span>
+<span class="fc" id="L160">                return null;</span>
+            }
+            default -&gt; {
+<span class="fc" id="L163">                return new BodyFrame(item.data(), item.binary());</span>
+            }
+        }
+    }
+
+    byte[] drainBody() throws InterruptedException {
+<span class="fc" id="L169">        ByteArrayOutputStream out = new ByteArrayOutputStream();</span>
+        BodyFrame frame;
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        while ((frame = readFrame()) != null) {</span>
+<span class="fc" id="L172">            out.writeBytes(frame.data());</span>
+        }
+<span class="fc" id="L174">        return out.toByteArray();</span>
+    }
+
+    // --- Response emit (driven by the handler) ---
+
+    void startResponse(int status, String statusText, Map&lt;String, List&lt;String&gt;&gt; headers) throws IOException {
+<span class="fc" id="L180">        synchronized (lock) {</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">            if (started) {</span>
+<span class="nc" id="L182">                throw new IOException(&quot;LLM inference response startResponse() called twice&quot;);</span>
+            }
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">            if (finished) {</span>
+<span class="nc" id="L185">                throw new IOException(&quot;LLM inference response already finished&quot;);</span>
+            }
+<span class="fc" id="L187">            started = true;</span>
+<span class="fc" id="L188">        }</span>
+<span class="fc" id="L189">        var params = new LlmInferenceHttpResponseStartParams(requestId, (long) status, statusText, headers);</span>
+<span class="fc" id="L190">        join(api().httpResponseStart(params));</span>
+<span class="fc" id="L191">    }</span>
+
+    void writeResponseText(String text) throws IOException {
+<span class="fc" id="L194">        writeChunk(text, false);</span>
+<span class="fc" id="L195">    }</span>
+
+    void writeResponseBinary(byte[] data) throws IOException {
+<span class="nc" id="L198">        writeChunk(Base64.getEncoder().encodeToString(data), true);</span>
+<span class="nc" id="L199">    }</span>
+
+    void writeResponseBinary(byte[] data, int offset, int length) throws IOException {
+<span class="fc" id="L202">        ByteBuffer encoded = Base64.getEncoder().encode(ByteBuffer.wrap(data, offset, length));</span>
+<span class="fc" id="L203">        writeChunk(new String(encoded.array(), 0, encoded.limit(), StandardCharsets.ISO_8859_1), true);</span>
+<span class="fc" id="L204">    }</span>
+
+    void endResponse() throws IOException {
+<span class="fc" id="L207">        synchronized (lock) {</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">            if (finished) {</span>
+<span class="nc" id="L209">                return;</span>
+            }
+<span class="fc" id="L211">            finished = true;</span>
+<span class="fc" id="L212">        }</span>
+<span class="fc" id="L213">        var params = new LlmInferenceHttpResponseChunkParams(requestId, &quot;&quot;, null, Boolean.TRUE, null);</span>
+<span class="fc" id="L214">        join(api().httpResponseChunk(params));</span>
+<span class="fc" id="L215">    }</span>
+
+    void errorResponse(String message, String code) throws IOException {
+<span class="fc" id="L218">        synchronized (lock) {</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">            if (finished) {</span>
+<span class="nc" id="L220">                return;</span>
+            }
+<span class="fc" id="L222">            finished = true;</span>
+<span class="fc" id="L223">        }</span>
+<span class="fc" id="L224">        var error = new LlmInferenceHttpResponseChunkError(message, code);</span>
+<span class="fc" id="L225">        var params = new LlmInferenceHttpResponseChunkParams(requestId, &quot;&quot;, null, Boolean.TRUE, error);</span>
+<span class="fc" id="L226">        join(api().httpResponseChunk(params));</span>
+<span class="fc" id="L227">    }</span>
+
+    private void writeChunk(String data, boolean binary) throws IOException {
+<span class="fc" id="L230">        synchronized (lock) {</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">            if (cancelled) {</span>
+<span class="nc" id="L232">                throw new IOException(&quot;LLM inference request was cancelled by the runtime&quot;);</span>
+            }
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">            if (!started) {</span>
+<span class="nc" id="L235">                throw new IOException(&quot;LLM inference response writeResponse() called before startResponse()&quot;);</span>
+            }
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">            if (finished) {</span>
+<span class="nc" id="L238">                throw new IOException(</span>
+                        &quot;LLM inference response writeResponse() called after endResponse()/errorResponse()&quot;);
+            }
+<span class="fc" id="L241">        }</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        var params = new LlmInferenceHttpResponseChunkParams(requestId, data, binary ? Boolean.TRUE : null,</span>
+                Boolean.FALSE, null);
+<span class="fc" id="L244">        join(api().httpResponseChunk(params));</span>
+<span class="fc" id="L245">    }</span>
+
+    private ServerLlmInferenceApi api() throws IOException {
+<span class="fc" id="L248">        ServerLlmInferenceApi api = rpcSupplier.get();</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">        if (api == null) {</span>
+<span class="nc" id="L250">            throw new IOException(&quot;LLM inference response used after RPC connection closed&quot;);</span>
+        }
+<span class="fc" id="L252">        return api;</span>
+    }
+
+    private static &lt;T&gt; T join(CompletableFuture&lt;T&gt; future) throws IOException {
+        try {
+<span class="fc" id="L257">            return future.join();</span>
+<span class="nc" id="L258">        } catch (CompletionException | CancellationException e) {</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">            Throwable cause = e.getCause() != null ? e.getCause() : e;</span>
+<span class="nc" id="L260">            throw new IOException(cause.getMessage(), cause);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

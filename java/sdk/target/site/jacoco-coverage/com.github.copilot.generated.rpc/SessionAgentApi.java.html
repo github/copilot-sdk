@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionAgentApi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionAgentApi.java</span></div><h1>SessionAgentApi.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code agent} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class SessionAgentApi {
+
+<span class="fc" id="L22">    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;</span>
+
+    private final RpcCaller caller;
+    private final String sessionId;
+
+    /** @param caller the RPC transport function */
+<span class="fc" id="L28">    SessionAgentApi(RpcCaller caller, String sessionId) {</span>
+<span class="fc" id="L29">        this.caller = caller;</span>
+<span class="fc" id="L30">        this.sessionId = sessionId;</span>
+<span class="fc" id="L31">    }</span>
+
+    /**
+     * Controls whether built-in agents and authored prompt text are included.
+     * &lt;p&gt;
+     * Invokes the method with no params, applying the runtime defaults.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAgentListResult&gt; list() {
+<span class="fc" id="L43">        return list(null);</span>
+    }
+
+    /**
+     * Controls whether built-in agents and authored prompt text are included.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAgentListResult&gt; list(SessionAgentListParams params) {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);</span>
+<span class="fc" id="L58">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L59">        return caller.invoke(&quot;session.agent.list&quot;, _p, SessionAgentListResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAgentGetCurrentResult&gt; getCurrent() {
+<span class="fc" id="L70">        return caller.invoke(&quot;session.agent.getCurrent&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionAgentGetCurrentResult.class);</span>
+    }
+
+    /**
+     * Name of the custom agent to select for subsequent turns.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAgentSelectResult&gt; select(SessionAgentSelectParams params) {
+<span class="fc" id="L84">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="fc" id="L85">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L86">        return caller.invoke(&quot;session.agent.select&quot;, _p, SessionAgentSelectResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; deselect() {
+<span class="fc" id="L97">        return caller.invoke(&quot;session.agent.deselect&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), Void.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAgentReloadResult&gt; reload() {
+<span class="fc" id="L108">        return caller.invoke(&quot;session.agent.reload&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionAgentReloadResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

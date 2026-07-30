@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Param.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.tool</a> &gt; <span class="el_source">Param.java</span></div><h1>Param.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.tool;
+
+import java.util.Objects;
+
+import com.github.copilot.CopilotExperimental;
+
+/**
+ * Runtime parameter metadata for lambda-defined tools.
+ *
+ * &lt;p&gt;
+ * Each {@code Param} instance describes a single parameter that a tool accepts,
+ * including its Java type, wire name, description, whether it is required, and
+ * an optional default value. Instances are immutable; fluent mutators return
+ * new copies.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * Param&lt;String&gt; query = Param.of(String.class, &quot;query&quot;, &quot;Search query text&quot;);
+ *
+ * Param&lt;Integer&gt; limit = Param.of(Integer.class, &quot;limit&quot;, &quot;Max results&quot;, false, &quot;10&quot;);
+ * }&lt;/pre&gt;
+ *
+ * @param &lt;T&gt;
+ *            the Java type of the parameter value
+ * @since 1.0.6
+ */
+@CopilotExperimental
+public final class Param&lt;T&gt; {
+
+    private final Class&lt;T&gt; type;
+    private final String name;
+    private final String description;
+    private final boolean required;
+    private final String defaultValue;
+    private final String schema;
+
+    private Param(Class&lt;T&gt; type, String name, String description, boolean required, String defaultValue,
+<span class="fc" id="L43">            String schema) {</span>
+<span class="fc" id="L44">        this.type = Objects.requireNonNull(type, &quot;type&quot;);</span>
+<span class="fc" id="L45">        this.name = requireNonBlank(name, &quot;name&quot;);</span>
+<span class="fc" id="L46">        this.description = requireNonBlank(description, &quot;description&quot;);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        this.defaultValue = defaultValue == null ? &quot;&quot; : defaultValue;</span>
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        this.schema = schema == null ? &quot;&quot; : schema;</span>
+<span class="fc" id="L49">        this.required = required;</span>
+
+<span class="fc bfc" id="L51" title="All 4 branches covered.">        if (this.required &amp;&amp; !this.defaultValue.isEmpty()) {</span>
+<span class="fc" id="L52">            throw new IllegalArgumentException(&quot;required=true cannot be combined with a non-empty defaultValue&quot;);</span>
+        }
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (!this.schema.isEmpty()) {</span>
+<span class="fc" id="L56">            String trimmed = this.schema.trim();</span>
+<span class="fc bfc" id="L57" title="All 4 branches covered.">            if (!trimmed.startsWith(&quot;{&quot;) || !trimmed.endsWith(&quot;}&quot;)) {</span>
+<span class="fc" id="L58">                throw new IllegalArgumentException(</span>
+                        &quot;schema must be a valid JSON object string (must start with '{' and end with '}')&quot;);
+            }
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (!this.defaultValue.isEmpty()) {</span>
+<span class="fc" id="L62">                throw new IllegalArgumentException(</span>
+                        &quot;schema cannot be combined with defaultValue — express defaults inside the schema if needed&quot;);
+            }
+        }
+
+<span class="fc" id="L67">        validateDefaultValue(type, this.defaultValue);</span>
+<span class="fc" id="L68">    }</span>
+
+    /**
+     * Creates a required parameter with no default value.
+     *
+     * @param &lt;T&gt;
+     *            the parameter type
+     * @param type
+     *            the Java class of the parameter
+     * @param name
+     *            the wire name sent to the model (must not be blank)
+     * @param description
+     *            a human-readable description (must not be blank)
+     * @return a new {@code Param} instance
+     * @throws NullPointerException
+     *             if {@code type} is null
+     * @throws IllegalArgumentException
+     *             if {@code name} or {@code description} is blank
+     */
+    public static &lt;T&gt; Param&lt;T&gt; of(Class&lt;T&gt; type, String name, String description) {
+<span class="fc" id="L88">        return new Param&lt;&gt;(type, name, description, true, &quot;&quot;, &quot;&quot;);</span>
+    }
+
+    /**
+     * Creates a parameter with explicit required/default settings.
+     *
+     * @param &lt;T&gt;
+     *            the parameter type
+     * @param type
+     *            the Java class of the parameter
+     * @param name
+     *            the wire name sent to the model (must not be blank)
+     * @param description
+     *            a human-readable description (must not be blank)
+     * @param required
+     *            whether the parameter is required
+     * @param defaultValue
+     *            the default value as a string, or {@code null}/empty for none
+     * @return a new {@code Param} instance
+     * @throws NullPointerException
+     *             if {@code type} is null
+     * @throws IllegalArgumentException
+     *             if validation fails
+     */
+    public static &lt;T&gt; Param&lt;T&gt; of(Class&lt;T&gt; type, String name, String description, boolean required,
+            String defaultValue) {
+<span class="fc" id="L114">        return new Param&lt;&gt;(type, name, description, required, defaultValue, &quot;&quot;);</span>
+    }
+
+    /**
+     * Returns a copy with a different name.
+     *
+     * @param name
+     *            the new parameter name
+     * @return a new {@code Param} with the updated name
+     */
+    public Param&lt;T&gt; name(String name) {
+<span class="fc" id="L125">        return new Param&lt;&gt;(this.type, name, this.description, this.required, this.defaultValue, this.schema);</span>
+    }
+
+    /**
+     * Returns a copy with a different description.
+     *
+     * @param description
+     *            the new description
+     * @return a new {@code Param} with the updated description
+     */
+    public Param&lt;T&gt; description(String description) {
+<span class="fc" id="L136">        return new Param&lt;&gt;(this.type, this.name, description, this.required, this.defaultValue, this.schema);</span>
+    }
+
+    /**
+     * Returns a copy with a different required flag.
+     *
+     * @param required
+     *            whether the parameter is required
+     * @return a new {@code Param} with the updated required flag
+     */
+    public Param&lt;T&gt; required(boolean required) {
+<span class="fc" id="L147">        return new Param&lt;&gt;(this.type, this.name, this.description, required, this.defaultValue, this.schema);</span>
+    }
+
+    /**
+     * Returns an optional copy with the given default value. Setting a default
+     * implicitly makes the parameter optional ({@code required=false}).
+     *
+     * @param defaultValue
+     *            the default value as a string
+     * @return a new {@code Param} with the default applied and required set to
+     *         false
+     */
+    public Param&lt;T&gt; defaultValue(String defaultValue) {
+<span class="fc" id="L160">        return new Param&lt;&gt;(this.type, this.name, this.description, false, defaultValue, this.schema);</span>
+    }
+
+    /** Returns the Java type of this parameter. */
+    public Class&lt;T&gt; type() {
+<span class="fc" id="L165">        return type;</span>
+    }
+
+    /** Returns the wire name of this parameter. */
+    public String name() {
+<span class="fc" id="L170">        return name;</span>
+    }
+
+    /** Returns the human-readable description. */
+    public String description() {
+<span class="fc" id="L175">        return description;</span>
+    }
+
+    /** Returns whether this parameter is required. */
+    public boolean required() {
+<span class="fc" id="L180">        return required;</span>
+    }
+
+    /** Returns the default value string, or empty if none. */
+    public String defaultValue() {
+<span class="fc" id="L185">        return defaultValue;</span>
+    }
+
+    /** Returns {@code true} if a non-empty default value is set. */
+    public boolean hasDefaultValue() {
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        return !defaultValue.isEmpty();</span>
+    }
+
+    /**
+     * Returns a copy with an explicit JSON Schema override. When set, bypasses
+     * automatic schema generation from the parameter type.
+     *
+     * @param schema
+     *            a JSON object string (e.g.,
+     *            {@code &quot;{\&quot;type\&quot;:\&quot;string\&quot;,\&quot;format\&quot;:\&quot;date-time\&quot;}&quot;} )
+     * @return a new {@code Param} with the schema override
+     */
+    public Param&lt;T&gt; schema(String schema) {
+<span class="fc" id="L203">        return new Param&lt;&gt;(this.type, this.name, this.description, this.required, this.defaultValue, schema);</span>
+    }
+
+    /** Returns the explicit JSON Schema override, or empty if none. */
+    public String schema() {
+<span class="fc" id="L208">        return schema;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (!(o instanceof Param&lt;?&gt; other)) {</span>
+<span class="nc" id="L214">            return false;</span>
+        }
+<span class="pc bpc" id="L216" title="2 of 6 branches missed.">        return required == other.required &amp;&amp; Objects.equals(type, other.type) &amp;&amp; Objects.equals(name, other.name)</span>
+<span class="pc bpc" id="L217" title="2 of 4 branches missed.">                &amp;&amp; Objects.equals(description, other.description) &amp;&amp; Objects.equals(defaultValue, other.defaultValue)</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">                &amp;&amp; Objects.equals(schema, other.schema);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L223">        return Objects.hash(type, name, description, required, defaultValue, schema);</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L228">        return &quot;Param[name=&quot; + name + &quot;, type=&quot; + type.getSimpleName() + &quot;, required=&quot; + required + &quot;]&quot;;</span>
+    }
+
+    // ------------------------------------------------------------------
+    // Internal validation helpers
+    // ------------------------------------------------------------------
+
+    private static String requireNonBlank(String value, String fieldName) {
+<span class="fc bfc" id="L236" title="All 4 branches covered.">        if (value == null || value.isBlank()) {</span>
+<span class="fc" id="L237">            throw new IllegalArgumentException(fieldName + &quot; must not be null or blank&quot;);</span>
+        }
+<span class="fc" id="L239">        return value;</span>
+    }
+
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    private static &lt;T&gt; void validateDefaultValue(Class&lt;T&gt; type, String defaultValue) {
+<span class="pc bpc" id="L244" title="1 of 4 branches missed.">        if (defaultValue == null || defaultValue.isEmpty()) {</span>
+<span class="fc" id="L245">            return;</span>
+        }
+
+        try {
+<span class="fc bfc" id="L249" title="All 2 branches covered.">            if (type == String.class) {</span>
+<span class="fc" id="L250">                return;</span>
+            }
+<span class="pc bpc" id="L252" title="1 of 4 branches missed.">            if (type == Integer.class || type == int.class) {</span>
+<span class="fc" id="L253">                Integer.parseInt(defaultValue);</span>
+<span class="fc" id="L254">                return;</span>
+            }
+<span class="pc bpc" id="L256" title="1 of 4 branches missed.">            if (type == Long.class || type == long.class) {</span>
+<span class="fc" id="L257">                Long.parseLong(defaultValue);</span>
+<span class="fc" id="L258">                return;</span>
+            }
+<span class="pc bpc" id="L260" title="1 of 4 branches missed.">            if (type == Double.class || type == double.class) {</span>
+<span class="fc" id="L261">                Double.parseDouble(defaultValue);</span>
+<span class="fc" id="L262">                return;</span>
+            }
+<span class="pc bpc" id="L264" title="1 of 4 branches missed.">            if (type == Float.class || type == float.class) {</span>
+<span class="fc" id="L265">                Float.parseFloat(defaultValue);</span>
+<span class="fc" id="L266">                return;</span>
+            }
+<span class="pc bpc" id="L268" title="1 of 4 branches missed.">            if (type == Short.class || type == short.class) {</span>
+<span class="fc" id="L269">                Short.parseShort(defaultValue);</span>
+<span class="fc" id="L270">                return;</span>
+            }
+<span class="pc bpc" id="L272" title="1 of 4 branches missed.">            if (type == Byte.class || type == byte.class) {</span>
+<span class="fc" id="L273">                Byte.parseByte(defaultValue);</span>
+<span class="fc" id="L274">                return;</span>
+            }
+<span class="pc bpc" id="L276" title="1 of 4 branches missed.">            if (type == Boolean.class || type == boolean.class) {</span>
+<span class="fc bfc" id="L277" title="All 4 branches covered.">                if (!&quot;true&quot;.equalsIgnoreCase(defaultValue) &amp;&amp; !&quot;false&quot;.equalsIgnoreCase(defaultValue)) {</span>
+<span class="fc" id="L278">                    throw new IllegalArgumentException(&quot;must be 'true' or 'false'&quot;);</span>
+                }
+<span class="fc" id="L280">                return;</span>
+            }
+<span class="fc bfc" id="L282" title="All 2 branches covered.">            if (type.isEnum()) {</span>
+<span class="fc" id="L283">                Class&lt;? extends Enum&gt; enumType = (Class&lt;? extends Enum&gt;) type;</span>
+<span class="fc" id="L284">                Enum.valueOf(enumType, defaultValue);</span>
+<span class="fc" id="L285">                return;</span>
+            }
+<span class="fc" id="L287">        } catch (RuntimeException ex) {</span>
+<span class="fc" id="L288">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L289">                    &quot;defaultValue '&quot; + defaultValue + &quot;' is not valid for type &quot; + type.getSimpleName(), ex);</span>
+<span class="fc" id="L290">        }</span>
+
+<span class="fc" id="L292">        throw new IllegalArgumentException(</span>
+<span class="fc" id="L293">                &quot;defaultValue is not supported for type &quot; + type.getName() + &quot; without a custom coercion policy&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

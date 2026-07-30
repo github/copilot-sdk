@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionMetadataContextInfoResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionMetadataContextInfoResult.java</span></div><h1>SessionMetadataContextInfoResult.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import javax.annotation.processing.Generated;
+
+/**
+ * Token breakdown for the session's current context window, or null if uninitialized.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L26">public record SessionMetadataContextInfoResult(</span>
+    /** Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached). */
+    @JsonProperty(&quot;contextInfo&quot;) SessionMetadataContextInfoResultContextInfo contextInfo
+) {
+
+    /** Token-usage breakdown for the session's current context window */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="nc" id="L34">    public record SessionMetadataContextInfoResultContextInfo(</span>
+        /** The model used for token counting */
+        @JsonProperty(&quot;modelName&quot;) String modelName,
+        /** Tokens consumed by the system prompt */
+        @JsonProperty(&quot;systemTokens&quot;) Long systemTokens,
+        /** Tokens consumed by user/assistant/tool messages */
+        @JsonProperty(&quot;conversationTokens&quot;) Long conversationTokens,
+        /** Tokens consumed by tool definitions sent to the model (excludes deferred tools) */
+        @JsonProperty(&quot;toolDefinitionsTokens&quot;) Long toolDefinitionsTokens,
+        /** Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools) */
+        @JsonProperty(&quot;mcpToolsTokens&quot;) Long mcpToolsTokens,
+        /** Sum of system, conversation and tool-definition tokens */
+        @JsonProperty(&quot;totalTokens&quot;) Long totalTokens,
+        /** Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified) */
+        @JsonProperty(&quot;promptTokenLimit&quot;) Long promptTokenLimit,
+        /** Token count at which background compaction starts (configurable percentage of promptTokenLimit) */
+        @JsonProperty(&quot;compactionThreshold&quot;) Long compactionThreshold,
+        /** Prompt token limit plus the model's full output token limit. */
+        @JsonProperty(&quot;limit&quot;) Long limit,
+        /** Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%) */
+        @JsonProperty(&quot;bufferTokens&quot;) Long bufferTokens
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

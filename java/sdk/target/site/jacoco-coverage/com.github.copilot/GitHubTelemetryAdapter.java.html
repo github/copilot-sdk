@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubTelemetryAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">GitHubTelemetryAdapter.java</span></div><h1>GitHubTelemetryAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
+
+/**
+ * Bridges the runtime's {@code gitHubTelemetry.event} client-global
+ * notification to a consumer's async {@code onGitHubTelemetry} callback. The
+ * notification carries per-session GitHub (hydro) telemetry the runtime
+ * forwards to connections that opted into telemetry forwarding.
+ */
+final class GitHubTelemetryAdapter {
+
+<span class="fc" id="L24">    private static final Logger LOG = Logger.getLogger(GitHubTelemetryAdapter.class.getName());</span>
+<span class="fc" id="L25">    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();</span>
+
+    private final Function&lt;GitHubTelemetryNotification, CompletableFuture&lt;Void&gt;&gt; callback;
+
+<span class="fc" id="L29">    GitHubTelemetryAdapter(Function&lt;GitHubTelemetryNotification, CompletableFuture&lt;Void&gt;&gt; callback) {</span>
+<span class="fc" id="L30">        this.callback = callback;</span>
+<span class="fc" id="L31">    }</span>
+
+    void registerHandlers(JsonRpcClient rpc) {
+<span class="fc" id="L34">        rpc.registerMethodHandler(&quot;gitHubTelemetry.event&quot;, (rpcId, params) -&gt; handleEvent(params));</span>
+<span class="fc" id="L35">    }</span>
+
+    private void handleEvent(JsonNode params) {
+        try {
+<span class="fc" id="L39">            GitHubTelemetryNotification notification = MAPPER.treeToValue(params, GitHubTelemetryNotification.class);</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">            if (notification != null) {</span>
+<span class="fc" id="L41">                CompletableFuture&lt;Void&gt; result = callback.apply(notification);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">                if (result != null) {</span>
+<span class="fc" id="L43">                    result.whenComplete((unused, error) -&gt; {</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">                        if (error != null) {</span>
+<span class="nc" id="L45">                            LOG.log(Level.WARNING, &quot;Error handling gitHubTelemetry.event notification&quot;, error);</span>
+                        }
+<span class="fc" id="L47">                    });</span>
+                }
+            }
+<span class="nc" id="L50">        } catch (Exception e) {</span>
+<span class="nc" id="L51">            LOG.log(Level.WARNING, &quot;Error handling gitHubTelemetry.event notification&quot;, e);</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

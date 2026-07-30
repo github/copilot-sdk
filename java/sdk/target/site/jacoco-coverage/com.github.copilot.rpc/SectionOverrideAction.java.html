@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SectionOverrideAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">SectionOverrideAction.java</span></div><h1>SectionOverrideAction.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonValue;
+
+/**
+ * Specifies the operation to perform on a system prompt section in
+ * {@link SystemMessageMode#CUSTOMIZE} mode.
+ *
+ * @see SectionOverride
+ * @see SystemMessageConfig
+ * @since 1.0.0
+ */
+<span class="fc" id="L17">public enum SectionOverrideAction {</span>
+
+    /** Replace the section content entirely. */
+<span class="fc" id="L20">    REPLACE(&quot;replace&quot;),</span>
+
+    /** Remove the section from the prompt. */
+<span class="fc" id="L23">    REMOVE(&quot;remove&quot;),</span>
+
+    /** Append content after the existing section. */
+<span class="fc" id="L26">    APPEND(&quot;append&quot;),</span>
+
+    /** Prepend content before the existing section. */
+<span class="fc" id="L29">    PREPEND(&quot;prepend&quot;),</span>
+
+    /**
+     * No-op marker that opts an individually-addressable section out of a
+     * group-level {@link #REMOVE} (e.g. keep {@link SystemMessageSections#TONE}
+     * when removing the {@link SystemMessageSections#IDENTITY} group).
+     */
+<span class="fc" id="L36">    PRESERVE(&quot;preserve&quot;),</span>
+
+    /**
+     * Transform the section content via a callback.
+     * &lt;p&gt;
+     * When this action is used, the {@link SectionOverride#getTransform()} callback
+     * must be set. The SDK will not serialize this action over the wire directly;
+     * instead it registers a {@code systemMessage.transform} RPC handler.
+     */
+<span class="fc" id="L45">    TRANSFORM(&quot;transform&quot;);</span>
+
+    private final String value;
+
+<span class="fc" id="L49">    SectionOverrideAction(String value) {</span>
+<span class="fc" id="L50">        this.value = value;</span>
+<span class="fc" id="L51">    }</span>
+
+    /**
+     * Returns the JSON value for this action.
+     *
+     * @return the string value used in JSON serialization
+     */
+    @JsonValue
+    public String getValue() {
+<span class="fc" id="L60">        return value;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

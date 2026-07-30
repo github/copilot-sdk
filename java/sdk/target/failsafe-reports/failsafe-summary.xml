@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<failsafe-summary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/failsafe-summary.xsd" result="null" timeout="false">
+    <completed>19</completed>
+    <errors>0</errors>
+    <failures>0</failures>
+    <skipped>0</skipped>
+    <flakes>0</flakes>
+    <failureMessage xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+</failsafe-summary>

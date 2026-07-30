@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomAgentsUpdatedAgent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">CustomAgentsUpdatedAgent.java</span></div><h1>CustomAgentsUpdatedAgent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import javax.annotation.processing.Generated;
+
+/**
+ * A single loaded custom agent in `session.custom_agents_updated`, with identity, source, tools, invocability, and model override.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L24">public record CustomAgentsUpdatedAgent(</span>
+    /** Unique identifier for the agent */
+    @JsonProperty(&quot;id&quot;) String id,
+    /** Internal name of the agent */
+    @JsonProperty(&quot;name&quot;) String name,
+    /** Human-readable display name */
+    @JsonProperty(&quot;displayName&quot;) String displayName,
+    /** Description of what the agent does */
+    @JsonProperty(&quot;description&quot;) String description,
+    /** Source location: user, project, inherited, remote, or plugin */
+    @JsonProperty(&quot;source&quot;) String source,
+    /** List of tool names available to this agent, or null when all tools are available */
+    @JsonProperty(&quot;tools&quot;) List&lt;String&gt; tools,
+    /** Whether the agent can be selected by the user */
+    @JsonProperty(&quot;userInvocable&quot;) Boolean userInvocable,
+    /** Model override for this agent, if set */
+    @JsonProperty(&quot;model&quot;) String model
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

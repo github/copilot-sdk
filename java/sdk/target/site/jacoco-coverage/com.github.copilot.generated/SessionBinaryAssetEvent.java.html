@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionBinaryAssetEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionBinaryAssetEvent.java</span></div><h1>SessionBinaryAssetEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.binary_asset&quot;. Canonical bytes for a content-addressed binary asset shared by reference across events
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="nc" id="L23">public final class SessionBinaryAssetEvent extends SessionEvent {</span>
+
+    @Override
+<span class="nc" id="L26">    public String getType() { return &quot;session.binary_asset&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionBinaryAssetEventData data;
+
+<span class="nc" id="L31">    public SessionBinaryAssetEventData getData() { return data; }</span>
+<span class="nc" id="L32">    public void setData(SessionBinaryAssetEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionBinaryAssetEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="nc" id="L37">    public record SessionBinaryAssetEventData(</span>
+        /** Content-addressed id for this binary asset (e.g. &quot;sha256:...&quot;). */
+        @JsonProperty(&quot;assetId&quot;) String assetId,
+        /** Binary asset type discriminator. Use &quot;image&quot; for images and &quot;resource&quot; otherwise. */
+        @JsonProperty(&quot;type&quot;) BinaryAssetType type,
+        /** MIME type of the binary asset */
+        @JsonProperty(&quot;mimeType&quot;) String mimeType,
+        /** Decoded byte length of the binary asset */
+        @JsonProperty(&quot;byteLength&quot;) Long byteLength,
+        /** Base64-encoded binary data */
+        @JsonProperty(&quot;data&quot;) String data,
+        /** Human-readable description of the binary data */
+        @JsonProperty(&quot;description&quot;) String description,
+        /** Optional metadata from the producing tool. */
+        @JsonProperty(&quot;metadata&quot;) Map&lt;String, Object&gt; metadata
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

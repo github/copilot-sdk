@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionErrorEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionErrorEvent.java</span></div><h1>SessionErrorEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.error&quot;. Error details for timeline display including message and optional diagnostic information
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L22">public final class SessionErrorEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L25">    public String getType() { return &quot;session.error&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionErrorEventData data;
+
+<span class="fc" id="L30">    public SessionErrorEventData getData() { return data; }</span>
+<span class="fc" id="L31">    public void setData(SessionErrorEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionErrorEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L36">    public record SessionErrorEventData(</span>
+        /** Category of error (e.g., &quot;authentication&quot;, &quot;authorization&quot;, &quot;quota&quot;, &quot;rate_limit&quot;, &quot;context_limit&quot;, &quot;query&quot;) */
+        @JsonProperty(&quot;errorType&quot;) String errorType,
+        /** Fine-grained error code from the upstream provider, when available. For `errorType: &quot;rate_limit&quot;`, this is one of the `RateLimitErrorCode` values (e.g., `&quot;user_weekly_rate_limited&quot;`, `&quot;user_global_rate_limited&quot;`, `&quot;rate_limited&quot;`, `&quot;user_model_rate_limited&quot;`, `&quot;integration_rate_limited&quot;`). For `errorType: &quot;quota&quot;`, this is the CAPI quota error code (e.g., `&quot;quota_exceeded&quot;`, `&quot;session_quota_exceeded&quot;`, `&quot;billing_not_configured&quot;`). */
+        @JsonProperty(&quot;errorCode&quot;) String errorCode,
+        /** Only set on `errorType: &quot;rate_limit&quot;`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt. */
+        @JsonProperty(&quot;eligibleForAutoSwitch&quot;) Boolean eligibleForAutoSwitch,
+        /** Human-readable error message */
+        @JsonProperty(&quot;message&quot;) String message,
+        /** Error stack trace, when available */
+        @JsonProperty(&quot;stack&quot;) String stack,
+        /** HTTP status code from the upstream request, if applicable */
+        @JsonProperty(&quot;statusCode&quot;) Long statusCode,
+        /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
+        @JsonProperty(&quot;providerCallId&quot;) String providerCallId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
+        @JsonProperty(&quot;serviceRequestId&quot;) String serviceRequestId,
+        /** Optional URL associated with this error that the user can open in a browser */
+        @JsonProperty(&quot;url&quot;) String url
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

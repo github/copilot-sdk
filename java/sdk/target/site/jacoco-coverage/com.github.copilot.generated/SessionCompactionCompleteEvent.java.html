@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionCompactionCompleteEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionCompactionCompleteEvent.java</span></div><h1>SessionCompactionCompleteEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.compaction_complete&quot;. Conversation compaction results including success status, metrics, and optional error details
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L22">public final class SessionCompactionCompleteEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L25">    public String getType() { return &quot;session.compaction_complete&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionCompactionCompleteEventData data;
+
+<span class="fc" id="L30">    public SessionCompactionCompleteEventData getData() { return data; }</span>
+<span class="fc" id="L31">    public void setData(SessionCompactionCompleteEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionCompactionCompleteEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L36">    public record SessionCompactionCompleteEventData(</span>
+        /** Whether compaction completed successfully */
+        @JsonProperty(&quot;success&quot;) Boolean success,
+        /** Error message if compaction failed */
+        @JsonProperty(&quot;error&quot;) String error,
+        /** Total tokens in conversation before compaction */
+        @JsonProperty(&quot;preCompactionTokens&quot;) Long preCompactionTokens,
+        /** Total tokens in conversation after compaction */
+        @JsonProperty(&quot;postCompactionTokens&quot;) Long postCompactionTokens,
+        /** Number of messages before compaction */
+        @JsonProperty(&quot;preCompactionMessagesLength&quot;) Long preCompactionMessagesLength,
+        /** Number of messages removed during compaction */
+        @JsonProperty(&quot;messagesRemoved&quot;) Long messagesRemoved,
+        /** Number of tokens removed during compaction */
+        @JsonProperty(&quot;tokensRemoved&quot;) Long tokensRemoved,
+        /** User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text. */
+        @JsonProperty(&quot;customInstructions&quot;) String customInstructions,
+        /** LLM-generated summary of the compacted conversation history */
+        @JsonProperty(&quot;summaryContent&quot;) String summaryContent,
+        /** Checkpoint snapshot number created for recovery */
+        @JsonProperty(&quot;checkpointNumber&quot;) Long checkpointNumber,
+        /** File path where the checkpoint was stored */
+        @JsonProperty(&quot;checkpointPath&quot;) String checkpointPath,
+        /** Token usage breakdown for the compaction LLM call (aligned with assistant.usage format) */
+        @JsonProperty(&quot;compactionTokensUsed&quot;) CompactionCompleteCompactionTokensUsed compactionTokensUsed,
+        /** GitHub request tracing ID (x-github-request-id header) for the compaction LLM call */
+        @JsonProperty(&quot;requestId&quot;) String requestId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call */
+        @JsonProperty(&quot;serviceRequestId&quot;) String serviceRequestId,
+        /** Token count from system message(s) after compaction */
+        @JsonProperty(&quot;systemTokens&quot;) Long systemTokens,
+        /** Token count from non-system messages (user, assistant, tool) after compaction */
+        @JsonProperty(&quot;conversationTokens&quot;) Long conversationTokens,
+        /** Token count from tool definitions after compaction */
+        @JsonProperty(&quot;toolDefinitionsTokens&quot;) Long toolDefinitionsTokens,
+        /** For failed compaction only: the HTTP status code of the compaction LLM call failure, when it carried one. Absent for successful compaction and for failures without an HTTP status (e.g. an empty model response or a transport error). */
+        @JsonProperty(&quot;statusCode&quot;) Long statusCode,
+        /** Model context window token limit the compaction was targeting, when known */
+        @JsonProperty(&quot;tokenLimit&quot;) Long tokenLimit,
+        /** What initiated this compaction, when known */
+        @JsonProperty(&quot;trigger&quot;) CompactionTrigger trigger
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

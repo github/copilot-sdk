@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelBilling.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ModelBilling.java</span></div><h1>ModelBilling.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.rpc.ModelBillingTokenPrices;
+import java.util.OptionalDouble;
+
+/**
+ * Model billing information.
+ *
+ * @since 1.0.1
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L20">public class ModelBilling {</span>
+
+    @JsonProperty(&quot;multiplier&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Double multiplier;
+
+    @JsonProperty(&quot;tokenPrices&quot;)
+    private ModelBillingTokenPrices tokenPrices;
+
+    @JsonIgnore
+    public double getMultiplier() {
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        return multiplier != null ? multiplier : 0.0;</span>
+    }
+
+    public ModelBilling setMultiplier(double multiplier) {
+<span class="fc" id="L35">        this.multiplier = multiplier;</span>
+<span class="fc" id="L36">        return this;</span>
+    }
+
+    /**
+     * Returns the billing multiplier as an {@link java.util.OptionalDouble},
+     * allowing callers to distinguish &quot;absent&quot; from &quot;zero&quot;.
+     *
+     * @return an {@link java.util.OptionalDouble} containing the multiplier, or
+     *         {@link java.util.OptionalDouble#empty()} if not set
+     * @since 1.0.2
+     */
+    @JsonIgnore
+    public OptionalDouble getMultiplierOpt() {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        return multiplier == null ? OptionalDouble.empty() : OptionalDouble.of(multiplier);</span>
+    }
+
+    public ModelBillingTokenPrices getTokenPrices() {
+<span class="fc" id="L53">        return tokenPrices;</span>
+    }
+
+    public ModelBilling setTokenPrices(ModelBillingTokenPrices tokenPrices) {
+<span class="fc" id="L57">        this.tokenPrices = tokenPrices;</span>
+<span class="fc" id="L58">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

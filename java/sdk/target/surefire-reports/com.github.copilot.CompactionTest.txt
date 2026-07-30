@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.CompactionTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 1.695 s -- in com.github.copilot.CompactionTest

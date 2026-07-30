@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">PermissionHandler.java</span></div><h1>PermissionHandler.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Functional interface for handling permission requests from the AI assistant.
+ * &lt;p&gt;
+ * When the assistant needs permission to perform certain actions (such as
+ * executing tools or accessing resources), this handler is invoked to approve
+ * or deny the request.
+ *
+ * &lt;h2&gt;Example Implementation&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * PermissionHandler handler = (request, invocation) -&gt; {
+ * 	// Check the permission kind
+ * 	if (&quot;dangerous-action&quot;.equals(request.getKind())) {
+ * 		// Deny dangerous actions
+ * 		return CompletableFuture
+ * 				.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED));
+ * 	}
+ *
+ * 	// Approve other requests
+ * 	return CompletableFuture
+ * 			.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
+ * };
+ * }&lt;/pre&gt;
+ *
+ * &lt;p&gt;
+ * A pre-built handler that approves all requests is available as
+ * {@link #APPROVE_ALL}.
+ *
+ * @see SessionConfig#setOnPermissionRequest(PermissionHandler)
+ * @see PermissionRequest
+ * @see PermissionRequestResult
+ * @since 1.0.0
+ */
+@FunctionalInterface
+public interface PermissionHandler {
+
+    /**
+     * A pre-built handler that approves all permission requests.
+     *
+     * @since 1.0.11
+     */
+<span class="fc" id="L50">    PermissionHandler APPROVE_ALL = (request, invocation) -&gt; CompletableFuture</span>
+<span class="fc" id="L51">            .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));</span>
+
+    /**
+     * Handles a permission request from the assistant.
+     * &lt;p&gt;
+     * The handler should evaluate the request and return a result indicating
+     * whether the permission is granted or denied.
+     *
+     * @param request
+     *            the permission request details
+     * @param invocation
+     *            the invocation context with session information
+     * @return a future that completes with the permission decision
+     */
+    CompletableFuture&lt;PermissionRequestResult&gt; handle(PermissionRequest request, PermissionInvocation invocation);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

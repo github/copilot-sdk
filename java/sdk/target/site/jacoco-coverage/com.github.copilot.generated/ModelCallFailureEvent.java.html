@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelCallFailureEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">ModelCallFailureEvent.java</span></div><h1>ModelCallFailureEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;model.call_failure&quot;. Failed LLM API call metadata for telemetry
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L23">public final class ModelCallFailureEvent extends SessionEvent {</span>
+
+    @Override
+<span class="nc" id="L26">    public String getType() { return &quot;model.call_failure&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private ModelCallFailureEventData data;
+
+<span class="nc" id="L31">    public ModelCallFailureEventData getData() { return data; }</span>
+<span class="fc" id="L32">    public void setData(ModelCallFailureEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link ModelCallFailureEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L37">    public record ModelCallFailureEventData(</span>
+        /** Model identifier used for the failed API call */
+        @JsonProperty(&quot;model&quot;) String model,
+        /** What initiated this API call (e.g., &quot;sub-agent&quot;, &quot;mcp-sampling&quot;); absent for user-initiated calls */
+        @JsonProperty(&quot;initiator&quot;) String initiator,
+        /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
+        @JsonProperty(&quot;apiCallId&quot;) String apiCallId,
+        /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
+        @JsonProperty(&quot;providerCallId&quot;) String providerCallId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
+        @JsonProperty(&quot;serviceRequestId&quot;) String serviceRequestId,
+        @JsonProperty(&quot;rte&quot;) Boolean rte,
+        /** HTTP status code from the failed request */
+        @JsonProperty(&quot;statusCode&quot;) Long statusCode,
+        /** Duration of the failed API call in milliseconds */
+        @JsonProperty(&quot;durationMs&quot;) Long durationMs,
+        /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
+        @JsonProperty(&quot;apiEndpoint&quot;) AssistantUsageApiEndpoint apiEndpoint,
+        /** Transport used for the failed model call (http or websocket) */
+        @JsonProperty(&quot;transport&quot;) ModelCallFailureTransport transport,
+        /** Whether the failure originated from an API response or the request transport */
+        @JsonProperty(&quot;failureKind&quot;) ModelCallFailureKind failureKind,
+        /** Effective maximum prompt-token limit for the failed call */
+        @JsonProperty(&quot;maxPromptTokens&quot;) Long maxPromptTokens,
+        /** Effective maximum output-token limit for the failed call */
+        @JsonProperty(&quot;maxOutputTokens&quot;) Long maxOutputTokens,
+        /** Whether the failed call used a bring-your-own-key provider */
+        @JsonProperty(&quot;isByok&quot;) Boolean isByok,
+        /** Whether the session selected Auto mode for the failed call */
+        @JsonProperty(&quot;isAuto&quot;) Boolean isAuto,
+        /** Reasoning effort level used for the failed model call, if applicable */
+        @JsonProperty(&quot;reasoningEffort&quot;) String reasoningEffort,
+        /** Where the failed model call originated */
+        @JsonProperty(&quot;source&quot;) ModelCallFailureSource source,
+        /** Raw provider/runtime error message for restricted telemetry */
+        @JsonProperty(&quot;errorMessage&quot;) String errorMessage,
+        /** For HTTP 400 failures only: whether the response carried a structured CAPI error envelope (structured_error, a deterministic validation failure) or no error body (bodyless, the transient gateway/proxy signature). Absent for non-400 failures. */
+        @JsonProperty(&quot;badRequestKind&quot;) ModelCallFailureBadRequestKind badRequestKind,
+        /** For HTTP 400 failures only: the `code` from the CAPI error envelope (e.g. 'model_max_prompt_tokens_exceeded') identifying which deterministic validation failure occurred. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures. */
+        @JsonProperty(&quot;errorCode&quot;) String errorCode,
+        /** For HTTP 400 failures only: the `type` from the CAPI error envelope (e.g. 'websocket_error'), a coarser companion to errorCode for envelopes that carry no code. Raw server-controlled string, emitted only through restricted telemetry. Absent for bodyless or non-400 failures. */
+        @JsonProperty(&quot;errorType&quot;) String errorType,
+        /** Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure. */
+        @JsonProperty(&quot;quotaSnapshots&quot;) Map&lt;String, AssistantUsageQuotaSnapshot&gt; quotaSnapshots,
+        /** Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures. */
+        @JsonProperty(&quot;requestFingerprint&quot;) ModelCallFailureRequestFingerprint requestFingerprint
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

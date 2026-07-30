@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SlashCommandCompletedResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SlashCommandCompletedResult.java</span></div><h1>SlashCommandCompletedResult.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Slash-command invocation result indicating completion, with optional message and settings-change flag.
+ *
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="nc" id="L23">public final class SlashCommandCompletedResult extends SlashCommandInvocationResult {</span>
+
+<span class="nc" id="L25">    @JsonProperty(&quot;kind&quot;)</span>
+    private final String kind = &quot;completed&quot;;
+
+    @Override
+<span class="nc" id="L29">    public String getKind() { return kind; }</span>
+
+    /** Optional user-facing message describing the completed command */
+    @JsonProperty(&quot;message&quot;)
+    private String message;
+
+    /** True when the invocation mutated user runtime settings; consumers caching settings should refresh */
+    @JsonProperty(&quot;runtimeSettingsChanged&quot;)
+    private Boolean runtimeSettingsChanged;
+
+<span class="nc" id="L39">    public String getMessage() { return message; }</span>
+<span class="nc" id="L40">    public void setMessage(String message) { this.message = message; }</span>
+
+<span class="nc" id="L42">    public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }</span>
+<span class="nc" id="L43">    public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

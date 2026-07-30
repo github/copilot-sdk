@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionMcpAppsCallToolParams.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionMcpAppsCallToolParams.java</span></div><h1>SessionMcpAppsCallToolParams.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * MCP server, tool name, and arguments to invoke from an MCP App view.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L27">public record SessionMcpAppsCallToolParams(</span>
+    /** Target session identifier */
+    @JsonProperty(&quot;sessionId&quot;) String sessionId,
+    /** MCP server hosting the tool */
+    @JsonProperty(&quot;serverName&quot;) String serverName,
+    /** MCP tool name */
+    @JsonProperty(&quot;toolName&quot;) String toolName,
+    /** Tool arguments */
+    @JsonProperty(&quot;arguments&quot;) Map&lt;String, Object&gt; arguments,
+    /** **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing. */
+    @JsonProperty(&quot;originServerName&quot;) String originServerName
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

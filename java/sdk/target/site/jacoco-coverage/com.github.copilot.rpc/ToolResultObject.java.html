@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ToolResultObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ToolResultObject.java</span></div><h1>ToolResultObject.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Result object returned from a tool execution.
+ * &lt;p&gt;
+ * This record represents the structured result of a tool invocation, including
+ * text output, binary data, error information, and telemetry.
+ *
+ * &lt;h2&gt;Example: Success Result&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * return ToolResultObject.success(&quot;File contents: &quot; + content);
+ * }&lt;/pre&gt;
+ *
+ * &lt;h2&gt;Example: Error Result&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * return ToolResultObject.error(&quot;File not found: &quot; + path);
+ * }&lt;/pre&gt;
+ *
+ * &lt;h2&gt;Example: Custom Result&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * return new ToolResultObject(&quot;success&quot;, &quot;Result text&quot;, null, null, null, null, null);
+ * }&lt;/pre&gt;
+ *
+ * @param resultType
+ *            the result type (&quot;success&quot; or &quot;error&quot;), defaults to &quot;success&quot;
+ * @param textResultForLlm
+ *            the text result to be sent to the LLM
+ * @param binaryResultsForLlm
+ *            the list of binary results to be sent to the LLM
+ * @param error
+ *            the error message, or {@code null} if successful
+ * @param sessionLog
+ *            the session log text
+ * @param toolTelemetry
+ *            the tool telemetry data
+ * @param toolReferences
+ *            names of tools returned by a tool-search tool
+ * @see ToolHandler
+ * @see ToolBinaryResult
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L56">public record ToolResultObject(@JsonProperty(&quot;resultType&quot;) String resultType,</span>
+        @JsonProperty(&quot;textResultForLlm&quot;) String textResultForLlm,
+        @JsonProperty(&quot;binaryResultsForLlm&quot;) List&lt;ToolBinaryResult&gt; binaryResultsForLlm,
+        @JsonProperty(&quot;error&quot;) String error, @JsonProperty(&quot;sessionLog&quot;) String sessionLog,
+        @JsonProperty(&quot;toolTelemetry&quot;) Map&lt;String, Object&gt; toolTelemetry,
+        @JsonProperty(&quot;toolReferences&quot;) List&lt;String&gt; toolReferences) {
+
+    /**
+     * Creates a result without tool references.
+     * &lt;p&gt;
+     * Provided for source and binary compatibility with callers written or compiled
+     * before the {@code toolReferences} component was added. Delegates to the
+     * canonical constructor with {@code toolReferences} set to {@code null}.
+     *
+     * @param resultType
+     *            the result type (&quot;success&quot; or &quot;error&quot;), defaults to &quot;success&quot;
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param binaryResultsForLlm
+     *            the list of binary results to be sent to the LLM
+     * @param error
+     *            the error message, or {@code null} if successful
+     * @param sessionLog
+     *            the session log text
+     * @param toolTelemetry
+     *            the tool telemetry data
+     */
+    public ToolResultObject(String resultType, String textResultForLlm, List&lt;ToolBinaryResult&gt; binaryResultsForLlm,
+            String error, String sessionLog, Map&lt;String, Object&gt; toolTelemetry) {
+<span class="fc" id="L85">        this(resultType, textResultForLlm, binaryResultsForLlm, error, sessionLog, toolTelemetry, null);</span>
+<span class="fc" id="L86">    }</span>
+
+    /**
+     * Creates a success result with the given text.
+     *
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @return a success result
+     */
+    public static ToolResultObject success(String textResultForLlm) {
+<span class="fc" id="L96">        return new ToolResultObject(&quot;success&quot;, textResultForLlm, null, null, null, null, null);</span>
+    }
+
+    /**
+     * Creates an error result with the given error message.
+     *
+     * @param error
+     *            the error message
+     * @return an error result
+     */
+    public static ToolResultObject error(String error) {
+<span class="nc" id="L107">        return new ToolResultObject(&quot;error&quot;, null, null, error, null, null, null);</span>
+    }
+
+    /**
+     * Creates an error result with both a text result and error message.
+     *
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param error
+     *            the error message
+     * @return an error result
+     */
+    public static ToolResultObject error(String textResultForLlm, String error) {
+<span class="fc" id="L120">        return new ToolResultObject(&quot;error&quot;, textResultForLlm, null, error, null, null, null);</span>
+    }
+
+    /**
+     * Creates a failure result with the given text and error message.
+     * &lt;p&gt;
+     * The &quot;failure&quot; result type indicates that the tool execution itself failed
+     * (e.g., tool not found), while &quot;error&quot; indicates the tool executed but
+     * encountered an error during processing.
+     *
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param error
+     *            the error message
+     * @return a failure result
+     */
+    public static ToolResultObject failure(String textResultForLlm, String error) {
+<span class="fc" id="L137">        return new ToolResultObject(&quot;failure&quot;, textResultForLlm, null, error, null, null, null);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

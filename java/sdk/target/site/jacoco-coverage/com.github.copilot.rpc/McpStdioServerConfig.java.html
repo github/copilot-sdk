@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpStdioServerConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">McpStdioServerConfig.java</span></div><h1>McpStdioServerConfig.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Configuration for a local/stdio MCP (Model Context Protocol) server.
+ * &lt;p&gt;
+ * Use this to configure an MCP server that is launched as a local subprocess
+ * and communicates via standard input/output.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var server = new McpStdioServerConfig().setCommand(&quot;npx&quot;)
+ * 		.setArgs(List.of(&quot;-y&quot;, &quot;@modelcontextprotocol/server-filesystem&quot;, &quot;/path&quot;)).setTools(List.of(&quot;*&quot;));
+ *
+ * var config = new SessionConfig().setMcpServers(Map.of(&quot;filesystem&quot;, server));
+ * }&lt;/pre&gt;
+ *
+ * @see McpServerConfig
+ * @see SessionConfig#setMcpServers(java.util.Map)
+ * @since 1.3.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L34">public final class McpStdioServerConfig extends McpServerConfig {</span>
+
+<span class="fc" id="L36">    @JsonProperty(&quot;type&quot;)</span>
+    private final String type = &quot;stdio&quot;;
+
+    @JsonProperty(&quot;command&quot;)
+    private String command;
+
+    @JsonProperty(&quot;args&quot;)
+    private List&lt;String&gt; args;
+
+    @JsonProperty(&quot;env&quot;)
+    private Map&lt;String, String&gt; env;
+
+    @JsonProperty(&quot;workingDirectory&quot;)
+    private String workingDirectory;
+
+    /**
+     * Gets the server type discriminator.
+     *
+     * @return always {@code &quot;stdio&quot;}
+     */
+    public String getType() {
+<span class="fc" id="L57">        return type;</span>
+    }
+
+    /**
+     * Gets the command to run the MCP server.
+     *
+     * @return the command
+     */
+    public String getCommand() {
+<span class="fc" id="L66">        return command;</span>
+    }
+
+    /**
+     * Sets the command to run the MCP server.
+     *
+     * @param command
+     *            the command
+     * @return this config for method chaining
+     */
+    public McpStdioServerConfig setCommand(String command) {
+<span class="fc" id="L77">        this.command = command;</span>
+<span class="fc" id="L78">        return this;</span>
+    }
+
+    /**
+     * Gets the arguments to pass to the command.
+     *
+     * @return the arguments list, or {@code null}
+     */
+    public List&lt;String&gt; getArgs() {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        return args == null ? null : Collections.unmodifiableList(args);</span>
+    }
+
+    /**
+     * Sets the arguments to pass to the command.
+     *
+     * @param args
+     *            the arguments list
+     * @return this config for method chaining
+     */
+    public McpStdioServerConfig setArgs(List&lt;String&gt; args) {
+<span class="fc" id="L98">        this.args = args;</span>
+<span class="fc" id="L99">        return this;</span>
+    }
+
+    /**
+     * Gets the environment variables to pass to the server.
+     *
+     * @return the environment variables map, or {@code null}
+     */
+    public Map&lt;String, String&gt; getEnv() {
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        return env == null ? null : Collections.unmodifiableMap(env);</span>
+    }
+
+    /**
+     * Sets the environment variables to pass to the server.
+     *
+     * @param env
+     *            the environment variables map
+     * @return this config for method chaining
+     */
+    public McpStdioServerConfig setEnv(Map&lt;String, String&gt; env) {
+<span class="fc" id="L119">        this.env = env;</span>
+<span class="fc" id="L120">        return this;</span>
+    }
+
+    /**
+     * Gets the working directory for the server process.
+     *
+     * @return the working directory path, or {@code null}
+     */
+    public String getWorkingDirectory() {
+<span class="fc" id="L129">        return workingDirectory;</span>
+    }
+
+    /**
+     * Sets the working directory for the server process.
+     *
+     * @param workingDirectory
+     *            the working directory path
+     * @return this config for method chaining
+     */
+    public McpStdioServerConfig setWorkingDirectory(String workingDirectory) {
+<span class="fc" id="L140">        this.workingDirectory = workingDirectory;</span>
+<span class="fc" id="L141">        return this;</span>
+    }
+
+    @Override
+    public McpStdioServerConfig setTools(List&lt;String&gt; tools) {
+<span class="fc" id="L146">        super.setTools(tools);</span>
+<span class="fc" id="L147">        return this;</span>
+    }
+
+    @Override
+    public McpStdioServerConfig setTimeout(Integer timeout) {
+<span class="fc" id="L152">        super.setTimeout(timeout);</span>
+<span class="fc" id="L153">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

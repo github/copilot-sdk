@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionHandoffEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionHandoffEvent.java</span></div><h1>SessionHandoffEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.handoff&quot;. Session handoff metadata including source, context, and repository information
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L23">public final class SessionHandoffEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L26">    public String getType() { return &quot;session.handoff&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionHandoffEventData data;
+
+<span class="fc" id="L31">    public SessionHandoffEventData getData() { return data; }</span>
+<span class="fc" id="L32">    public void setData(SessionHandoffEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionHandoffEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L37">    public record SessionHandoffEventData(</span>
+        /** ISO 8601 timestamp when the handoff occurred */
+        @JsonProperty(&quot;handoffTime&quot;) OffsetDateTime handoffTime,
+        /** Origin type of the session being handed off */
+        @JsonProperty(&quot;sourceType&quot;) HandoffSourceType sourceType,
+        /** Repository context for the handed-off session */
+        @JsonProperty(&quot;repository&quot;) HandoffRepository repository,
+        /** Additional context information for the handoff */
+        @JsonProperty(&quot;context&quot;) String context,
+        /** Summary of the work done in the source session */
+        @JsonProperty(&quot;summary&quot;) String summary,
+        /** Session ID of the remote session being handed off */
+        @JsonProperty(&quot;remoteSessionId&quot;) String remoteSessionId,
+        /** GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com) */
+        @JsonProperty(&quot;host&quot;) String host
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

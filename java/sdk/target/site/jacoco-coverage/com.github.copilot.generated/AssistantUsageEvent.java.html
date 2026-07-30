@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AssistantUsageEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">AssistantUsageEvent.java</span></div><h1>AssistantUsageEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;assistant.usage&quot;. LLM API call usage metrics including tokens, costs, quotas, and billing information
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L24">public final class AssistantUsageEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L27">    public String getType() { return &quot;assistant.usage&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private AssistantUsageEventData data;
+
+<span class="fc" id="L32">    public AssistantUsageEventData getData() { return data; }</span>
+<span class="fc" id="L33">    public void setData(AssistantUsageEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link AssistantUsageEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L38">    public record AssistantUsageEventData(</span>
+        /** Model identifier used for this API call */
+        @JsonProperty(&quot;model&quot;) String model,
+        /** Number of input tokens consumed */
+        @JsonProperty(&quot;inputTokens&quot;) Long inputTokens,
+        /** Number of output tokens produced */
+        @JsonProperty(&quot;outputTokens&quot;) Long outputTokens,
+        /** Number of tokens read from prompt cache */
+        @JsonProperty(&quot;cacheReadTokens&quot;) Long cacheReadTokens,
+        /** Number of tokens written to prompt cache */
+        @JsonProperty(&quot;cacheWriteTokens&quot;) Long cacheWriteTokens,
+        /** Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state. */
+        @JsonProperty(&quot;cacheExpiresAt&quot;) OffsetDateTime cacheExpiresAt,
+        /** Number of output tokens used for reasoning (e.g., chain-of-thought) */
+        @JsonProperty(&quot;reasoningTokens&quot;) Long reasoningTokens,
+        /** Model multiplier cost for billing purposes */
+        @JsonProperty(&quot;cost&quot;) Double cost,
+        /** Duration of the API call in milliseconds */
+        @JsonProperty(&quot;duration&quot;) Long duration,
+        /** Time to first token in milliseconds. Only available for streaming requests */
+        @JsonProperty(&quot;timeToFirstTokenMs&quot;) Double timeToFirstTokenMs,
+        /** Average inter-token latency in milliseconds. Only available for streaming requests */
+        @JsonProperty(&quot;interTokenLatencyMs&quot;) Double interTokenLatencyMs,
+        /** What initiated this API call (e.g., &quot;sub-agent&quot;, &quot;mcp-sampling&quot;); absent for user-initiated calls */
+        @JsonProperty(&quot;initiator&quot;) String initiator,
+        /** Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request. */
+        @JsonProperty(&quot;interactionType&quot;) String interactionType,
+        /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
+        @JsonProperty(&quot;apiCallId&quot;) String apiCallId,
+        /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
+        @JsonProperty(&quot;providerCallId&quot;) String providerCallId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
+        @JsonProperty(&quot;serviceRequestId&quot;) String serviceRequestId,
+        @JsonProperty(&quot;rte&quot;) Boolean rte,
+        /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
+        @JsonProperty(&quot;apiEndpoint&quot;) AssistantUsageApiEndpoint apiEndpoint,
+        /** Parent tool call ID when this usage originates from a sub-agent */
+        @JsonProperty(&quot;parentToolCallId&quot;) String parentToolCallId,
+        /** Per-quota resource usage snapshots, keyed by quota identifier */
+        @JsonProperty(&quot;quotaSnapshots&quot;) Map&lt;String, AssistantUsageQuotaSnapshot&gt; quotaSnapshots,
+        /** Per-request cost and usage data from the CAPI copilot_usage response field */
+        @JsonProperty(&quot;copilotUsage&quot;) AssistantUsageCopilotUsage copilotUsage,
+        /** Reasoning effort level used for model calls, if applicable (e.g. &quot;none&quot;, &quot;low&quot;, &quot;medium&quot;, &quot;high&quot;, &quot;xhigh&quot;, &quot;max&quot;) */
+        @JsonProperty(&quot;reasoningEffort&quot;) String reasoningEffort,
+        /** Finish reason reported by the model for this API call (e.g. &quot;stop&quot;, &quot;length&quot;, &quot;tool_calls&quot;, &quot;content_filter&quot;). Normalized to OpenAI vocabulary; for Anthropic models a &quot;refusal&quot; stop reason maps to &quot;content_filter&quot;. */
+        @JsonProperty(&quot;finishReason&quot;) String finishReason,
+        /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
+        @JsonProperty(&quot;contentFilterTriggered&quot;) Boolean contentFilterTriggered
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

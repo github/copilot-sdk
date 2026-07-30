@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionRpc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionRpc.java</span></div><h1>SessionRpc.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * Typed client for session-scoped RPC methods.
+ * &lt;p&gt;
+ * Provides strongly-typed access to all session-level API namespaces.
+ * The {@code sessionId} is injected automatically into every call.
+ * &lt;p&gt;
+ * Obtain an instance by calling {@code new SessionRpc(caller, sessionId)}.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class SessionRpc {
+
+<span class="fc" id="L27">    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;</span>
+
+    private final RpcCaller caller;
+    private final String sessionId;
+
+    /** API methods for the {@code gitHubAuth} namespace. */
+    public final SessionGitHubAuthApi gitHubAuth;
+    /** API methods for the {@code debug} namespace. */
+    public final SessionDebugApi debug;
+    /** API methods for the {@code canvas} namespace. */
+    public final SessionCanvasApi canvas;
+    /** API methods for the {@code factory} namespace. */
+    public final SessionFactoryApi factory;
+    /** API methods for the {@code model} namespace. */
+    public final SessionModelApi model;
+    /** API methods for the {@code mode} namespace. */
+    public final SessionModeApi mode;
+    /** API methods for the {@code name} namespace. */
+    public final SessionNameApi name;
+    /** API methods for the {@code plan} namespace. */
+    public final SessionPlanApi plan;
+    /** API methods for the {@code workspaces} namespace. */
+    public final SessionWorkspacesApi workspaces;
+    /** API methods for the {@code completions} namespace. */
+    public final SessionCompletionsApi completions;
+    /** API methods for the {@code instructions} namespace. */
+    public final SessionInstructionsApi instructions;
+    /** API methods for the {@code fleet} namespace. */
+    public final SessionFleetApi fleet;
+    /** API methods for the {@code agent} namespace. */
+    public final SessionAgentApi agent;
+    /** API methods for the {@code tasks} namespace. */
+    public final SessionTasksApi tasks;
+    /** API methods for the {@code skills} namespace. */
+    public final SessionSkillsApi skills;
+    /** API methods for the {@code mcp} namespace. */
+    public final SessionMcpApi mcp;
+    /** API methods for the {@code plugins} namespace. */
+    public final SessionPluginsApi plugins;
+    /** API methods for the {@code provider} namespace. */
+    public final SessionProviderApi provider;
+    /** API methods for the {@code options} namespace. */
+    public final SessionOptionsApi options;
+    /** API methods for the {@code lsp} namespace. */
+    public final SessionLspApi lsp;
+    /** API methods for the {@code extensions} namespace. */
+    public final SessionExtensionsApi extensions;
+    /** API methods for the {@code tools} namespace. */
+    public final SessionToolsApi tools;
+    /** API methods for the {@code commands} namespace. */
+    public final SessionCommandsApi commands;
+    /** API methods for the {@code telemetry} namespace. */
+    public final SessionTelemetryApi telemetry;
+    /** API methods for the {@code ui} namespace. */
+    public final SessionUiApi ui;
+    /** API methods for the {@code permissions} namespace. */
+    public final SessionPermissionsApi permissions;
+    /** API methods for the {@code metadata} namespace. */
+    public final SessionMetadataApi metadata;
+    /** API methods for the {@code settings} namespace. */
+    public final SessionSettingsApi settings;
+    /** API methods for the {@code contentExclusion} namespace. */
+    public final SessionContentExclusionApi contentExclusion;
+    /** API methods for the {@code shell} namespace. */
+    public final SessionShellApi shell;
+    /** API methods for the {@code history} namespace. */
+    public final SessionHistoryApi history;
+    /** API methods for the {@code queue} namespace. */
+    public final SessionQueueApi queue;
+    /** API methods for the {@code eventLog} namespace. */
+    public final SessionEventLogApi eventLog;
+    /** API methods for the {@code usage} namespace. */
+    public final SessionUsageApi usage;
+    /** API methods for the {@code limitPrediction} namespace. */
+    public final SessionLimitPredictionApi limitPrediction;
+    /** API methods for the {@code remote} namespace. */
+    public final SessionRemoteApi remote;
+    /** API methods for the {@code visibility} namespace. */
+    public final SessionVisibilityApi visibility;
+    /** API methods for the {@code schedule} namespace. */
+    public final SessionScheduleApi schedule;
+
+    /**
+     * Creates a new session RPC client.
+     *
+     * @param caller    the RPC transport function (e.g., {@code jsonRpcClient::invoke})
+     * @param sessionId the session ID to inject into every request
+     */
+<span class="fc" id="L115">    public SessionRpc(RpcCaller caller, String sessionId) {</span>
+<span class="fc" id="L116">        this.caller = caller;</span>
+<span class="fc" id="L117">        this.sessionId = sessionId;</span>
+<span class="fc" id="L118">        this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);</span>
+<span class="fc" id="L119">        this.debug = new SessionDebugApi(caller, sessionId);</span>
+<span class="fc" id="L120">        this.canvas = new SessionCanvasApi(caller, sessionId);</span>
+<span class="fc" id="L121">        this.factory = new SessionFactoryApi(caller, sessionId);</span>
+<span class="fc" id="L122">        this.model = new SessionModelApi(caller, sessionId);</span>
+<span class="fc" id="L123">        this.mode = new SessionModeApi(caller, sessionId);</span>
+<span class="fc" id="L124">        this.name = new SessionNameApi(caller, sessionId);</span>
+<span class="fc" id="L125">        this.plan = new SessionPlanApi(caller, sessionId);</span>
+<span class="fc" id="L126">        this.workspaces = new SessionWorkspacesApi(caller, sessionId);</span>
+<span class="fc" id="L127">        this.completions = new SessionCompletionsApi(caller, sessionId);</span>
+<span class="fc" id="L128">        this.instructions = new SessionInstructionsApi(caller, sessionId);</span>
+<span class="fc" id="L129">        this.fleet = new SessionFleetApi(caller, sessionId);</span>
+<span class="fc" id="L130">        this.agent = new SessionAgentApi(caller, sessionId);</span>
+<span class="fc" id="L131">        this.tasks = new SessionTasksApi(caller, sessionId);</span>
+<span class="fc" id="L132">        this.skills = new SessionSkillsApi(caller, sessionId);</span>
+<span class="fc" id="L133">        this.mcp = new SessionMcpApi(caller, sessionId);</span>
+<span class="fc" id="L134">        this.plugins = new SessionPluginsApi(caller, sessionId);</span>
+<span class="fc" id="L135">        this.provider = new SessionProviderApi(caller, sessionId);</span>
+<span class="fc" id="L136">        this.options = new SessionOptionsApi(caller, sessionId);</span>
+<span class="fc" id="L137">        this.lsp = new SessionLspApi(caller, sessionId);</span>
+<span class="fc" id="L138">        this.extensions = new SessionExtensionsApi(caller, sessionId);</span>
+<span class="fc" id="L139">        this.tools = new SessionToolsApi(caller, sessionId);</span>
+<span class="fc" id="L140">        this.commands = new SessionCommandsApi(caller, sessionId);</span>
+<span class="fc" id="L141">        this.telemetry = new SessionTelemetryApi(caller, sessionId);</span>
+<span class="fc" id="L142">        this.ui = new SessionUiApi(caller, sessionId);</span>
+<span class="fc" id="L143">        this.permissions = new SessionPermissionsApi(caller, sessionId);</span>
+<span class="fc" id="L144">        this.metadata = new SessionMetadataApi(caller, sessionId);</span>
+<span class="fc" id="L145">        this.settings = new SessionSettingsApi(caller, sessionId);</span>
+<span class="fc" id="L146">        this.contentExclusion = new SessionContentExclusionApi(caller, sessionId);</span>
+<span class="fc" id="L147">        this.shell = new SessionShellApi(caller, sessionId);</span>
+<span class="fc" id="L148">        this.history = new SessionHistoryApi(caller, sessionId);</span>
+<span class="fc" id="L149">        this.queue = new SessionQueueApi(caller, sessionId);</span>
+<span class="fc" id="L150">        this.eventLog = new SessionEventLogApi(caller, sessionId);</span>
+<span class="fc" id="L151">        this.usage = new SessionUsageApi(caller, sessionId);</span>
+<span class="fc" id="L152">        this.limitPrediction = new SessionLimitPredictionApi(caller, sessionId);</span>
+<span class="fc" id="L153">        this.remote = new SessionRemoteApi(caller, sessionId);</span>
+<span class="fc" id="L154">        this.visibility = new SessionVisibilityApi(caller, sessionId);</span>
+<span class="fc" id="L155">        this.schedule = new SessionScheduleApi(caller, sessionId);</span>
+<span class="fc" id="L156">    }</span>
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; suspend() {
+<span class="nc" id="L166">        return caller.invoke(&quot;session.suspend&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), Void.class);</span>
+    }
+
+    /**
+     * Parameters for sending a user message to the session
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionSendResult&gt; send(SessionSendParams params) {
+<span class="nc" id="L180">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L181">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L182">        return caller.invoke(&quot;session.send&quot;, _p, SessionSendResult.class);</span>
+    }
+
+    /**
+     * Parameters for sending zero or more user messages to the session in a single turn. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionSendMessagesResult&gt; sendMessages(SessionSendMessagesParams params) {
+<span class="nc" id="L196">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L197">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L198">        return caller.invoke(&quot;session.sendMessages&quot;, _p, SessionSendMessagesResult.class);</span>
+    }
+
+    /**
+     * Internal request for sending a system notification.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; sendSystemNotification(SessionSendSystemNotificationParams params) {
+<span class="nc" id="L212">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L213">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L214">        return caller.invoke(&quot;session.sendSystemNotification&quot;, _p, Void.class);</span>
+    }
+
+    /**
+     * Parameters for aborting the current turn
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionAbortResult&gt; abort(SessionAbortParams params) {
+<span class="nc" id="L228">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L229">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L230">        return caller.invoke(&quot;session.abort&quot;, _p, SessionAbortResult.class);</span>
+    }
+
+    /**
+     * Parameters for interrupting the main agent turn.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionInterruptMainTurnResult&gt; interruptMainTurn(SessionInterruptMainTurnParams params) {
+<span class="nc" id="L244">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L245">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L246">        return caller.invoke(&quot;session.interruptMainTurn&quot;, _p, SessionInterruptMainTurnResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; cancelAllBackgroundAgents() {
+<span class="nc" id="L257">        return caller.invoke(&quot;session.cancelAllBackgroundAgents&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), Void.class);</span>
+    }
+
+    /**
+     * Parameters for shutting down the session
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; shutdown(SessionShutdownParams params) {
+<span class="nc" id="L271">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L272">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L273">        return caller.invoke(&quot;session.shutdown&quot;, _p, Void.class);</span>
+    }
+
+    /**
+     * Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionLogResult&gt; log(SessionLogParams params) {
+<span class="fc" id="L287">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="fc" id="L288">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L289">        return caller.invoke(&quot;session.log&quot;, _p, SessionLogResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

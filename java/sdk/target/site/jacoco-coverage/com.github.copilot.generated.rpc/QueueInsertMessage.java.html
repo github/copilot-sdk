@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QueueInsertMessage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">QueueInsertMessage.java</span></div><h1>QueueInsertMessage.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Serializable message fields accepted by queue.insertAt.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L25">public record QueueInsertMessage(</span>
+    /** The user message text. */
+    @JsonProperty(&quot;prompt&quot;) String prompt,
+    /** Optional user-facing display text. */
+    @JsonProperty(&quot;displayPrompt&quot;) String displayPrompt,
+    /** Optional attachments for the message. */
+    @JsonProperty(&quot;attachments&quot;) List&lt;Object&gt; attachments,
+    /** Optional explicit agent mode. When omitted, the session's current mode is assigned. */
+    @JsonProperty(&quot;agentMode&quot;) SendAgentMode agentMode,
+    /** Optional provenance source. `system` is rejected: it would hide the inserted row from `pendingItems` and make it unaddressable while still executing, so inserted items must stay visible. */
+    @JsonProperty(&quot;source&quot;) String source,
+    /** Whether the message is billable. */
+    @JsonProperty(&quot;billable&quot;) Boolean billable,
+    /** Required tool name for the turn, when any. */
+    @JsonProperty(&quot;requiredTool&quot;) String requiredTool,
+    /** Per-turn request headers. */
+    @JsonProperty(&quot;requestHeaders&quot;) Map&lt;String, String&gt; requestHeaders,
+    /** Accepted for SendOptions compatibility but ignored; inserted items always use queued delivery semantics. */
+    @JsonProperty(&quot;mode&quot;) SendMode mode,
+    /** Accepted for SendOptions compatibility but ignored; the requested public position controls placement. */
+    @JsonProperty(&quot;prepend&quot;) Boolean prepend,
+    /** Accepted for SendOptions compatibility but ignored; insertion scheduling is controlled by the queue drain state. */
+    @JsonProperty(&quot;wait&quot;) Boolean wait_,
+    /** Accepted for internal SendOptions compatibility but ignored; delivery is derived from current session activity. */
+    @JsonProperty(&quot;delivery&quot;) String delivery
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest
+-------------------------------------------------------------------------------
+Tests run: 46, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s -- in com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest

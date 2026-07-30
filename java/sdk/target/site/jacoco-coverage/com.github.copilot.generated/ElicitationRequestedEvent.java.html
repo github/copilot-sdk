@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ElicitationRequestedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">ElicitationRequestedEvent.java</span></div><h1>ElicitationRequestedEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;elicitation.requested&quot;. Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L22">public final class ElicitationRequestedEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L25">    public String getType() { return &quot;elicitation.requested&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private ElicitationRequestedEventData data;
+
+<span class="fc" id="L30">    public ElicitationRequestedEventData getData() { return data; }</span>
+<span class="fc" id="L31">    public void setData(ElicitationRequestedEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link ElicitationRequestedEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L36">    public record ElicitationRequestedEventData(</span>
+        /** Unique identifier for this elicitation request; used to respond via session.respondToElicitation() */
+        @JsonProperty(&quot;requestId&quot;) String requestId,
+        /** Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id for remote UIs */
+        @JsonProperty(&quot;toolCallId&quot;) String toolCallId,
+        /** The source that initiated the request (MCP server name, or absent for agent-initiated) */
+        @JsonProperty(&quot;elicitationSource&quot;) String elicitationSource,
+        /** Message describing what information is needed from the user */
+        @JsonProperty(&quot;message&quot;) String message,
+        /** Elicitation mode; &quot;form&quot; for structured input, &quot;url&quot; for browser-based. Defaults to &quot;form&quot; when absent. */
+        @JsonProperty(&quot;mode&quot;) ElicitationRequestedMode mode,
+        /** JSON Schema describing the form fields to present to the user (form mode only) */
+        @JsonProperty(&quot;requestedSchema&quot;) ElicitationRequestedSchema requestedSchema,
+        /** URL to open in the user's browser (url mode only) */
+        @JsonProperty(&quot;url&quot;) String url
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

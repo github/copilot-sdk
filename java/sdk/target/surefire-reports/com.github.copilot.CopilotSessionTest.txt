@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.CopilotSessionTest
+-------------------------------------------------------------------------------
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 23.42 s -- in com.github.copilot.CopilotSessionTest

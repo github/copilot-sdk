@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParamCoercion.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ParamCoercion.java</span></div><h1>ParamCoercion.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.tool.Param;
+
+/**
+ * Internal runtime helper: coerces raw invocation arguments to the typed values
+ * declared by {@link Param} descriptors.
+ *
+ * &lt;p&gt;
+ * Reuses the SDK-configured {@link ObjectMapper} for complex type conversions,
+ * matching the coercion policy applied by existing ergonomic tooling. No
+ * bespoke conversion paths are introduced.
+ *
+ * &lt;p&gt;
+ * Package-private: not part of the public API.
+ */
+class ParamCoercion {
+
+    /** Utility class; do not instantiate. */
+    private ParamCoercion() {
+    }
+
+    /**
+     * Coerces the named argument from an invocation argument map to the Java type
+     * declared by {@code param}.
+     *
+     * &lt;p&gt;
+     * Resolution order:
+     * &lt;ol&gt;
+     * &lt;li&gt;If the argument is present, convert it to {@code T} via
+     * {@link ObjectMapper#convertValue}.&lt;/li&gt;
+     * &lt;li&gt;If absent and a default value is set, parse the string default via
+     * {@link #coerceDefault}.&lt;/li&gt;
+     * &lt;li&gt;If absent and the parameter is optional ({@code required=false}), return
+     * an empty Optional variant or {@code null}.&lt;/li&gt;
+     * &lt;li&gt;If absent and required, throw {@link IllegalArgumentException} with the
+     * parameter name.&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param &lt;T&gt;
+     *            the target Java type
+     * @param args
+     *            the invocation argument map; may be {@code null} for zero-argument
+     *            tools
+     * @param param
+     *            the parameter descriptor
+     * @param mapper
+     *            the configured {@link ObjectMapper} for complex type conversion
+     * @return the coerced argument value
+     * @throws IllegalArgumentException
+     *             if a required parameter is missing or coercion fails
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    static &lt;T&gt; T coerce(Map&lt;String, Object&gt; args, Param&lt;T&gt; param, ObjectMapper mapper) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        Object raw = (args != null) ? args.get(param.name()) : null;</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (raw == null) {</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (param.hasDefaultValue()) {</span>
+<span class="fc" id="L66">                return coerceDefault(param, mapper);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">            } else if (!param.required()) {</span>
+<span class="fc" id="L68">                return (T) emptyOptionalOrNull(param.type());</span>
+            } else {
+<span class="fc" id="L70">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L71">                        &quot;Required parameter '&quot; + param.name() + &quot;' is missing from tool invocation&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L75">        Class&lt;T&gt; type = param.type();</span>
+
+        // Handle Optional* types explicitly before delegating to ObjectMapper
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (type == java.util.OptionalInt.class) {</span>
+            try {
+<span class="fc" id="L80">                return (T) java.util.OptionalInt.of(((Number) raw).intValue());</span>
+<span class="fc" id="L81">            } catch (ClassCastException ex) {</span>
+<span class="fc" id="L82">                throw new IllegalArgumentException(&quot;Parameter '&quot; + param.name()</span>
+<span class="fc" id="L83">                        + &quot;' expected a numeric value for OptionalInt, got: &quot; + raw.getClass().getSimpleName(), ex);</span>
+            }
+        }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (type == java.util.OptionalLong.class) {</span>
+            try {
+<span class="fc" id="L88">                return (T) java.util.OptionalLong.of(((Number) raw).longValue());</span>
+<span class="fc" id="L89">            } catch (ClassCastException ex) {</span>
+<span class="fc" id="L90">                throw new IllegalArgumentException(&quot;Parameter '&quot; + param.name()</span>
+<span class="fc" id="L91">                        + &quot;' expected a numeric value for OptionalLong, got: &quot; + raw.getClass().getSimpleName(), ex);</span>
+            }
+        }
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (type == java.util.OptionalDouble.class) {</span>
+            try {
+<span class="fc" id="L96">                return (T) java.util.OptionalDouble.of(((Number) raw).doubleValue());</span>
+<span class="fc" id="L97">            } catch (ClassCastException ex) {</span>
+<span class="fc" id="L98">                throw new IllegalArgumentException(&quot;Parameter '&quot; + param.name()</span>
+<span class="fc" id="L99">                        + &quot;' expected a numeric value for OptionalDouble, got: &quot; + raw.getClass().getSimpleName(), ex);</span>
+            }
+        }
+
+        try {
+<span class="fc" id="L104">            return mapper.convertValue(raw, type);</span>
+<span class="fc" id="L105">        } catch (IllegalArgumentException ex) {</span>
+<span class="fc" id="L106">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L107">                    &quot;Failed to coerce parameter '&quot; + param.name() + &quot;' to type &quot; + type.getSimpleName(), ex);</span>
+        }
+    }
+
+    /**
+     * Parses a {@link Param}'s string default value into the declared Java type.
+     *
+     * &lt;p&gt;
+     * Handles primitives, boxed types, {@link String}, {@link Boolean}, and enums
+     * explicitly, mirroring the validation logic in {@link Param}. The
+     * {@link ObjectMapper#readValue} fallback exists as a safety net but is not
+     * expected to be reached in practice, since {@link Param} construction rejects
+     * defaults for non-primitive/boxed/String/Boolean/enum types.
+     *
+     * @param &lt;T&gt;
+     *            the target Java type
+     * @param param
+     *            the parameter descriptor carrying the default value
+     * @param mapper
+     *            the configured {@link ObjectMapper} used as fallback for complex
+     *            types
+     * @return the parsed default value
+     * @throws IllegalArgumentException
+     *             if parsing fails
+     */
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    static &lt;T&gt; T coerceDefault(Param&lt;T&gt; param, ObjectMapper mapper) {
+<span class="fc" id="L134">        String defaultValue = param.defaultValue();</span>
+<span class="fc" id="L135">        Class&lt;T&gt; type = param.type();</span>
+        try {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">            if (type == String.class) {</span>
+<span class="fc" id="L138">                return type.cast(defaultValue);</span>
+            }
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">            if (type == Integer.class || type == int.class) {</span>
+<span class="fc" id="L141">                return (T) Integer.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L143" title="1 of 4 branches missed.">            if (type == Long.class || type == long.class) {</span>
+<span class="fc" id="L144">                return (T) Long.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L146" title="1 of 4 branches missed.">            if (type == Double.class || type == double.class) {</span>
+<span class="fc" id="L147">                return (T) Double.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L149" title="1 of 4 branches missed.">            if (type == Float.class || type == float.class) {</span>
+<span class="fc" id="L150">                return (T) Float.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L152" title="1 of 4 branches missed.">            if (type == Short.class || type == short.class) {</span>
+<span class="fc" id="L153">                return (T) Short.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L155" title="1 of 4 branches missed.">            if (type == Byte.class || type == byte.class) {</span>
+<span class="fc" id="L156">                return (T) Byte.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L158" title="1 of 4 branches missed.">            if (type == Boolean.class || type == boolean.class) {</span>
+<span class="fc" id="L159">                return (T) Boolean.valueOf(defaultValue);</span>
+            }
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">            if (type.isEnum()) {</span>
+<span class="fc" id="L162">                Class&lt;? extends Enum&gt; enumType = (Class&lt;? extends Enum&gt;) type;</span>
+<span class="fc" id="L163">                return type.cast(Enum.valueOf(enumType, defaultValue));</span>
+            }
+            // Fallback: let ObjectMapper parse the JSON-encoded default string
+<span class="nc" id="L166">            return mapper.readValue(defaultValue, type);</span>
+<span class="nc" id="L167">        } catch (IllegalArgumentException ex) {</span>
+<span class="nc" id="L168">            throw ex;</span>
+<span class="nc" id="L169">        } catch (Exception ex) {</span>
+<span class="nc" id="L170">            throw new IllegalArgumentException(&quot;Failed to apply default value '&quot; + defaultValue + &quot;' for parameter '&quot;</span>
+<span class="nc" id="L171">                    + param.name() + &quot;' of type &quot; + type.getSimpleName(), ex);</span>
+        }
+    }
+
+    /**
+     * Returns an empty Optional variant for Optional primitive types, or
+     * {@code null} for all other types.
+     *
+     * @param type
+     *            the declared parameter type
+     * @return {@link java.util.OptionalInt#empty()},
+     *         {@link java.util.OptionalLong#empty()},
+     *         {@link java.util.OptionalDouble#empty()}, or {@code null}
+     */
+    static Object emptyOptionalOrNull(Class&lt;?&gt; type) {
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        if (type == java.util.OptionalInt.class) {</span>
+<span class="fc" id="L187">            return java.util.OptionalInt.empty();</span>
+        }
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (type == java.util.OptionalLong.class) {</span>
+<span class="fc" id="L190">            return java.util.OptionalLong.empty();</span>
+        }
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        if (type == java.util.OptionalDouble.class) {</span>
+<span class="fc" id="L193">            return java.util.OptionalDouble.empty();</span>
+        }
+<span class="fc" id="L195">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

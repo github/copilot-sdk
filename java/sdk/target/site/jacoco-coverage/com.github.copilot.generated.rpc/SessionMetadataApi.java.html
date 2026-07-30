@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionMetadataApi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionMetadataApi.java</span></div><h1>SessionMetadataApi.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code metadata} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class SessionMetadataApi {
+
+<span class="fc" id="L22">    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;</span>
+
+    private final RpcCaller caller;
+    private final String sessionId;
+
+    /** @param caller the RPC transport function */
+<span class="fc" id="L28">    SessionMetadataApi(RpcCaller caller, String sessionId) {</span>
+<span class="fc" id="L29">        this.caller = caller;</span>
+<span class="fc" id="L30">        this.sessionId = sessionId;</span>
+<span class="fc" id="L31">    }</span>
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataSnapshotResult&gt; snapshot() {
+<span class="nc" id="L41">        return caller.invoke(&quot;session.metadata.snapshot&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionMetadataSnapshotResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataIsProcessingResult&gt; isProcessing() {
+<span class="nc" id="L52">        return caller.invoke(&quot;session.metadata.isProcessing&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionMetadataIsProcessingResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataActivityResult&gt; activity() {
+<span class="nc" id="L63">        return caller.invoke(&quot;session.metadata.activity&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionMetadataActivityResult.class);</span>
+    }
+
+    /**
+     * Model identifier and token limits used to compute the context-info breakdown.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataContextInfoResult&gt; contextInfo(SessionMetadataContextInfoParams params) {
+<span class="nc" id="L77">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L78">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L79">        return caller.invoke(&quot;session.metadata.contextInfo&quot;, _p, SessionMetadataContextInfoResult.class);</span>
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataGetContextAttributionResult&gt; getContextAttribution() {
+<span class="fc" id="L90">        return caller.invoke(&quot;session.metadata.getContextAttribution&quot;, java.util.Map.of(&quot;sessionId&quot;, this.sessionId), SessionMetadataGetContextAttributionResult.class);</span>
+    }
+
+    /**
+     * Parameters for the heaviest-messages query.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataGetContextHeaviestMessagesResult&gt; getContextHeaviestMessages(SessionMetadataGetContextHeaviestMessagesParams params) {
+<span class="fc" id="L104">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="fc" id="L105">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="fc" id="L106">        return caller.invoke(&quot;session.metadata.getContextHeaviestMessages&quot;, _p, SessionMetadataGetContextHeaviestMessagesResult.class);</span>
+    }
+
+    /**
+     * Updated working-directory/git context to record on the session.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;Void&gt; recordContextChange(SessionMetadataRecordContextChangeParams params) {
+<span class="nc" id="L120">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L121">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L122">        return caller.invoke(&quot;session.metadata.recordContextChange&quot;, _p, Void.class);</span>
+    }
+
+    /**
+     * Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataSetWorkingDirectoryResult&gt; setWorkingDirectory(SessionMetadataSetWorkingDirectoryParams params) {
+<span class="nc" id="L136">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L137">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L138">        return caller.invoke(&quot;session.metadata.setWorkingDirectory&quot;, _p, SessionMetadataSetWorkingDirectoryResult.class);</span>
+    }
+
+    /**
+     * Model identifier to use when re-tokenizing the session's existing messages.
+     * &lt;p&gt;
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;SessionMetadataRecomputeContextTokensResult&gt; recomputeContextTokens(SessionMetadataRecomputeContextTokensParams params) {
+<span class="nc" id="L152">        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);</span>
+<span class="nc" id="L153">        _p.put(&quot;sessionId&quot;, this.sessionId);</span>
+<span class="nc" id="L154">        return caller.invoke(&quot;session.metadata.recomputeContextTokens&quot;, _p, SessionMetadataRecomputeContextTokensResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

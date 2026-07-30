@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.ExecutorWiringTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.084 s -- in com.github.copilot.ExecutorWiringTest

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlobAttachment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">BlobAttachment.java</span></div><h1>BlobAttachment.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Represents an inline base64-encoded binary attachment (blob) for messages.
+ * &lt;p&gt;
+ * Use this attachment type to pass image data or other binary content directly
+ * to the assistant, without requiring a file on disk.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var attachment = new BlobAttachment().setData(&quot;iVBORw0KGgoAAAANSUhEUg...&quot;) // base64-encoded content
+ * 		.setMimeType(&quot;image/png&quot;).setDisplayName(&quot;screenshot.png&quot;);
+ *
+ * var options = new MessageOptions().setPrompt(&quot;Describe this image&quot;).setAttachments(List.of(attachment));
+ * }&lt;/pre&gt;
+ *
+ * @see MessageOptions#setAttachments(java.util.List)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L29">public final class BlobAttachment implements MessageAttachment {</span>
+
+<span class="fc" id="L31">    @JsonProperty(&quot;type&quot;)</span>
+    private final String type = &quot;blob&quot;;
+
+    @JsonProperty(&quot;data&quot;)
+    private String data;
+
+    @JsonProperty(&quot;mimeType&quot;)
+    private String mimeType;
+
+    @JsonProperty(&quot;displayName&quot;)
+    private String displayName;
+
+    /**
+     * Returns the attachment type, always {@code &quot;blob&quot;}.
+     *
+     * @return {@code &quot;blob&quot;}
+     */
+    @Override
+    public String getType() {
+<span class="fc" id="L50">        return type;</span>
+    }
+
+    /**
+     * Gets the base64-encoded binary content.
+     *
+     * @return the base64 data string
+     */
+    public String getData() {
+<span class="fc" id="L59">        return data;</span>
+    }
+
+    /**
+     * Sets the base64-encoded binary content.
+     *
+     * @param data
+     *            the base64-encoded content
+     * @return this attachment for method chaining
+     */
+    public BlobAttachment setData(String data) {
+<span class="fc" id="L70">        this.data = data;</span>
+<span class="fc" id="L71">        return this;</span>
+    }
+
+    /**
+     * Gets the MIME type of the binary content.
+     *
+     * @return the MIME type (e.g., {@code &quot;image/png&quot;})
+     */
+    public String getMimeType() {
+<span class="fc" id="L80">        return mimeType;</span>
+    }
+
+    /**
+     * Sets the MIME type of the binary content.
+     *
+     * @param mimeType
+     *            the MIME type (e.g., {@code &quot;image/png&quot;}, {@code &quot;image/jpeg&quot;})
+     * @return this attachment for method chaining
+     */
+    public BlobAttachment setMimeType(String mimeType) {
+<span class="fc" id="L91">        this.mimeType = mimeType;</span>
+<span class="fc" id="L92">        return this;</span>
+    }
+
+    /**
+     * Gets the human-readable display name for the attachment.
+     *
+     * @return the display name, or {@code null}
+     */
+    public String getDisplayName() {
+<span class="fc" id="L101">        return displayName;</span>
+    }
+
+    /**
+     * Sets the human-readable display name for the attachment.
+     *
+     * @param displayName
+     *            a user-visible name (e.g., {@code &quot;screenshot.png&quot;})
+     * @return this attachment for method chaining
+     */
+    public BlobAttachment setDisplayName(String displayName) {
+<span class="fc" id="L112">        this.displayName = displayName;</span>
+<span class="fc" id="L113">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

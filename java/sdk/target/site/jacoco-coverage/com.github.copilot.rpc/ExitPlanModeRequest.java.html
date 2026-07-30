@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExitPlanModeRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ExitPlanModeRequest.java</span></div><h1>ExitPlanModeRequest.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Request to exit plan mode and continue with a selected action.
+ * &lt;p&gt;
+ * This is sent by the server when the agent wants to exit plan mode and
+ * requests user confirmation.
+ *
+ * @since 1.0.8
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="nc" id="L22">public class ExitPlanModeRequest {</span>
+
+<span class="nc" id="L24">    @JsonProperty(&quot;summary&quot;)</span>
+    private String summary = &quot;&quot;;
+
+    @JsonProperty(&quot;planContent&quot;)
+    private String planContent;
+
+    @JsonProperty(&quot;actions&quot;)
+    private List&lt;String&gt; actions;
+
+<span class="nc" id="L33">    @JsonProperty(&quot;recommendedAction&quot;)</span>
+    private String recommendedAction = &quot;autopilot&quot;;
+
+    /**
+     * Gets the summary of the plan or proposed next step.
+     *
+     * @return the summary
+     */
+    public String getSummary() {
+<span class="nc" id="L42">        return summary;</span>
+    }
+
+    /**
+     * Sets the summary of the plan or proposed next step.
+     *
+     * @param summary
+     *            the summary
+     * @return this instance for method chaining
+     */
+    public ExitPlanModeRequest setSummary(String summary) {
+<span class="nc" id="L53">        this.summary = summary;</span>
+<span class="nc" id="L54">        return this;</span>
+    }
+
+    /**
+     * Gets the full plan content, when available.
+     *
+     * @return the plan content, or {@code null} if not available
+     */
+    public String getPlanContent() {
+<span class="nc" id="L63">        return planContent;</span>
+    }
+
+    /**
+     * Sets the full plan content.
+     *
+     * @param planContent
+     *            the plan content
+     * @return this instance for method chaining
+     */
+    public ExitPlanModeRequest setPlanContent(String planContent) {
+<span class="nc" id="L74">        this.planContent = planContent;</span>
+<span class="nc" id="L75">        return this;</span>
+    }
+
+    /**
+     * Gets the available actions the user can select.
+     *
+     * @return the list of actions, or {@code null} if not specified
+     */
+    public List&lt;String&gt; getActions() {
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        return actions == null ? null : Collections.unmodifiableList(actions);</span>
+    }
+
+    /**
+     * Sets the available actions the user can select.
+     *
+     * @param actions
+     *            the list of actions
+     * @return this instance for method chaining
+     */
+    public ExitPlanModeRequest setActions(List&lt;String&gt; actions) {
+<span class="nc" id="L95">        this.actions = actions;</span>
+<span class="nc" id="L96">        return this;</span>
+    }
+
+    /**
+     * Gets the action recommended by the runtime.
+     *
+     * @return the recommended action
+     */
+    public String getRecommendedAction() {
+<span class="nc" id="L105">        return recommendedAction;</span>
+    }
+
+    /**
+     * Sets the action recommended by the runtime.
+     *
+     * @param recommendedAction
+     *            the recommended action
+     * @return this instance for method chaining
+     */
+    public ExitPlanModeRequest setRecommendedAction(String recommendedAction) {
+<span class="nc" id="L116">        this.recommendedAction = recommendedAction;</span>
+<span class="nc" id="L117">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

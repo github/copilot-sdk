@@ -1,0 +1,584 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RpcHandlerDispatcher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">RpcHandlerDispatcher.java</span></div><h1>RpcHandlerDispatcher.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.rpc.AutoModeSwitchRequest;
+import com.github.copilot.rpc.ExitPlanModeRequest;
+import com.github.copilot.rpc.BearerTokenProvider;
+import com.github.copilot.rpc.ProviderTokenArgs;
+import com.github.copilot.rpc.PermissionRequestResult;
+import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.SessionLifecycleEvent;
+import com.github.copilot.rpc.SessionLifecycleEventMetadata;
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolInvocation;
+import com.github.copilot.rpc.ToolResultObject;
+import com.github.copilot.rpc.UserInputRequest;
+
+/**
+ * Dispatches incoming JSON-RPC method calls to the appropriate handlers.
+ * &lt;p&gt;
+ * This class handles all server-to-client RPC calls including:
+ * &lt;ul&gt;
+ * &lt;li&gt;Session events&lt;/li&gt;
+ * &lt;li&gt;Tool calls&lt;/li&gt;
+ * &lt;li&gt;Permission requests&lt;/li&gt;
+ * &lt;li&gt;User input requests&lt;/li&gt;
+ * &lt;li&gt;Hooks invocations&lt;/li&gt;
+ * &lt;li&gt;Lifecycle events&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+final class RpcHandlerDispatcher {
+
+<span class="fc" id="L48">    private static final Logger LOG = Logger.getLogger(RpcHandlerDispatcher.class.getName());</span>
+<span class="fc" id="L49">    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();</span>
+
+    private final Map&lt;String, CopilotSession&gt; sessions;
+    private final LifecycleEventDispatcher lifecycleDispatcher;
+    private final Executor executor;
+
+    /**
+     * Creates a dispatcher with session registry and lifecycle dispatcher.
+     *
+     * @param sessions
+     *            the session registry to look up sessions by ID
+     * @param lifecycleDispatcher
+     *            callback for dispatching lifecycle events
+     * @param executor
+     *            the executor for async dispatch, or {@code null} for default
+     */
+    RpcHandlerDispatcher(Map&lt;String, CopilotSession&gt; sessions, LifecycleEventDispatcher lifecycleDispatcher,
+<span class="fc" id="L66">            Executor executor) {</span>
+<span class="fc" id="L67">        this.sessions = sessions;</span>
+<span class="fc" id="L68">        this.lifecycleDispatcher = lifecycleDispatcher;</span>
+<span class="fc" id="L69">        this.executor = executor;</span>
+<span class="fc" id="L70">    }</span>
+
+    /**
+     * Registers all RPC method handlers with the given JSON-RPC client.
+     *
+     * @param rpc
+     *            the JSON-RPC client to register handlers with
+     */
+    void registerHandlers(JsonRpcClient rpc) {
+<span class="fc" id="L79">        rpc.registerMethodHandler(&quot;session.event&quot;, (requestId, params) -&gt; handleSessionEvent(params));</span>
+<span class="fc" id="L80">        rpc.registerMethodHandler(&quot;session.lifecycle&quot;, (requestId, params) -&gt; handleLifecycleEvent(params));</span>
+<span class="fc" id="L81">        rpc.registerMethodHandler(&quot;tool.call&quot;, (requestId, params) -&gt; handleToolCall(rpc, requestId, params));</span>
+<span class="fc" id="L82">        rpc.registerMethodHandler(&quot;permission.request&quot;,</span>
+<span class="fc" id="L83">                (requestId, params) -&gt; handlePermissionRequest(rpc, requestId, params));</span>
+<span class="fc" id="L84">        rpc.registerMethodHandler(&quot;userInput.request&quot;,</span>
+<span class="fc" id="L85">                (requestId, params) -&gt; handleUserInputRequest(rpc, requestId, params));</span>
+<span class="fc" id="L86">        rpc.registerMethodHandler(&quot;exitPlanMode.request&quot;,</span>
+<span class="nc" id="L87">                (requestId, params) -&gt; handleExitPlanModeRequest(rpc, requestId, params));</span>
+<span class="fc" id="L88">        rpc.registerMethodHandler(&quot;autoModeSwitch.request&quot;,</span>
+<span class="fc" id="L89">                (requestId, params) -&gt; handleAutoModeSwitchRequest(rpc, requestId, params));</span>
+<span class="fc" id="L90">        rpc.registerMethodHandler(&quot;hooks.invoke&quot;, (requestId, params) -&gt; handleHooksInvoke(rpc, requestId, params));</span>
+<span class="fc" id="L91">        rpc.registerMethodHandler(&quot;systemMessage.transform&quot;,</span>
+<span class="fc" id="L92">                (requestId, params) -&gt; handleSystemMessageTransform(rpc, requestId, params));</span>
+<span class="fc" id="L93">        rpc.registerMethodHandler(&quot;providerToken.getToken&quot;,</span>
+<span class="fc" id="L94">                (requestId, params) -&gt; handleProviderTokenGetToken(rpc, requestId, params));</span>
+<span class="fc" id="L95">    }</span>
+
+    private void handleSessionEvent(JsonNode params) {
+        try {
+<span class="fc" id="L99">            String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L100">            JsonNode eventNode = params.get(&quot;event&quot;);</span>
+<span class="fc" id="L101">            LOG.fine(&quot;Received session.event: &quot; + eventNode);</span>
+
+<span class="fc" id="L103">            CopilotSession session = sessions.get(sessionId);</span>
+<span class="fc bfc" id="L104" title="All 4 branches covered.">            if (session != null &amp;&amp; eventNode != null) {</span>
+<span class="fc" id="L105">                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">                if (event != null) {</span>
+<span class="fc" id="L107">                    session.dispatchEvent(event);</span>
+                }
+            }
+<span class="nc" id="L110">        } catch (Exception e) {</span>
+<span class="nc" id="L111">            LOG.log(Level.SEVERE, &quot;Error handling session event&quot;, e);</span>
+<span class="fc" id="L112">        }</span>
+<span class="fc" id="L113">    }</span>
+
+    private void handleLifecycleEvent(JsonNode params) {
+        try {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            String type = params.has(&quot;type&quot;) ? params.get(&quot;type&quot;).asText() : &quot;&quot;;</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">            String sessionId = params.has(&quot;sessionId&quot;) ? params.get(&quot;sessionId&quot;).asText() : &quot;&quot;;</span>
+
+<span class="fc" id="L120">            SessionLifecycleEvent event = new SessionLifecycleEvent();</span>
+<span class="fc" id="L121">            event.setType(type);</span>
+<span class="fc" id="L122">            event.setSessionId(sessionId);</span>
+
+<span class="fc bfc" id="L124" title="All 4 branches covered.">            if (params.has(&quot;metadata&quot;) &amp;&amp; !params.get(&quot;metadata&quot;).isNull()) {</span>
+<span class="fc" id="L125">                SessionLifecycleEventMetadata metadata = MAPPER.treeToValue(params.get(&quot;metadata&quot;),</span>
+                        SessionLifecycleEventMetadata.class);
+<span class="fc" id="L127">                event.setMetadata(metadata);</span>
+            }
+
+<span class="fc" id="L130">            lifecycleDispatcher.dispatch(event);</span>
+<span class="nc" id="L131">        } catch (Exception e) {</span>
+<span class="nc" id="L132">            LOG.log(Level.SEVERE, &quot;Error handling session lifecycle event&quot;, e);</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">    }</span>
+
+    private void handleToolCall(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L137">        runAsync(() -&gt; {</span>
+<span class="fc" id="L138">            final long requestIdLong = parseRequestId(requestId, &quot;tool.call&quot;);</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L140">                return;</span>
+            }
+            try {
+<span class="fc" id="L143">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L144">                String toolCallId = params.get(&quot;toolCallId&quot;).asText();</span>
+<span class="fc" id="L145">                String toolName = params.get(&quot;toolName&quot;).asText();</span>
+<span class="fc" id="L146">                JsonNode arguments = params.get(&quot;arguments&quot;);</span>
+
+<span class="fc" id="L148">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">                if (session == null) {</span>
+<span class="fc" id="L150">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="fc" id="L151">                    return;</span>
+                }
+
+<span class="fc" id="L154">                ToolDefinition tool = session.getTool(toolName);</span>
+<span class="pc bpc" id="L155" title="1 of 4 branches missed.">                if (tool == null || tool.handler() == null) {</span>
+<span class="fc" id="L156">                    var result = ToolResultObject.failure(&quot;Tool '&quot; + toolName + &quot;' is not supported.&quot;,</span>
+                            &quot;tool '&quot; + toolName + &quot;' not supported&quot;);
+<span class="fc" id="L158">                    rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, result));</span>
+<span class="fc" id="L159">                    return;</span>
+                }
+
+<span class="fc" id="L162">                var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)</span>
+<span class="fc" id="L163">                        .setToolName(toolName).setArguments(arguments);</span>
+
+<span class="fc" id="L165">                session.populateToolSearchMetadata(toolName, invocation);</span>
+
+<span class="fc" id="L167">                tool.handler().invoke(invocation).thenAccept(result -&gt; {</span>
+                    try {
+                        ToolResultObject toolResult;
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                        if (result instanceof ToolResultObject tr) {</span>
+<span class="fc" id="L171">                            toolResult = tr;</span>
+                        } else {
+                            toolResult = ToolResultObject
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">                                    .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));</span>
+                        }
+<span class="fc" id="L176">                        rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, toolResult));</span>
+<span class="nc" id="L177">                    } catch (Exception e) {</span>
+<span class="nc" id="L178">                        LOG.log(Level.SEVERE, &quot;Error sending tool result&quot;, e);</span>
+<span class="fc" id="L179">                    }</span>
+<span class="fc" id="L180">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="fc" id="L182">                        var result = ToolResultObject.failure(</span>
+                                &quot;Invoking this tool produced an error. Detailed information is not available.&quot;,
+<span class="fc" id="L184">                                ex.getMessage());</span>
+<span class="fc" id="L185">                        rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, result));</span>
+<span class="nc" id="L186">                    } catch (Exception e) {</span>
+<span class="nc" id="L187">                        LOG.log(Level.SEVERE, &quot;Error sending tool error&quot;, e);</span>
+<span class="fc" id="L188">                    }</span>
+<span class="fc" id="L189">                    return null;</span>
+                });
+<span class="nc" id="L191">            } catch (Exception e) {</span>
+<span class="nc" id="L192">                LOG.log(Level.SEVERE, &quot;Error handling tool call&quot;, e);</span>
+                try {
+<span class="nc" id="L194">                    rpc.sendErrorResponse(requestIdLong, -32603, e.getMessage());</span>
+<span class="nc" id="L195">                } catch (IOException ioe) {</span>
+<span class="nc" id="L196">                    LOG.log(Level.SEVERE, &quot;Failed to send error response&quot;, ioe);</span>
+<span class="nc" id="L197">                }</span>
+<span class="fc" id="L198">            }</span>
+<span class="fc" id="L199">        });</span>
+<span class="fc" id="L200">    }</span>
+
+    private void handlePermissionRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L203">        runAsync(() -&gt; {</span>
+<span class="fc" id="L204">            final long requestIdLong = parseRequestId(requestId, &quot;permission.request&quot;);</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L206">                return;</span>
+            }
+            try {
+<span class="fc" id="L209">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L210">                JsonNode permissionRequest = params.get(&quot;permissionRequest&quot;);</span>
+
+<span class="fc" id="L212">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">                if (session == null) {</span>
+<span class="fc" id="L214">                    var result = new PermissionRequestResult()</span>
+<span class="fc" id="L215">                            .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);</span>
+<span class="fc" id="L216">                    rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, result));</span>
+<span class="fc" id="L217">                    return;</span>
+                }
+
+<span class="fc" id="L220">                session.handlePermissionRequest(permissionRequest).thenAccept(result -&gt; {</span>
+                    try {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">                        if (PermissionRequestResultKind.NO_RESULT.getValue().equalsIgnoreCase(result.getKind())) {</span>
+                            // Protocol v2 does not support NO_RESULT — the server
+                            // expects exactly one response per request, so abstaining
+                            // would leave it hanging.
+<span class="fc" id="L226">                            throw new IllegalStateException(</span>
+                                    &quot;Permission handlers cannot return 'no-result' when connected to a protocol v2 server.&quot;);
+                        }
+<span class="fc" id="L229">                        rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, result));</span>
+<span class="nc" id="L230">                    } catch (IOException e) {</span>
+<span class="nc" id="L231">                        LOG.log(Level.SEVERE, &quot;Error sending permission result&quot;, e);</span>
+<span class="fc" id="L232">                    }</span>
+<span class="fc" id="L233">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="fc" id="L235">                        var result = new PermissionRequestResult()</span>
+<span class="fc" id="L236">                                .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);</span>
+<span class="fc" id="L237">                        rpc.sendResponse(requestIdLong, Map.of(&quot;result&quot;, result));</span>
+<span class="nc" id="L238">                    } catch (IOException e) {</span>
+<span class="nc" id="L239">                        LOG.log(Level.SEVERE, &quot;Error sending permission denied&quot;, e);</span>
+<span class="fc" id="L240">                    }</span>
+<span class="fc" id="L241">                    return null;</span>
+                });
+<span class="nc" id="L243">            } catch (Exception e) {</span>
+<span class="nc" id="L244">                LOG.log(Level.SEVERE, &quot;Error handling permission request&quot;, e);</span>
+<span class="fc" id="L245">            }</span>
+<span class="fc" id="L246">        });</span>
+<span class="fc" id="L247">    }</span>
+
+    private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L250">        LOG.fine(&quot;Received userInput.request: &quot; + params);</span>
+<span class="fc" id="L251">        runAsync(() -&gt; {</span>
+<span class="fc" id="L252">            final long requestIdLong = parseRequestId(requestId, &quot;userInput.request&quot;);</span>
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L254">                return;</span>
+            }
+            try {
+<span class="fc" id="L257">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L258">                String question = params.get(&quot;question&quot;).asText();</span>
+<span class="fc" id="L259">                LOG.fine(&quot;Processing userInput for session &quot; + sessionId + &quot;, question: &quot; + question);</span>
+<span class="fc" id="L260">                JsonNode choicesNode = params.get(&quot;choices&quot;);</span>
+<span class="fc" id="L261">                JsonNode allowFreeformNode = params.get(&quot;allowFreeform&quot;);</span>
+
+<span class="fc" id="L263">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                LOG.fine(&quot;Found session: &quot; + (session != null));</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">                if (session == null) {</span>
+<span class="fc" id="L266">                    LOG.fine(&quot;Session not found, sending error&quot;);</span>
+<span class="fc" id="L267">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="fc" id="L268">                    return;</span>
+                }
+
+<span class="fc" id="L271">                var request = new UserInputRequest().setQuestion(question);</span>
+<span class="pc bpc" id="L272" title="1 of 4 branches missed.">                if (choicesNode != null &amp;&amp; choicesNode.isArray()) {</span>
+<span class="fc" id="L273">                    var choices = new ArrayList&lt;String&gt;();</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">                    for (JsonNode choice : choicesNode) {</span>
+<span class="fc" id="L275">                        choices.add(choice.asText());</span>
+<span class="fc" id="L276">                    }</span>
+<span class="fc" id="L277">                    request.setChoices(choices);</span>
+                }
+<span class="fc bfc" id="L279" title="All 2 branches covered.">                if (allowFreeformNode != null) {</span>
+<span class="fc" id="L280">                    request.setAllowFreeform(allowFreeformNode.asBoolean());</span>
+                }
+
+<span class="fc" id="L283">                session.handleUserInputRequest(request).thenAccept(response -&gt; {</span>
+                    try {
+                        // Ensure answer is never null - CLI requires a non-null string
+<span class="fc bfc" id="L286" title="All 2 branches covered.">                        String answer = response.getAnswer() != null ? response.getAnswer() : &quot;&quot;;</span>
+<span class="fc" id="L287">                        LOG.fine(&quot;Sending userInput response: answer=&quot; + answer + &quot;, wasFreeform=&quot;</span>
+<span class="fc" id="L288">                                + response.isWasFreeform());</span>
+<span class="fc" id="L289">                        rpc.sendResponse(requestIdLong,</span>
+<span class="fc" id="L290">                                Map.of(&quot;answer&quot;, answer, &quot;wasFreeform&quot;, response.isWasFreeform()));</span>
+<span class="nc" id="L291">                    } catch (IOException e) {</span>
+<span class="nc" id="L292">                        LOG.log(Level.SEVERE, &quot;Error sending user input response&quot;, e);</span>
+<span class="fc" id="L293">                    }</span>
+<span class="fc" id="L294">                }).exceptionally(ex -&gt; {</span>
+<span class="fc" id="L295">                    LOG.log(Level.WARNING, &quot;User input handler exception&quot;, ex);</span>
+                    try {
+<span class="fc" id="L297">                        rpc.sendErrorResponse(requestIdLong, -32603, &quot;User input handler error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L298">                    } catch (IOException e) {</span>
+<span class="nc" id="L299">                        LOG.log(Level.SEVERE, &quot;Error sending user input error&quot;, e);</span>
+<span class="fc" id="L300">                    }</span>
+<span class="fc" id="L301">                    return null;</span>
+                });
+<span class="nc" id="L303">            } catch (Exception e) {</span>
+<span class="nc" id="L304">                LOG.log(Level.SEVERE, &quot;Error handling user input request&quot;, e);</span>
+<span class="fc" id="L305">            }</span>
+<span class="fc" id="L306">        });</span>
+<span class="fc" id="L307">    }</span>
+
+    private void handleProviderTokenGetToken(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L310">        LOG.fine(&quot;Received providerToken.getToken: &quot; + params);</span>
+<span class="fc" id="L311">        runAsync(() -&gt; {</span>
+<span class="fc" id="L312">            final long requestIdLong = parseRequestId(requestId, &quot;providerToken.getToken&quot;);</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L314">                return;</span>
+            }
+            try {
+<span class="fc" id="L317">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L318">                String providerName = params.get(&quot;providerName&quot;).asText();</span>
+
+<span class="fc" id="L320">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">                if (session == null) {</span>
+<span class="nc" id="L322">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="nc" id="L323">                    return;</span>
+                }
+
+<span class="fc" id="L326">                BearerTokenProvider provider = session.getBearerTokenProvider(providerName);</span>
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">                if (provider == null) {</span>
+<span class="nc" id="L328">                    rpc.sendErrorResponse(requestIdLong, -32603,</span>
+                            &quot;No bearer-token provider registered for provider &quot; + providerName);
+<span class="nc" id="L330">                    return;</span>
+                }
+
+<span class="fc" id="L333">                CompletableFuture&lt;String&gt; tokenFuture = provider</span>
+<span class="fc" id="L334">                        .getToken(new ProviderTokenArgs(providerName, sessionId));</span>
+<span class="pc bpc" id="L335" title="1 of 2 branches missed.">                if (tokenFuture == null) {</span>
+<span class="nc" id="L336">                    rpc.sendErrorResponse(requestIdLong, -32603,</span>
+                            &quot;Bearer-token provider returned null future for provider &quot; + providerName);
+<span class="nc" id="L338">                    return;</span>
+                }
+
+<span class="fc" id="L341">                tokenFuture.thenAccept(token -&gt; {</span>
+                    try {
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">                        if (token == null) {</span>
+<span class="nc" id="L344">                            rpc.sendErrorResponse(requestIdLong, -32603,</span>
+                                    &quot;Bearer-token provider returned null token for provider &quot; + providerName);
+<span class="nc" id="L346">                            return;</span>
+                        }
+<span class="fc" id="L348">                        rpc.sendResponse(requestIdLong, Map.of(&quot;token&quot;, token));</span>
+<span class="nc" id="L349">                    } catch (IOException e) {</span>
+<span class="nc" id="L350">                        LOG.log(Level.SEVERE, &quot;Error sending provider token response&quot;, e);</span>
+<span class="fc" id="L351">                    }</span>
+<span class="fc" id="L352">                }).exceptionally(ex -&gt; {</span>
+<span class="nc" id="L353">                    LOG.log(Level.WARNING, &quot;Bearer-token provider exception&quot;, ex);</span>
+                    try {
+<span class="nc" id="L355">                        rpc.sendErrorResponse(requestIdLong, -32603, &quot;Bearer-token provider error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L356">                    } catch (IOException e) {</span>
+<span class="nc" id="L357">                        LOG.log(Level.SEVERE, &quot;Error sending provider token error&quot;, e);</span>
+<span class="nc" id="L358">                    }</span>
+<span class="nc" id="L359">                    return null;</span>
+                });
+<span class="nc" id="L361">            } catch (Exception e) {</span>
+<span class="nc" id="L362">                LOG.log(Level.SEVERE, &quot;Error handling providerToken.getToken&quot;, e);</span>
+                try {
+<span class="nc" id="L364">                    rpc.sendErrorResponse(requestIdLong, -32603, &quot;Provider token handler error: &quot; + e.getMessage());</span>
+<span class="nc" id="L365">                } catch (IOException ioException) {</span>
+<span class="nc" id="L366">                    LOG.log(Level.SEVERE, &quot;Error sending provider token handler error&quot;, ioException);</span>
+<span class="nc" id="L367">                }</span>
+<span class="fc" id="L368">            }</span>
+<span class="fc" id="L369">        });</span>
+<span class="fc" id="L370">    }</span>
+
+    private void handleExitPlanModeRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="nc" id="L373">        runAsync(() -&gt; {</span>
+<span class="nc" id="L374">            final long requestIdLong = parseRequestId(requestId, &quot;exitPlanMode.request&quot;);</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L376">                return;</span>
+            }
+            try {
+<span class="nc" id="L379">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+
+<span class="nc" id="L381">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                if (session == null) {</span>
+<span class="nc" id="L383">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="nc" id="L384">                    return;</span>
+                }
+
+<span class="nc" id="L387">                var request = new ExitPlanModeRequest();</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">                if (params.has(&quot;summary&quot;)) {</span>
+<span class="nc" id="L389">                    request.setSummary(params.get(&quot;summary&quot;).asText());</span>
+                }
+<span class="nc bnc" id="L391" title="All 4 branches missed.">                if (params.has(&quot;planContent&quot;) &amp;&amp; !params.get(&quot;planContent&quot;).isNull()) {</span>
+<span class="nc" id="L392">                    request.setPlanContent(params.get(&quot;planContent&quot;).asText());</span>
+                }
+<span class="nc bnc" id="L394" title="All 4 branches missed.">                if (params.has(&quot;actions&quot;) &amp;&amp; params.get(&quot;actions&quot;).isArray()) {</span>
+<span class="nc" id="L395">                    var actions = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">                    for (JsonNode action : params.get(&quot;actions&quot;)) {</span>
+<span class="nc" id="L397">                        actions.add(action.asText());</span>
+<span class="nc" id="L398">                    }</span>
+<span class="nc" id="L399">                    request.setActions(actions);</span>
+                }
+<span class="nc bnc" id="L401" title="All 4 branches missed.">                if (params.has(&quot;recommendedAction&quot;) &amp;&amp; !params.get(&quot;recommendedAction&quot;).isNull()) {</span>
+<span class="nc" id="L402">                    request.setRecommendedAction(params.get(&quot;recommendedAction&quot;).asText());</span>
+                }
+
+<span class="nc" id="L405">                session.handleExitPlanModeRequest(request).thenAccept(result -&gt; {</span>
+                    try {
+<span class="nc" id="L407">                        rpc.sendResponse(requestIdLong, MAPPER.valueToTree(result));</span>
+<span class="nc" id="L408">                    } catch (IOException e) {</span>
+<span class="nc" id="L409">                        LOG.log(Level.SEVERE, &quot;Error sending exit plan mode response&quot;, e);</span>
+<span class="nc" id="L410">                    }</span>
+<span class="nc" id="L411">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="nc" id="L413">                        rpc.sendErrorResponse(requestIdLong, -32603,</span>
+<span class="nc" id="L414">                                &quot;Exit plan mode handler error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L415">                    } catch (IOException e) {</span>
+<span class="nc" id="L416">                        LOG.log(Level.SEVERE, &quot;Error sending exit plan mode error&quot;, e);</span>
+<span class="nc" id="L417">                    }</span>
+<span class="nc" id="L418">                    return null;</span>
+                });
+<span class="nc" id="L420">            } catch (Exception e) {</span>
+<span class="nc" id="L421">                LOG.log(Level.SEVERE, &quot;Error handling exit plan mode request&quot;, e);</span>
+<span class="nc" id="L422">            }</span>
+<span class="nc" id="L423">        });</span>
+<span class="nc" id="L424">    }</span>
+
+    private void handleAutoModeSwitchRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L427">        runAsync(() -&gt; {</span>
+<span class="fc" id="L428">            final long requestIdLong = parseRequestId(requestId, &quot;autoModeSwitch.request&quot;);</span>
+<span class="pc bpc" id="L429" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L430">                return;</span>
+            }
+            try {
+<span class="fc" id="L433">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+
+<span class="fc" id="L435">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="pc bpc" id="L436" title="1 of 2 branches missed.">                if (session == null) {</span>
+<span class="nc" id="L437">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="nc" id="L438">                    return;</span>
+                }
+
+<span class="fc" id="L441">                var request = new AutoModeSwitchRequest();</span>
+<span class="pc bpc" id="L442" title="2 of 4 branches missed.">                if (params.has(&quot;errorCode&quot;) &amp;&amp; !params.get(&quot;errorCode&quot;).isNull()) {</span>
+<span class="fc" id="L443">                    request.setErrorCode(params.get(&quot;errorCode&quot;).asText());</span>
+                }
+<span class="pc bpc" id="L445" title="2 of 4 branches missed.">                if (params.has(&quot;retryAfterSeconds&quot;) &amp;&amp; !params.get(&quot;retryAfterSeconds&quot;).isNull()) {</span>
+<span class="fc" id="L446">                    request.setRetryAfterSeconds(params.get(&quot;retryAfterSeconds&quot;).asDouble());</span>
+                }
+
+<span class="fc" id="L449">                session.handleAutoModeSwitchRequest(request).thenAccept(response -&gt; {</span>
+                    try {
+<span class="fc" id="L451">                        rpc.sendResponse(requestIdLong, Map.of(&quot;response&quot;, response));</span>
+<span class="nc" id="L452">                    } catch (IOException e) {</span>
+<span class="nc" id="L453">                        LOG.log(Level.SEVERE, &quot;Error sending auto mode switch response&quot;, e);</span>
+<span class="fc" id="L454">                    }</span>
+<span class="fc" id="L455">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="nc" id="L457">                        rpc.sendErrorResponse(requestIdLong, -32603,</span>
+<span class="nc" id="L458">                                &quot;Auto mode switch handler error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L459">                    } catch (IOException e) {</span>
+<span class="nc" id="L460">                        LOG.log(Level.SEVERE, &quot;Error sending auto mode switch error&quot;, e);</span>
+<span class="nc" id="L461">                    }</span>
+<span class="nc" id="L462">                    return null;</span>
+                });
+<span class="nc" id="L464">            } catch (Exception e) {</span>
+<span class="nc" id="L465">                LOG.log(Level.SEVERE, &quot;Error handling auto mode switch request&quot;, e);</span>
+<span class="fc" id="L466">            }</span>
+<span class="fc" id="L467">        });</span>
+<span class="fc" id="L468">    }</span>
+
+    private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L471">        runAsync(() -&gt; {</span>
+<span class="fc" id="L472">            final long requestIdLong = parseRequestId(requestId, &quot;hooks.invoke&quot;);</span>
+<span class="pc bpc" id="L473" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L474">                return;</span>
+            }
+            try {
+<span class="fc" id="L477">                String sessionId = params.get(&quot;sessionId&quot;).asText();</span>
+<span class="fc" id="L478">                String hookType = params.get(&quot;hookType&quot;).asText();</span>
+<span class="fc" id="L479">                JsonNode input = params.get(&quot;input&quot;);</span>
+
+<span class="fc" id="L481">                CopilotSession session = sessions.get(sessionId);</span>
+<span class="fc bfc" id="L482" title="All 2 branches covered.">                if (session == null) {</span>
+<span class="fc" id="L483">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="fc" id="L484">                    return;</span>
+                }
+
+<span class="fc" id="L487">                session.handleHooksInvoke(hookType, input).thenAccept(output -&gt; {</span>
+                    try {
+<span class="fc" id="L489">                        rpc.sendResponse(requestIdLong, Collections.singletonMap(&quot;output&quot;, output));</span>
+<span class="nc" id="L490">                    } catch (IOException e) {</span>
+<span class="nc" id="L491">                        LOG.log(Level.SEVERE, &quot;Error sending hooks response&quot;, e);</span>
+<span class="fc" id="L492">                    }</span>
+<span class="fc" id="L493">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="fc" id="L495">                        rpc.sendErrorResponse(requestIdLong, -32603, &quot;Hooks handler error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L496">                    } catch (IOException e) {</span>
+<span class="nc" id="L497">                        LOG.log(Level.SEVERE, &quot;Error sending hooks error&quot;, e);</span>
+<span class="fc" id="L498">                    }</span>
+<span class="fc" id="L499">                    return null;</span>
+                });
+<span class="nc" id="L501">            } catch (Exception e) {</span>
+<span class="nc" id="L502">                LOG.log(Level.SEVERE, &quot;Error handling hooks invoke&quot;, e);</span>
+<span class="fc" id="L503">            }</span>
+<span class="fc" id="L504">        });</span>
+<span class="fc" id="L505">    }</span>
+
+    /**
+     * Functional interface for dispatching lifecycle events.
+     */
+    @FunctionalInterface
+    interface LifecycleEventDispatcher {
+
+        void dispatch(SessionLifecycleEvent event);
+    }
+
+    private void handleSystemMessageTransform(JsonRpcClient rpc, String requestId, JsonNode params) {
+<span class="fc" id="L517">        runAsync(() -&gt; {</span>
+<span class="fc" id="L518">            final long requestIdLong = parseRequestId(requestId, &quot;systemMessage.transform&quot;);</span>
+<span class="pc bpc" id="L519" title="1 of 2 branches missed.">            if (requestIdLong == -1) {</span>
+<span class="nc" id="L520">                return;</span>
+            }
+            try {
+<span class="fc bfc" id="L523" title="All 2 branches covered.">                String sessionId = params.has(&quot;sessionId&quot;) ? params.get(&quot;sessionId&quot;).asText() : null;</span>
+<span class="fc" id="L524">                JsonNode sections = params.get(&quot;sections&quot;);</span>
+
+<span class="fc bfc" id="L526" title="All 2 branches covered.">                CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;</span>
+<span class="fc bfc" id="L527" title="All 2 branches covered.">                if (session == null) {</span>
+<span class="fc" id="L528">                    rpc.sendErrorResponse(requestIdLong, -32602, &quot;Unknown session &quot; + sessionId);</span>
+<span class="fc" id="L529">                    return;</span>
+                }
+
+<span class="fc" id="L532">                session.handleSystemMessageTransform(sections).thenAccept(result -&gt; {</span>
+                    try {
+<span class="fc" id="L534">                        rpc.sendResponse(requestIdLong, result);</span>
+<span class="nc" id="L535">                    } catch (IOException e) {</span>
+<span class="nc" id="L536">                        LOG.log(Level.SEVERE, &quot;Error sending systemMessage.transform response&quot;, e);</span>
+<span class="fc" id="L537">                    }</span>
+<span class="fc" id="L538">                }).exceptionally(ex -&gt; {</span>
+                    try {
+<span class="nc" id="L540">                        rpc.sendErrorResponse(requestIdLong, -32603, &quot;Transform error: &quot; + ex.getMessage());</span>
+<span class="nc" id="L541">                    } catch (IOException e) {</span>
+<span class="nc" id="L542">                        LOG.log(Level.SEVERE, &quot;Error sending transform error response&quot;, e);</span>
+<span class="nc" id="L543">                    }</span>
+<span class="nc" id="L544">                    return null;</span>
+                });
+<span class="nc" id="L546">            } catch (Exception e) {</span>
+<span class="nc" id="L547">                LOG.log(Level.SEVERE, &quot;Error handling systemMessage.transform&quot;, e);</span>
+<span class="fc" id="L548">            }</span>
+<span class="fc" id="L549">        });</span>
+<span class="fc" id="L550">    }</span>
+
+    /**
+     * Parses a JSON-RPC request ID string into a {@code long}.
+     *
+     * @param requestId
+     *            the request ID string received from the JSON-RPC layer
+     * @param methodName
+     *            the RPC method name, used in the log message on failure
+     * @return the parsed request ID, or {@code -1} if the string is not a valid
+     *         long
+     */
+    private static long parseRequestId(String requestId, String methodName) {
+        try {
+<span class="fc" id="L564">            return Long.parseLong(requestId);</span>
+<span class="nc" id="L565">        } catch (NumberFormatException nfe) {</span>
+<span class="nc" id="L566">            LOG.log(Level.SEVERE, &quot;Invalid requestId for &quot; + methodName + &quot;: &quot; + requestId, nfe);</span>
+<span class="nc" id="L567">            return -1;</span>
+        }
+    }
+
+    private void runAsync(Runnable task) {
+        try {
+<span class="fc bfc" id="L573" title="All 2 branches covered.">            if (executor != null) {</span>
+<span class="fc" id="L574">                CompletableFuture.runAsync(task, executor);</span>
+            } else {
+<span class="fc" id="L576">                CompletableFuture.runAsync(task);</span>
+            }
+<span class="nc" id="L578">        } catch (RejectedExecutionException e) {</span>
+<span class="nc" id="L579">            LOG.log(Level.WARNING, &quot;Executor rejected handler task; running inline&quot;, e);</span>
+<span class="nc" id="L580">            task.run();</span>
+<span class="fc" id="L581">        }</span>
+<span class="fc" id="L582">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

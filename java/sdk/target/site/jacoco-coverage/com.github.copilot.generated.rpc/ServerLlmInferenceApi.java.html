@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerLlmInferenceApi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">ServerLlmInferenceApi.java</span></div><h1>ServerLlmInferenceApi.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code llmInference} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class ServerLlmInferenceApi {
+
+    private final RpcCaller caller;
+
+    /** @param caller the RPC transport function */
+<span class="fc" id="L25">    ServerLlmInferenceApi(RpcCaller caller) {</span>
+<span class="fc" id="L26">        this.caller = caller;</span>
+<span class="fc" id="L27">    }</span>
+
+    /**
+     * Indicates whether the calling client was registered as the LLM inference provider.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;LlmInferenceSetProviderResult&gt; setProvider() {
+<span class="fc" id="L37">        return caller.invoke(&quot;llmInference.setProvider&quot;, java.util.Map.of(), LlmInferenceSetProviderResult.class);</span>
+    }
+
+    /**
+     * Response head.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;LlmInferenceHttpResponseStartResult&gt; httpResponseStart(LlmInferenceHttpResponseStartParams params) {
+<span class="fc" id="L48">        return caller.invoke(&quot;llmInference.httpResponseStart&quot;, params, LlmInferenceHttpResponseStartResult.class);</span>
+    }
+
+    /**
+     * A response body chunk or terminal error.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;LlmInferenceHttpResponseChunkResult&gt; httpResponseChunk(LlmInferenceHttpResponseChunkParams params) {
+<span class="fc" id="L59">        return caller.invoke(&quot;llmInference.httpResponseChunk&quot;, params, LlmInferenceHttpResponseChunkResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

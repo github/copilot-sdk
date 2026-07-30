@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ToolExecutionCompleteEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">ToolExecutionCompleteEvent.java</span></div><h1>ToolExecutionCompleteEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;tool.execution_complete&quot;. Tool execution completion results including success status, detailed output, and error information
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L23">public final class ToolExecutionCompleteEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L26">    public String getType() { return &quot;tool.execution_complete&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private ToolExecutionCompleteEventData data;
+
+<span class="fc" id="L31">    public ToolExecutionCompleteEventData getData() { return data; }</span>
+<span class="fc" id="L32">    public void setData(ToolExecutionCompleteEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link ToolExecutionCompleteEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L37">    public record ToolExecutionCompleteEventData(</span>
+        /** Unique identifier for the completed tool call */
+        @JsonProperty(&quot;toolCallId&quot;) String toolCallId,
+        /** Whether the tool execution completed successfully */
+        @JsonProperty(&quot;success&quot;) Boolean success,
+        /** Model identifier that generated this tool call */
+        @JsonProperty(&quot;model&quot;) String model,
+        /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels). Persisted as `{ ifc: ... }` so the label survives session resume, including model-visible failure results. Experimental. */
+        @JsonProperty(&quot;mcpMeta&quot;) Object mcpMeta,
+        /** CAPI interaction ID for correlating this tool execution with upstream telemetry */
+        @JsonProperty(&quot;interactionId&quot;) String interactionId,
+        @JsonProperty(&quot;rte&quot;) Boolean rte,
+        /** Whether this tool call was explicitly requested by the user rather than the assistant */
+        @JsonProperty(&quot;isUserRequested&quot;) Boolean isUserRequested,
+        /** Tool execution result on success */
+        @JsonProperty(&quot;result&quot;) ToolExecutionCompleteResult result,
+        /** Error details when the tool execution failed */
+        @JsonProperty(&quot;error&quot;) ToolExecutionCompleteError error,
+        /** Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts) */
+        @JsonProperty(&quot;toolTelemetry&quot;) Map&lt;String, Object&gt; toolTelemetry,
+        /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
+        @JsonProperty(&quot;turnId&quot;) String turnId,
+        /** Tool definition metadata, present for MCP tools with MCP Apps support */
+        @JsonProperty(&quot;toolDescription&quot;) ToolExecutionCompleteToolDescription toolDescription,
+        /** Whether this tool execution ran inside a sandbox container */
+        @JsonProperty(&quot;sandboxed&quot;) Boolean sandboxed,
+        /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
+        @JsonProperty(&quot;parentToolCallId&quot;) String parentToolCallId
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

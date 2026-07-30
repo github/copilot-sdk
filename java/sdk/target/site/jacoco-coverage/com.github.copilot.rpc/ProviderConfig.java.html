@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProviderConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ProviderConfig.java</span></div><h1>ProviderConfig.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.OptionalInt;
+
+/**
+ * Configuration for a custom API provider (BYOK - Bring Your Own Key).
+ * &lt;p&gt;
+ * This allows using your own OpenAI, Azure OpenAI, or other compatible API
+ * endpoints instead of the default Copilot backend. All setter methods return
+ * {@code this} for method chaining.
+ *
+ * &lt;h2&gt;Example Usage - OpenAI&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var provider = new ProviderConfig().setType(&quot;openai&quot;).setBaseUrl(&quot;https://api.openai.com/v1&quot;).setApiKey(&quot;sk-...&quot;);
+ * }&lt;/pre&gt;
+ *
+ * &lt;h2&gt;Example Usage - Azure OpenAI&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var provider = new ProviderConfig().setType(&quot;azure&quot;)
+ * 		.setAzure(new AzureOptions().setEndpoint(&quot;https://my-resource.openai.azure.com&quot;).setDeployment(&quot;gpt-4&quot;));
+ * }&lt;/pre&gt;
+ *
+ * @see SessionConfig#setProvider(ProviderConfig)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L39">public class ProviderConfig {</span>
+
+    @JsonProperty(&quot;type&quot;)
+    private String type;
+
+    @JsonProperty(&quot;wireApi&quot;)
+    private String wireApi;
+
+    @JsonProperty(&quot;transport&quot;)
+    private String transport;
+
+    @JsonProperty(&quot;baseUrl&quot;)
+    private String baseUrl;
+
+    @JsonProperty(&quot;apiKey&quot;)
+    private String apiKey;
+
+    @JsonProperty(&quot;bearerToken&quot;)
+    private String bearerToken;
+
+    @JsonIgnore
+    private BearerTokenProvider bearerTokenProvider;
+
+    @JsonProperty(&quot;azure&quot;)
+    private AzureOptions azure;
+
+    @JsonProperty(&quot;headers&quot;)
+    private Map&lt;String, String&gt; headers;
+
+    @JsonProperty(&quot;modelId&quot;)
+    private String modelId;
+
+    @JsonProperty(&quot;wireModel&quot;)
+    private String wireModel;
+
+    @JsonProperty(&quot;maxPromptTokens&quot;)
+    private Integer maxPromptTokens;
+
+    @JsonProperty(&quot;maxOutputTokens&quot;)
+    private Integer maxOutputTokens;
+
+    /**
+     * Gets the provider type.
+     *
+     * @return the provider type (e.g., &quot;openai&quot;, &quot;azure&quot;)
+     */
+    public String getType() {
+<span class="fc" id="L86">        return type;</span>
+    }
+
+    /**
+     * Sets the provider type.
+     * &lt;p&gt;
+     * Supported types include:
+     * &lt;ul&gt;
+     * &lt;li&gt;&quot;openai&quot; - OpenAI API&lt;/li&gt;
+     * &lt;li&gt;&quot;azure&quot; - Azure OpenAI Service&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param type
+     *            the provider type
+     * @return this config for method chaining
+     */
+    public ProviderConfig setType(String type) {
+<span class="fc" id="L103">        this.type = type;</span>
+<span class="fc" id="L104">        return this;</span>
+    }
+
+    /**
+     * Gets the wire API format.
+     *
+     * @return the wire API format
+     */
+    public String getWireApi() {
+<span class="fc" id="L113">        return wireApi;</span>
+    }
+
+    /**
+     * Sets the wire API format for custom providers.
+     * &lt;p&gt;
+     * This specifies the API format when using a custom provider that has a
+     * different wire protocol.
+     *
+     * @param wireApi
+     *            the wire API format
+     * @return this config for method chaining
+     */
+    public ProviderConfig setWireApi(String wireApi) {
+<span class="fc" id="L127">        this.wireApi = wireApi;</span>
+<span class="fc" id="L128">        return this;</span>
+    }
+
+    /**
+     * Gets the transport for OpenAI Responses requests.
+     *
+     * @return the transport (&quot;http&quot; or &quot;websockets&quot;)
+     */
+    public String getTransport() {
+<span class="fc" id="L137">        return transport;</span>
+    }
+
+    /**
+     * Sets the transport for OpenAI Responses requests.
+     * &lt;p&gt;
+     * Defaults to &quot;http&quot;. Set to &quot;websockets&quot; to deliver Responses API requests
+     * over a persistent WebSocket connection instead of HTTP. Applies to
+     * OpenAI-compatible providers using {@code wireApi} &quot;responses&quot;.
+     *
+     * @param transport
+     *            the transport (&quot;http&quot; or &quot;websockets&quot;)
+     * @return this config for method chaining
+     */
+    public ProviderConfig setTransport(String transport) {
+<span class="fc" id="L152">        this.transport = transport;</span>
+<span class="fc" id="L153">        return this;</span>
+    }
+
+    /**
+     * Gets the base URL for the API.
+     *
+     * @return the API base URL
+     */
+    public String getBaseUrl() {
+<span class="fc" id="L162">        return baseUrl;</span>
+    }
+
+    /**
+     * Sets the base URL for the API.
+     * &lt;p&gt;
+     * For OpenAI, this is typically &quot;https://api.openai.com/v1&quot;.
+     *
+     * @param baseUrl
+     *            the API base URL
+     * @return this config for method chaining
+     */
+    public ProviderConfig setBaseUrl(String baseUrl) {
+<span class="fc" id="L175">        this.baseUrl = baseUrl;</span>
+<span class="fc" id="L176">        return this;</span>
+    }
+
+    /**
+     * Gets the API key.
+     *
+     * @return the API key
+     */
+    public String getApiKey() {
+<span class="fc" id="L185">        return apiKey;</span>
+    }
+
+    /**
+     * Sets the API key for authentication.
+     *
+     * @param apiKey
+     *            the API key
+     * @return this config for method chaining
+     */
+    public ProviderConfig setApiKey(String apiKey) {
+<span class="fc" id="L196">        this.apiKey = apiKey;</span>
+<span class="fc" id="L197">        return this;</span>
+    }
+
+    /**
+     * Gets the bearer token.
+     *
+     * @return the bearer token
+     */
+    public String getBearerToken() {
+<span class="fc" id="L206">        return bearerToken;</span>
+    }
+
+    /**
+     * Sets a bearer token for authentication.
+     * &lt;p&gt;
+     * This is an alternative to API key authentication.
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; The bearer token is a &lt;strong&gt;static token
+     * string&lt;/strong&gt;. The SDK does not refresh this token automatically. If your
+     * token expires, requests will fail and you'll need to create a new session
+     * with a fresh token.
+     *
+     * @param bearerToken
+     *            the bearer token
+     * @return this config for method chaining
+     */
+    public ProviderConfig setBearerToken(String bearerToken) {
+<span class="fc" id="L224">        this.bearerToken = bearerToken;</span>
+<span class="fc" id="L225">        return this;</span>
+    }
+
+    /**
+     * Gets the bearer-token provider callback.
+     *
+     * @return the bearer-token provider callback, or {@code null} if not set
+     */
+    public BearerTokenProvider getBearerTokenProvider() {
+<span class="fc" id="L234">        return bearerTokenProvider;</span>
+    }
+
+    /**
+     * Sets a callback that supplies bearer tokens for outbound provider requests.
+     * &lt;p&gt;
+     * &lt;strong&gt;Experimental.&lt;/strong&gt; The callback stays SDK-side and is not
+     * serialized. Instead, the runtime receives a {@code hasBearerTokenProvider}
+     * flag and calls back over the session-scoped {@code providerToken.getToken}
+     * RPC before each model request. Return the raw token without a {@code Bearer }
+     * prefix.
+     *
+     * @param bearerTokenProvider
+     *            the bearer-token provider callback
+     * @return this config for method chaining
+     */
+    public ProviderConfig setBearerTokenProvider(BearerTokenProvider bearerTokenProvider) {
+<span class="nc" id="L251">        this.bearerTokenProvider = bearerTokenProvider;</span>
+<span class="nc" id="L252">        return this;</span>
+    }
+
+    @JsonProperty(&quot;hasBearerTokenProvider&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Boolean hasBearerTokenProviderWireFlag() {
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        return bearerTokenProvider != null ? Boolean.TRUE : null;</span>
+    }
+
+    /**
+     * Gets the Azure-specific options.
+     *
+     * @return the Azure options
+     */
+    public AzureOptions getAzure() {
+<span class="fc" id="L267">        return azure;</span>
+    }
+
+    /**
+     * Sets Azure-specific options for Azure OpenAI Service.
+     *
+     * @param azure
+     *            the Azure options
+     * @return this config for method chaining
+     * @see AzureOptions
+     */
+    public ProviderConfig setAzure(AzureOptions azure) {
+<span class="fc" id="L279">        this.azure = azure;</span>
+<span class="fc" id="L280">        return this;</span>
+    }
+
+    /**
+     * Gets the custom HTTP headers for outbound provider requests.
+     *
+     * @return the headers map, or {@code null} if not set
+     */
+    public Map&lt;String, String&gt; getHeaders() {
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        return headers == null ? null : Collections.unmodifiableMap(headers);</span>
+    }
+
+    /**
+     * Sets custom HTTP headers to include in outbound provider requests.
+     * &lt;p&gt;
+     * Use this to pass additional authentication headers or custom metadata to the
+     * provider API.
+     *
+     * @param headers
+     *            the headers map
+     * @return this config for method chaining
+     */
+    public ProviderConfig setHeaders(Map&lt;String, String&gt; headers) {
+<span class="fc" id="L303">        this.headers = headers;</span>
+<span class="fc" id="L304">        return this;</span>
+    }
+
+    /**
+     * Gets the well-known model name used by the runtime.
+     * &lt;p&gt;
+     * Used to look up agent configuration (tools, prompts, reasoning behavior) and
+     * default token limits. Also used as the wire model when
+     * {@link #getWireModel()} is not set.
+     *
+     * @return the model ID, or {@code null} if not set
+     */
+    public String getModelId() {
+<span class="fc" id="L317">        return modelId;</span>
+    }
+
+    /**
+     * Sets the well-known model name used by the runtime.
+     * &lt;p&gt;
+     * Used to look up agent configuration (tools, prompts, reasoning behavior) and
+     * default token limits. Also used as the wire model when
+     * {@link #getWireModel()} is not set. Falls back to
+     * {@link SessionConfig#getModel()}.
+     *
+     * @param modelId
+     *            the model ID
+     * @return this config for method chaining
+     */
+    public ProviderConfig setModelId(String modelId) {
+<span class="fc" id="L333">        this.modelId = modelId;</span>
+<span class="fc" id="L334">        return this;</span>
+    }
+
+    /**
+     * Gets the model name sent to the provider API for inference.
+     *
+     * @return the wire model name, or {@code null} if not set
+     */
+    public String getWireModel() {
+<span class="fc" id="L343">        return wireModel;</span>
+    }
+
+    /**
+     * Sets the model name sent to the provider API for inference.
+     * &lt;p&gt;
+     * Use this when the provider's model name (e.g. an Azure deployment name or a
+     * custom fine-tune name) differs from {@link #getModelId()}. Falls back to
+     * {@link #getModelId()}, then {@link SessionConfig#getModel()}.
+     *
+     * @param wireModel
+     *            the wire model name
+     * @return this config for method chaining
+     */
+    public ProviderConfig setWireModel(String wireModel) {
+<span class="fc" id="L358">        this.wireModel = wireModel;</span>
+<span class="fc" id="L359">        return this;</span>
+    }
+
+    /**
+     * Gets the maximum prompt token override.
+     *
+     * @return an {@link java.util.OptionalInt} containing the max prompt tokens, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMaxPromptTokens() {
+<span class="fc bfc" id="L370" title="All 2 branches covered.">        return maxPromptTokens == null ? OptionalInt.empty() : OptionalInt.of(maxPromptTokens);</span>
+    }
+
+    /**
+     * Sets the maximum prompt tokens override.
+     * &lt;p&gt;
+     * Overrides the resolved model's default max prompt tokens. The runtime
+     * triggers conversation compaction before sending a request when the prompt
+     * (system message, history, tool definitions, user message) would exceed this
+     * limit.
+     *
+     * @param maxPromptTokens
+     *            the max prompt tokens
+     * @return this config for method chaining
+     */
+    public ProviderConfig setMaxPromptTokens(int maxPromptTokens) {
+<span class="fc" id="L386">        this.maxPromptTokens = maxPromptTokens;</span>
+<span class="fc" id="L387">        return this;</span>
+    }
+
+    /**
+     * Clears the maxPromptTokens setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ProviderConfig clearMaxPromptTokens() {
+<span class="fc" id="L396">        this.maxPromptTokens = null;</span>
+<span class="fc" id="L397">        return this;</span>
+    }
+
+    /**
+     * Gets the maximum output token override.
+     *
+     * @return an {@link java.util.OptionalInt} containing the max output tokens, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMaxOutputTokens() {
+<span class="fc bfc" id="L408" title="All 2 branches covered.">        return maxOutputTokens == null ? OptionalInt.empty() : OptionalInt.of(maxOutputTokens);</span>
+    }
+
+    /**
+     * Sets the maximum output tokens override.
+     * &lt;p&gt;
+     * Overrides the resolved model's default max output tokens. When hit, the model
+     * stops generating and returns a truncated response.
+     *
+     * @param maxOutputTokens
+     *            the max output tokens
+     * @return this config for method chaining
+     */
+    public ProviderConfig setMaxOutputTokens(int maxOutputTokens) {
+<span class="fc" id="L422">        this.maxOutputTokens = maxOutputTokens;</span>
+<span class="fc" id="L423">        return this;</span>
+    }
+
+    /**
+     * Clears the maxOutputTokens setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ProviderConfig clearMaxOutputTokens() {
+<span class="fc" id="L432">        this.maxOutputTokens = null;</span>
+<span class="fc" id="L433">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

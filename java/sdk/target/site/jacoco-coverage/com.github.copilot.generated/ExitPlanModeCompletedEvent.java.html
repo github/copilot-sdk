@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExitPlanModeCompletedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">ExitPlanModeCompletedEvent.java</span></div><h1>ExitPlanModeCompletedEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;exit_plan_mode.completed&quot;. Plan mode exit completion with the user's approval decision and optional feedback
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L22">public final class ExitPlanModeCompletedEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L25">    public String getType() { return &quot;exit_plan_mode.completed&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private ExitPlanModeCompletedEventData data;
+
+<span class="fc" id="L30">    public ExitPlanModeCompletedEventData getData() { return data; }</span>
+<span class="fc" id="L31">    public void setData(ExitPlanModeCompletedEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link ExitPlanModeCompletedEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L36">    public record ExitPlanModeCompletedEventData(</span>
+        /** Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request */
+        @JsonProperty(&quot;requestId&quot;) String requestId,
+        /** Whether the plan was approved by the user */
+        @JsonProperty(&quot;approved&quot;) Boolean approved,
+        /** Action selected by the user */
+        @JsonProperty(&quot;selectedAction&quot;) ExitPlanModeAction selectedAction,
+        /** Whether edits should be auto-approved without confirmation */
+        @JsonProperty(&quot;autoApproveEdits&quot;) Boolean autoApproveEdits,
+        /** Free-form feedback from the user if they requested changes to the plan */
+        @JsonProperty(&quot;feedback&quot;) String feedback
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

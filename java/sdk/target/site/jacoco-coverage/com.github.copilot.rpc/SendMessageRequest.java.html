@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SendMessageRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">SendMessageRequest.java</span></div><h1>SendMessageRequest.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Internal request object for sending a message to a session.
+ * &lt;p&gt;
+ * This is a low-level class for JSON-RPC communication. For sending messages,
+ * use {@link com.github.copilot.CopilotSession#send(String)} or
+ * {@link com.github.copilot.CopilotSession#sendAndWait(String)}.
+ *
+ * @see com.github.copilot.CopilotSession
+ * @see MessageOptions
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L26">public final class SendMessageRequest {</span>
+
+    @JsonProperty(&quot;sessionId&quot;)
+    private String sessionId;
+
+    @JsonProperty(&quot;prompt&quot;)
+    private String prompt;
+
+    @JsonProperty(&quot;attachments&quot;)
+    private List&lt;MessageAttachment&gt; attachments;
+
+    @JsonProperty(&quot;mode&quot;)
+    private String mode;
+
+    @JsonProperty(&quot;agentMode&quot;)
+    private AgentMode agentMode;
+
+    @JsonProperty(&quot;requestHeaders&quot;)
+    private Map&lt;String, String&gt; requestHeaders;
+
+    @JsonProperty(&quot;displayPrompt&quot;)
+    private String displayPrompt;
+
+    /** Gets the session ID. @return the session ID */
+    public String getSessionId() {
+<span class="fc" id="L51">        return sessionId;</span>
+    }
+
+    /** Sets the session ID. @param sessionId the session ID */
+    public void setSessionId(String sessionId) {
+<span class="fc" id="L56">        this.sessionId = sessionId;</span>
+<span class="fc" id="L57">    }</span>
+
+    /** Gets the message prompt. @return the prompt text */
+    public String getPrompt() {
+<span class="fc" id="L61">        return prompt;</span>
+    }
+
+    /** Sets the message prompt. @param prompt the prompt text */
+    public void setPrompt(String prompt) {
+<span class="fc" id="L66">        this.prompt = prompt;</span>
+<span class="fc" id="L67">    }</span>
+
+    /** Gets the attachments. @return the list of attachments */
+    public List&lt;MessageAttachment&gt; getAttachments() {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        return attachments == null ? null : Collections.unmodifiableList(attachments);</span>
+    }
+
+    /** Sets the attachments. @param attachments the list of attachments */
+    public void setAttachments(List&lt;MessageAttachment&gt; attachments) {
+<span class="fc" id="L76">        this.attachments = attachments;</span>
+<span class="fc" id="L77">    }</span>
+
+    /** Gets the mode. @return the message mode */
+    public String getMode() {
+<span class="fc" id="L81">        return mode;</span>
+    }
+
+    /** Sets the mode. @param mode the message mode */
+    public void setMode(String mode) {
+<span class="fc" id="L86">        this.mode = mode;</span>
+<span class="fc" id="L87">    }</span>
+
+    /** Gets the per-message agent UI mode. @return the agent mode */
+    public AgentMode getAgentMode() {
+<span class="fc" id="L91">        return agentMode;</span>
+    }
+
+    /** Sets the per-message agent UI mode. @param agentMode the agent mode */
+    public void setAgentMode(AgentMode agentMode) {
+<span class="fc" id="L96">        this.agentMode = agentMode;</span>
+<span class="fc" id="L97">    }</span>
+
+    /** Gets the per-turn request headers. @return the headers map */
+    public Map&lt;String, String&gt; getRequestHeaders() {
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        return requestHeaders == null ? null : Collections.unmodifiableMap(requestHeaders);</span>
+    }
+
+    /** Sets the per-turn request headers. @param requestHeaders the headers map */
+    public void setRequestHeaders(Map&lt;String, String&gt; requestHeaders) {
+<span class="fc" id="L106">        this.requestHeaders = requestHeaders;</span>
+<span class="fc" id="L107">    }</span>
+
+    /** Gets the display prompt. @return the display prompt */
+    public String getDisplayPrompt() {
+<span class="fc" id="L111">        return displayPrompt;</span>
+    }
+
+    /**
+     * Sets the display prompt shown in the timeline instead of the prompt.
+     *
+     * @param displayPrompt
+     *            the display prompt
+     */
+    public void setDisplayPrompt(String displayPrompt) {
+<span class="fc" id="L121">        this.displayPrompt = displayPrompt;</span>
+<span class="fc" id="L122">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

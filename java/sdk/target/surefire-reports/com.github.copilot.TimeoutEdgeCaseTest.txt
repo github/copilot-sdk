@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.TimeoutEdgeCaseTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.21 s -- in com.github.copilot.TimeoutEdgeCaseTest

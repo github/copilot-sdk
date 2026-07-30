@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">SessionMetadata.java</span></div><h1>SessionMetadata.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Metadata about an existing Copilot session.
+ * &lt;p&gt;
+ * This class represents session information returned when listing available
+ * sessions via {@link com.github.copilot.CopilotClient#listSessions()}. It
+ * includes timing information, a summary of the conversation, and whether the
+ * session is stored remotely.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var sessions = client.listSessions().get();
+ * for (var meta : sessions) {
+ * 	System.out.println(&quot;Session: &quot; + meta.getSessionId());
+ * 	System.out.println(&quot;  Started: &quot; + meta.getStartTime());
+ * 	System.out.println(&quot;  Summary: &quot; + meta.getSummary());
+ * }
+ * }&lt;/pre&gt;
+ *
+ * @see com.github.copilot.CopilotClient#listSessions()
+ * @see com.github.copilot.CopilotClient#resumeSession(String,
+ *      ResumeSessionConfig)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L35">public class SessionMetadata {</span>
+
+    @JsonProperty(&quot;sessionId&quot;)
+    private String sessionId;
+
+    @JsonProperty(&quot;startTime&quot;)
+    private String startTime;
+
+    @JsonProperty(&quot;modifiedTime&quot;)
+    private String modifiedTime;
+
+    @JsonProperty(&quot;summary&quot;)
+    private String summary;
+
+    @JsonProperty(&quot;isRemote&quot;)
+    private boolean isRemote;
+
+    @JsonProperty(&quot;context&quot;)
+    private SessionContext context;
+
+    /**
+     * Gets the unique identifier for this session.
+     *
+     * @return the session ID
+     */
+    public String getSessionId() {
+<span class="fc" id="L61">        return sessionId;</span>
+    }
+
+    /**
+     * Sets the session identifier.
+     *
+     * @param sessionId
+     *            the session ID
+     */
+    public void setSessionId(String sessionId) {
+<span class="fc" id="L71">        this.sessionId = sessionId;</span>
+<span class="fc" id="L72">    }</span>
+
+    /**
+     * Gets the timestamp when the session was created.
+     *
+     * @return the start time as an ISO 8601 formatted string
+     */
+    public String getStartTime() {
+<span class="fc" id="L80">        return startTime;</span>
+    }
+
+    /**
+     * Sets the session start time.
+     *
+     * @param startTime
+     *            the start time as an ISO 8601 formatted string
+     */
+    public void setStartTime(String startTime) {
+<span class="fc" id="L90">        this.startTime = startTime;</span>
+<span class="fc" id="L91">    }</span>
+
+    /**
+     * Gets the timestamp when the session was last modified.
+     *
+     * @return the modified time as an ISO 8601 formatted string
+     */
+    public String getModifiedTime() {
+<span class="fc" id="L99">        return modifiedTime;</span>
+    }
+
+    /**
+     * Sets the session modified time.
+     *
+     * @param modifiedTime
+     *            the modified time as an ISO 8601 formatted string
+     */
+    public void setModifiedTime(String modifiedTime) {
+<span class="fc" id="L109">        this.modifiedTime = modifiedTime;</span>
+<span class="fc" id="L110">    }</span>
+
+    /**
+     * Gets a brief summary of the session's conversation.
+     * &lt;p&gt;
+     * This is typically an AI-generated summary of the session content.
+     *
+     * @return the session summary, or {@code null} if not available
+     */
+    public String getSummary() {
+<span class="fc" id="L120">        return summary;</span>
+    }
+
+    /**
+     * Sets the session summary.
+     *
+     * @param summary
+     *            the session summary
+     */
+    public void setSummary(String summary) {
+<span class="fc" id="L130">        this.summary = summary;</span>
+<span class="fc" id="L131">    }</span>
+
+    /**
+     * Returns whether this session is stored remotely.
+     *
+     * @return {@code true} if the session is stored on the server, {@code false} if
+     *         it's stored locally
+     */
+    public boolean isRemote() {
+<span class="fc" id="L140">        return isRemote;</span>
+    }
+
+    /**
+     * Sets whether this session is stored remotely.
+     *
+     * @param remote
+     *            {@code true} if stored remotely
+     */
+    public void setRemote(boolean remote) {
+<span class="fc" id="L150">        isRemote = remote;</span>
+<span class="fc" id="L151">    }</span>
+
+    /**
+     * Gets the working directory context from session creation.
+     * &lt;p&gt;
+     * Contains information about the working directory, git repository, and branch
+     * where the session was created.
+     *
+     * @return the session context, or {@code null} if not available
+     */
+    public SessionContext getContext() {
+<span class="fc" id="L162">        return context;</span>
+    }
+
+    /**
+     * Sets the working directory context.
+     *
+     * @param context
+     *            the session context
+     */
+    public void setContext(SessionContext context) {
+<span class="fc" id="L172">        this.context = context;</span>
+<span class="fc" id="L173">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

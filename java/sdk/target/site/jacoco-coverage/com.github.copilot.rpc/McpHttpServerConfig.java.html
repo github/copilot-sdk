@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpHttpServerConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">McpHttpServerConfig.java</span></div><h1>McpHttpServerConfig.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Configuration for a remote HTTP/SSE MCP (Model Context Protocol) server.
+ * &lt;p&gt;
+ * Use this to configure an MCP server that communicates over HTTP or
+ * Server-Sent Events (SSE).
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var server = new McpHttpServerConfig().setUrl(&quot;https://mcp.example.com/sse&quot;).setTools(List.of(&quot;*&quot;));
+ *
+ * var config = new SessionConfig().setMcpServers(Map.of(&quot;remote-server&quot;, server));
+ * }&lt;/pre&gt;
+ *
+ * @see McpServerConfig
+ * @see SessionConfig#setMcpServers(java.util.Map)
+ * @since 1.3.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L33">public final class McpHttpServerConfig extends McpServerConfig {</span>
+
+<span class="fc" id="L35">    @JsonProperty(&quot;type&quot;)</span>
+    private final String type = &quot;http&quot;;
+
+    @JsonProperty(&quot;url&quot;)
+    private String url;
+
+    @JsonProperty(&quot;headers&quot;)
+    private Map&lt;String, String&gt; headers;
+
+    /**
+     * Gets the server type discriminator.
+     *
+     * @return always {@code &quot;http&quot;}
+     */
+    public String getType() {
+<span class="fc" id="L50">        return type;</span>
+    }
+
+    /**
+     * Gets the URL of the remote server.
+     *
+     * @return the server URL
+     */
+    public String getUrl() {
+<span class="fc" id="L59">        return url;</span>
+    }
+
+    /**
+     * Sets the URL of the remote server.
+     *
+     * @param url
+     *            the server URL
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setUrl(String url) {
+<span class="fc" id="L70">        this.url = url;</span>
+<span class="fc" id="L71">        return this;</span>
+    }
+
+    /**
+     * Gets the optional HTTP headers to include in requests.
+     *
+     * @return the headers map, or {@code null}
+     */
+    public Map&lt;String, String&gt; getHeaders() {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        return headers == null ? null : Collections.unmodifiableMap(headers);</span>
+    }
+
+    /**
+     * Sets optional HTTP headers to include in requests to this server.
+     *
+     * @param headers
+     *            the headers map
+     * @return this config for method chaining
+     */
+    public McpHttpServerConfig setHeaders(Map&lt;String, String&gt; headers) {
+<span class="fc" id="L91">        this.headers = headers;</span>
+<span class="fc" id="L92">        return this;</span>
+    }
+
+    @Override
+    public McpHttpServerConfig setTools(List&lt;String&gt; tools) {
+<span class="fc" id="L97">        super.setTools(tools);</span>
+<span class="fc" id="L98">        return this;</span>
+    }
+
+    @Override
+    public McpHttpServerConfig setTimeout(Integer timeout) {
+<span class="fc" id="L103">        super.setTimeout(timeout);</span>
+<span class="fc" id="L104">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommandContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">CommandContext.java</span></div><h1>CommandContext.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+/**
+ * Context passed to a {@link CommandHandler} when a slash command is executed.
+ *
+ * @since 1.0.0
+ */
+<span class="fc" id="L12">public class CommandContext {</span>
+
+    private String sessionId;
+    private String command;
+    private String commandName;
+    private String args;
+
+    /** Gets the session ID where the command was invoked. @return the session ID */
+    public String getSessionId() {
+<span class="fc" id="L21">        return sessionId;</span>
+    }
+
+    /** Sets the session ID. @param sessionId the session ID @return this */
+    public CommandContext setSessionId(String sessionId) {
+<span class="fc" id="L26">        this.sessionId = sessionId;</span>
+<span class="fc" id="L27">        return this;</span>
+    }
+
+    /**
+     * Gets the full command text (e.g., {@code /deploy production}).
+     *
+     * @return the full command text
+     */
+    public String getCommand() {
+<span class="fc" id="L36">        return command;</span>
+    }
+
+    /** Sets the full command text. @param command the command text @return this */
+    public CommandContext setCommand(String command) {
+<span class="fc" id="L41">        this.command = command;</span>
+<span class="fc" id="L42">        return this;</span>
+    }
+
+    /**
+     * Gets the command name without the leading {@code /}.
+     *
+     * @return the command name
+     */
+    public String getCommandName() {
+<span class="fc" id="L51">        return commandName;</span>
+    }
+
+    /** Sets the command name. @param commandName the command name @return this */
+    public CommandContext setCommandName(String commandName) {
+<span class="fc" id="L56">        this.commandName = commandName;</span>
+<span class="fc" id="L57">        return this;</span>
+    }
+
+    /**
+     * Gets the raw argument string after the command name.
+     *
+     * @return the argument string
+     */
+    public String getArgs() {
+<span class="fc" id="L66">        return args;</span>
+    }
+
+    /** Sets the argument string. @param args the argument string @return this */
+    public CommandContext setArgs(String args) {
+<span class="fc" id="L71">        this.args = args;</span>
+<span class="fc" id="L72">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

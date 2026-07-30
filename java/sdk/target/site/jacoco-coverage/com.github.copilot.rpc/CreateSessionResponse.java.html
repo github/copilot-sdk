@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateSessionResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">CreateSessionResponse.java</span></div><h1>CreateSessionResponse.java</h1><pre class="source lang-java linenums">package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.rpc.OpenCanvasInstance;
+import java.util.List;
+
+/**
+ * Internal response object from creating a session.
+ * &lt;p&gt;
+ * The {@code openCanvases} component was added in 1.0.1.
+ *
+ * @param sessionId
+ *            the session ID assigned by the server
+ * @param workspacePath
+ *            the workspace path, or {@code null} if infinite sessions are
+ *            disabled
+ * @param capabilities
+ *            the capabilities reported by the host, or {@code null}
+ * @param openCanvases
+ *            the canvas instances open for the session, or {@code null} (since
+ *            1.0.1)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L26">public record CreateSessionResponse(@JsonProperty(&quot;sessionId&quot;) String sessionId,</span>
+        @JsonProperty(&quot;workspacePath&quot;) String workspacePath,
+        @JsonProperty(&quot;capabilities&quot;) SessionCapabilities capabilities,
+        @JsonProperty(&quot;openCanvases&quot;) List&lt;OpenCanvasInstance&gt; openCanvases) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

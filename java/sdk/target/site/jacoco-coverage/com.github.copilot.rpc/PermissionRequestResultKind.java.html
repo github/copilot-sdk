@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionRequestResultKind.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">PermissionRequestResultKind.java</span></div><h1>PermissionRequestResultKind.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Objects;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+/**
+ * Describes the outcome kind of a permission request result.
+ *
+ * &lt;p&gt;
+ * This is a string-backed value type that can hold both well-known kinds (via
+ * the static constants) and arbitrary extension values forwarded by the server.
+ * Comparisons are case-insensitive to match server behaviour.
+ *
+ * &lt;h2&gt;Well-known kinds&lt;/h2&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;{@link #APPROVED} — the permission was approved for this one
+ * instance.&lt;/li&gt;
+ * &lt;li&gt;{@link #REJECTED} — the permission was denied interactively by the
+ * user.&lt;/li&gt;
+ * &lt;li&gt;{@link #USER_NOT_AVAILABLE} — the permission was denied because user
+ * confirmation was unavailable.&lt;/li&gt;
+ * &lt;li&gt;{@link #NO_RESULT} — no permission decision was made.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * @see PermissionRequestResult
+ * @since 1.1.0
+ */
+public final class PermissionRequestResultKind {
+
+    /** The permission was approved for this one instance. */
+<span class="fc" id="L37">    public static final PermissionRequestResultKind APPROVED = new PermissionRequestResultKind(&quot;approve-once&quot;);</span>
+
+    /** The permission was denied interactively by the user. */
+<span class="fc" id="L40">    public static final PermissionRequestResultKind REJECTED = new PermissionRequestResultKind(&quot;reject&quot;);</span>
+
+    /** The permission was denied because user confirmation was unavailable. */
+<span class="fc" id="L43">    public static final PermissionRequestResultKind USER_NOT_AVAILABLE = new PermissionRequestResultKind(</span>
+            &quot;user-not-available&quot;);
+
+    /**
+     * Leaves the pending permission request unanswered.
+     * &lt;p&gt;
+     * When the SDK is used as an extension and the extension's permission handler
+     * cannot or chooses not to handle a given permission request, it can return
+     * {@code NO_RESULT} to leave the request unanswered, allowing another client to
+     * handle it.
+     * &lt;p&gt;
+     * &lt;strong&gt;Warning:&lt;/strong&gt; This kind is only valid with protocol v3 servers
+     * (broadcast permission model). When connected to a protocol v2 server, the SDK
+     * will throw {@link IllegalStateException} because v2 expects exactly one
+     * response per permission request.
+     */
+<span class="fc" id="L59">    public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind(&quot;no-result&quot;);</span>
+
+    /**
+     * @deprecated Use {@link #REJECTED} instead.
+     */
+    @Deprecated
+<span class="fc" id="L65">    public static final PermissionRequestResultKind DENIED_INTERACTIVELY_BY_USER = REJECTED;</span>
+
+    /**
+     * @deprecated Use {@link #USER_NOT_AVAILABLE} instead.
+     */
+    @Deprecated
+<span class="fc" id="L71">    public static final PermissionRequestResultKind DENIED_COULD_NOT_REQUEST_FROM_USER = USER_NOT_AVAILABLE;</span>
+
+    /**
+     * @deprecated Use {@link #USER_NOT_AVAILABLE} instead.
+     */
+    @Deprecated
+<span class="fc" id="L77">    public static final PermissionRequestResultKind DENIED_BY_RULES = USER_NOT_AVAILABLE;</span>
+
+    private final String value;
+
+    /**
+     * Creates a new {@code PermissionRequestResultKind} with the given string
+     * value. Useful for extension kinds not covered by the well-known constants.
+     *
+     * @param value
+     *            the string value; {@code null} is treated as an empty string
+     */
+    @JsonCreator
+<span class="fc" id="L89">    public PermissionRequestResultKind(String value) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        this.value = value != null ? value : &quot;&quot;;</span>
+<span class="fc" id="L91">    }</span>
+
+    /**
+     * Returns the underlying string value of this kind.
+     *
+     * @return the string value, never {@code null}
+     */
+    @JsonValue
+    public String getValue() {
+<span class="fc" id="L100">        return value;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L105">        return value;</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (this == obj) {</span>
+<span class="fc" id="L111">            return true;</span>
+        }
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (!(obj instanceof PermissionRequestResultKind)) {</span>
+<span class="fc" id="L114">            return false;</span>
+        }
+<span class="fc" id="L116">        PermissionRequestResultKind other = (PermissionRequestResultKind) obj;</span>
+<span class="fc" id="L117">        return value.equalsIgnoreCase(other.value);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L122">        return Objects.hashCode(value.toLowerCase(java.util.Locale.ROOT));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

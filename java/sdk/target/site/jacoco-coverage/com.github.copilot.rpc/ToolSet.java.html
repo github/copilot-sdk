@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ToolSet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ToolSet.java</span></div><h1>ToolSet.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+/**
+ * Builder for {@link SessionConfig#setAvailableTools(java.util.List)} /
+ * {@link SessionConfig#setExcludedTools(java.util.List)} using source-qualified
+ * filter patterns ({@code builtin:*}, {@code mcp:&lt;name&gt;}, {@code custom:*},
+ * etc.).
+ * &lt;p&gt;
+ * Tools are classified by the runtime at registration time (not from name
+ * parsing), so {@link #addBuiltIn(String)} matches only tools the runtime
+ * registered as built-in, even if an MCP server or custom-agent extension
+ * happens to register a tool with the same wire name.
+ * &lt;p&gt;
+ * {@code ToolSet} extends {@link ArrayList} so instances can be passed directly
+ * to {@link SessionConfig#setAvailableTools(java.util.List)} or
+ * {@link SessionConfig#setExcludedTools(java.util.List)}.
+ *
+ * &lt;h2&gt;Example&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var session = client
+ * 		.createSession(new SessionConfig()
+ * 				.setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED).addMcp(&quot;*&quot;).addCustom(&quot;*&quot;)))
+ * 		.get();
+ * }&lt;/pre&gt;
+ *
+ * @since 1.3.0
+ */
+<span class="fc" id="L38">public class ToolSet extends ArrayList&lt;String&gt; {</span>
+
+<span class="fc" id="L40">    private static final Pattern VALID_TOOL_NAME = Pattern.compile(&quot;^[a-zA-Z0-9_-]+$&quot;);</span>
+
+    /**
+     * Adds a built-in tool pattern.
+     *
+     * @param name
+     *            a specific built-in tool name (e.g. {@code &quot;bash&quot;}) or {@code &quot;*&quot;}
+     *            to match all built-in tools
+     * @return this {@code ToolSet} for chaining
+     * @throws IllegalArgumentException
+     *             if name is null, empty, or contains invalid characters
+     */
+    public ToolSet addBuiltIn(String name) {
+<span class="fc" id="L53">        validateName(&quot;builtin&quot;, name);</span>
+<span class="fc" id="L54">        add(&quot;builtin:&quot; + name);</span>
+<span class="fc" id="L55">        return this;</span>
+    }
+
+    /**
+     * Adds a list of built-in tool patterns (e.g. {@link BuiltInTools#ISOLATED}).
+     *
+     * @param names
+     *            built-in tool names to add
+     * @return this {@code ToolSet} for chaining
+     * @throws NullPointerException
+     *             if names is null
+     */
+    public ToolSet addBuiltIn(Collection&lt;String&gt; names) {
+<span class="fc" id="L68">        Objects.requireNonNull(names, &quot;names must not be null&quot;);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        for (String name : names) {</span>
+<span class="fc" id="L70">            addBuiltIn(name);</span>
+<span class="fc" id="L71">        }</span>
+<span class="fc" id="L72">        return this;</span>
+    }
+
+    /**
+     * Adds a custom tool pattern. Matches tools registered via the SDK's
+     * {@link SessionConfig#setTools(java.util.List)} option or via custom agents.
+     *
+     * @param name
+     *            a specific custom tool name or {@code &quot;*&quot;} to match all custom
+     *            tools
+     * @return this {@code ToolSet} for chaining
+     * @throws IllegalArgumentException
+     *             if name is null, empty, or contains invalid characters
+     */
+    public ToolSet addCustom(String name) {
+<span class="fc" id="L87">        validateName(&quot;custom&quot;, name);</span>
+<span class="fc" id="L88">        add(&quot;custom:&quot; + name);</span>
+<span class="fc" id="L89">        return this;</span>
+    }
+
+    /**
+     * Adds an MCP tool pattern. Matches tools advertised by any configured MCP
+     * server.
+     *
+     * @param toolName
+     *            the runtime's canonical wire name for the MCP tool (e.g.
+     *            {@code &quot;github-list_issues&quot;}), or {@code &quot;*&quot;} to match all MCP
+     *            tools from any server
+     * @return this {@code ToolSet} for chaining
+     * @throws IllegalArgumentException
+     *             if toolName is null, empty, or contains invalid characters
+     */
+    public ToolSet addMcp(String toolName) {
+<span class="fc" id="L105">        validateName(&quot;mcp&quot;, toolName);</span>
+<span class="fc" id="L106">        add(&quot;mcp:&quot; + toolName);</span>
+<span class="fc" id="L107">        return this;</span>
+    }
+
+    private static void validateName(String kind, String name) {
+<span class="fc bfc" id="L111" title="All 4 branches covered.">        if (name == null || name.isEmpty()) {</span>
+<span class="fc" id="L112">            throw new IllegalArgumentException(&quot;Invalid &quot; + kind + &quot; tool name: must not be null or empty.&quot;);</span>
+        }
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (&quot;*&quot;.equals(name)) {</span>
+<span class="fc" id="L115">            return;</span>
+        }
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (!VALID_TOOL_NAME.matcher(name).matches()) {</span>
+<span class="fc" id="L118">            throw new IllegalArgumentException(&quot;Invalid &quot; + kind + &quot; tool name '&quot; + name</span>
+                    + &quot;': tool names must match /^[a-zA-Z0-9_-]+$/ or be the wildcard '*'.&quot;);
+        }
+<span class="fc" id="L121">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

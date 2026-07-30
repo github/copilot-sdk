@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Attachment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">Attachment.java</span></div><h1>Attachment.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Represents a file attachment to include with a message.
+ * &lt;p&gt;
+ * Attachments provide additional context to the AI assistant, such as source
+ * code files, documents, or other relevant content.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var attachment = new Attachment(&quot;file&quot;, &quot;/path/to/source.java&quot;, &quot;Main Source File&quot;);
+ * }&lt;/pre&gt;
+ *
+ * @param type
+ *            the attachment type (e.g., &quot;file&quot;)
+ * @param path
+ *            the absolute path to the file on the filesystem
+ * @param displayName
+ *            a human-readable display name for the attachment
+ * @see MessageOptions#setAttachments(java.util.List)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L32">public record Attachment(@JsonProperty(&quot;type&quot;) String type, @JsonProperty(&quot;path&quot;) String path,</span>
+        @JsonProperty(&quot;displayName&quot;) String displayName) implements MessageAttachment {
+
+    @Override
+    public String getType() {
+<span class="fc" id="L37">        return type;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

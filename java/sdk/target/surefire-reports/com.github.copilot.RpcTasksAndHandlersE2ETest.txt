@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.RpcTasksAndHandlersE2ETest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.457 s -- in com.github.copilot.RpcTasksAndHandlersE2ETest

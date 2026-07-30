@@ -15,7 +15,7 @@ on:
       - 'go/rpc/**'
       - 'rust/src/generated/**'
       - 'sdk-protocol-version.json'
-      - 'java/src/main/java/com/github/copilot/SdkProtocolVersion.java'
+      - 'java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 
@@ -84,7 +84,7 @@ jobs:
       - name: Verify Java protocol version matches
         run: |
           EXPECTED=$(jq -r '.version' sdk-protocol-version.json)
-          ACTUAL=$(grep -oP 'LATEST\(\K[0-9]+' java/src/main/java/com/github/copilot/SdkProtocolVersion.java)
+          ACTUAL=$(grep -oP 'LATEST\(\K[0-9]+' java/sdk/src/main/java/com/github/copilot/SdkProtocolVersion.java)
           if [ "$EXPECTED" != "$ACTUAL" ]; then
             echo "::error::Java SDK protocol version ($ACTUAL) does not match sdk-protocol-version.json ($EXPECTED). Java manages its own SdkProtocolVersion.java via java/scripts/codegen/. Update it to match."
             exit 1

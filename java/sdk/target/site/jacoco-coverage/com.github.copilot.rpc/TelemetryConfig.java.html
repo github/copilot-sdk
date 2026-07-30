@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TelemetryConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">TelemetryConfig.java</span></div><h1>TelemetryConfig.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Optional;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * OpenTelemetry configuration for the Copilot CLI server.
+ * &lt;p&gt;
+ * When set on {@link CopilotClientOptions#setTelemetry(TelemetryConfig)}, the
+ * CLI server is started with OpenTelemetry instrumentation enabled using the
+ * provided settings.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var options = new CopilotClientOptions()
+ * 		.setTelemetry(new TelemetryConfig().setOtlpEndpoint(&quot;http://localhost:4318&quot;).setSourceName(&quot;my-app&quot;));
+ * }&lt;/pre&gt;
+ *
+ * @see CopilotClientOptions#setTelemetry(TelemetryConfig)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L30">public class TelemetryConfig {</span>
+
+    private String otlpEndpoint;
+    private String otlpProtocol;
+    private String filePath;
+    private String exporterType;
+    private String sourceName;
+    private Boolean captureContent;
+
+    /**
+     * Gets the OTLP exporter endpoint URL.
+     * &lt;p&gt;
+     * Maps to the {@code OTEL_EXPORTER_OTLP_ENDPOINT} environment variable.
+     *
+     * @return the OTLP endpoint URL, or {@code null}
+     */
+    public String getOtlpEndpoint() {
+<span class="fc" id="L47">        return otlpEndpoint;</span>
+    }
+
+    /**
+     * Sets the OTLP exporter endpoint URL.
+     *
+     * @param otlpEndpoint
+     *            the endpoint URL (e.g., {@code &quot;http://localhost:4318&quot;})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setOtlpEndpoint(String otlpEndpoint) {
+<span class="fc" id="L58">        this.otlpEndpoint = otlpEndpoint;</span>
+<span class="fc" id="L59">        return this;</span>
+    }
+
+    /**
+     * Gets the OTLP HTTP protocol for all signals.
+     * &lt;p&gt;
+     * Maps to the {@code OTEL_EXPORTER_OTLP_PROTOCOL} environment variable.
+     *
+     * @return the OTLP HTTP protocol, or {@code null}
+     */
+    public String getOtlpProtocol() {
+<span class="fc" id="L70">        return otlpProtocol;</span>
+    }
+
+    /**
+     * Sets the OTLP HTTP protocol for all signals.
+     *
+     * @param otlpProtocol
+     *            the protocol ({@code &quot;http/json&quot;} or {@code &quot;http/protobuf&quot;})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setOtlpProtocol(String otlpProtocol) {
+<span class="fc" id="L81">        this.otlpProtocol = otlpProtocol;</span>
+<span class="fc" id="L82">        return this;</span>
+    }
+
+    /**
+     * Gets the file path for the file exporter.
+     * &lt;p&gt;
+     * Maps to the {@code COPILOT_OTEL_FILE_EXPORTER_PATH} environment variable.
+     *
+     * @return the file path, or {@code null}
+     */
+    public String getFilePath() {
+<span class="fc" id="L93">        return filePath;</span>
+    }
+
+    /**
+     * Sets the file path for the file exporter.
+     *
+     * @param filePath
+     *            the path where telemetry spans are written
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setFilePath(String filePath) {
+<span class="fc" id="L104">        this.filePath = filePath;</span>
+<span class="fc" id="L105">        return this;</span>
+    }
+
+    /**
+     * Gets the exporter type.
+     * &lt;p&gt;
+     * Maps to the {@code COPILOT_OTEL_EXPORTER_TYPE} environment variable.
+     *
+     * @return the exporter type (e.g., {@code &quot;otlp-http&quot;} or {@code &quot;file&quot;}), or
+     *         {@code null}
+     */
+    public String getExporterType() {
+<span class="fc" id="L117">        return exporterType;</span>
+    }
+
+    /**
+     * Sets the exporter type.
+     *
+     * @param exporterType
+     *            the exporter type ({@code &quot;otlp-http&quot;} or {@code &quot;file&quot;})
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setExporterType(String exporterType) {
+<span class="fc" id="L128">        this.exporterType = exporterType;</span>
+<span class="fc" id="L129">        return this;</span>
+    }
+
+    /**
+     * Gets the source name for telemetry spans.
+     * &lt;p&gt;
+     * Maps to the {@code COPILOT_OTEL_SOURCE_NAME} environment variable.
+     *
+     * @return the source name, or {@code null}
+     */
+    public String getSourceName() {
+<span class="fc" id="L140">        return sourceName;</span>
+    }
+
+    /**
+     * Sets the source name for telemetry spans.
+     *
+     * @param sourceName
+     *            a name identifying the application producing the spans
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setSourceName(String sourceName) {
+<span class="fc" id="L151">        this.sourceName = sourceName;</span>
+<span class="fc" id="L152">        return this;</span>
+    }
+
+    /**
+     * Gets whether to capture message content as part of telemetry.
+     * &lt;p&gt;
+     * Maps to the {@code OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}
+     * environment variable.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to capture
+     *         content or {@code false} to suppress it, or
+     *         {@link java.util.Optional#empty()} to use the default
+     */
+    @JsonIgnore
+    public Optional&lt;Boolean&gt; getCaptureContent() {
+<span class="fc" id="L167">        return Optional.ofNullable(captureContent);</span>
+    }
+
+    /**
+     * Sets whether to capture message content as part of telemetry.
+     *
+     * @param captureContent
+     *            {@code true} to capture content, {@code false} to suppress it
+     * @return this config for method chaining
+     */
+    public TelemetryConfig setCaptureContent(boolean captureContent) {
+<span class="fc" id="L178">        this.captureContent = captureContent;</span>
+<span class="fc" id="L179">        return this;</span>
+    }
+
+    /**
+     * Clears the captureContent setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public TelemetryConfig clearCaptureContent() {
+<span class="fc" id="L188">        this.captureContent = null;</span>
+<span class="fc" id="L189">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

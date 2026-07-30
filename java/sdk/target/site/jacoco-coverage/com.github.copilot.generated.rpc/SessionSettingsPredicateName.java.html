@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionSettingsPredicateName.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionSettingsPredicateName.java</span></div><h1>SessionSettingsPredicateName.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import javax.annotation.processing.Generated;
+
+/**
+ * Rust-owned settings predicates exposed across the SDK boundary. Raw feature-flag names are intentionally not part of the contract.
+ *
+ * @since 1.0.0
+ */
+<span class="fc" id="L17">@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)</span>
+public enum SessionSettingsPredicateName {
+    /** The {@code securityToolsEnabled} variant. */
+<span class="fc" id="L20">    SECURITYTOOLSENABLED(&quot;securityToolsEnabled&quot;),</span>
+    /** The {@code thirdPartySecurityPromptEnabled} variant. */
+<span class="fc" id="L22">    THIRDPARTYSECURITYPROMPTENABLED(&quot;thirdPartySecurityPromptEnabled&quot;),</span>
+    /** The {@code parallelValidationEnabled} variant. */
+<span class="fc" id="L24">    PARALLELVALIDATIONENABLED(&quot;parallelValidationEnabled&quot;),</span>
+    /** The {@code runtimeTimingTelemetryEnabled} variant. */
+<span class="fc" id="L26">    RUNTIMETIMINGTELEMETRYENABLED(&quot;runtimeTimingTelemetryEnabled&quot;),</span>
+    /** The {@code coAuthorHookEnabled} variant. */
+<span class="fc" id="L28">    COAUTHORHOOKENABLED(&quot;coAuthorHookEnabled&quot;),</span>
+    /** The {@code chronicleEnabled} variant. */
+<span class="fc" id="L30">    CHRONICLEENABLED(&quot;chronicleEnabled&quot;),</span>
+    /** The {@code contentExclusionSelfFetchEnabled} variant. */
+<span class="fc" id="L32">    CONTENTEXCLUSIONSELFFETCHENABLED(&quot;contentExclusionSelfFetchEnabled&quot;),</span>
+    /** The {@code capClaudeOpusTokenLimitsEnabled} variant. */
+<span class="fc" id="L34">    CAPCLAUDEOPUSTOKENLIMITSENABLED(&quot;capClaudeOpusTokenLimitsEnabled&quot;),</span>
+    /** The {@code codeReviewFeatureEnabled} variant. */
+<span class="fc" id="L36">    CODEREVIEWFEATUREENABLED(&quot;codeReviewFeatureEnabled&quot;),</span>
+    /** The {@code ccaUseTsAutofindEnabled} variant. */
+<span class="fc" id="L38">    CCAUSETSAUTOFINDENABLED(&quot;ccaUseTsAutofindEnabled&quot;),</span>
+    /** The {@code dependencyCheckerEnabled} variant. */
+<span class="fc" id="L40">    DEPENDENCYCHECKERENABLED(&quot;dependencyCheckerEnabled&quot;),</span>
+    /** The {@code dependabotCheckerEnabled} variant. */
+<span class="fc" id="L42">    DEPENDABOTCHECKERENABLED(&quot;dependabotCheckerEnabled&quot;),</span>
+    /** The {@code codeqlCheckerEnabled} variant. */
+<span class="fc" id="L44">    CODEQLCHECKERENABLED(&quot;codeqlCheckerEnabled&quot;),</span>
+    /** The {@code trivialChangeEnabled} variant. */
+<span class="fc" id="L46">    TRIVIALCHANGEENABLED(&quot;trivialChangeEnabled&quot;),</span>
+    /** The {@code trivialChangeSkipEnabled} variant. */
+<span class="fc" id="L48">    TRIVIALCHANGESKIPENABLED(&quot;trivialChangeSkipEnabled&quot;),</span>
+    /** The {@code trivialChangeEnabledForCodeReview} variant. */
+<span class="fc" id="L50">    TRIVIALCHANGEENABLEDFORCODEREVIEW(&quot;trivialChangeEnabledForCodeReview&quot;),</span>
+    /** The {@code trivialChangeSkipEnabledForCodeReview} variant. */
+<span class="fc" id="L52">    TRIVIALCHANGESKIPENABLEDFORCODEREVIEW(&quot;trivialChangeSkipEnabledForCodeReview&quot;),</span>
+    /** The {@code trivialChangeEnabledForTool} variant. */
+<span class="fc" id="L54">    TRIVIALCHANGEENABLEDFORTOOL(&quot;trivialChangeEnabledForTool&quot;),</span>
+    /** The {@code trivialChangeSkipEnabledForTool} variant. */
+<span class="fc" id="L56">    TRIVIALCHANGESKIPENABLEDFORTOOL(&quot;trivialChangeSkipEnabledForTool&quot;);</span>
+
+    private final String value;
+<span class="fc" id="L59">    SessionSettingsPredicateName(String value) { this.value = value; }</span>
+    @com.fasterxml.jackson.annotation.JsonValue
+<span class="fc" id="L61">    public String getValue() { return value; }</span>
+    @com.fasterxml.jackson.annotation.JsonCreator
+    public static SessionSettingsPredicateName fromValue(String value) {
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        for (SessionSettingsPredicateName v : values()) {</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (v.value.equals(value)) return v;</span>
+        }
+<span class="nc" id="L67">        throw new IllegalArgumentException(&quot;Unknown SessionSettingsPredicateName value: &quot; + value);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

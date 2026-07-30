@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerAccountApi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">ServerAccountApi.java</span></div><h1>ServerAccountApi.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.github.copilot.CopilotExperimental;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code account} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+public final class ServerAccountApi {
+
+    private final RpcCaller caller;
+
+    /** @param caller the RPC transport function */
+<span class="fc" id="L26">    ServerAccountApi(RpcCaller caller) {</span>
+<span class="fc" id="L27">        this.caller = caller;</span>
+<span class="fc" id="L28">    }</span>
+
+    /**
+     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     * &lt;p&gt;
+     * Invokes the method with no params, applying the runtime defaults.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;AccountGetQuotaResult&gt; getQuota() {
+<span class="fc" id="L40">        return getQuota(null);</span>
+    }
+
+    /**
+     * Optional GitHub token used to look up quota for a specific user instead of the global auth context.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;AccountGetQuotaResult&gt; getQuota(AccountGetQuotaParams params) {
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        return caller.invoke(&quot;account.getQuota&quot;, params == null ? java.util.Map.of() : params, AccountGetQuotaResult.class);</span>
+    }
+
+    /**
+     * Current authentication state
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;AccountGetCurrentAuthResult&gt; getCurrentAuth() {
+<span class="fc" id="L62">        return caller.invoke(&quot;account.getCurrentAuth&quot;, java.util.Map.of(), AccountGetCurrentAuthResult.class);</span>
+    }
+
+    /**
+     * List of all authenticated users
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;List&lt;AccountAllUsers&gt;&gt; getAllUsers() {
+<span class="fc" id="L73">        return caller.invoke(&quot;account.getAllUsers&quot;, java.util.Map.of(), RpcMapper.INSTANCE.getTypeFactory().constructCollectionType(List.class, AccountAllUsers.class));</span>
+    }
+
+    /**
+     * Credentials to store after successful authentication
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;AccountLoginResult&gt; login(AccountLoginParams params) {
+<span class="fc" id="L84">        return caller.invoke(&quot;account.login&quot;, params, AccountLoginResult.class);</span>
+    }
+
+    /**
+     * User to log out
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture&lt;AccountLogoutResult&gt; logout(AccountLogoutParams params) {
+<span class="fc" id="L95">        return caller.invoke(&quot;account.logout&quot;, params, AccountLogoutResult.class);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

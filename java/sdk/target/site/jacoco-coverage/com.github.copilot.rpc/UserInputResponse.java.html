@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserInputResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">UserInputResponse.java</span></div><h1>UserInputResponse.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Response to a user input request.
+ *
+ * @since 1.0.6
+ */
+<span class="fc" id="L14">public class UserInputResponse {</span>
+
+    @JsonProperty(&quot;answer&quot;)
+    private String answer;
+
+    @JsonProperty(&quot;wasFreeform&quot;)
+    private boolean wasFreeform;
+
+    /**
+     * Gets the user's answer.
+     *
+     * @return the answer text
+     */
+    public String getAnswer() {
+<span class="fc" id="L28">        return answer;</span>
+    }
+
+    /**
+     * Sets the user's answer.
+     *
+     * @param answer
+     *            the answer text
+     * @return this instance for method chaining
+     */
+    public UserInputResponse setAnswer(String answer) {
+<span class="fc" id="L39">        this.answer = answer;</span>
+<span class="fc" id="L40">        return this;</span>
+    }
+
+    /**
+     * Returns whether the answer was freeform (not from the provided choices).
+     *
+     * @return {@code true} if the answer was freeform
+     */
+    public boolean isWasFreeform() {
+<span class="fc" id="L49">        return wasFreeform;</span>
+    }
+
+    /**
+     * Sets whether the answer was freeform.
+     *
+     * @param wasFreeform
+     *            {@code true} if the answer was freeform
+     * @return this instance for method chaining
+     */
+    public UserInputResponse setWasFreeform(boolean wasFreeform) {
+<span class="fc" id="L60">        this.wasFreeform = wasFreeform;</span>
+<span class="fc" id="L61">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

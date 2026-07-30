@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreMcpToolCallHookOutput.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">PreMcpToolCallHookOutput.java</span></div><h1>PreMcpToolCallHookOutput.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+
+/**
+ * Output for a pre-MCP-tool-call hook.
+ * &lt;p&gt;
+ * The {@link #metaToUse} property controls outgoing MCP request metadata:
+ * &lt;ul&gt;
+ * &lt;li&gt;Return {@code null} from the hook handler: preserve existing
+ * {@code _meta} (no-op).&lt;/li&gt;
+ * &lt;li&gt;Return a {@code PreMcpToolCallHookOutput} with {@code metaToUse} left as
+ * {@code null}: remove {@code _meta} from the request.&lt;/li&gt;
+ * &lt;li&gt;Return a {@code PreMcpToolCallHookOutput} with {@code metaToUse} set to a
+ * JSON object: replace {@code _meta} with that object.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * @since 1.0.8
+ */
+@JsonInclude(JsonInclude.Include.ALWAYS)
+<span class="fc" id="L27">public class PreMcpToolCallHookOutput {</span>
+
+    @JsonProperty(&quot;metaToUse&quot;)
+    private JsonNode metaToUse;
+
+    /**
+     * Gets the metadata to use for the outgoing MCP request.
+     *
+     * @return the metadata JSON node, or {@code null} to remove metadata
+     */
+    public JsonNode getMetaToUse() {
+<span class="fc" id="L38">        return metaToUse;</span>
+    }
+
+    /**
+     * Sets the metadata to use for the outgoing MCP request.
+     *
+     * @param metaToUse
+     *            the metadata JSON node, or {@code null} to remove metadata
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookOutput setMetaToUse(JsonNode metaToUse) {
+<span class="fc" id="L49">        this.metaToUse = metaToUse;</span>
+<span class="fc" id="L50">        return this;</span>
+    }
+
+    /**
+     * Creates a hook output that sets the given metadata on the MCP request.
+     *
+     * @param metaToUse
+     *            the metadata JSON node to use
+     * @return the hook output
+     */
+    public static PreMcpToolCallHookOutput withMeta(JsonNode metaToUse) {
+<span class="fc" id="L61">        return new PreMcpToolCallHookOutput().setMetaToUse(metaToUse);</span>
+    }
+
+    /**
+     * Creates a hook output that removes metadata from the MCP request.
+     *
+     * @return the hook output with {@code null} metaToUse
+     */
+    public static PreMcpToolCallHookOutput removeMeta() {
+<span class="fc" id="L70">        return new PreMcpToolCallHookOutput();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

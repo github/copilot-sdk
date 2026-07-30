@@ -1,0 +1,7 @@
+#surefire_0
+#Thu Jul 30 18:04:09 UTC 2026
+basedir=/home/runner/work/copilot-sdk/copilot-sdk/java/sdk
+copilot.sdk.dir=/home/runner/work/copilot-sdk/copilot-sdk/java/sdk/../..
+copilot.tests.dir=/home/runner/work/copilot-sdk/copilot-sdk/java/sdk/../../test
+localRepository=/home/runner/.m2/repository
+skip.test.harness=true

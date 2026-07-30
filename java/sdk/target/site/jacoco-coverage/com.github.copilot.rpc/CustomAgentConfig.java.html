@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomAgentConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">CustomAgentConfig.java</span></div><h1>CustomAgentConfig.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.Optional;
+
+/**
+ * Configuration for a custom agent in a Copilot session.
+ * &lt;p&gt;
+ * Custom agents extend the capabilities of the base Copilot assistant with
+ * specialized behavior, tools, and prompts. Each agent can be referenced in
+ * messages using the {@code @agent-name} mention syntax.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var agent = new CustomAgentConfig().setName(&quot;code-reviewer&quot;).setDisplayName(&quot;Code Reviewer&quot;)
+ * 		.setDescription(&quot;Reviews code for best practices&quot;).setPrompt(&quot;You are a code review expert...&quot;)
+ * 		.setTools(List.of(&quot;read_file&quot;, &quot;search_code&quot;));
+ *
+ * var config = new SessionConfig().setCustomAgents(List.of(agent));
+ * }&lt;/pre&gt;
+ *
+ * @see SessionConfig#setCustomAgents(List)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L37">public class CustomAgentConfig {</span>
+
+    @JsonProperty(&quot;name&quot;)
+    private String name;
+
+    @JsonProperty(&quot;displayName&quot;)
+    private String displayName;
+
+    @JsonProperty(&quot;description&quot;)
+    private String description;
+
+    @JsonProperty(&quot;tools&quot;)
+    private List&lt;String&gt; tools;
+
+    @JsonProperty(&quot;prompt&quot;)
+    private String prompt;
+
+    @JsonProperty(&quot;mcpServers&quot;)
+    private Map&lt;String, McpServerConfig&gt; mcpServers;
+
+    @JsonProperty(&quot;infer&quot;)
+    private Boolean infer;
+
+    @JsonProperty(&quot;skills&quot;)
+    private List&lt;String&gt; skills;
+
+    @JsonProperty(&quot;model&quot;)
+    private String model;
+
+    @JsonProperty(&quot;reasoningEffort&quot;)
+    private String reasoningEffort;
+
+    /**
+     * Gets the unique identifier name for this agent.
+     *
+     * @return the agent name used for {@code @mentions}
+     */
+    public String getName() {
+<span class="fc" id="L75">        return name;</span>
+    }
+
+    /**
+     * Sets the unique identifier name for this agent.
+     * &lt;p&gt;
+     * This name is used to mention the agent in messages (e.g.,
+     * {@code @code-reviewer}).
+     *
+     * @param name
+     *            the agent identifier (alphanumeric and hyphens)
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setName(String name) {
+<span class="fc" id="L89">        this.name = name;</span>
+<span class="fc" id="L90">        return this;</span>
+    }
+
+    /**
+     * Gets the human-readable display name.
+     *
+     * @return the display name shown to users
+     */
+    public String getDisplayName() {
+<span class="fc" id="L99">        return displayName;</span>
+    }
+
+    /**
+     * Sets the human-readable display name.
+     *
+     * @param displayName
+     *            the friendly name for the agent
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setDisplayName(String displayName) {
+<span class="fc" id="L110">        this.displayName = displayName;</span>
+<span class="fc" id="L111">        return this;</span>
+    }
+
+    /**
+     * Gets the agent description.
+     *
+     * @return the description of what this agent does
+     */
+    public String getDescription() {
+<span class="fc" id="L120">        return description;</span>
+    }
+
+    /**
+     * Sets a description of the agent's capabilities.
+     * &lt;p&gt;
+     * This helps users understand when to use this agent.
+     *
+     * @param description
+     *            the agent description
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setDescription(String description) {
+<span class="fc" id="L133">        this.description = description;</span>
+<span class="fc" id="L134">        return this;</span>
+    }
+
+    /**
+     * Gets the list of tool names available to this agent.
+     *
+     * @return the list of tool identifiers
+     */
+    public List&lt;String&gt; getTools() {
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        return tools == null ? null : Collections.unmodifiableList(tools);</span>
+    }
+
+    /**
+     * Sets the tools available to this agent.
+     * &lt;p&gt;
+     * These can reference both built-in tools and custom tools registered in the
+     * session.
+     *
+     * @param tools
+     *            the list of tool names
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setTools(List&lt;String&gt; tools) {
+<span class="fc" id="L157">        this.tools = tools;</span>
+<span class="fc" id="L158">        return this;</span>
+    }
+
+    /**
+     * Gets the system prompt for this agent.
+     *
+     * @return the agent's system prompt
+     */
+    public String getPrompt() {
+<span class="fc" id="L167">        return prompt;</span>
+    }
+
+    /**
+     * Sets the system prompt that defines this agent's behavior.
+     * &lt;p&gt;
+     * This prompt is used to customize the agent's responses and capabilities.
+     *
+     * @param prompt
+     *            the system prompt
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setPrompt(String prompt) {
+<span class="fc" id="L180">        this.prompt = prompt;</span>
+<span class="fc" id="L181">        return this;</span>
+    }
+
+    /**
+     * Gets the MCP server configurations for this agent.
+     *
+     * @return the MCP servers map
+     */
+    public Map&lt;String, McpServerConfig&gt; getMcpServers() {
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);</span>
+    }
+
+    /**
+     * Sets MCP (Model Context Protocol) servers available to this agent.
+     *
+     * @param mcpServers
+     *            the MCP server configurations
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setMcpServers(Map&lt;String, McpServerConfig&gt; mcpServers) {
+<span class="fc" id="L201">        this.mcpServers = mcpServers;</span>
+<span class="fc" id="L202">        return this;</span>
+    }
+
+    /**
+     * Gets whether inference mode is enabled.
+     *
+     * @return an {@link java.util.Optional} containing the infer flag, or
+     *         {@link java.util.Optional#empty()} if not set
+     */
+    @JsonIgnore
+    public Optional&lt;Boolean&gt; getInfer() {
+<span class="fc" id="L213">        return Optional.ofNullable(infer);</span>
+    }
+
+    /**
+     * Sets whether to enable inference mode for this agent.
+     *
+     * @param infer
+     *            {@code true} to enable inference mode
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setInfer(boolean infer) {
+<span class="fc" id="L224">        this.infer = infer;</span>
+<span class="fc" id="L225">        return this;</span>
+    }
+
+    /**
+     * Clears the infer setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public CustomAgentConfig clearInfer() {
+<span class="fc" id="L234">        this.infer = null;</span>
+<span class="fc" id="L235">        return this;</span>
+    }
+
+    /**
+     * Gets the list of skill names to preload into this agent's context.
+     *
+     * @return the list of skill names, or {@code null} if not set
+     */
+    public List&lt;String&gt; getSkills() {
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        return skills == null ? null : Collections.unmodifiableList(skills);</span>
+    }
+
+    /**
+     * Sets the list of skill names to preload into this agent's context.
+     * &lt;p&gt;
+     * When set, the full content of each listed skill is eagerly injected into the
+     * agent's context at startup. Skills are resolved by name from the session's
+     * configured skill directories
+     * ({@link SessionConfig#setSkillDirectories(List)}). When omitted, no skills
+     * are injected (opt-in model).
+     *
+     * @param skills
+     *            the list of skill names to preload
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setSkills(List&lt;String&gt; skills) {
+<span class="fc" id="L261">        this.skills = skills;</span>
+<span class="fc" id="L262">        return this;</span>
+    }
+
+    /**
+     * Gets the model identifier for this agent.
+     *
+     * @return the model identifier, or {@code null} if not set
+     */
+    public String getModel() {
+<span class="fc" id="L271">        return model;</span>
+    }
+
+    /**
+     * Sets the model identifier for this agent.
+     * &lt;p&gt;
+     * When set, the runtime will attempt to use this model for the agent, falling
+     * back to the parent session model if unavailable.
+     *
+     * @param model
+     *            the model identifier (e.g., &quot;claude-haiku-4.5&quot;)
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setModel(String model) {
+<span class="fc" id="L285">        this.model = model;</span>
+<span class="fc" id="L286">        return this;</span>
+    }
+
+    /**
+     * Gets the reasoning effort level for this agent's model.
+     *
+     * @return the reasoning effort level, or {@code null} if not set
+     */
+    public String getReasoningEffort() {
+<span class="fc" id="L295">        return reasoningEffort;</span>
+    }
+
+    /**
+     * Sets the reasoning effort level for this agent's model.
+     * &lt;p&gt;
+     * When omitted, the runtime resolves model configuration, then inherits the
+     * parent effort only if this agent uses the same model.
+     *
+     * @param reasoningEffort
+     *            the reasoning effort level
+     * @return this config for method chaining
+     */
+    public CustomAgentConfig setReasoningEffort(String reasoningEffort) {
+<span class="fc" id="L309">        this.reasoningEffort = reasoningEffort;</span>
+<span class="fc" id="L310">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

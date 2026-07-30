@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.copilot.RpcSessionStateExtrasE2ETest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.559 s -- in com.github.copilot.RpcSessionStateExtrasE2ETest

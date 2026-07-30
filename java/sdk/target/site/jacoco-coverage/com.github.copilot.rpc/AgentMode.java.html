@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentMode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">AgentMode.java</span></div><h1>AgentMode.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+/**
+ * The UI mode the agent is in for a given turn.
+ * &lt;p&gt;
+ * Set on {@link MessageOptions#setAgentMode(AgentMode)} to send a message in a
+ * specific mode; defaults to the session's current mode when unset.
+ *
+ * @see MessageOptions
+ * @since 1.0.0
+ */
+<span class="fc" id="L19">public enum AgentMode {</span>
+
+    /** The agent is responding interactively to the user. */
+<span class="fc" id="L22">    INTERACTIVE(&quot;interactive&quot;),</span>
+
+    /** The agent is preparing a plan before making changes. */
+<span class="fc" id="L25">    PLAN(&quot;plan&quot;),</span>
+
+    /** The agent is working autonomously toward task completion. */
+<span class="fc" id="L28">    AUTOPILOT(&quot;autopilot&quot;),</span>
+
+    /** The agent is in shell-focused UI mode. */
+<span class="fc" id="L31">    SHELL(&quot;shell&quot;);</span>
+
+    private final String value;
+
+<span class="fc" id="L35">    AgentMode(String value) {</span>
+<span class="fc" id="L36">        this.value = value;</span>
+<span class="fc" id="L37">    }</span>
+
+    /**
+     * Returns the JSON value for this agent mode.
+     *
+     * @return the string value used in JSON serialization
+     */
+    @JsonValue
+    public String getValue() {
+<span class="fc" id="L46">        return value;</span>
+    }
+
+    /**
+     * Deserializes a JSON string value into the corresponding {@code AgentMode}
+     * enum constant.
+     *
+     * @param value
+     *            the JSON string value
+     * @return the matching {@code AgentMode}, or {@code null} if value is
+     *         {@code null}
+     * @throws IllegalArgumentException
+     *             if the value does not match any known agent mode
+     */
+    @JsonCreator
+    public static AgentMode fromValue(String value) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L63">            return null;</span>
+        }
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        for (AgentMode mode : values()) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (mode.value.equals(value)) {</span>
+<span class="fc" id="L67">                return mode;</span>
+            }
+        }
+<span class="fc" id="L70">        throw new IllegalArgumentException(&quot;Unknown AgentMode value: &quot; + value);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionManagedSettingsEnforcedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionManagedSettingsEnforcedEvent.java</span></div><h1>SessionManagedSettingsEnforcedEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.managed_settings_enforced&quot;. Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="nc" id="L22">public final class SessionManagedSettingsEnforcedEvent extends SessionEvent {</span>
+
+    @Override
+<span class="nc" id="L25">    public String getType() { return &quot;session.managed_settings_enforced&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionManagedSettingsEnforcedEventData data;
+
+<span class="nc" id="L30">    public SessionManagedSettingsEnforcedEventData getData() { return data; }</span>
+<span class="nc" id="L31">    public void setData(SessionManagedSettingsEnforcedEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionManagedSettingsEnforcedEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="nc" id="L36">    public record SessionManagedSettingsEnforcedEventData(</span>
+        /** The category of runtime action that managed policy governed. */
+        @JsonProperty(&quot;action&quot;) ManagedSettingsEnforcedAction action,
+        /** For a `bypass_permissions_blocked` action, which permission-escalation primitive was refused. Absent for actions without a specific escalation primitive. */
+        @JsonProperty(&quot;escalation&quot;) ManagedSettingsEnforcedEscalation escalation,
+        /** The managed setting key responsible for the enforcement (e.g. `permissions.disableBypassPermissionsMode`). */
+        @JsonProperty(&quot;setting&quot;) String setting,
+        /** Whether the enforcement was forced by fail-closed handling (managed policy could not be determined) rather than an explicit managed setting. When true, `setting` still names the restriction that was applied. */
+        @JsonProperty(&quot;failClosed&quot;) Boolean failClosed,
+        /** A human-readable explanation of why the action was governed, suitable for surfacing to the user. */
+        @JsonProperty(&quot;message&quot;) String message
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

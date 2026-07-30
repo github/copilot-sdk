@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SchemaGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.tool</a> &gt; <span class="el_source">SchemaGenerator.java</span></div><h1>SchemaGenerator.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.tool;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.RecordComponentElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
+
+import com.github.copilot.CopilotExperimental;
+
+/**
+ * Compile-time utility that maps {@code javax.lang.model} types to JSON Schema
+ * represented as Java source code literals ({@code Map.of(...)} expressions).
+ *
+ * &lt;p&gt;
+ * This class is invoked by the annotation processor and operates exclusively
+ * with the {@code javax.lang.model} API. It does NOT use
+ * {@code java.lang.reflect}.
+ *
+ * @since 1.0.2
+ */
+@CopilotExperimental
+<span class="fc" id="L37">public class SchemaGenerator {</span>
+
+    /**
+     * Given a {@link TypeMirror} from the annotation processing environment,
+     * returns a {@code String} containing Java source code for a {@code Map}
+     * literal representing the JSON Schema of that type.
+     *
+     * @param type
+     *            the type to generate schema for
+     * @param typeUtils
+     *            the {@link Types} utility from the processing environment
+     * @param elementUtils
+     *            the {@link Elements} utility from the processing environment
+     * @return a Java source code string representing the JSON Schema
+     */
+    public String generateSchemaSource(TypeMirror type, Types typeUtils, Elements elementUtils) {
+<span class="fc" id="L53">        return generateSchema(type, typeUtils, elementUtils);</span>
+    }
+
+    /**
+     * Generates the full &quot;parameters&quot; schema source for a method's parameters.
+     * Produces a
+     * {@code Map.of(&quot;type&quot;, &quot;object&quot;, &quot;properties&quot;, Map.of(...), &quot;required&quot;, List.of(...))}.
+     *
+     * @param parameters
+     *            the method parameters to generate schema for
+     * @param typeUtils
+     *            the {@link Types} utility from the processing environment
+     * @param elementUtils
+     *            the {@link Elements} utility from the processing environment
+     * @return a Java source code string representing the parameters JSON Schema
+     */
+    public String generateParametersSchemaSource(List&lt;? extends VariableElement&gt; parameters, Types typeUtils,
+            Elements elementUtils) {
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (parameters.isEmpty()) {</span>
+<span class="nc" id="L72">            return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;, \&quot;properties\&quot;, Map.of(), \&quot;required\&quot;, List.of())&quot;;</span>
+        }
+
+<span class="fc" id="L75">        List&lt;String&gt; propertyEntries = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L76">        List&lt;String&gt; requiredNames = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        for (VariableElement param : parameters) {</span>
+<span class="fc" id="L79">            String paramName = param.getSimpleName().toString();</span>
+<span class="fc" id="L80">            TypeMirror paramType = param.asType();</span>
+
+<span class="fc" id="L82">            boolean isOptional = isOptionalType(paramType);</span>
+            String schema;
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            if (isOptional) {</span>
+<span class="nc" id="L85">                schema = generateSchema(unwrapOptional(paramType, typeUtils), typeUtils, elementUtils);</span>
+            } else {
+<span class="fc" id="L87">                schema = generateSchema(paramType, typeUtils, elementUtils);</span>
+            }
+
+<span class="fc" id="L90">            propertyEntries.add(&quot;Map.entry(\&quot;&quot; + paramName + &quot;\&quot;, &quot; + schema + &quot;)&quot;);</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (!isOptional) {</span>
+<span class="fc" id="L93">                CopilotToolParam paramAnnotation = param.getAnnotation(CopilotToolParam.class);</span>
+<span class="pc bpc" id="L94" title="3 of 4 branches missed.">                if (paramAnnotation == null || paramAnnotation.required()) {</span>
+<span class="fc" id="L95">                    requiredNames.add(&quot;\&quot;&quot; + paramName + &quot;\&quot;&quot;);</span>
+                }
+            }
+<span class="fc" id="L98">        }</span>
+
+<span class="fc" id="L100">        String properties = &quot;Map.ofEntries(&quot; + String.join(&quot;, &quot;, propertyEntries) + &quot;)&quot;;</span>
+<span class="fc" id="L101">        String required = &quot;List.of(&quot; + String.join(&quot;, &quot;, requiredNames) + &quot;)&quot;;</span>
+
+<span class="fc" id="L103">        return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;, \&quot;properties\&quot;, &quot; + properties + &quot;, \&quot;required\&quot;, &quot; + required + &quot;)&quot;;</span>
+    }
+
+    private String generateSchema(TypeMirror type, Types typeUtils, Elements elementUtils) {
+        // Handle primitive types
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (type.getKind().isPrimitive()) {</span>
+<span class="fc" id="L109">            return generatePrimitiveSchema(type.getKind());</span>
+        }
+
+        // Handle array types
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (type.getKind() == TypeKind.ARRAY) {</span>
+<span class="fc" id="L114">            ArrayType arrayType = (ArrayType) type;</span>
+<span class="fc" id="L115">            TypeMirror componentType = arrayType.getComponentType();</span>
+<span class="fc" id="L116">            String itemsSchema = generateSchema(componentType, typeUtils, elementUtils);</span>
+<span class="fc" id="L117">            return &quot;Map.of(\&quot;type\&quot;, \&quot;array\&quot;, \&quot;items\&quot;, &quot; + itemsSchema + &quot;)&quot;;</span>
+        }
+
+        // Handle declared types (classes, interfaces, enums, records)
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (type.getKind() == TypeKind.DECLARED) {</span>
+<span class="fc" id="L122">            return generateDeclaredTypeSchema((DeclaredType) type, typeUtils, elementUtils);</span>
+        }
+
+        // Fallback: any
+<span class="nc" id="L126">        return &quot;Map.of()&quot;;</span>
+    }
+
+    private String generatePrimitiveSchema(TypeKind kind) {
+<span class="pc bpc" id="L130" title="2 of 5 branches missed.">        switch (kind) {</span>
+            case INT :
+            case LONG :
+            case BYTE :
+            case SHORT :
+<span class="fc" id="L135">                return &quot;Map.of(\&quot;type\&quot;, \&quot;integer\&quot;)&quot;;</span>
+            case DOUBLE :
+            case FLOAT :
+<span class="fc" id="L138">                return &quot;Map.of(\&quot;type\&quot;, \&quot;number\&quot;)&quot;;</span>
+            case BOOLEAN :
+<span class="fc" id="L140">                return &quot;Map.of(\&quot;type\&quot;, \&quot;boolean\&quot;)&quot;;</span>
+            case CHAR :
+<span class="nc" id="L142">                return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;)&quot;;</span>
+            default :
+<span class="nc" id="L144">                return &quot;Map.of()&quot;;</span>
+        }
+    }
+
+    private String generateDeclaredTypeSchema(DeclaredType type, Types typeUtils, Elements elementUtils) {
+<span class="fc" id="L149">        TypeElement typeElement = (TypeElement) type.asElement();</span>
+<span class="fc" id="L150">        String qualifiedName = typeElement.getQualifiedName().toString();</span>
+
+        // String
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        if (&quot;java.lang.String&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L154">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;)&quot;;</span>
+        }
+
+        // Boxed primitives
+<span class="fc bfc" id="L158" title="All 4 branches covered.">        if (&quot;java.lang.Integer&quot;.equals(qualifiedName) || &quot;java.lang.Long&quot;.equals(qualifiedName)</span>
+<span class="fc bfc" id="L159" title="All 4 branches covered.">                || &quot;java.lang.Byte&quot;.equals(qualifiedName) || &quot;java.lang.Short&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L160">            return &quot;Map.of(\&quot;type\&quot;, \&quot;integer\&quot;)&quot;;</span>
+        }
+<span class="pc bpc" id="L162" title="2 of 4 branches missed.">        if (&quot;java.lang.Double&quot;.equals(qualifiedName) || &quot;java.lang.Float&quot;.equals(qualifiedName)) {</span>
+<span class="nc" id="L163">            return &quot;Map.of(\&quot;type\&quot;, \&quot;number\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (&quot;java.lang.Boolean&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L166">            return &quot;Map.of(\&quot;type\&quot;, \&quot;boolean\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (&quot;java.lang.Character&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L169">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;)&quot;;</span>
+        }
+
+        // UUID
+<span class="fc bfc" id="L173" title="All 2 branches covered.">        if (&quot;java.util.UUID&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L174">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;, \&quot;format\&quot;, \&quot;uuid\&quot;)&quot;;</span>
+        }
+
+        // Date-time types (ISO-8601 format hints for the model)
+<span class="fc bfc" id="L178" title="All 4 branches covered.">        if (&quot;java.time.OffsetDateTime&quot;.equals(qualifiedName) || &quot;java.time.LocalDateTime&quot;.equals(qualifiedName)</span>
+<span class="fc bfc" id="L179" title="All 4 branches covered.">                || &quot;java.time.Instant&quot;.equals(qualifiedName) || &quot;java.time.ZonedDateTime&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L180">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;, \&quot;format\&quot;, \&quot;date-time\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (&quot;java.time.LocalDate&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L183">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;, \&quot;format\&quot;, \&quot;date\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L185" title="All 2 branches covered.">        if (&quot;java.time.LocalTime&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L186">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;, \&quot;format\&quot;, \&quot;time\&quot;)&quot;;</span>
+        }
+
+        // JsonNode (any)
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (&quot;com.fasterxml.jackson.databind.JsonNode&quot;.equals(qualifiedName)) {</span>
+<span class="nc" id="L191">            return &quot;Map.of()&quot;;</span>
+        }
+
+        // Object (any)
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        if (&quot;java.lang.Object&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L196">            return &quot;Map.of()&quot;;</span>
+        }
+
+        // Optional types
+<span class="fc bfc" id="L200" title="All 2 branches covered.">        if (&quot;java.util.Optional&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L201">            List&lt;? extends TypeMirror&gt; typeArgs = type.getTypeArguments();</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            if (!typeArgs.isEmpty()) {</span>
+<span class="fc" id="L203">                return generateSchema(typeArgs.get(0), typeUtils, elementUtils);</span>
+            }
+<span class="nc" id="L205">            return &quot;Map.of()&quot;;</span>
+        }
+<span class="fc bfc" id="L207" title="All 2 branches covered.">        if (&quot;java.util.OptionalInt&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L208">            return &quot;Map.of(\&quot;type\&quot;, \&quot;integer\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        if (&quot;java.util.OptionalDouble&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L211">            return &quot;Map.of(\&quot;type\&quot;, \&quot;number\&quot;)&quot;;</span>
+        }
+<span class="fc bfc" id="L213" title="All 2 branches covered.">        if (&quot;java.util.OptionalLong&quot;.equals(qualifiedName)) {</span>
+<span class="fc" id="L214">            return &quot;Map.of(\&quot;type\&quot;, \&quot;integer\&quot;)&quot;;</span>
+        }
+
+        // List / Collection
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        if (isCollectionType(qualifiedName)) {</span>
+<span class="fc" id="L219">            List&lt;? extends TypeMirror&gt; typeArgs = type.getTypeArguments();</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">            if (!typeArgs.isEmpty()) {</span>
+<span class="fc" id="L221">                String itemsSchema = generateSchema(typeArgs.get(0), typeUtils, elementUtils);</span>
+<span class="fc" id="L222">                return &quot;Map.of(\&quot;type\&quot;, \&quot;array\&quot;, \&quot;items\&quot;, &quot; + itemsSchema + &quot;)&quot;;</span>
+            }
+<span class="nc" id="L224">            return &quot;Map.of(\&quot;type\&quot;, \&quot;array\&quot;)&quot;;</span>
+        }
+
+        // Map&lt;String, V&gt;
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        if (isMapType(qualifiedName)) {</span>
+<span class="fc" id="L229">            List&lt;? extends TypeMirror&gt; typeArgs = type.getTypeArguments();</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">            if (typeArgs.size() == 2) {</span>
+<span class="fc" id="L231">                TypeMirror valueType = typeArgs.get(1);</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">                if (valueType.getKind() == TypeKind.DECLARED) {</span>
+<span class="fc" id="L233">                    TypeElement valueElement = (TypeElement) ((DeclaredType) valueType).asElement();</span>
+<span class="fc" id="L234">                    String valueQName = valueElement.getQualifiedName().toString();</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                    if (&quot;java.lang.Object&quot;.equals(valueQName)) {</span>
+<span class="fc" id="L236">                        return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;)&quot;;</span>
+                    }
+                }
+<span class="fc" id="L239">                String valueSchema = generateSchema(valueType, typeUtils, elementUtils);</span>
+<span class="fc" id="L240">                return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;, \&quot;additionalProperties\&quot;, &quot; + valueSchema + &quot;)&quot;;</span>
+            }
+<span class="nc" id="L242">            return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;)&quot;;</span>
+        }
+
+        // Enum types
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        if (typeElement.getKind() == ElementKind.ENUM) {</span>
+<span class="fc" id="L247">            List&lt;String&gt; constants = typeElement.getEnclosedElements().stream()</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">                    .filter(e -&gt; e.getKind() == ElementKind.ENUM_CONSTANT)</span>
+<span class="fc" id="L249">                    .map(e -&gt; &quot;\&quot;&quot; + e.getSimpleName().toString() + &quot;\&quot;&quot;).collect(Collectors.toList());</span>
+<span class="fc" id="L250">            return &quot;Map.of(\&quot;type\&quot;, \&quot;string\&quot;, \&quot;enum\&quot;, List.of(&quot; + String.join(&quot;, &quot;, constants) + &quot;))&quot;;</span>
+        }
+
+        // Record types
+<span class="fc bfc" id="L254" title="All 2 branches covered.">        if (typeElement.getKind() == ElementKind.RECORD) {</span>
+<span class="fc" id="L255">            return generateRecordSchema(typeElement, typeUtils, elementUtils);</span>
+        }
+
+        // POJO / class types — treat as object with fields
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">        if (typeElement.getKind() == ElementKind.CLASS) {</span>
+<span class="nc" id="L260">            return generateClassSchema(typeElement, typeUtils, elementUtils);</span>
+        }
+
+        // Sealed interfaces — oneOf via permitted subclasses
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">        if (typeElement.getKind() == ElementKind.INTERFACE) {</span>
+<span class="fc" id="L265">            return generateSealedSchema(typeElement, typeUtils, elementUtils);</span>
+        }
+
+<span class="nc" id="L268">        return &quot;Map.of()&quot;;</span>
+    }
+
+    private String generateRecordSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {
+<span class="fc" id="L272">        List&lt;String&gt; propertyEntries = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L273">        List&lt;String&gt; requiredNames = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L275" title="All 2 branches covered.">        for (Element enclosed : typeElement.getEnclosedElements()) {</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">            if (enclosed.getKind() == ElementKind.RECORD_COMPONENT) {</span>
+<span class="fc" id="L277">                RecordComponentElement component = (RecordComponentElement) enclosed;</span>
+<span class="fc" id="L278">                String name = component.getSimpleName().toString();</span>
+<span class="fc" id="L279">                TypeMirror componentType = component.asType();</span>
+
+<span class="fc" id="L281">                boolean isOptional = isOptionalType(componentType);</span>
+                String schema;
+<span class="fc bfc" id="L283" title="All 2 branches covered.">                if (isOptional) {</span>
+<span class="fc" id="L284">                    schema = generateSchema(unwrapOptional(componentType, typeUtils), typeUtils, elementUtils);</span>
+                } else {
+<span class="fc" id="L286">                    schema = generateSchema(componentType, typeUtils, elementUtils);</span>
+<span class="fc" id="L287">                    requiredNames.add(&quot;\&quot;&quot; + name + &quot;\&quot;&quot;);</span>
+                }
+
+<span class="fc" id="L290">                propertyEntries.add(&quot;Map.entry(\&quot;&quot; + name + &quot;\&quot;, &quot; + schema + &quot;)&quot;);</span>
+            }
+<span class="fc" id="L292">        }</span>
+
+<span class="fc" id="L294">        String properties = &quot;Map.ofEntries(&quot; + String.join(&quot;, &quot;, propertyEntries) + &quot;)&quot;;</span>
+<span class="fc" id="L295">        String required = &quot;List.of(&quot; + String.join(&quot;, &quot;, requiredNames) + &quot;)&quot;;</span>
+
+<span class="fc" id="L297">        return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;, \&quot;properties\&quot;, &quot; + properties + &quot;, \&quot;required\&quot;, &quot; + required + &quot;)&quot;;</span>
+    }
+
+    private String generateClassSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {
+<span class="nc" id="L301">        List&lt;String&gt; propertyEntries = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L302">        List&lt;String&gt; requiredNames = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        for (Element enclosed : typeElement.getEnclosedElements()) {</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">            if (enclosed.getKind() == ElementKind.FIELD) {</span>
+<span class="nc" id="L306">                VariableElement field = (VariableElement) enclosed;</span>
+                // Skip static fields
+<span class="nc bnc" id="L308" title="All 2 branches missed.">                if (field.getModifiers().contains(javax.lang.model.element.Modifier.STATIC)) {</span>
+<span class="nc" id="L309">                    continue;</span>
+                }
+<span class="nc" id="L311">                String name = field.getSimpleName().toString();</span>
+<span class="nc" id="L312">                TypeMirror fieldType = field.asType();</span>
+
+<span class="nc" id="L314">                boolean isOptional = isOptionalType(fieldType);</span>
+                String schema;
+<span class="nc bnc" id="L316" title="All 2 branches missed.">                if (isOptional) {</span>
+<span class="nc" id="L317">                    schema = generateSchema(unwrapOptional(fieldType, typeUtils), typeUtils, elementUtils);</span>
+                } else {
+<span class="nc" id="L319">                    schema = generateSchema(fieldType, typeUtils, elementUtils);</span>
+<span class="nc" id="L320">                    requiredNames.add(&quot;\&quot;&quot; + name + &quot;\&quot;&quot;);</span>
+                }
+
+<span class="nc" id="L323">                propertyEntries.add(&quot;Map.entry(\&quot;&quot; + name + &quot;\&quot;, &quot; + schema + &quot;)&quot;);</span>
+            }
+<span class="nc" id="L325">        }</span>
+
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        if (propertyEntries.isEmpty()) {</span>
+<span class="nc" id="L328">            return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;)&quot;;</span>
+        }
+
+<span class="nc" id="L331">        String properties = &quot;Map.ofEntries(&quot; + String.join(&quot;, &quot;, propertyEntries) + &quot;)&quot;;</span>
+<span class="nc" id="L332">        String required = &quot;List.of(&quot; + String.join(&quot;, &quot;, requiredNames) + &quot;)&quot;;</span>
+
+<span class="nc" id="L334">        return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;, \&quot;properties\&quot;, &quot; + properties + &quot;, \&quot;required\&quot;, &quot; + required + &quot;)&quot;;</span>
+    }
+
+    private String generateSealedSchema(TypeElement typeElement, Types typeUtils, Elements elementUtils) {
+<span class="fc" id="L338">        List&lt;? extends TypeMirror&gt; permittedSubclasses = typeElement.getPermittedSubclasses();</span>
+<span class="pc bpc" id="L339" title="2 of 4 branches missed.">        if (permittedSubclasses != null &amp;&amp; !permittedSubclasses.isEmpty()) {</span>
+<span class="fc" id="L340">            List&lt;String&gt; schemas = permittedSubclasses.stream().map(sub -&gt; generateSchema(sub, typeUtils, elementUtils))</span>
+<span class="fc" id="L341">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L342">            return &quot;Map.of(\&quot;oneOf\&quot;, List.of(&quot; + String.join(&quot;, &quot;, schemas) + &quot;))&quot;;</span>
+        }
+<span class="nc" id="L344">        return &quot;Map.of(\&quot;type\&quot;, \&quot;object\&quot;)&quot;;</span>
+    }
+
+    private boolean isOptionalType(TypeMirror type) {
+<span class="fc bfc" id="L348" title="All 2 branches covered.">        if (type.getKind() != TypeKind.DECLARED) {</span>
+<span class="fc" id="L349">            return false;</span>
+        }
+<span class="fc" id="L351">        DeclaredType declaredType = (DeclaredType) type;</span>
+<span class="fc" id="L352">        TypeElement element = (TypeElement) declaredType.asElement();</span>
+<span class="fc" id="L353">        String name = element.getQualifiedName().toString();</span>
+<span class="pc bpc" id="L354" title="1 of 4 branches missed.">        return &quot;java.util.Optional&quot;.equals(name) || &quot;java.util.OptionalInt&quot;.equals(name)</span>
+<span class="pc bpc" id="L355" title="2 of 4 branches missed.">                || &quot;java.util.OptionalDouble&quot;.equals(name) || &quot;java.util.OptionalLong&quot;.equals(name);</span>
+    }
+
+    private TypeMirror unwrapOptional(TypeMirror type, Types typeUtils) {
+<span class="pc bpc" id="L359" title="1 of 2 branches missed.">        if (type.getKind() != TypeKind.DECLARED) {</span>
+<span class="nc" id="L360">            return type;</span>
+        }
+<span class="fc" id="L362">        DeclaredType declaredType = (DeclaredType) type;</span>
+<span class="fc" id="L363">        TypeElement element = (TypeElement) declaredType.asElement();</span>
+<span class="fc" id="L364">        String name = element.getQualifiedName().toString();</span>
+
+<span class="pc bpc" id="L366" title="1 of 2 branches missed.">        if (&quot;java.util.Optional&quot;.equals(name)) {</span>
+<span class="fc" id="L367">            List&lt;? extends TypeMirror&gt; typeArgs = declaredType.getTypeArguments();</span>
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">            if (!typeArgs.isEmpty()) {</span>
+<span class="fc" id="L369">                return typeArgs.get(0);</span>
+            }
+        }
+<span class="nc bnc" id="L372" title="All 2 branches missed.">        if (&quot;java.util.OptionalInt&quot;.equals(name)) {</span>
+<span class="nc" id="L373">            return typeUtils.getPrimitiveType(TypeKind.INT);</span>
+        }
+<span class="nc bnc" id="L375" title="All 2 branches missed.">        if (&quot;java.util.OptionalDouble&quot;.equals(name)) {</span>
+<span class="nc" id="L376">            return typeUtils.getPrimitiveType(TypeKind.DOUBLE);</span>
+        }
+<span class="nc bnc" id="L378" title="All 2 branches missed.">        if (&quot;java.util.OptionalLong&quot;.equals(name)) {</span>
+<span class="nc" id="L379">            return typeUtils.getPrimitiveType(TypeKind.LONG);</span>
+        }
+<span class="nc" id="L381">        return type;</span>
+    }
+
+    private boolean isCollectionType(String qualifiedName) {
+<span class="pc bpc" id="L385" title="1 of 4 branches missed.">        return &quot;java.util.List&quot;.equals(qualifiedName) || &quot;java.util.Collection&quot;.equals(qualifiedName)</span>
+<span class="pc bpc" id="L386" title="1 of 2 branches missed.">                || &quot;java.util.Set&quot;.equals(qualifiedName);</span>
+    }
+
+    private boolean isMapType(String qualifiedName) {
+<span class="fc" id="L390">        return &quot;java.util.Map&quot;.equals(qualifiedName);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

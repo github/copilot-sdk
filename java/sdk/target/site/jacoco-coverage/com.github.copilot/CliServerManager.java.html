@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CliServerManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">CliServerManager.java</span></div><h1>CliServerManager.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.Socket;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.github.copilot.rpc.CopilotClientOptions;
+
+/**
+ * Manages the lifecycle of the Copilot CLI server process.
+ * &lt;p&gt;
+ * This class handles spawning the CLI server process, building command lines,
+ * detecting the listening port, and establishing connections.
+ */
+final class CliServerManager {
+
+<span class="fc" id="L32">    private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());</span>
+    private static final int STDERR_READER_JOIN_TIMEOUT_MS = 5000;
+
+    private final CopilotClientOptions options;
+<span class="fc" id="L36">    private final StringBuilder stderrBuffer = new StringBuilder();</span>
+    private volatile Thread stderrThread;
+    private String connectionToken;
+
+<span class="fc" id="L40">    CliServerManager(CopilotClientOptions options) {</span>
+<span class="fc" id="L41">        this.options = options;</span>
+<span class="fc" id="L42">    }</span>
+
+    /**
+     * Sets the connection token to pass to the CLI process via environment
+     * variable.
+     *
+     * @param connectionToken
+     *            the token, or {@code null} if not applicable
+     */
+    void setConnectionToken(String connectionToken) {
+<span class="fc" id="L52">        this.connectionToken = connectionToken;</span>
+<span class="fc" id="L53">    }</span>
+
+    /**
+     * Starts the CLI server process.
+     *
+     * @return information about the started process including detected port
+     * @throws IOException
+     *             if the process cannot be started
+     * @throws InterruptedException
+     *             if interrupted while waiting for port detection
+     */
+    ProcessInfo startCliServer() throws IOException, InterruptedException {
+<span class="fc" id="L65">        clearStderrBuffer();</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        String cliPath = options.getCliPath() != null ? options.getCliPath() : &quot;copilot&quot;;</span>
+<span class="fc" id="L68">        var args = new ArrayList&lt;String&gt;();</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (options.getCliArgs() != null) {</span>
+<span class="fc" id="L71">            args.addAll(Arrays.asList(options.getCliArgs()));</span>
+        }
+
+<span class="fc" id="L74">        args.add(&quot;--server&quot;);</span>
+<span class="fc" id="L75">        args.add(&quot;--no-auto-update&quot;);</span>
+<span class="fc" id="L76">        args.add(&quot;--log-level&quot;);</span>
+<span class="fc" id="L77">        args.add(options.getLogLevel());</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (options.isUseStdio()) {</span>
+<span class="fc" id="L80">            args.add(&quot;--stdio&quot;);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        } else if (options.getPort() &gt; 0) {</span>
+<span class="fc" id="L82">            args.add(&quot;--port&quot;);</span>
+<span class="fc" id="L83">            args.add(String.valueOf(options.getPort()));</span>
+        }
+
+        // Add auth-related flags
+<span class="fc bfc" id="L87" title="All 4 branches covered.">        if (options.getGitHubToken() != null &amp;&amp; !options.getGitHubToken().isEmpty()) {</span>
+<span class="fc" id="L88">            args.add(&quot;--auth-token-env&quot;);</span>
+<span class="fc" id="L89">            args.add(&quot;COPILOT_SDK_AUTH_TOKEN&quot;);</span>
+        }
+
+        // Default UseLoggedInUser to false when GitHubToken is provided
+<span class="fc" id="L93">        boolean useLoggedInUser = options.getUseLoggedInUser()</span>
+<span class="fc bfc" id="L94" title="All 4 branches covered.">                .orElse(options.getGitHubToken() == null || options.getGitHubToken().isEmpty());</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (!useLoggedInUser) {</span>
+<span class="fc" id="L96">            args.add(&quot;--no-auto-login&quot;);</span>
+        }
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        if (options.getSessionIdleTimeoutSeconds().isPresent()</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">                &amp;&amp; options.getSessionIdleTimeoutSeconds().getAsInt() &gt; 0) {</span>
+<span class="fc" id="L101">            args.add(&quot;--session-idle-timeout&quot;);</span>
+<span class="fc" id="L102">            args.add(String.valueOf(options.getSessionIdleTimeoutSeconds().getAsInt()));</span>
+        }
+
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (options.isRemote()) {</span>
+<span class="nc" id="L106">            args.add(&quot;--remote&quot;);</span>
+        }
+
+<span class="fc" id="L109">        List&lt;String&gt; command = resolveCliCommand(cliPath, args);</span>
+
+<span class="fc" id="L111">        var pb = new ProcessBuilder(command);</span>
+<span class="fc" id="L112">        pb.redirectErrorStream(false);</span>
+
+        // Note: On Windows, console window visibility depends on how the parent Java
+        // process was launched. GUI applications started with 'javaw' will not create
+        // visible console windows for subprocesses. Console applications started with
+        // 'java' will share their console with subprocesses. Java's ProcessBuilder
+        // doesn't provide explicit CREATE_NO_WINDOW flags like native Windows APIs,
+        // but the default behavior is appropriate for most use cases.
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (options.getCwd() != null) {</span>
+<span class="fc" id="L122">            pb.directory(new File(options.getCwd()));</span>
+        }
+
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (options.getEnvironment() != null) {</span>
+<span class="fc" id="L126">            pb.environment().clear();</span>
+<span class="fc" id="L127">            pb.environment().putAll(options.getEnvironment());</span>
+        }
+<span class="fc" id="L129">        pb.environment().remove(&quot;NODE_DEBUG&quot;);</span>
+
+        // Set auth token in environment if provided
+<span class="fc bfc" id="L132" title="All 4 branches covered.">        if (options.getGitHubToken() != null &amp;&amp; !options.getGitHubToken().isEmpty()) {</span>
+<span class="fc" id="L133">            pb.environment().put(&quot;COPILOT_SDK_AUTH_TOKEN&quot;, options.getGitHubToken());</span>
+        }
+
+        // Set Copilot home directory if configured
+<span class="pc bpc" id="L137" title="3 of 4 branches missed.">        if (options.getCopilotHome() != null &amp;&amp; !options.getCopilotHome().isEmpty()) {</span>
+<span class="nc" id="L138">            pb.environment().put(&quot;COPILOT_HOME&quot;, options.getCopilotHome());</span>
+        }
+
+        // Set connection token for TCP mode
+<span class="pc bpc" id="L142" title="1 of 4 branches missed.">        if (connectionToken != null &amp;&amp; !connectionToken.isEmpty()) {</span>
+<span class="fc" id="L143">            pb.environment().put(&quot;COPILOT_CONNECTION_TOKEN&quot;, connectionToken);</span>
+        }
+
+        // Set telemetry environment variables if configured
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (options.getTelemetry() != null) {</span>
+<span class="fc" id="L148">            var telemetry = options.getTelemetry();</span>
+<span class="fc" id="L149">            pb.environment().put(&quot;COPILOT_OTEL_ENABLED&quot;, &quot;true&quot;);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">            if (telemetry.getOtlpEndpoint() != null) {</span>
+<span class="fc" id="L151">                pb.environment().put(&quot;OTEL_EXPORTER_OTLP_ENDPOINT&quot;, telemetry.getOtlpEndpoint());</span>
+            }
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            if (telemetry.getOtlpProtocol() != null) {</span>
+<span class="fc" id="L154">                pb.environment().put(&quot;OTEL_EXPORTER_OTLP_PROTOCOL&quot;, telemetry.getOtlpProtocol());</span>
+            }
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            if (telemetry.getFilePath() != null) {</span>
+<span class="fc" id="L157">                pb.environment().put(&quot;COPILOT_OTEL_FILE_EXPORTER_PATH&quot;, telemetry.getFilePath());</span>
+            }
+<span class="fc bfc" id="L159" title="All 2 branches covered.">            if (telemetry.getExporterType() != null) {</span>
+<span class="fc" id="L160">                pb.environment().put(&quot;COPILOT_OTEL_EXPORTER_TYPE&quot;, telemetry.getExporterType());</span>
+            }
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            if (telemetry.getSourceName() != null) {</span>
+<span class="fc" id="L163">                pb.environment().put(&quot;COPILOT_OTEL_SOURCE_NAME&quot;, telemetry.getSourceName());</span>
+            }
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            if (telemetry.getCaptureContent().isPresent()) {</span>
+<span class="fc" id="L166">                pb.environment().put(&quot;OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT&quot;,</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                        telemetry.getCaptureContent().get() ? &quot;true&quot; : &quot;false&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L171">        Process process = pb.start();</span>
+
+        // Forward stderr to logger in background
+<span class="fc" id="L174">        startStderrReader(process);</span>
+
+<span class="fc" id="L176">        Integer detectedPort = null;</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        if (!options.isUseStdio()) {</span>
+<span class="fc" id="L178">            detectedPort = waitForPortAnnouncement(process);</span>
+        }
+
+<span class="fc" id="L181">        return new ProcessInfo(process, detectedPort);</span>
+    }
+
+    /**
+     * Connects to a running Copilot server.
+     *
+     * @param process
+     *            the CLI process (null if connecting to external server)
+     * @param tcpHost
+     *            the host to connect to (null for stdio mode)
+     * @param tcpPort
+     *            the port to connect to (null for stdio mode)
+     * @return the JSON-RPC client connected to the server
+     * @throws IOException
+     *             if connection fails
+     */
+    JsonRpcClient connectToServer(Process process, String tcpHost, Integer tcpPort) throws IOException {
+<span class="pc bpc" id="L198" title="1 of 4 branches missed.">        if (tcpHost != null &amp;&amp; tcpPort != null) {</span>
+            // TCP mode: external server or child process with explicit port
+<span class="fc" id="L200">            Socket socket = new Socket(tcpHost, tcpPort);</span>
+<span class="fc" id="L201">            return JsonRpcClient.fromSocket(socket);</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">        } else if (process != null) {</span>
+            // Stdio mode: child process
+<span class="fc" id="L204">            return JsonRpcClient.fromProcess(process);</span>
+        } else {
+<span class="fc" id="L206">            throw new IllegalStateException(&quot;Cannot connect: no process for stdio and no host:port for TCP&quot;);</span>
+        }
+    }
+
+    private void startStderrReader(Process process) {
+<span class="fc" id="L211">        var thread = new Thread(() -&gt; {</span>
+<span class="fc" id="L212">            try (BufferedReader reader = new BufferedReader(</span>
+<span class="fc" id="L213">                    new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {</span>
+                String line;
+<span class="fc bfc" id="L215" title="All 2 branches covered.">                while ((line = reader.readLine()) != null) {</span>
+<span class="fc" id="L216">                    synchronized (stderrBuffer) {</span>
+<span class="fc" id="L217">                        stderrBuffer.append(line).append('\n');</span>
+<span class="fc" id="L218">                    }</span>
+<span class="fc" id="L219">                    LOG.fine(&quot;[CLI] &quot; + line);</span>
+                }
+<span class="fc" id="L221">            } catch (IOException e) {</span>
+<span class="fc" id="L222">                LOG.log(Level.FINE, &quot;Error reading stderr&quot;, e);</span>
+<span class="fc" id="L223">            }</span>
+<span class="fc" id="L224">        }, &quot;cli-stderr-reader&quot;);</span>
+<span class="fc" id="L225">        thread.setDaemon(true);</span>
+<span class="fc" id="L226">        thread.start();</span>
+<span class="fc" id="L227">        this.stderrThread = thread;</span>
+<span class="fc" id="L228">    }</span>
+
+    private Integer waitForPortAnnouncement(Process process) throws IOException {
+<span class="fc" id="L231">        try (BufferedReader reader = new BufferedReader(</span>
+<span class="fc" id="L232">                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {</span>
+<span class="fc" id="L233">            Pattern portPattern = Pattern.compile(&quot;listening on port (\\d+)&quot;, Pattern.CASE_INSENSITIVE);</span>
+<span class="fc" id="L234">            long deadline = System.currentTimeMillis() + 30000;</span>
+
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">            while (System.currentTimeMillis() &lt; deadline) {</span>
+<span class="fc" id="L237">                String line = reader.readLine();</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">                if (line == null) {</span>
+<span class="nc" id="L239">                    awaitStderrReader();</span>
+<span class="nc" id="L240">                    String stderr = getStderrOutput();</span>
+<span class="nc" id="L241">                    throw new IOException(formatCliExitedMessage(&quot;CLI process exited unexpectedly.&quot;, stderr));</span>
+                }
+
+<span class="fc" id="L244">                Matcher matcher = portPattern.matcher(line);</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">                if (matcher.find()) {</span>
+<span class="fc" id="L246">                    return Integer.parseInt(matcher.group(1));</span>
+                }
+<span class="nc" id="L248">            }</span>
+
+<span class="nc" id="L250">            process.destroyForcibly();</span>
+<span class="nc" id="L251">            throw new IOException(&quot;Timeout waiting for CLI to announce port&quot;);</span>
+        }
+    }
+
+    String getStderrOutput() {
+<span class="fc" id="L256">        synchronized (stderrBuffer) {</span>
+<span class="fc" id="L257">            return stderrBuffer.toString().trim();</span>
+        }
+    }
+
+    private void awaitStderrReader() {
+<span class="nc" id="L262">        Thread t = this.stderrThread;</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">        if (t != null) {</span>
+            try {
+<span class="nc" id="L265">                t.join(STDERR_READER_JOIN_TIMEOUT_MS);</span>
+<span class="nc" id="L266">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L267">                Thread.currentThread().interrupt();</span>
+<span class="nc" id="L268">            }</span>
+        }
+<span class="nc" id="L270">    }</span>
+
+    private void clearStderrBuffer() {
+<span class="fc" id="L273">        synchronized (stderrBuffer) {</span>
+<span class="fc" id="L274">            stderrBuffer.setLength(0);</span>
+<span class="fc" id="L275">        }</span>
+<span class="fc" id="L276">    }</span>
+
+    static String formatCliExitedMessage(String message, String stderrOutput) {
+<span class="pc bpc" id="L279" title="2 of 4 branches missed.">        if (stderrOutput == null || stderrOutput.isEmpty()) {</span>
+<span class="nc" id="L280">            return message;</span>
+        }
+<span class="fc" id="L282">        return message + &quot;\nstderr: &quot; + stderrOutput;</span>
+    }
+
+    private List&lt;String&gt; resolveCliCommand(String cliPath, List&lt;String&gt; args) {
+<span class="fc" id="L286">        boolean isJsFile = cliPath.toLowerCase().endsWith(&quot;.js&quot;);</span>
+
+<span class="fc bfc" id="L288" title="All 2 branches covered.">        if (isJsFile) {</span>
+<span class="fc" id="L289">            var result = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L290">            result.add(&quot;node&quot;);</span>
+<span class="fc" id="L291">            result.add(cliPath);</span>
+<span class="fc" id="L292">            result.addAll(args);</span>
+<span class="fc" id="L293">            return result;</span>
+        }
+
+        // On Windows, use cmd /c to resolve the executable
+<span class="fc" id="L297">        String os = System.getProperty(&quot;os.name&quot;).toLowerCase();</span>
+<span class="pc bpc" id="L298" title="3 of 4 branches missed.">        if (os.contains(&quot;win&quot;) &amp;&amp; !new File(cliPath).isAbsolute()) {</span>
+<span class="nc" id="L299">            var result = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L300">            result.add(&quot;cmd&quot;);</span>
+<span class="nc" id="L301">            result.add(&quot;/c&quot;);</span>
+<span class="nc" id="L302">            result.add(cliPath);</span>
+<span class="nc" id="L303">            result.addAll(args);</span>
+<span class="nc" id="L304">            return result;</span>
+        }
+
+<span class="fc" id="L307">        var result = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L308">        result.add(cliPath);</span>
+<span class="fc" id="L309">        result.addAll(args);</span>
+<span class="fc" id="L310">        return result;</span>
+    }
+
+    static URI parseCliUrl(String url) {
+        // If it's just a port number, treat as localhost
+        try {
+<span class="fc" id="L316">            int port = Integer.parseInt(url);</span>
+<span class="fc" id="L317">            return URI.create(&quot;http://localhost:&quot; + port);</span>
+<span class="fc" id="L318">        } catch (NumberFormatException e) {</span>
+            // Not a port number, continue
+        }
+
+        // Add scheme if missing
+<span class="fc bfc" id="L323" title="All 4 branches covered.">        if (!url.toLowerCase().startsWith(&quot;http://&quot;) &amp;&amp; !url.toLowerCase().startsWith(&quot;https://&quot;)) {</span>
+<span class="fc" id="L324">            url = &quot;https://&quot; + url;</span>
+        }
+
+<span class="fc" id="L327">        return URI.create(url);</span>
+    }
+
+    /**
+     * Information about a started CLI server process.
+     *
+     * @param process
+     *            the CLI process
+     * @param port
+     *            the detected TCP port (null for stdio mode)
+     */
+<span class="fc" id="L338">    record ProcessInfo(Process process, Integer port) {</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

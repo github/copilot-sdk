@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HookType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">HookType.java</span></div><h1>HookType.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import javax.annotation.processing.Generated;
+
+/**
+ * Hook event name dispatched through the SDK callback transport.
+ *
+ * @since 1.0.0
+ */
+<span class="fc" id="L17">@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)</span>
+public enum HookType {
+    /** The {@code preToolUse} variant. */
+<span class="fc" id="L20">    PRETOOLUSE(&quot;preToolUse&quot;),</span>
+    /** The {@code preMcpToolCall} variant. */
+<span class="fc" id="L22">    PREMCPTOOLCALL(&quot;preMcpToolCall&quot;),</span>
+    /** The {@code postToolUse} variant. */
+<span class="fc" id="L24">    POSTTOOLUSE(&quot;postToolUse&quot;),</span>
+    /** The {@code postToolUseFailure} variant. */
+<span class="fc" id="L26">    POSTTOOLUSEFAILURE(&quot;postToolUseFailure&quot;),</span>
+    /** The {@code userPromptSubmitted} variant. */
+<span class="fc" id="L28">    USERPROMPTSUBMITTED(&quot;userPromptSubmitted&quot;),</span>
+    /** The {@code userPromptTransformed} variant. */
+<span class="fc" id="L30">    USERPROMPTTRANSFORMED(&quot;userPromptTransformed&quot;),</span>
+    /** The {@code sessionStart} variant. */
+<span class="fc" id="L32">    SESSIONSTART(&quot;sessionStart&quot;),</span>
+    /** The {@code sessionEnd} variant. */
+<span class="fc" id="L34">    SESSIONEND(&quot;sessionEnd&quot;),</span>
+    /** The {@code postResult} variant. */
+<span class="fc" id="L36">    POSTRESULT(&quot;postResult&quot;),</span>
+    /** The {@code prePRDescription} variant. */
+<span class="fc" id="L38">    PREPRDESCRIPTION(&quot;prePRDescription&quot;),</span>
+    /** The {@code errorOccurred} variant. */
+<span class="fc" id="L40">    ERROROCCURRED(&quot;errorOccurred&quot;),</span>
+    /** The {@code agentStop} variant. */
+<span class="fc" id="L42">    AGENTSTOP(&quot;agentStop&quot;),</span>
+    /** The {@code subagentStart} variant. */
+<span class="fc" id="L44">    SUBAGENTSTART(&quot;subagentStart&quot;),</span>
+    /** The {@code subagentStop} variant. */
+<span class="fc" id="L46">    SUBAGENTSTOP(&quot;subagentStop&quot;),</span>
+    /** The {@code preCompact} variant. */
+<span class="fc" id="L48">    PRECOMPACT(&quot;preCompact&quot;),</span>
+    /** The {@code permissionRequest} variant. */
+<span class="fc" id="L50">    PERMISSIONREQUEST(&quot;permissionRequest&quot;),</span>
+    /** The {@code notification} variant. */
+<span class="fc" id="L52">    NOTIFICATION(&quot;notification&quot;);</span>
+
+    private final String value;
+<span class="fc" id="L55">    HookType(String value) { this.value = value; }</span>
+    @com.fasterxml.jackson.annotation.JsonValue
+<span class="fc" id="L57">    public String getValue() { return value; }</span>
+    @com.fasterxml.jackson.annotation.JsonCreator
+    public static HookType fromValue(String value) {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        for (HookType v : values()) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (v.value.equals(value)) return v;</span>
+        }
+<span class="nc" id="L63">        throw new IllegalArgumentException(&quot;Unknown HookType value: &quot; + value);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

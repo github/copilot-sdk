@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreMcpToolCallHookInput.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">PreMcpToolCallHookInput.java</span></div><h1>PreMcpToolCallHookInput.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+
+/**
+ * Input for a pre-MCP-tool-call hook.
+ * &lt;p&gt;
+ * This hook fires before an MCP tool call is dispatched to an MCP server,
+ * allowing you to inspect or modify the request metadata.
+ *
+ * @since 1.0.8
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L22">public class PreMcpToolCallHookInput {</span>
+
+    @JsonProperty(&quot;sessionId&quot;)
+    private String sessionId;
+
+    @JsonProperty(&quot;timestamp&quot;)
+    private long timestamp;
+
+    @JsonProperty(&quot;cwd&quot;)
+    private String cwd;
+
+    @JsonProperty(&quot;serverName&quot;)
+    private String serverName;
+
+    @JsonProperty(&quot;toolName&quot;)
+    private String toolName;
+
+    @JsonProperty(&quot;arguments&quot;)
+    private JsonNode arguments;
+
+    @JsonProperty(&quot;toolCallId&quot;)
+    private String toolCallId;
+
+    @JsonProperty(&quot;_meta&quot;)
+    private Map&lt;String, JsonNode&gt; meta;
+
+    /**
+     * Gets the runtime session ID of the session that triggered the hook.
+     *
+     * @return the session ID
+     */
+    public String getSessionId() {
+<span class="nc" id="L54">        return sessionId;</span>
+    }
+
+    /**
+     * Sets the runtime session ID of the session that triggered the hook.
+     *
+     * @param sessionId
+     *            the session ID
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setSessionId(String sessionId) {
+<span class="fc" id="L65">        this.sessionId = sessionId;</span>
+<span class="fc" id="L66">        return this;</span>
+    }
+
+    /**
+     * Gets the timestamp of the hook invocation.
+     *
+     * @return the timestamp in milliseconds
+     */
+    public long getTimestamp() {
+<span class="fc" id="L75">        return timestamp;</span>
+    }
+
+    /**
+     * Sets the timestamp of the hook invocation.
+     *
+     * @param timestamp
+     *            the timestamp in milliseconds
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setTimestamp(long timestamp) {
+<span class="fc" id="L86">        this.timestamp = timestamp;</span>
+<span class="fc" id="L87">        return this;</span>
+    }
+
+    /**
+     * Gets the current working directory.
+     *
+     * @return the working directory path
+     */
+    public String getCwd() {
+<span class="fc" id="L96">        return cwd;</span>
+    }
+
+    /**
+     * Sets the current working directory.
+     *
+     * @param cwd
+     *            the working directory path
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setCwd(String cwd) {
+<span class="fc" id="L107">        this.cwd = cwd;</span>
+<span class="fc" id="L108">        return this;</span>
+    }
+
+    /**
+     * Gets the name of the MCP server being called.
+     *
+     * @return the server name
+     */
+    public String getServerName() {
+<span class="fc" id="L117">        return serverName;</span>
+    }
+
+    /**
+     * Sets the name of the MCP server being called.
+     *
+     * @param serverName
+     *            the server name
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setServerName(String serverName) {
+<span class="fc" id="L128">        this.serverName = serverName;</span>
+<span class="fc" id="L129">        return this;</span>
+    }
+
+    /**
+     * Gets the name of the MCP tool being called.
+     *
+     * @return the tool name
+     */
+    public String getToolName() {
+<span class="fc" id="L138">        return toolName;</span>
+    }
+
+    /**
+     * Sets the name of the MCP tool being called.
+     *
+     * @param toolName
+     *            the tool name
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setToolName(String toolName) {
+<span class="fc" id="L149">        this.toolName = toolName;</span>
+<span class="fc" id="L150">        return this;</span>
+    }
+
+    /**
+     * Gets the arguments for the MCP tool call.
+     *
+     * @return the arguments as a JSON node, or {@code null}
+     */
+    public JsonNode getArguments() {
+<span class="nc" id="L159">        return arguments;</span>
+    }
+
+    /**
+     * Sets the arguments for the MCP tool call.
+     *
+     * @param arguments
+     *            the arguments as a JSON node
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setArguments(JsonNode arguments) {
+<span class="fc" id="L170">        this.arguments = arguments;</span>
+<span class="fc" id="L171">        return this;</span>
+    }
+
+    /**
+     * Gets the tool call ID, if available.
+     *
+     * @return the tool call ID, or {@code null}
+     */
+    public String getToolCallId() {
+<span class="nc" id="L180">        return toolCallId;</span>
+    }
+
+    /**
+     * Sets the tool call ID.
+     *
+     * @param toolCallId
+     *            the tool call ID
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setToolCallId(String toolCallId) {
+<span class="fc" id="L191">        this.toolCallId = toolCallId;</span>
+<span class="fc" id="L192">        return this;</span>
+    }
+
+    /**
+     * Gets the MCP request metadata, if present.
+     *
+     * @return the metadata map, or {@code null}
+     */
+    public Map&lt;String, JsonNode&gt; getMeta() {
+<span class="nc" id="L201">        return meta;</span>
+    }
+
+    /**
+     * Sets the MCP request metadata.
+     *
+     * @param meta
+     *            the metadata map
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setMeta(Map&lt;String, JsonNode&gt; meta) {
+<span class="nc" id="L212">        this.meta = meta;</span>
+<span class="nc" id="L213">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

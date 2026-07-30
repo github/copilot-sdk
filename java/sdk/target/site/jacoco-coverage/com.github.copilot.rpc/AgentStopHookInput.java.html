@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentStopHookInput.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">AgentStopHookInput.java</span></div><h1>AgentStopHookInput.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Input for an agent-stop hook.
+ *
+ * @since 1.0.9
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L16">public class AgentStopHookInput {</span>
+
+    @JsonProperty(&quot;sessionId&quot;)
+    private String sessionId;
+
+    @JsonProperty(&quot;timestamp&quot;)
+    private long timestamp;
+
+    @JsonProperty(&quot;cwd&quot;)
+    private String cwd;
+
+    @JsonProperty(&quot;stopReason&quot;)
+    private String stopReason;
+
+    @JsonProperty(&quot;transcriptPath&quot;)
+    private String transcriptPath;
+
+    @JsonProperty(&quot;stop_hook_active&quot;)
+    private Boolean stopHookActive;
+
+    /**
+     * Gets the runtime session ID of the session that triggered the hook.
+     *
+     * @return the session ID
+     */
+    public String getSessionId() {
+<span class="fc" id="L42">        return sessionId;</span>
+    }
+
+    /**
+     * Sets the runtime session ID of the session that triggered the hook.
+     *
+     * @param sessionId
+     *            the session ID
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setSessionId(String sessionId) {
+<span class="fc" id="L53">        this.sessionId = sessionId;</span>
+<span class="fc" id="L54">        return this;</span>
+    }
+
+    /**
+     * Gets the timestamp of the hook invocation.
+     *
+     * @return the timestamp in milliseconds
+     */
+    public long getTimestamp() {
+<span class="nc" id="L63">        return timestamp;</span>
+    }
+
+    /**
+     * Sets the timestamp of the hook invocation.
+     *
+     * @param timestamp
+     *            the timestamp in milliseconds
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setTimestamp(long timestamp) {
+<span class="fc" id="L74">        this.timestamp = timestamp;</span>
+<span class="fc" id="L75">        return this;</span>
+    }
+
+    /**
+     * Gets the current working directory.
+     *
+     * @return the working directory path
+     */
+    public String getCwd() {
+<span class="nc" id="L84">        return cwd;</span>
+    }
+
+    /**
+     * Sets the current working directory.
+     *
+     * @param cwd
+     *            the working directory path
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setCwd(String cwd) {
+<span class="fc" id="L95">        this.cwd = cwd;</span>
+<span class="fc" id="L96">        return this;</span>
+    }
+
+    /**
+     * Gets the reason the agent stopped.
+     *
+     * @return the stop reason
+     */
+    public String getStopReason() {
+<span class="fc" id="L105">        return stopReason;</span>
+    }
+
+    /**
+     * Sets the reason the agent stopped.
+     *
+     * @param stopReason
+     *            the stop reason
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setStopReason(String stopReason) {
+<span class="fc" id="L116">        this.stopReason = stopReason;</span>
+<span class="fc" id="L117">        return this;</span>
+    }
+
+    /**
+     * Gets the path to the on-disk session transcript.
+     *
+     * @return the transcript path
+     */
+    public String getTranscriptPath() {
+<span class="fc" id="L126">        return transcriptPath;</span>
+    }
+
+    /**
+     * Sets the path to the on-disk session transcript.
+     *
+     * @param transcriptPath
+     *            the transcript path
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setTranscriptPath(String transcriptPath) {
+<span class="fc" id="L137">        this.transcriptPath = transcriptPath;</span>
+<span class="fc" id="L138">        return this;</span>
+    }
+
+    /**
+     * Gets whether this stop follows a previous block decision.
+     *
+     * @return {@code true} when the stop hook is already active
+     */
+    public Boolean getStopHookActive() {
+<span class="fc" id="L147">        return stopHookActive;</span>
+    }
+
+    /**
+     * Sets whether this stop follows a previous block decision.
+     *
+     * @param stopHookActive
+     *            whether the stop hook is already active
+     * @return this instance for method chaining
+     */
+    public AgentStopHookInput setStopHookActive(Boolean stopHookActive) {
+<span class="fc" id="L158">        this.stopHookActive = stopHookActive;</span>
+<span class="fc" id="L159">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

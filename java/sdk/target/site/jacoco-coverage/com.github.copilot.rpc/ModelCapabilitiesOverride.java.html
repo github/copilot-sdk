@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelCapabilitiesOverride.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ModelCapabilitiesOverride.java</span></div><h1>ModelCapabilitiesOverride.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.Optional;
+import java.util.OptionalInt;
+
+/**
+ * Per-property overrides for model capabilities, deep-merged over runtime
+ * defaults.
+ * &lt;p&gt;
+ * Use this to override specific model capabilities when creating a session or
+ * switching models with {@link com.github.copilot.CopilotSession#setModel}.
+ * Only non-null fields are applied; unset fields retain their runtime defaults.
+ *
+ * &lt;h2&gt;Example: Disable vision for a session&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var config = new SessionConfig().setModel(&quot;claude-sonnet-4.5&quot;).setModelCapabilities(
+ * 		new ModelCapabilitiesOverride().setSupports(new ModelCapabilitiesOverride.Supports().setVision(false)));
+ * }&lt;/pre&gt;
+ *
+ * &lt;h2&gt;Example: Override capabilities when switching models&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * session.setModel(&quot;claude-sonnet-4.5&quot;, null,
+ * 		new ModelCapabilitiesOverride().setSupports(new ModelCapabilitiesOverride.Supports().setVision(true))).get();
+ * }&lt;/pre&gt;
+ *
+ * @see com.github.copilot.CopilotSession#setModel(String, String,
+ *      ModelCapabilitiesOverride)
+ * @see SessionConfig#setModelCapabilities(ModelCapabilitiesOverride)
+ * @since 1.3.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L43">public class ModelCapabilitiesOverride {</span>
+
+    @JsonProperty(&quot;supports&quot;)
+    private Supports supports;
+
+    @JsonProperty(&quot;limits&quot;)
+    private Limits limits;
+
+    /**
+     * Gets the feature flag overrides.
+     *
+     * @return the supports overrides, or {@code null} if not set
+     */
+    public Supports getSupports() {
+<span class="fc" id="L57">        return supports;</span>
+    }
+
+    /**
+     * Sets the feature flag overrides.
+     *
+     * @param supports
+     *            the supports overrides
+     * @return this instance for method chaining
+     */
+    public ModelCapabilitiesOverride setSupports(Supports supports) {
+<span class="fc" id="L68">        this.supports = supports;</span>
+<span class="fc" id="L69">        return this;</span>
+    }
+
+    /**
+     * Gets the token limit overrides.
+     *
+     * @return the limits overrides, or {@code null} if not set
+     */
+    public Limits getLimits() {
+<span class="fc" id="L78">        return limits;</span>
+    }
+
+    /**
+     * Sets the token limit overrides.
+     *
+     * @param limits
+     *            the limits overrides
+     * @return this instance for method chaining
+     */
+    public ModelCapabilitiesOverride setLimits(Limits limits) {
+<span class="fc" id="L89">        this.limits = limits;</span>
+<span class="fc" id="L90">        return this;</span>
+    }
+
+    /**
+     * Feature flag overrides for model capabilities.
+     * &lt;p&gt;
+     * Set a field to {@code true} or {@code false} to override that capability;
+     * leave it {@code null} to use the runtime default.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L101">    public static class Supports {</span>
+
+        @JsonProperty(&quot;vision&quot;)
+        private Boolean vision;
+
+        @JsonProperty(&quot;reasoningEffort&quot;)
+        private Boolean reasoningEffort;
+
+        /**
+         * Gets the vision override.
+         *
+         * @return an {@link java.util.Optional} containing {@code true} to enable
+         *         vision or {@code false} to disable, or
+         *         {@link java.util.Optional#empty()} to use the runtime default
+         */
+        @JsonIgnore
+        public Optional&lt;Boolean&gt; getVision() {
+<span class="fc" id="L118">            return Optional.ofNullable(vision);</span>
+        }
+
+        /**
+         * Sets whether vision (image input) is enabled. Use {@link #clearVision()} to
+         * revert to the runtime default.
+         *
+         * @param vision
+         *            {@code true} to enable, {@code false} to disable
+         * @return this instance for method chaining
+         */
+        public Supports setVision(boolean vision) {
+<span class="fc" id="L130">            this.vision = vision;</span>
+<span class="fc" id="L131">            return this;</span>
+        }
+
+        /**
+         * Clears the vision setting, reverting to the default behavior.
+         *
+         * @return this instance for method chaining
+         */
+        public Supports clearVision() {
+<span class="fc" id="L140">            this.vision = null;</span>
+<span class="fc" id="L141">            return this;</span>
+        }
+
+        /**
+         * Gets the reasoning effort override.
+         *
+         * @return an {@link java.util.Optional} containing {@code true} to enable
+         *         reasoning effort or {@code false} to disable, or
+         *         {@link java.util.Optional#empty()} to use the runtime default
+         */
+        @JsonIgnore
+        public Optional&lt;Boolean&gt; getReasoningEffort() {
+<span class="fc" id="L153">            return Optional.ofNullable(reasoningEffort);</span>
+        }
+
+        /**
+         * Sets whether reasoning effort configuration is enabled. Use
+         * {@link #clearReasoningEffort()} to revert to the runtime default.
+         *
+         * @param reasoningEffort
+         *            {@code true} to enable, {@code false} to disable
+         * @return this instance for method chaining
+         */
+        public Supports setReasoningEffort(boolean reasoningEffort) {
+<span class="fc" id="L165">            this.reasoningEffort = reasoningEffort;</span>
+<span class="fc" id="L166">            return this;</span>
+        }
+
+        /**
+         * Clears the reasoningEffort setting, reverting to the default behavior.
+         *
+         * @return this instance for method chaining
+         */
+        public Supports clearReasoningEffort() {
+<span class="fc" id="L175">            this.reasoningEffort = null;</span>
+<span class="fc" id="L176">            return this;</span>
+        }
+
+    }
+
+    /**
+     * Token limit overrides for model capabilities.
+     * &lt;p&gt;
+     * Set a field to override that limit; leave it {@code null} to use the runtime
+     * default.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L189">    public static class Limits {</span>
+
+        @JsonProperty(&quot;max_prompt_tokens&quot;)
+        private Integer maxPromptTokens;
+
+        @JsonProperty(&quot;max_output_tokens&quot;)
+        private Integer maxOutputTokens;
+
+        @JsonProperty(&quot;max_context_window_tokens&quot;)
+        private Integer maxContextWindowTokens;
+
+        /**
+         * Gets the maximum prompt tokens override.
+         *
+         * @return the override value, or {@code null} to use the runtime default
+         */
+        @JsonIgnore
+        public OptionalInt getMaxPromptTokens() {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">            return maxPromptTokens == null ? OptionalInt.empty() : OptionalInt.of(maxPromptTokens);</span>
+        }
+
+        /**
+         * Sets the maximum number of tokens in a prompt.
+         *
+         * @param maxPromptTokens
+         *            the override value, or {@code null} to use the runtime default
+         * @return this instance for method chaining
+         */
+        public Limits setMaxPromptTokens(int maxPromptTokens) {
+<span class="fc" id="L218">            this.maxPromptTokens = maxPromptTokens;</span>
+<span class="fc" id="L219">            return this;</span>
+        }
+
+        /**
+         * Clears the maxPromptTokens setting, reverting to the default behavior.
+         *
+         * @return this instance for method chaining
+         */
+        public Limits clearMaxPromptTokens() {
+<span class="fc" id="L228">            this.maxPromptTokens = null;</span>
+<span class="fc" id="L229">            return this;</span>
+        }
+
+        /**
+         * Gets the maximum output tokens override.
+         *
+         * @return the override value, or {@code null} to use the runtime default
+         */
+        @JsonIgnore
+        public OptionalInt getMaxOutputTokens() {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">            return maxOutputTokens == null ? OptionalInt.empty() : OptionalInt.of(maxOutputTokens);</span>
+        }
+
+        /**
+         * Sets the maximum number of output tokens.
+         *
+         * @param maxOutputTokens
+         *            the override value, or {@code null} to use the runtime default
+         * @return this instance for method chaining
+         */
+        public Limits setMaxOutputTokens(int maxOutputTokens) {
+<span class="fc" id="L250">            this.maxOutputTokens = maxOutputTokens;</span>
+<span class="fc" id="L251">            return this;</span>
+        }
+
+        /**
+         * Clears the maxOutputTokens setting, reverting to the default behavior.
+         *
+         * @return this instance for method chaining
+         */
+        public Limits clearMaxOutputTokens() {
+<span class="fc" id="L260">            this.maxOutputTokens = null;</span>
+<span class="fc" id="L261">            return this;</span>
+        }
+
+        /**
+         * Gets the maximum context window tokens override.
+         *
+         * @return the override value, or {@code null} to use the runtime default
+         */
+        @JsonIgnore
+        public OptionalInt getMaxContextWindowTokens() {
+<span class="fc bfc" id="L271" title="All 2 branches covered.">            return maxContextWindowTokens == null ? OptionalInt.empty() : OptionalInt.of(maxContextWindowTokens);</span>
+        }
+
+        /**
+         * Sets the maximum total context window size in tokens.
+         *
+         * @param maxContextWindowTokens
+         *            the override value, or {@code null} to use the runtime default
+         * @return this instance for method chaining
+         */
+        public Limits setMaxContextWindowTokens(int maxContextWindowTokens) {
+<span class="fc" id="L282">            this.maxContextWindowTokens = maxContextWindowTokens;</span>
+<span class="fc" id="L283">            return this;</span>
+        }
+
+        /**
+         * Clears the maxContextWindowTokens setting, reverting to the default behavior.
+         *
+         * @return this instance for method chaining
+         */
+        public Limits clearMaxContextWindowTokens() {
+<span class="fc" id="L292">            this.maxContextWindowTokens = null;</span>
+<span class="fc" id="L293">            return this;</span>
+        }
+
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

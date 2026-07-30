@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscoveredMcpServer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">DiscoveredMcpServer.java</span></div><h1>DiscoveredMcpServer.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L23">public record DiscoveredMcpServer(</span>
+    /** Server name (config key) */
+    @JsonProperty(&quot;name&quot;) String name,
+    /** Server transport type: stdio, http, sse (deprecated), or memory */
+    @JsonProperty(&quot;type&quot;) DiscoveredMcpServerType type,
+    /** Configuration source: user, workspace, plugin, or builtin */
+    @JsonProperty(&quot;source&quot;) McpServerSource source,
+    /** Plugin name that provided this server, when source is plugin. */
+    @JsonProperty(&quot;sourcePlugin&quot;) String sourcePlugin,
+    /** Plugin version that provided this server, when source is plugin. */
+    @JsonProperty(&quot;sourcePluginVersion&quot;) String sourcePluginVersion,
+    /** Whether the server is enabled (not in the disabled list) */
+    @JsonProperty(&quot;enabled&quot;) Boolean enabled
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonRpcError.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">JsonRpcError.java</span></div><h1>JsonRpcError.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * JSON-RPC 2.0 error structure.
+ * &lt;p&gt;
+ * This is an internal class representing an error in a JSON-RPC response. It
+ * contains an error code, message, and optional additional data.
+ *
+ * &lt;h2&gt;Standard Error Codes&lt;/h2&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;-32700: Parse error&lt;/li&gt;
+ * &lt;li&gt;-32600: Invalid Request&lt;/li&gt;
+ * &lt;li&gt;-32601: Method not found&lt;/li&gt;
+ * &lt;li&gt;-32602: Invalid params&lt;/li&gt;
+ * &lt;li&gt;-32603: Internal error&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * @see JsonRpcResponse
+ * @see &lt;a href=&quot;https://www.jsonrpc.org/specification#error_object&quot;&gt;JSON-RPC
+ *      Error Object&lt;/a&gt;
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L31">public final class JsonRpcError {</span>
+
+    @JsonProperty(&quot;code&quot;)
+    private int code;
+
+    @JsonProperty(&quot;message&quot;)
+    private String message;
+
+    @JsonProperty(&quot;data&quot;)
+    private Object data;
+
+    /**
+     * Gets the error code.
+     *
+     * @return the integer error code
+     */
+    public int getCode() {
+<span class="fc" id="L48">        return code;</span>
+    }
+
+    /**
+     * Sets the error code.
+     *
+     * @param code
+     *            the integer error code
+     */
+    public void setCode(int code) {
+<span class="fc" id="L58">        this.code = code;</span>
+<span class="fc" id="L59">    }</span>
+
+    /**
+     * Gets the error message.
+     *
+     * @return the human-readable error message
+     */
+    public String getMessage() {
+<span class="fc" id="L67">        return message;</span>
+    }
+
+    /**
+     * Sets the error message.
+     *
+     * @param message
+     *            the error message
+     */
+    public void setMessage(String message) {
+<span class="fc" id="L77">        this.message = message;</span>
+<span class="fc" id="L78">    }</span>
+
+    /**
+     * Gets the additional error data.
+     *
+     * @return the additional data, or {@code null} if none
+     */
+    public Object getData() {
+<span class="fc" id="L86">        return data;</span>
+    }
+
+    /**
+     * Sets the additional error data.
+     *
+     * @param data
+     *            the additional data
+     */
+    public void setData(Object data) {
+<span class="nc" id="L96">        this.data = data;</span>
+<span class="nc" id="L97">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AzureOptions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">AzureOptions.java</span></div><h1>AzureOptions.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Azure OpenAI-specific configuration options.
+ * &lt;p&gt;
+ * When using a BYOK (Bring Your Own Key) setup with Azure OpenAI, this class
+ * allows you to specify Azure-specific settings such as the API version to use.
+ * When no API version is set, the runtime uses the GA versionless v1 route.
+ *
+ * &lt;h2&gt;Example Usage&lt;/h2&gt;
+ *
+ * &lt;pre&gt;{@code
+ * var provider = new ProviderConfig().setType(&quot;azure-openai&quot;).setHost(&quot;your-resource.openai.azure.com&quot;)
+ * 		.setApiKey(&quot;your-api-key&quot;).setAzure(new AzureOptions().setApiVersion(&quot;2024-02-01&quot;));
+ * }&lt;/pre&gt;
+ *
+ * @see ProviderConfig#setAzure(AzureOptions)
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L28">public class AzureOptions {</span>
+
+    @JsonProperty(&quot;apiVersion&quot;)
+    private String apiVersion;
+
+    /**
+     * Gets the Azure OpenAI API version.
+     *
+     * @return the API version string, or {@code null} to use the GA versionless v1
+     *         route
+     */
+    public String getApiVersion() {
+<span class="fc" id="L40">        return apiVersion;</span>
+    }
+
+    /**
+     * Sets the Azure OpenAI API version to use.
+     * &lt;p&gt;
+     * Examples: {@code &quot;2024-02-01&quot;}, {@code &quot;2023-12-01-preview&quot;} When this option
+     * is not set, the runtime uses the GA versionless v1 route.
+     *
+     * @param apiVersion
+     *            the API version string
+     * @return this options object for method chaining
+     */
+    public AzureOptions setApiVersion(String apiVersion) {
+<span class="fc" id="L54">        this.apiVersion = apiVersion;</span>
+<span class="fc" id="L55">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

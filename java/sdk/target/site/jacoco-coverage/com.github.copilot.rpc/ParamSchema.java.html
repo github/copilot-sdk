@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParamSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">ParamSchema.java</span></div><h1>ParamSchema.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.tool.Param;
+
+/**
+ * Internal runtime helper: maps {@link Param} metadata to JSON Schema
+ * {@code Map} objects.
+ *
+ * &lt;p&gt;
+ * This class is a simplified runtime counterpart to the compile-time
+ * {@code SchemaGenerator}. It operates on {@code java.lang.reflect.Class}
+ * values instead of {@code javax.lang.model} mirrors, and produces {@link Map}
+ * instances rather than Java source-code literals. Unlike
+ * {@code SchemaGenerator}, it does not inspect generics or object members
+ * (records/POJOs) and therefore produces flat type mappings only (no
+ * {@code additionalProperties} or nested object {@code properties}). It does
+ * produce {@code items} for plain Java arrays via component-type recursion.
+ *
+ * &lt;p&gt;
+ * Package-private: not part of the public API.
+ */
+class ParamSchema {
+
+    /** Utility class; do not instantiate. */
+    private ParamSchema() {
+    }
+
+    /**
+     * Builds a JSON Schema {@code Map} from zero or more {@link Param} descriptors.
+     *
+     * &lt;p&gt;
+     * Validation applied:
+     * &lt;ul&gt;
+     * &lt;li&gt;Each {@link Param} must be non-null.&lt;/li&gt;
+     * &lt;li&gt;Parameter names must be unique; duplicates throw
+     * {@link IllegalArgumentException} with the tool name and duplicate name.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param toolName
+     *            the tool name, included in exception messages for clarity
+     * @param mapper
+     *            the configured {@link ObjectMapper} used to coerce default values
+     *            into their typed form for the schema
+     * @param params
+     *            zero or more parameter descriptors
+     * @return a JSON Schema object map with {@code type=object},
+     *         {@code properties}, and {@code required} keys
+     * @throws IllegalArgumentException
+     *             if a null param or duplicate parameter names are found
+     */
+    static Map&lt;String, Object&gt; buildSchema(String toolName, ObjectMapper mapper, Param&lt;?&gt;... params) {
+<span class="fc bfc" id="L68" title="All 4 branches covered.">        if (params == null || params.length == 0) {</span>
+<span class="fc" id="L69">            return Map.of(&quot;type&quot;, &quot;object&quot;, &quot;properties&quot;, Map.of(), &quot;required&quot;, List.of());</span>
+        }
+
+        // Validate: no null params, no duplicate names
+<span class="fc" id="L73">        Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        for (Param&lt;?&gt; param : params) {</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            if (param == null) {</span>
+<span class="fc" id="L76">                throw new IllegalArgumentException(&quot;A Param descriptor is null for tool '&quot; + toolName + &quot;'&quot;);</span>
+            }
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (!seen.add(param.name())) {</span>
+<span class="fc" id="L79">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L80">                        &quot;Duplicate parameter name '&quot; + param.name() + &quot;' in tool '&quot; + toolName + &quot;'&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L84">        List&lt;String&gt; requiredNames = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L85">        Map&lt;String, Object&gt; properties = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        for (Param&lt;?&gt; param : params) {</span>
+            Map&lt;String, Object&gt; typeSchema;
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            if (!param.schema().isEmpty()) {</span>
+                try {
+                    @SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L92">                    Map&lt;String, Object&gt; parsed = mapper.readerFor(Map.class)</span>
+<span class="fc" id="L93">                            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)</span>
+<span class="fc" id="L94">                            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(param.schema());</span>
+<span class="fc" id="L95">                    typeSchema = parsed;</span>
+<span class="fc" id="L96">                } catch (Exception e) {</span>
+<span class="fc" id="L97">                    throw new IllegalArgumentException(&quot;Invalid schema JSON for parameter '&quot; + param.name()</span>
+<span class="fc" id="L98">                            + &quot;' in tool '&quot; + toolName + &quot;': &quot; + e.getMessage(), e);</span>
+<span class="fc" id="L99">                }</span>
+            } else {
+<span class="fc" id="L101">                typeSchema = forType(param.type());</span>
+            }
+<span class="fc" id="L103">            Map&lt;String, Object&gt; enriched = new LinkedHashMap&lt;&gt;(typeSchema);</span>
+<span class="fc" id="L104">            enriched.put(&quot;description&quot;, param.description());</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (param.hasDefaultValue()) {</span>
+<span class="fc" id="L106">                enriched.put(&quot;default&quot;, ParamCoercion.coerceDefault(param, mapper));</span>
+            }
+<span class="fc" id="L108">            properties.put(param.name(), Collections.unmodifiableMap(enriched));</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            if (param.required()) {</span>
+<span class="fc" id="L110">                requiredNames.add(param.name());</span>
+            }
+        }
+
+<span class="fc" id="L114">        return Map.of(&quot;type&quot;, &quot;object&quot;, &quot;properties&quot;, Collections.unmodifiableMap(properties), &quot;required&quot;,</span>
+<span class="fc" id="L115">                Collections.unmodifiableList(requiredNames));</span>
+    }
+
+    /**
+     * Maps a Java {@link Class} to a flat JSON Schema type descriptor.
+     *
+     * &lt;p&gt;
+     * Covers primitives, boxed types, strings, UUIDs, date-time types, enums,
+     * collections, arrays, and maps. Does not resolve generic type parameters (e.g.
+     * {@code List&lt;T&gt;} item schemas or {@code Map&lt;K,V&gt;} additionalProperties) —
+     * those require the compile-time {@code SchemaGenerator} which operates on
+     * {@code TypeMirror}.
+     *
+     * @param type
+     *            the Java type to map
+     * @return a JSON Schema type map (e.g. {@code Map.of(&quot;type&quot;, &quot;string&quot;)})
+     */
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    static Map&lt;String, Object&gt; forType(Class&lt;?&gt; type) {
+        // Integer types
+<span class="fc bfc" id="L135" title="All 16 branches covered.">        if (type == int.class || type == Integer.class || type == long.class || type == Long.class || type == byte.class</span>
+                || type == Byte.class || type == short.class || type == Short.class) {
+<span class="fc" id="L137">            return Map.of(&quot;type&quot;, &quot;integer&quot;);</span>
+        }
+        // Floating-point types
+<span class="fc bfc" id="L140" title="All 8 branches covered.">        if (type == double.class || type == Double.class || type == float.class || type == Float.class) {</span>
+<span class="fc" id="L141">            return Map.of(&quot;type&quot;, &quot;number&quot;);</span>
+        }
+        // Boolean
+<span class="fc bfc" id="L144" title="All 4 branches covered.">        if (type == boolean.class || type == Boolean.class) {</span>
+<span class="fc" id="L145">            return Map.of(&quot;type&quot;, &quot;boolean&quot;);</span>
+        }
+        // Char → string
+<span class="fc bfc" id="L148" title="All 4 branches covered.">        if (type == char.class || type == Character.class) {</span>
+<span class="fc" id="L149">            return Map.of(&quot;type&quot;, &quot;string&quot;);</span>
+        }
+        // String
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if (type == String.class) {</span>
+<span class="fc" id="L153">            return Map.of(&quot;type&quot;, &quot;string&quot;);</span>
+        }
+        // UUID
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (type == java.util.UUID.class) {</span>
+<span class="fc" id="L157">            return Map.of(&quot;type&quot;, &quot;string&quot;, &quot;format&quot;, &quot;uuid&quot;);</span>
+        }
+        // Optional primitive types
+<span class="fc bfc" id="L160" title="All 4 branches covered.">        if (type == java.util.OptionalInt.class || type == java.util.OptionalLong.class) {</span>
+<span class="fc" id="L161">            return Map.of(&quot;type&quot;, &quot;integer&quot;);</span>
+        }
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (type == java.util.OptionalDouble.class) {</span>
+<span class="fc" id="L164">            return Map.of(&quot;type&quot;, &quot;number&quot;);</span>
+        }
+        // Date-time types
+<span class="fc bfc" id="L167" title="All 8 branches covered.">        if (type == java.time.OffsetDateTime.class || type == java.time.LocalDateTime.class</span>
+                || type == java.time.Instant.class || type == java.time.ZonedDateTime.class) {
+<span class="fc" id="L169">            return Map.of(&quot;type&quot;, &quot;string&quot;, &quot;format&quot;, &quot;date-time&quot;);</span>
+        }
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        if (type == java.time.LocalDate.class) {</span>
+<span class="fc" id="L172">            return Map.of(&quot;type&quot;, &quot;string&quot;, &quot;format&quot;, &quot;date&quot;);</span>
+        }
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        if (type == java.time.LocalTime.class) {</span>
+<span class="fc" id="L175">            return Map.of(&quot;type&quot;, &quot;string&quot;, &quot;format&quot;, &quot;time&quot;);</span>
+        }
+        // JsonNode / Object → any (no type constraint)
+<span class="fc bfc" id="L178" title="All 4 branches covered.">        if (type == com.fasterxml.jackson.databind.JsonNode.class || type == Object.class) {</span>
+<span class="fc" id="L179">            return Map.of();</span>
+        }
+        // Enum types
+<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (type.isEnum()) {</span>
+<span class="fc" id="L183">            Class&lt;? extends Enum&gt; enumType = (Class&lt;? extends Enum&gt;) type;</span>
+<span class="fc" id="L184">            List&lt;String&gt; constants = Arrays.stream(enumType.getEnumConstants()).map(Enum::name)</span>
+<span class="fc" id="L185">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L186">            return Map.of(&quot;type&quot;, &quot;string&quot;, &quot;enum&quot;, Collections.unmodifiableList(constants));</span>
+        }
+        // List / Collection / Set → array (raw element type)
+<span class="fc bfc" id="L189" title="All 4 branches covered.">        if (java.util.List.class.isAssignableFrom(type) || java.util.Collection.class.isAssignableFrom(type)</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                || java.util.Set.class.isAssignableFrom(type)) {</span>
+<span class="fc" id="L191">            return Map.of(&quot;type&quot;, &quot;array&quot;);</span>
+        }
+        // Plain array → array with items schema derived from component type
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        if (type.isArray()) {</span>
+<span class="fc" id="L195">            Map&lt;String, Object&gt; itemsSchema = forType(type.getComponentType());</span>
+<span class="fc" id="L196">            return Map.of(&quot;type&quot;, &quot;array&quot;, &quot;items&quot;, itemsSchema);</span>
+        }
+        // Map → object
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (java.util.Map.class.isAssignableFrom(type)) {</span>
+<span class="fc" id="L200">            return Map.of(&quot;type&quot;, &quot;object&quot;);</span>
+        }
+        // POJO / record → object
+<span class="fc" id="L203">        return Map.of(&quot;type&quot;, &quot;object&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

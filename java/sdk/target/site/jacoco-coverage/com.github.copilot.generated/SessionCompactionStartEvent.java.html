@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionCompactionStartEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated</a> &gt; <span class="el_source">SessionCompactionStartEvent.java</span></div><h1>SessionCompactionStartEvent.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event &quot;session.compaction_start&quot;. Context window breakdown at the start of LLM-powered conversation compaction
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+<span class="fc" id="L22">public final class SessionCompactionStartEvent extends SessionEvent {</span>
+
+    @Override
+<span class="fc" id="L25">    public String getType() { return &quot;session.compaction_start&quot;; }</span>
+
+    @JsonProperty(&quot;data&quot;)
+    private SessionCompactionStartEventData data;
+
+<span class="nc" id="L30">    public SessionCompactionStartEventData getData() { return data; }</span>
+<span class="fc" id="L31">    public void setData(SessionCompactionStartEventData data) { this.data = data; }</span>
+
+    /** Data payload for {@link SessionCompactionStartEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L36">    public record SessionCompactionStartEventData(</span>
+        /** Model identifier used for compaction, when known */
+        @JsonProperty(&quot;model&quot;) String model,
+        /** Token count from system message(s) at compaction start */
+        @JsonProperty(&quot;systemTokens&quot;) Long systemTokens,
+        /** Token count from non-system messages (user, assistant, tool) at compaction start */
+        @JsonProperty(&quot;conversationTokens&quot;) Long conversationTokens,
+        /** Token count from tool definitions at compaction start */
+        @JsonProperty(&quot;toolDefinitionsTokens&quot;) Long toolDefinitionsTokens,
+        /** Total context tokens (system + conversation + tool definitions) at compaction start, when known */
+        @JsonProperty(&quot;currentTokens&quot;) Long currentTokens,
+        /** Model context window token limit the compaction is targeting, when known */
+        @JsonProperty(&quot;tokenLimit&quot;) Long tokenLimit,
+        /** What initiated this compaction, when known */
+        @JsonProperty(&quot;trigger&quot;) CompactionTrigger trigger
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CopilotRequestHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">CopilotRequestHandler.java</span></div><h1>CopilotRequestHandler.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * The base class for SDK consumers who want to observe or replace the LLM
+ * inference requests the runtime issues (for both CAPI and BYOK providers).
+ * &lt;p&gt;
+ * When set as the {@code requestHandler} on
+ * {@link com.github.copilot.rpc.CopilotClientOptions}, the runtime routes its
+ * model-layer HTTP and WebSocket traffic through this handler instead of
+ * issuing the calls itself. Subclass and override {@link #sendRequest} to
+ * mutate or replace HTTP calls, or {@link #openWebSocket} to mutate the
+ * handshake or return a fully custom {@link CopilotWebSocketHandler}.
+ *
+ * @since 1.0.0
+ */
+<span class="fc" id="L33">public class CopilotRequestHandler {</span>
+
+<span class="fc" id="L35">    private static final Set&lt;String&gt; FORBIDDEN_REQUEST_HEADERS = Set.of(&quot;host&quot;, &quot;connection&quot;, &quot;content-length&quot;,</span>
+            &quot;transfer-encoding&quot;, &quot;keep-alive&quot;, &quot;upgrade&quot;, &quot;proxy-connection&quot;, &quot;te&quot;, &quot;trailer&quot;);
+
+<span class="fc" id="L38">    private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()</span>
+<span class="fc" id="L39">            .followRedirects(HttpClient.Redirect.NEVER).build();</span>
+
+    private static final int RESPONSE_CHUNK_SIZE = 32 * 1024;
+
+    static boolean isForbiddenRequestHeader(String name) {
+<span class="fc" id="L44">        String lower = name.toLowerCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">        return FORBIDDEN_REQUEST_HEADERS.contains(lower) || lower.startsWith(&quot;sec-websocket-&quot;);</span>
+    }
+
+    /**
+     * The {@link HttpClient} used to forward HTTP requests. Override to supply a
+     * custom client (proxy, TLS, timeouts). The default never follows redirects, so
+     * 3xx responses are forwarded verbatim.
+     *
+     * @return the HTTP client
+     */
+    protected HttpClient httpClient() {
+<span class="fc" id="L56">        return SHARED_HTTP_CLIENT;</span>
+    }
+
+    /**
+     * Forwards an HTTP request and returns the upstream response. The default sends
+     * {@code request} through {@link #httpClient()} and cancels the in-flight call
+     * when the runtime cancels the request. Override to mutate the request before
+     * sending, post-process the response, or replace the call entirely.
+     *
+     * @param request
+     *            the request built from the runtime's inference request
+     * @param ctx
+     *            the per-request context
+     * @return the upstream response, with the body as an {@link InputStream}
+     * @throws Exception
+     *             if the request could not be completed
+     */
+    protected HttpResponse&lt;InputStream&gt; sendRequest(HttpRequest request, CopilotRequestContext ctx) throws Exception {
+<span class="fc" id="L74">        CompletableFuture&lt;HttpResponse&lt;InputStream&gt;&gt; future = httpClient().sendAsync(request,</span>
+<span class="fc" id="L75">                HttpResponse.BodyHandlers.ofInputStream());</span>
+<span class="pc" id="L76">        ctx.cancellation().whenComplete((v, t) -&gt; future.cancel(true));</span>
+<span class="fc" id="L77">        return future.get();</span>
+    }
+
+    /**
+     * Returns a per-connection WebSocket handler for a WebSocket request. The
+     * default opens a transparent forwarding connection to the request URL.
+     * Override to mutate the handshake (via {@code ctx}) or return a fully custom
+     * handler.
+     *
+     * @param ctx
+     *            the per-request context
+     * @return the WebSocket handler
+     * @throws Exception
+     *             if the handler could not be created
+     */
+    protected CopilotWebSocketHandler openWebSocket(CopilotRequestContext ctx) throws Exception {
+<span class="nc" id="L93">        return new CopilotWebSocketForwarder(ctx);</span>
+    }
+
+    /**
+     * Entry point invoked by the adapter once per intercepted request. Routes to
+     * the HTTP or WebSocket flow and drives the consumer's overridable hooks.
+     */
+    void handle(LlmInferenceExchange exchange) throws Exception {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (exchange.context().transport() == CopilotRequestTransport.WEBSOCKET) {</span>
+<span class="nc" id="L102">            handleWebSocket(exchange);</span>
+        } else {
+<span class="fc" id="L104">            handleHttp(exchange);</span>
+        }
+<span class="fc" id="L106">    }</span>
+
+    private void handleHttp(LlmInferenceExchange exchange) throws Exception {
+<span class="fc" id="L109">        HttpRequest httpRequest = buildHttpRequest(exchange);</span>
+<span class="fc" id="L110">        HttpResponse&lt;InputStream&gt; response = sendRequest(httpRequest, exchange.context());</span>
+<span class="fc" id="L111">        streamResponse(response, exchange);</span>
+<span class="fc" id="L112">    }</span>
+
+    private static HttpRequest buildHttpRequest(LlmInferenceExchange exchange) throws InterruptedException {
+<span class="fc" id="L115">        CopilotRequestContext ctx = exchange.context();</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        String method = exchange.method() == null ? &quot;GET&quot; : exchange.method().toUpperCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">        boolean bodyless = method.equals(&quot;GET&quot;) || method.equals(&quot;HEAD&quot;);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        byte[] body = bodyless ? new byte[0] : exchange.drainBody();</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        HttpRequest.BodyPublisher publisher = body.length &gt; 0</span>
+<span class="fc" id="L120">                ? HttpRequest.BodyPublishers.ofByteArray(body)</span>
+<span class="fc" id="L121">                : HttpRequest.BodyPublishers.noBody();</span>
+
+<span class="fc" id="L123">        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(ctx.url())).method(method, publisher);</span>
+<span class="fc" id="L124">        Map&lt;String, List&lt;String&gt;&gt; headers = ctx.headers();</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (headers != null) {</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">            for (Map.Entry&lt;String, List&lt;String&gt;&gt; entry : headers.entrySet()) {</span>
+<span class="pc bpc" id="L127" title="2 of 4 branches missed.">                if (isForbiddenRequestHeader(entry.getKey()) || entry.getValue() == null) {</span>
+<span class="nc" id="L128">                    continue;</span>
+                }
+<span class="fc bfc" id="L130" title="All 2 branches covered.">                for (String value : entry.getValue()) {</span>
+<span class="fc" id="L131">                    builder.header(entry.getKey(), value);</span>
+<span class="fc" id="L132">                }</span>
+<span class="fc" id="L133">            }</span>
+        }
+<span class="fc" id="L135">        return builder.build();</span>
+    }
+
+    private static void streamResponse(HttpResponse&lt;InputStream&gt; response, LlmInferenceExchange exchange)
+            throws IOException {
+<span class="fc" id="L140">        exchange.startResponse(response.statusCode(), null, response.headers().map());</span>
+<span class="fc" id="L141">        try (InputStream body = response.body()) {</span>
+<span class="fc" id="L142">            byte[] buffer = new byte[RESPONSE_CHUNK_SIZE];</span>
+            int n;
+<span class="fc bfc" id="L144" title="All 2 branches covered.">            while ((n = body.read(buffer)) != -1) {</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">                if (n &gt; 0) {</span>
+<span class="fc" id="L146">                    exchange.writeResponseBinary(buffer, 0, n);</span>
+                }
+            }
+<span class="nc" id="L149">        } catch (IOException e) {</span>
+<span class="nc" id="L150">            exchange.errorResponse(e.getMessage(), null);</span>
+<span class="nc" id="L151">            return;</span>
+<span class="fc" id="L152">        }</span>
+<span class="fc" id="L153">        exchange.endResponse();</span>
+<span class="fc" id="L154">    }</span>
+
+    private void handleWebSocket(LlmInferenceExchange exchange) throws Exception {
+<span class="fc" id="L157">        CopilotRequestContext ctx = exchange.context();</span>
+<span class="fc" id="L158">        LlmWebSocketResponseBridge bridge = new LlmWebSocketResponseBridge(exchange);</span>
+<span class="fc" id="L159">        ctx.setWebSocketResponse(bridge);</span>
+
+<span class="fc" id="L161">        CopilotWebSocketHandler handler = openWebSocket(ctx);</span>
+        try {
+<span class="fc" id="L163">            handler.open();</span>
+
+            // The runtime blocks the WebSocket connect until it receives the 101
+            // response head (the upgrade acknowledgement) and only then begins
+            // forwarding inbound messages as request-body chunks. Emit it eagerly
+            // here — waiting for the first upstream message would deadlock, since the
+            // upstream stays silent until it receives a request message the runtime
+            // won't send before the upgrade completes.
+<span class="fc" id="L171">            bridge.start();</span>
+
+<span class="fc" id="L173">            CompletableFuture&lt;Void&gt; pumpDone = new CompletableFuture&lt;&gt;();</span>
+<span class="fc" id="L174">            Thread pump = new Thread(() -&gt; {</span>
+                try {
+                    LlmInferenceExchange.BodyFrame frame;
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">                    while ((frame = exchange.readFrame()) != null) {</span>
+<span class="fc" id="L178">                        handler.sendRequestMessage(new CopilotWebSocketMessage(frame.data(), frame.binary()));</span>
+                    }
+<span class="nc" id="L180">                    pumpDone.complete(null);</span>
+<span class="fc" id="L181">                } catch (Exception e) {</span>
+<span class="fc" id="L182">                    pumpDone.completeExceptionally(e);</span>
+<span class="nc" id="L183">                }</span>
+<span class="fc" id="L184">            }, &quot;llm-ws-request-pump&quot;);</span>
+<span class="fc" id="L185">            pump.setDaemon(true);</span>
+<span class="fc" id="L186">            pump.start();</span>
+
+<span class="fc" id="L188">            CompletableFuture.anyOf(pumpDone, handler.completion()).handle((v, t) -&gt; null).join();</span>
+
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">            if (pumpDone.isDone() &amp;&amp; !handler.completion().isDone()) {</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">                if (isPumpFault(pumpDone)) {</span>
+<span class="fc" id="L192">                    handler.suppressCloseOnDispose();</span>
+<span class="nc" id="L193">                    awaitPump(pumpDone);</span>
+<span class="nc" id="L194">                    return;</span>
+                }
+<span class="nc" id="L196">                handler.close(CopilotWebSocketCloseStatus.NORMAL_CLOSURE);</span>
+<span class="nc" id="L197">                handler.completion().join();</span>
+<span class="nc" id="L198">                return;</span>
+            }
+
+<span class="nc" id="L201">            CopilotWebSocketCloseStatus status = handler.completion().join();</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">            if (status.error() != null) {</span>
+<span class="nc" id="L203">                throw asException(status.error());</span>
+            }
+        } finally {
+<span class="fc" id="L206">            handler.close();</span>
+        }
+<span class="nc" id="L208">    }</span>
+
+    private static boolean isPumpFault(CompletableFuture&lt;Void&gt; pumpDone) {
+<span class="fc" id="L211">        return pumpDone.isCompletedExceptionally();</span>
+    }
+
+    private static void awaitPump(CompletableFuture&lt;Void&gt; pumpDone) throws Exception {
+        try {
+<span class="nc" id="L216">            pumpDone.join();</span>
+<span class="fc" id="L217">        } catch (CancellationException e) {</span>
+<span class="fc" id="L218">            throw e;</span>
+<span class="nc" id="L219">        } catch (Exception e) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            throw asException(e.getCause() != null ? e.getCause() : e);</span>
+<span class="nc" id="L221">        }</span>
+<span class="nc" id="L222">    }</span>
+
+    private static Exception asException(Throwable t) {
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        return t instanceof Exception e ? e : new RuntimeException(t);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

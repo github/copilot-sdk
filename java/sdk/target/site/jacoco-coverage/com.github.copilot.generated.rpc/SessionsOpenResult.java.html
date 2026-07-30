@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionsOpenResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.generated.rpc</a> &gt; <span class="el_source">SessionsOpenResult.java</span></div><h1>SessionsOpenResult.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import java.util.List;
+import javax.annotation.processing.Generated;
+
+/**
+ * Result of opening a session.
+ *
+ * @apiNote This method is experimental and may change in a future version.
+ * @since 1.0.0
+ */
+@CopilotExperimental
+@javax.annotation.processing.Generated(&quot;copilot-sdk-codegen&quot;)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L27">public record SessionsOpenResult(</span>
+    /** Outcome of the open request. */
+    @JsonProperty(&quot;status&quot;) SessionsOpenStatus status,
+    /** Opened session ID. Omitted when status is `not_found`. */
+    @JsonProperty(&quot;sessionId&quot;) String sessionId,
+    /** In-process SessionClientApi handle for the opened session, returned to CLI callers as a transitional shortcut. Marked internal so the public SDK surface does not expose it; SDK consumers should construct per-session clients from `sessionId` instead. */
+    @JsonProperty(&quot;sessionApi&quot;) Object sessionApi,
+    /** Startup prompts queued by user-level hook configs at session creation. Only populated when status is `created`; resumed sessions return an empty array. */
+    @JsonProperty(&quot;startupPrompts&quot;) List&lt;String&gt; startupPrompts,
+    /** Remote session ID, present when status is `connected`. */
+    @JsonProperty(&quot;remoteSessionId&quot;) String remoteSessionId,
+    /** Remote session metadata, present when status is `connected`. */
+    @JsonProperty(&quot;metadata&quot;) RemoteSessionMetadataValue metadata,
+    /** Handoff progress steps, present when status is `handed_off`. */
+    @JsonProperty(&quot;progress&quot;) List&lt;SessionsOpenProgress&gt; progress
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

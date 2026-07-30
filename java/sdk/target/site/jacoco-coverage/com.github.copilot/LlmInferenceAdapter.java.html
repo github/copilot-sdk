@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LlmInferenceAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot</a> &gt; <span class="el_source">LlmInferenceAdapter.java</span></div><h1>LlmInferenceAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
+
+/**
+ * Adapts the generated {@code llmInference.*} reverse-RPC entry points onto a
+ * consumer's {@link CopilotRequestHandler}. Each {@code httpRequestStart}
+ * allocates an {@link LlmInferenceExchange} and runs the handler in the
+ * background; subsequent {@code httpRequestChunk} frames feed its request body
+ * stream.
+ */
+final class LlmInferenceAdapter {
+
+<span class="fc" id="L34">    private static final Logger LOG = Logger.getLogger(LlmInferenceAdapter.class.getName());</span>
+
+    private final CopilotRequestHandler handler;
+    private final Supplier&lt;ServerLlmInferenceApi&gt; rpcSupplier;
+    private final Executor executor;
+
+<span class="fc" id="L40">    private final Map&lt;String, LlmInferenceExchange&gt; pending = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L42">    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier&lt;ServerLlmInferenceApi&gt; rpcSupplier, Executor executor) {</span>
+<span class="fc" id="L43">        this.handler = handler;</span>
+<span class="fc" id="L44">        this.rpcSupplier = rpcSupplier;</span>
+<span class="fc" id="L45">        this.executor = executor;</span>
+<span class="fc" id="L46">    }</span>
+
+    void registerHandlers(JsonRpcClient rpc) {
+<span class="fc" id="L49">        rpc.registerMethodHandler(&quot;llmInference.httpRequestStart&quot;,</span>
+<span class="fc" id="L50">                (rpcId, params) -&gt; handleRequestStart(rpc, rpcId, params));</span>
+<span class="fc" id="L51">        rpc.registerMethodHandler(&quot;llmInference.httpRequestChunk&quot;,</span>
+<span class="fc" id="L52">                (rpcId, params) -&gt; handleRequestChunk(rpc, rpcId, params));</span>
+<span class="fc" id="L53">    }</span>
+
+    private LlmInferenceExchange getOrCreateExchange(String requestId) {
+        // The runtime dispatches httpRequestStart and httpRequestChunk frames
+        // independently. Even though the current reader dispatches them in
+        // order, get-or-create keeps the adapter correct regardless: a body
+        // chunk (including the terminal end frame) that races ahead of its
+        // start frame is buffered into the same exchange rather than dropped,
+        // which would otherwise hang the body drain forever.
+<span class="fc" id="L62">        return pending.computeIfAbsent(requestId, id -&gt; new LlmInferenceExchange(id, rpcSupplier));</span>
+    }
+
+    private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {
+<span class="fc" id="L66">        String requestId = params.get(&quot;requestId&quot;).asText();</span>
+<span class="fc" id="L67">        String sessionId = textOrNull(params, &quot;sessionId&quot;);</span>
+<span class="fc" id="L68">        String agentId = textOrNull(params, &quot;agentId&quot;);</span>
+<span class="fc" id="L69">        String parentAgentId = textOrNull(params, &quot;parentAgentId&quot;);</span>
+<span class="fc" id="L70">        String interactionType = textOrNull(params, &quot;interactionType&quot;);</span>
+<span class="fc" id="L71">        String method = textOrNull(params, &quot;method&quot;);</span>
+<span class="fc" id="L72">        String url = textOrNull(params, &quot;url&quot;);</span>
+<span class="fc" id="L73">        CopilotRequestTransport transport = CopilotRequestTransport.fromWire(textOrNull(params, &quot;transport&quot;));</span>
+<span class="fc" id="L74">        Map&lt;String, List&lt;String&gt;&gt; headers = parseHeaders(params.get(&quot;headers&quot;));</span>
+
+        // Adopt any exchange a racing chunk already created — with its buffered
+        // body — rather than dropping those frames.
+<span class="fc" id="L78">        LlmInferenceExchange exchange = getOrCreateExchange(requestId);</span>
+<span class="fc" id="L79">        exchange.setMethod(method);</span>
+<span class="fc" id="L80">        exchange.setContext(new CopilotRequestContext(requestId, sessionId, agentId, parentAgentId, interactionType,</span>
+<span class="fc" id="L81">                transport, url, headers, exchange.cancellation()));</span>
+
+        // Return from httpRequestStart immediately (after registering state) so the
+        // runtime's RPC reply is not gated on the consumer's I/O. The actual handler
+        // work runs asynchronously.
+<span class="fc" id="L86">        runAsync(() -&gt; runHandler(exchange));</span>
+
+<span class="fc" id="L88">        ack(rpc, rpcId);</span>
+<span class="fc" id="L89">    }</span>
+
+    private void handleRequestChunk(JsonRpcClient rpc, String rpcId, JsonNode params) {
+<span class="fc" id="L92">        String requestId = params.get(&quot;requestId&quot;).asText();</span>
+        // May arrive before the matching start frame; get-or-create so the body
+        // is buffered, never lost.
+<span class="fc" id="L95">        LlmInferenceExchange exchange = getOrCreateExchange(requestId);</span>
+<span class="fc" id="L96">        routeChunk(exchange, params);</span>
+<span class="fc" id="L97">        ack(rpc, rpcId);</span>
+<span class="fc" id="L98">    }</span>
+
+    private static void routeChunk(LlmInferenceExchange exchange, JsonNode params) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (boolOr(params, &quot;cancel&quot;)) {</span>
+<span class="fc" id="L102">            exchange.pushCancel();</span>
+<span class="fc" id="L103">            return;</span>
+        }
+<span class="fc" id="L105">        String data = textOr(params, &quot;data&quot;, &quot;&quot;);</span>
+<span class="fc" id="L106">        boolean binary = boolOr(params, &quot;binary&quot;);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (!data.isEmpty()) {</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">            byte[] bytes = binary ? Base64.getDecoder().decode(data) : data.getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L109">            exchange.pushChunk(bytes, binary);</span>
+        }
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (boolOr(params, &quot;end&quot;)) {</span>
+<span class="fc" id="L112">            exchange.pushEnd();</span>
+        }
+<span class="fc" id="L114">    }</span>
+
+    private void runHandler(LlmInferenceExchange exchange) {
+        try {
+<span class="fc" id="L118">            handler.handle(exchange);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">            if (!exchange.finished()) {</span>
+<span class="nc" id="L120">                finalizeError(exchange, 502, &quot;LLM inference handler returned without finalising the response &quot;</span>
+                        + &quot;(call endResponse() or errorResponse())&quot;, null);
+            }
+<span class="fc" id="L123">        } catch (Exception e) {</span>
+<span class="pc bpc" id="L124" title="1 of 4 branches missed.">            if (exchange.cancelled() || exchange.cancellation().isDone()) {</span>
+                // The runtime already cancelled this request; the handler's throw is
+                // just the abort propagating out of its upstream call.
+<span class="fc" id="L127">                finalizeError(exchange, 499, &quot;Request cancelled by runtime&quot;, &quot;cancelled&quot;);</span>
+            } else {
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">                String message = e.getMessage() != null ? e.getMessage() : e.toString();</span>
+<span class="fc" id="L130">                finalizeError(exchange, 502, message, null);</span>
+            }
+        } finally {
+<span class="fc" id="L133">            pending.remove(exchange.requestId());</span>
+        }
+<span class="fc" id="L135">    }</span>
+
+    private static void finalizeError(LlmInferenceExchange exchange, int status, String message, String code) {
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">        if (exchange.finished()) {</span>
+<span class="nc" id="L139">            return;</span>
+        }
+        try {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            if (!exchange.started()) {</span>
+<span class="fc" id="L143">                exchange.startResponse(status, null, null);</span>
+            }
+<span class="fc" id="L145">            exchange.errorResponse(message, code);</span>
+<span class="nc" id="L146">        } catch (IOException e) {</span>
+<span class="nc" id="L147">            LOG.log(Level.FINE, &quot;Failed to deliver LLM inference failure&quot;, e);</span>
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">    }</span>
+
+    private void ack(JsonRpcClient rpc, String rpcId) {
+        long id;
+        try {
+<span class="fc" id="L154">            id = Long.parseLong(rpcId);</span>
+<span class="nc" id="L155">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L156">            return;</span>
+<span class="fc" id="L157">        }</span>
+        try {
+<span class="fc" id="L159">            rpc.sendResponse(id, Map.of());</span>
+<span class="nc" id="L160">        } catch (IOException e) {</span>
+<span class="nc" id="L161">            LOG.log(Level.FINE, &quot;Failed to acknowledge LLM inference frame&quot;, e);</span>
+<span class="fc" id="L162">        }</span>
+<span class="fc" id="L163">    }</span>
+
+    private void runAsync(Runnable task) {
+        try {
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (executor != null) {</span>
+<span class="fc" id="L168">                CompletableFuture.runAsync(task, executor);</span>
+            } else {
+<span class="nc" id="L170">                CompletableFuture.runAsync(task);</span>
+            }
+<span class="nc" id="L172">        } catch (RejectedExecutionException e) {</span>
+<span class="nc" id="L173">            LOG.log(Level.WARNING, &quot;Executor rejected LLM inference task; running inline&quot;, e);</span>
+<span class="nc" id="L174">            task.run();</span>
+<span class="fc" id="L175">        }</span>
+<span class="fc" id="L176">    }</span>
+
+    private static String textOrNull(JsonNode params, String field) {
+<span class="pc bpc" id="L179" title="1 of 4 branches missed.">        return params.has(field) &amp;&amp; !params.get(field).isNull() ? params.get(field).asText() : null;</span>
+    }
+
+    private static String textOr(JsonNode params, String field, String fallback) {
+<span class="pc bpc" id="L183" title="2 of 4 branches missed.">        return params.has(field) &amp;&amp; !params.get(field).isNull() ? params.get(field).asText() : fallback;</span>
+    }
+
+    private static boolean boolOr(JsonNode params, String field) {
+<span class="pc bpc" id="L187" title="2 of 6 branches missed.">        return params.has(field) &amp;&amp; !params.get(field).isNull() &amp;&amp; params.get(field).asBoolean();</span>
+    }
+
+    private static Map&lt;String, List&lt;String&gt;&gt; parseHeaders(JsonNode node) {
+<span class="fc" id="L191">        Map&lt;String, List&lt;String&gt;&gt; result = new LinkedHashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L192" title="2 of 4 branches missed.">        if (node != null &amp;&amp; node.isObject()) {</span>
+<span class="fc" id="L193">            node.properties().forEach(entry -&gt; {</span>
+<span class="fc" id="L194">                List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L195">                JsonNode value = entry.getValue();</span>
+<span class="pc bpc" id="L196" title="1 of 2 branches missed.">                if (value.isArray()) {</span>
+<span class="fc" id="L197">                    value.forEach(item -&gt; values.add(item.asText()));</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                } else if (!value.isNull()) {</span>
+<span class="nc" id="L199">                    values.add(value.asText());</span>
+                }
+<span class="fc" id="L201">                result.put(entry.getKey(), values);</span>
+<span class="fc" id="L202">            });</span>
+        }
+<span class="fc" id="L204">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

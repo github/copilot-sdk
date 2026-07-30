@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InputOptions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">GitHub Copilot SDK :: Java</a> &gt; <a href="index.source.html" class="el_package">com.github.copilot.rpc</a> &gt; <span class="el_source">InputOptions.java</span></div><h1>InputOptions.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.OptionalInt;
+
+/**
+ * Options for the {@link SessionUiApi#input(String, InputOptions)} convenience
+ * method.
+ *
+ * @since 1.0.0
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L19">public class InputOptions {</span>
+
+    private String title;
+    private String description;
+    @JsonProperty(&quot;minLength&quot;)
+    private Integer minLength;
+    @JsonProperty(&quot;maxLength&quot;)
+    private Integer maxLength;
+    private String format;
+    private String defaultValue;
+
+    /** Gets the title label for the input field. @return the title */
+    public String getTitle() {
+<span class="fc" id="L32">        return title;</span>
+    }
+
+    /**
+     * Sets the title label for the input field. @param title the title @return this
+     */
+    public InputOptions setTitle(String title) {
+<span class="fc" id="L39">        this.title = title;</span>
+<span class="fc" id="L40">        return this;</span>
+    }
+
+    /** Gets the descriptive text shown below the field. @return the description */
+    public String getDescription() {
+<span class="fc" id="L45">        return description;</span>
+    }
+
+    /**
+     * Sets the descriptive text shown below the field. @param description the
+     * description @return this
+     */
+    public InputOptions setDescription(String description) {
+<span class="fc" id="L53">        this.description = description;</span>
+<span class="fc" id="L54">        return this;</span>
+    }
+
+    /**
+     * Gets the minimum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the min length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMinLength() {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        return minLength == null ? OptionalInt.empty() : OptionalInt.of(minLength);</span>
+    }
+
+    /**
+     * Sets the minimum character length. @param minLength the min length @return
+     * this
+     */
+    public InputOptions setMinLength(int minLength) {
+<span class="fc" id="L73">        this.minLength = minLength;</span>
+<span class="fc" id="L74">        return this;</span>
+    }
+
+    /**
+     * Clears the minLength setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public InputOptions clearMinLength() {
+<span class="fc" id="L83">        this.minLength = null;</span>
+<span class="fc" id="L84">        return this;</span>
+    }
+
+    /**
+     * Gets the maximum character length.
+     *
+     * @return an {@link java.util.OptionalInt} containing the max length, or
+     *         {@link java.util.OptionalInt#empty()} if not set
+     */
+    @JsonIgnore
+    public OptionalInt getMaxLength() {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        return maxLength == null ? OptionalInt.empty() : OptionalInt.of(maxLength);</span>
+    }
+
+    /**
+     * Sets the maximum character length. @param maxLength the max length @return
+     * this
+     */
+    public InputOptions setMaxLength(int maxLength) {
+<span class="fc" id="L103">        this.maxLength = maxLength;</span>
+<span class="fc" id="L104">        return this;</span>
+    }
+
+    /**
+     * Clears the maxLength setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public InputOptions clearMaxLength() {
+<span class="fc" id="L113">        this.maxLength = null;</span>
+<span class="fc" id="L114">        return this;</span>
+    }
+
+    /**
+     * Gets the semantic format hint (e.g., {@code &quot;email&quot;}, {@code &quot;uri&quot;},
+     * {@code &quot;date&quot;}, {@code &quot;date-time&quot;}).
+     *
+     * @return the format hint
+     */
+    public String getFormat() {
+<span class="fc" id="L124">        return format;</span>
+    }
+
+    /** Sets the semantic format hint. @param format the format @return this */
+    public InputOptions setFormat(String format) {
+<span class="fc" id="L129">        this.format = format;</span>
+<span class="fc" id="L130">        return this;</span>
+    }
+
+    /**
+     * Gets the default value pre-populated in the field. @return the default value
+     */
+    public String getDefaultValue() {
+<span class="fc" id="L137">        return defaultValue;</span>
+    }
+
+    /**
+     * Sets the default value pre-populated in the field. @param defaultValue the
+     * default value @return this
+     */
+    public InputOptions setDefaultValue(String defaultValue) {
+<span class="fc" id="L145">        this.defaultValue = defaultValue;</span>
+<span class="fc" id="L146">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
