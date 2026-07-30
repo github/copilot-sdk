@@ -2977,16 +2977,8 @@ public abstract class SessionConfigBase
     public string? ConfigDirectory { get; set; }
 
     /// <summary>
-    /// When <see langword="true"/>, automatically discovers MCP server configurations
-    /// (e.g. <c>.mcp.json</c>, <c>.vscode/mcp.json</c>) and skill directories from
-    /// the working directory and merges them with any explicitly provided
-    /// <see cref="McpServers"/> and <see cref="SkillDirectories"/>, with explicit
-    /// values taking precedence on name collision.
-    /// <para>
-    /// Agent discovery (e.g. <c>.github/agents/</c>) is only performed when this is
-    /// <see langword="true"/>. Use <see cref="SkipCustomInstructions"/> to control
-    /// loading of custom instruction files independently.
-    /// </para>
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
 

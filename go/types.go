@@ -1052,13 +1052,9 @@ type SessionConfig struct {
 	// ConfigDirectory overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDirectory string
-	// EnableConfigDiscovery, when non-nil, controls automatic discovery of MCP server configurations
-	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
-	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
-	// explicit values taking precedence on name collision.
+	// EnableConfigDiscovery enables runtime discovery of supported configuration.
+	// Explicitly supplied configuration takes precedence over discovered values.
 	// Nil leaves the runtime default unchanged; use Bool(false) to explicitly disable discovery.
-	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
-	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery *bool
 	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
 	// for this session. Use in multitenant deployments to prevent cross-session
@@ -1611,13 +1607,9 @@ type ResumeSessionConfig struct {
 	WorkingDirectory string
 	// ConfigDirectory overrides the default configuration directory location.
 	ConfigDirectory string
-	// EnableConfigDiscovery, when non-nil, controls automatic discovery of MCP server configurations
-	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
-	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
-	// explicit values taking precedence on name collision.
+	// EnableConfigDiscovery enables runtime discovery of supported configuration.
+	// Explicitly supplied configuration takes precedence over discovered values.
 	// Nil leaves the runtime default unchanged; use Bool(false) to explicitly disable discovery.
-	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
-	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery *bool
 	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
 	// for this session. Use in multitenant deployments to prevent cross-session

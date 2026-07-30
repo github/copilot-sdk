@@ -848,12 +848,8 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Sets whether to automatically discover MCP server configurations and skill
-     * directories from the working directory.
-     * <p>
-     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
-     * {@code .vscode/mcp.json} and skill directories, and merges them with
-     * explicitly provided configurations.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @param enableConfigDiscovery
      *            {@code true} to enable discovery, {@code false} to disable

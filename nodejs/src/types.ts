@@ -1915,13 +1915,8 @@ export interface SessionConfigBase {
     configDirectory?: string;
 
     /**
-     * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
-     * `.vscode/mcp.json`) and skill directories from the working directory and merges
-     * them with any explicitly provided `mcpServers` and `skillDirectories`, with
-     * explicit values taking precedence on name collision.
-     *
-     * Note: custom instruction files (`.github/copilot-instructions.md`, `AGENTS.md`, etc.)
-     * are always loaded from the working directory regardless of this setting.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @default false
      */
