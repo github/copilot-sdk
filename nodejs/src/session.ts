@@ -297,6 +297,10 @@ class FactoryProgressBuffer {
  * corrects that for the factory surface without changing `x-opaque-json`
  * handling for any other consumer, so the boundary needs a cast rather than a
  * conversion.
+ *
+ * Delete this along with the {@link FactoryRunResult} override once the schema
+ * distinguishes opaque JSON values from opaque in-process values —
+ * github/copilot-agent-runtime#14122.
  */
 function toPublicFactoryRunResult(envelope: WireFactoryRunResult): FactoryRunResult {
     return envelope as FactoryRunResult;

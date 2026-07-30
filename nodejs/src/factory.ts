@@ -23,6 +23,12 @@ import type { FactoryLimits, FactoryMeta } from "./types.js";
  * array — but the schema models the field as an opaque node, which the
  * generator renders as an object. Narrowing the correction to this surface
  * keeps the `x-opaque-json` handling unchanged for every other consumer.
+ *
+ * This override is temporary. Once the schema distinguishes an opaque JSON
+ * value from an opaque in-process value and that ships in a CLI release,
+ * regenerating produces the right type directly, and this declaration, the
+ * `toPublicFactoryRunResult` boundary helper, and the casts around it should
+ * all be deleted. Tracked by github/copilot-agent-runtime#14122.
  */
 export type FactoryRunResult = Omit<WireFactoryRunResult, "result"> & {
     /** Completed factory result. */
