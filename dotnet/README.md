@@ -794,7 +794,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-When `ManagedApprovalRequired` is `true`, `ApproveAll` returns `PermissionDecision.NoResult()`. The request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+When `EnableManagedSettings` is true for the session, `ApproveAll` throws on the first permission request. Use a custom handler for managed sessions; request-level `ManagedApprovalRequired` remains available for human-facing confirmation logic.
 
 ### Custom Permission Handler
 

@@ -279,6 +279,9 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
 }
 
 /// A [`PermissionHandler`] that approves requests when managed settings are disabled.
+///
+/// Requests that require managed approval remain pending for an explicit human
+/// decision.
 #[derive(Debug, Clone)]
 pub struct ApproveAllHandler;
 
@@ -294,6 +297,8 @@ impl PermissionHandler for ApproveAllHandler {
             permission_handler_failure(
                 "ApproveAllHandler cannot be used when managed settings are enabled",
             )
+        } else if data.managed_approval_required == Some(true) {
+            PermissionResult::no_result()
         } else {
             PermissionResult::approve_once()
         }
@@ -351,6 +356,21 @@ mod tests {
             result,
             PermissionResult::Decision(PermissionDecision::UserNotAvailable(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn approve_all_handler_leaves_managed_approval_pending() {
+        let result = ApproveAllHandler
+            .handle(
+                SessionId::from("s1"),
+                RequestId::new("1"),
+                PermissionRequestData {
+                    managed_approval_required: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await;
+        assert!(matches!(result, PermissionResult::NoResult));
     }
 
     #[tokio::test]

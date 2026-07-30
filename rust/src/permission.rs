@@ -19,10 +19,12 @@ use async_trait::async_trait;
 use crate::handler::{PermissionHandler, PermissionResult, permission_handler_failure};
 use crate::types::{PermissionRequestData, RequestId, SessionId};
 
-/// Return a [`PermissionHandler`] that approves ordinary requests.
+/// Return a [`PermissionHandler`] that approves requests when managed settings
+/// are disabled.
 ///
-/// Requests that require managed approval remain pending for an explicit
-/// human decision.
+/// When managed settings are enabled, the handler logs an error and returns a
+/// user-not-available decision. Requests that require managed approval remain
+/// pending for an explicit human decision.
 pub fn approve_all() -> Arc<dyn PermissionHandler> {
     Arc::new(PolicyHandler {
         policy: Policy::ApproveAll,
@@ -123,6 +125,8 @@ impl PermissionHandler for PolicyHandler {
                 permission_handler_failure(
                     "approve-all policy cannot be used when managed settings are enabled",
                 )
+            } else if data.managed_approval_required == Some(true) {
+                PermissionResult::no_result()
             } else {
                 PermissionResult::approve_once()
             }
@@ -186,14 +190,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approve_if_can_approve_managed_request() {
+    async fn approve_if_leaves_managed_approval_pending_when_predicate_approves() {
         let h = approve_if(|_| true);
         let mut request = data();
         request.managed_approval_required = Some(true);
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), request)
                 .await,
-            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
+            PermissionResult::NoResult
         ));
     }
 

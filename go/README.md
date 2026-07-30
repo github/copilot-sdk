@@ -690,7 +690,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 })
 ```
 
-When `RequiresManagedApproval()` returns `true`, `ApproveAll` returns `PermissionDecisionNoResult`. The request remains pending and the host must present a human-facing confirmation flow to resolve it explicitly.
+When `EnableManagedSettings` is true for the session, `ApproveAll` returns an error on the first permission request. Use a custom handler for managed sessions; request-level `RequiresManagedApproval()` remains available for human-facing confirmation logic.
 
 ### Custom Permission Handler
 
