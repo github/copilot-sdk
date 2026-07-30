@@ -380,6 +380,8 @@ class PermissionHandler:
     ) -> PermissionRequestResult:
         if invocation["managed_settings_enabled"]:
             raise RuntimeError("approve_all cannot be used when managed settings are enabled")
+        if getattr(request, "managed_approval_required", False) is True:
+            return PermissionNoResult()
         return PermissionDecisionApproveOnce()
 
 

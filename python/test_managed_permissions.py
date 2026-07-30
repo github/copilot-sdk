@@ -51,6 +51,22 @@ def test_approve_all_approves_ordinary_request() -> None:
     )
 
 
+def test_approve_all_leaves_managed_request_pending_when_session_flag_is_absent() -> None:
+    request = PermissionRequestRead(
+        intention="Read managed content",
+        path="/workspace/file.txt",
+        managed_approval_required=True,
+    )
+
+    assert isinstance(
+        PermissionHandler.approve_all(
+            request,
+            {"session_id": "session-1", "managed_settings_enabled": False},
+        ),
+        PermissionNoResult,
+    )
+
+
 async def test_legacy_permission_callback_rejects_no_result() -> None:
     request = PermissionRequestRead(
         intention="Read managed content",

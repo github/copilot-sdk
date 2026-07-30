@@ -11,9 +11,12 @@ var PermissionHandler = struct {
 	// ApproveAll approves permission requests when managed settings are disabled.
 	ApproveAll PermissionHandlerFunc
 }{
-	ApproveAll: func(_ PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error) {
+	ApproveAll: func(request PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error) {
 		if invocation.ManagedSettingsEnabled {
-			return nil, errors.New("ApproveAll cannot be used when managed settings are enabled")
+			return nil, errors.New("approveAll cannot be used when managed settings are enabled")
+		}
+		if request.RequiresManagedApproval() {
+			return &rpc.PermissionDecisionNoResult{}, nil
 		}
 		return &rpc.PermissionDecisionApproveOnce{}, nil
 	},

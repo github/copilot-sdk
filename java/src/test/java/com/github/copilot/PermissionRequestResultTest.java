@@ -123,4 +123,15 @@ public class PermissionRequestResultTest {
 
         assertEquals("approve-once", result.getKind());
     }
+
+    @Test
+    void testApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent() {
+        var request = new PermissionRequest();
+        request.setKind("read");
+        request.setManagedApprovalRequired(true);
+
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+
+        assertEquals("no-result", result.getKind());
+    }
 }

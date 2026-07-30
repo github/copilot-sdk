@@ -39,6 +39,12 @@ describe("approveAll", () => {
             )
         ).toThrow("approveAll cannot be used when managed settings are enabled");
     });
+
+    it("does not approve managed requests when the session flag is absent", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
+            kind: "no-result",
+        });
+    });
 });
 
 describe("CopilotClient", () => {

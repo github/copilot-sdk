@@ -65,4 +65,19 @@ public class PermissionHandlerTests
 
         Assert.IsType<PermissionDecisionApproveOnce>(decision);
     }
+
+    [Fact]
+    public async Task ApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent()
+    {
+        var request = new PermissionRequestRead
+        {
+            Intention = "Read managed content",
+            ManagedApprovalRequired = true,
+            Path = "/workspace/file.txt",
+        };
+
+        var decision = await PermissionHandler.ApproveAll(request, new PermissionInvocation());
+
+        Assert.IsType<PermissionDecisionNoResult>(decision);
+    }
 }

@@ -1144,9 +1144,12 @@ export type PermissionHandler = (
 /**
  * Approves permission requests for sessions without managed settings.
  */
-export const approveAll: PermissionHandler = (_request, invocation) => {
+export const approveAll: PermissionHandler = (request, invocation) => {
     if (invocation.managedSettingsEnabled) {
         throw new Error("approveAll cannot be used when managed settings are enabled");
+    }
+    if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
+        return { kind: "no-result" };
     }
     return { kind: "approve-once" };
 };

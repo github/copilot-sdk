@@ -53,3 +53,20 @@ func TestApproveAllApprovesOrdinaryRequest(t *testing.T) {
 		t.Fatalf("expected PermissionDecisionApproveOnce, got %T", decision)
 	}
 }
+
+func TestApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent(t *testing.T) {
+	decision, err := copilot.PermissionHandler.ApproveAll(
+		&copilot.PermissionRequestRead{ManagedApprovalRequired: ptrTo(true)},
+		copilot.PermissionInvocation{SessionID: "session-1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decision.(*rpc.PermissionDecisionNoResult); !ok {
+		t.Fatalf("expected PermissionDecisionNoResult, got %T", decision)
+	}
+}
+
+func ptrTo[T any](value T) *T {
+	return &value
+}

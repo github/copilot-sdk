@@ -58,10 +58,16 @@ public interface PermissionHandler {
      *
      * @since 1.0.11
      */
-    PermissionHandler APPROVE_ALL = (request, invocation) -> invocation.isManagedSettingsEnabled()
-            ? CompletableFuture.failedFuture(
-                    new IllegalStateException("APPROVE_ALL cannot be used when managed settings are enabled"))
-            : CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+    PermissionHandler APPROVE_ALL = (request, invocation) -> {
+        if (invocation.isManagedSettingsEnabled()) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("APPROVE_ALL cannot be used when managed settings are enabled"));
+        }
+        if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+            return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+        }
+        return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+    };
 
     /**
      * Handles a permission request from the assistant.
