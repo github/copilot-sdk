@@ -71,6 +71,12 @@ await using session = await client.createSession({
 // session is automatically disconnected when leaving scope
 ```
 
+When targeting MCP tools configured through `mcpServers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `availableTools` and
+`excludedTools`, prefer `new ToolSet().addMcp("<server-key>-<tool-name>")` or
+the raw `mcp:<server-key>-<tool-name>` form. For `customAgents[].tools` and
+`defaultAgent.excludedTools`, use `<server-key>-<tool-name>` directly.
+
 ## API Reference
 
 ### CopilotClient
