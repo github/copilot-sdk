@@ -4,7 +4,7 @@
 
 /**
  * Java code generator for session-events and RPC types.
- * Generates Java source files under src/generated/java/ from JSON Schema files.
+ * Generates Java source files under sdk/src/generated/java/ from JSON Schema files.
  */
 
 import fs from "fs/promises";
@@ -779,7 +779,7 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
 
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.generated";
-    const packageDir = `src/generated/java/com/github/copilot/generated`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated`;
 
     // Generate base SessionEvent class
     await generateSessionEventBaseClass(variants, packageName, packageDir);
@@ -1384,7 +1384,7 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     }
 
     const packageName = "com.github.copilot.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
 
     // Collect all RPC methods from all sections
     const sections: [string, Record<string, unknown>][] = [];
@@ -2224,7 +2224,7 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
 
     const packageName = "com.github.copilot.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const packageDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
 
     // RpcCaller interface and shared ObjectMapper holder
     await generateRpcCallerInterface(packageName, packageDir);
@@ -2347,7 +2347,7 @@ async function main(): Promise<void> {
     console.log("============================");
 
     // Clean the generated output directory to remove orphaned files from previous runs
-    const generatedOutputDir = path.join(REPO_ROOT, "src/generated/java/com/github/copilot/generated");
+    const generatedOutputDir = path.join(REPO_ROOT, "sdk/src/generated/java/com/github/copilot/generated");
     console.log(`🧹 Cleaning output directory: ${generatedOutputDir}`);
     await fs.rm(generatedOutputDir, { recursive: true, force: true });
     await fs.mkdir(generatedOutputDir, { recursive: true });
@@ -2362,8 +2362,8 @@ async function main(): Promise<void> {
     await generateRpcWrappers(apiSchemaPath);
 
     // Generate package-info.java for each generated package
-    const generatedPkgDir = `src/generated/java/com/github/copilot/generated`;
-    const rpcPkgDir = `src/generated/java/com/github/copilot/generated/rpc`;
+    const generatedPkgDir = `sdk/src/generated/java/com/github/copilot/generated`;
+    const rpcPkgDir = `sdk/src/generated/java/com/github/copilot/generated/rpc`;
     await generateGeneratedPackageInfo(generatedPkgDir);
     await generateRpcPackageInfo(rpcPkgDir);
 
