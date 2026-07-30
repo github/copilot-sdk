@@ -151,15 +151,19 @@ public final class PlatformDetector {
      *             if the platform is not recognised or not supported
      */
     public static String detectClassifier() {
-        String os = detectOs();
-        String arch = detectArch();
-        if (!"linux".equals(os)) {
-            String classifier = os + "-" + arch;
-            validateClassifier(classifier);
-            return classifier;
+        return detectClassifier(System.getProperty("os.name", ""), System.getProperty("os.arch", ""),
+                detectLinuxLibc());
+    }
+
+    static String detectClassifier(String osName, String osArch, LinuxLibc linuxLibc) {
+        String os = detectOs(osName);
+        String arch = detectArch(osArch);
+        String classifier;
+        if ("linux".equals(os)) {
+            classifier = (linuxLibc == LinuxLibc.MUSL ? "linuxmusl-" : "linux-") + arch;
+        } else {
+            classifier = os + "-" + arch;
         }
-        LinuxLibc libc = detectLinuxLibc();
-        String classifier = (libc == LinuxLibc.MUSL ? "linuxmusl-" : "linux-") + arch;
         validateClassifier(classifier);
         return classifier;
     }
@@ -230,16 +234,22 @@ public final class PlatformDetector {
         if (phentsize <= 0 || phnum <= 0) {
             throw new IOException("Invalid ELF program header metadata: phentsize=" + phentsize + ", phnum=" + phnum);
         }
+        int minProgramHeaderSize = elfClass == ELF_CLASS_64 ? 56 : 32;
+        if (phentsize < minProgramHeaderSize) {
+            throw new IOException("Invalid ELF program header entry size: " + phentsize + " (expected >= "
+                    + minProgramHeaderSize + ")");
+        }
 
         for (int i = 0; i < phnum; i++) {
             long baseLong = phoff + ((long) i * phentsize);
             if (baseLong < 0 || baseLong > Integer.MAX_VALUE) {
                 break;
             }
-            int base = (int) baseLong;
-            if (base + phentsize > size) {
+            long entryEnd = baseLong + phentsize;
+            if (entryEnd > size) {
                 break;
             }
+            int base = (int) baseLong;
 
             long pType = readUInt32(probe, base, littleEndian);
             if (pType != PT_INTERP) {
@@ -260,11 +270,12 @@ public final class PlatformDetector {
                 throw new IOException("Invalid PT_INTERP bounds");
             }
 
-            int start = (int) pOffset;
-            int end = start + (int) pFileSize;
-            if (end > size) {
+            long endLong = pOffset + pFileSize;
+            if (endLong > size || endLong > Integer.MAX_VALUE || endLong <= pOffset) {
                 throw new IOException("PT_INTERP extends past probe window; increase probe size");
             }
+            int start = (int) pOffset;
+            int end = (int) endLong;
 
             int nulIndex = start;
             while (nulIndex < end && probe[nulIndex] != 0) {

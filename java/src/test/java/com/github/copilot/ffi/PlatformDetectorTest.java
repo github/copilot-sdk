@@ -11,16 +11,16 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * Unit tests for {@link PlatformDetector}.
- */
+/** Unit tests for {@link PlatformDetector}. */
 class PlatformDetectorTest {
-
-    // ===== detectOs tests =====
 
     @Test
     void detectOsMacOsX() {
@@ -57,8 +57,6 @@ class PlatformDetectorTest {
         assertThrows(IllegalStateException.class, () -> PlatformDetector.detectOs(""));
     }
 
-    // ===== detectArch tests =====
-
     @Test
     void detectArchAmd64() {
         assertEquals("x64", PlatformDetector.detectArch("amd64"));
@@ -94,8 +92,6 @@ class PlatformDetectorTest {
         assertThrows(IllegalStateException.class, () -> PlatformDetector.detectArch(""));
     }
 
-    // ===== readElfPtInterp tests =====
-
     @Test
     void readElfPtInterpGlibc(@TempDir Path tmp) throws Exception {
         Path elf = tmp.resolve("glibc.elf");
@@ -126,26 +122,52 @@ class PlatformDetectorTest {
         assertThrows(IOException.class, () -> PlatformDetector.readElfPtInterp(f));
     }
 
-    // ===== detectClassifier allow-list tests =====
-
     @Test
-    void allEightClassifiersAreValid() {
-        String[] expected = {"linux-x64", "linux-arm64", "linuxmusl-x64", "linuxmusl-arm64", "darwin-x64",
-                "darwin-arm64", "win32-x64", "win32-arm64"};
-        for (String classifier : expected) {
-            // Verify detectOs/detectArch would produce the right components
-            assertNotNull(classifier);
-            assertFalse(classifier.isEmpty());
-        }
+    void readElfPtInterpRejectsTruncatedProgramHeaderEntry(@TempDir Path tmp) throws Exception {
+        byte[] elf = buildMinimalElf64("/lib64/ld-linux-x86-64.so.2");
+        elf[54] = 8;
+        elf[55] = 0;
+        Path f = tmp.resolve("truncated-phdr.elf");
+        Files.write(f, elf);
+        IOException ex = assertThrows(IOException.class, () -> PlatformDetector.readElfPtInterp(f));
+        assertTrue(ex.getMessage().contains("entry size"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("classifierCases")
+    void detectClassifierFromTuple(String osName, String osArch, PlatformDetector.LinuxLibc libc, String expected) {
+        assertEquals(expected, PlatformDetector.detectClassifier(osName, osArch, libc));
+    }
+
+    @ParameterizedTest
+    @MethodSource("unsupportedClassifierCases")
+    void detectClassifierRejectsUnsupportedTuples(String osName, String osArch, PlatformDetector.LinuxLibc libc) {
+        assertThrows(IllegalStateException.class, () -> PlatformDetector.detectClassifier(osName, osArch, libc));
     }
 
     @Test
     void detectClassifierOnCurrentPlatformReturnsKnownValue() {
-        // On the Ubuntu linux-x64 CI runner this should be "linux-x64"
         String classifier = PlatformDetector.detectClassifier();
         assertNotNull(classifier);
         assertTrue(classifier.matches("(linux|linuxmusl|darwin|win32)-(x64|arm64)"),
                 "Unexpected classifier: " + classifier);
+    }
+
+    private static Stream<Arguments> classifierCases() {
+        return Stream.of(Arguments.of("Linux", "amd64", PlatformDetector.LinuxLibc.GLIBC, "linux-x64"),
+                Arguments.of("Linux", "x86_64", PlatformDetector.LinuxLibc.MUSL, "linuxmusl-x64"),
+                Arguments.of("Linux", "aarch64", PlatformDetector.LinuxLibc.GLIBC, "linux-arm64"),
+                Arguments.of("Linux", "arm64", PlatformDetector.LinuxLibc.MUSL, "linuxmusl-arm64"),
+                Arguments.of("Darwin", "x86_64", PlatformDetector.LinuxLibc.NOT_APPLICABLE, "darwin-x64"),
+                Arguments.of("Mac OS X", "arm64", PlatformDetector.LinuxLibc.NOT_APPLICABLE, "darwin-arm64"),
+                Arguments.of("Windows 11", "amd64", PlatformDetector.LinuxLibc.NOT_APPLICABLE, "win32-x64"),
+                Arguments.of("Windows Server 2022", "aarch64", PlatformDetector.LinuxLibc.NOT_APPLICABLE,
+                        "win32-arm64"));
+    }
+
+    private static Stream<Arguments> unsupportedClassifierCases() {
+        return Stream.of(Arguments.of("Linux", "ppc64le", PlatformDetector.LinuxLibc.GLIBC),
+                Arguments.of("Haiku", "x86_64", PlatformDetector.LinuxLibc.NOT_APPLICABLE));
     }
 
     /**
@@ -155,61 +177,48 @@ class PlatformDetectorTest {
      */
     static byte[] buildMinimalElf64(String interpPath) throws IOException {
         byte[] interpBytes = interpPath.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        // Layout: ELF header (64 bytes) + one Phdr (56 bytes) + interp bytes + NUL
         int phdrOffset = 64;
         int phdrSize = 56;
         int interpOffset = phdrOffset + phdrSize;
-        int interpSize = interpBytes.length + 1; // include NUL terminator
+        int interpSize = interpBytes.length + 1;
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
 
-        // ELF magic
         dos.writeByte(0x7F);
         dos.writeByte('E');
         dos.writeByte('L');
         dos.writeByte('F');
-        // EI_CLASS = ELFCLASS64
         dos.writeByte(2);
-        // EI_DATA = ELFDATA2LSB (little-endian)
         dos.writeByte(1);
-        // EI_VERSION = 1
         dos.writeByte(1);
-        // EI_OSABI + 8 padding bytes (9 bytes total)
         dos.writeByte(0);
         dos.write(new byte[8]);
-        // e_type (2), e_machine (2), e_version (4)
-        writeUInt16Le(dos, 2); // ET_EXEC
-        writeUInt16Le(dos, 62); // EM_X86_64
-        writeUInt32Le(dos, 1); // EV_CURRENT
-        // e_entry (8), e_phoff (8)
+        writeUInt16Le(dos, 2);
+        writeUInt16Le(dos, 62);
+        writeUInt32Le(dos, 1);
         writeUInt64Le(dos, 0);
         writeUInt64Le(dos, phdrOffset);
-        // e_shoff (8)
         writeUInt64Le(dos, 0);
-        // e_flags (4), e_ehsize (2), e_phentsize (2), e_phnum (2)
         writeUInt32Le(dos, 0);
-        writeUInt16Le(dos, 64); // e_ehsize
-        writeUInt16Le(dos, phdrSize); // e_phentsize
-        writeUInt16Le(dos, 1); // e_phnum = 1
-        // e_shentsize (2), e_shnum (2), e_shstrndx (2)
+        writeUInt16Le(dos, 64);
+        writeUInt16Le(dos, phdrSize);
+        writeUInt16Le(dos, 1);
         writeUInt16Le(dos, 64);
         writeUInt16Le(dos, 0);
         writeUInt16Le(dos, 0);
 
-        // Phdr for PT_INTERP
-        writeUInt32Le(dos, 3); // p_type = PT_INTERP
-        writeUInt32Le(dos, 4); // p_flags
-        writeUInt64Le(dos, interpOffset); // p_offset
-        writeUInt64Le(dos, 0); // p_vaddr
-        writeUInt64Le(dos, 0); // p_paddr
-        writeUInt64Le(dos, interpSize); // p_filesz
-        writeUInt64Le(dos, interpSize); // p_memsz
-        writeUInt64Le(dos, 1); // p_align
+        writeUInt32Le(dos, 3);
+        writeUInt32Le(dos, 4);
+        writeUInt64Le(dos, interpOffset);
+        writeUInt64Le(dos, 0);
+        writeUInt64Le(dos, 0);
+        writeUInt64Le(dos, interpSize);
+        writeUInt64Le(dos, interpSize);
+        writeUInt64Le(dos, 1);
 
-        // Interp data
         dos.write(interpBytes);
-        dos.writeByte(0); // NUL terminator
+        dos.writeByte(0);
 
         dos.flush();
         return bos.toByteArray();

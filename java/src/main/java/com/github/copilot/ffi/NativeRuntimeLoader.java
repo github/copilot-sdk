@@ -24,8 +24,8 @@ import java.util.logging.Logger;
  * <p>
  * Resolution order:
  * <ol>
- * <li>The {@code COPILOT_CLI_PATH} environment variable (if set, treated as the
- * resolved path and returned directly).</li>
+ * <li>The {@code COPILOT_RUNTIME_PATH} environment variable (if set, treated as
+ * the resolved {@code runtime.node} path and returned directly).</li>
  * <li>Classpath resource {@code native/<classifier>/runtime.node} extracted to
  * {@code ~/.copilot/runtime-cache/<version>/<classifier>/runtime.node}.</li>
  * <li>A {@code runtime.node} file alongside the bundled CLI binary.</li>
@@ -49,6 +49,8 @@ public final class NativeRuntimeLoader {
     private static final Logger LOG = Logger.getLogger(NativeRuntimeLoader.class.getName());
     private static final String PROPERTIES_RESOURCE = "copilot-runtime.properties";
     private static final String BINARY_NAME = "runtime.node";
+    private static final String RUNTIME_PATH_ENV = "COPILOT_RUNTIME_PATH";
+    private static final String CLI_PATH_ENV = "COPILOT_CLI_PATH";
 
     private NativeRuntimeLoader() {
     }
@@ -62,26 +64,30 @@ public final class NativeRuntimeLoader {
      *             if the binary cannot be resolved, extracted, or cached
      */
     public static Path resolve() throws NativeRuntimeLoaderException {
-        // 1. COPILOT_CLI_PATH override
-        String cliPathEnv = System.getenv("COPILOT_CLI_PATH");
-        if (cliPathEnv != null && !cliPathEnv.isBlank()) {
-            return Paths.get(cliPathEnv);
+        return resolve(System.getenv(RUNTIME_PATH_ENV), System.getenv(CLI_PATH_ENV),
+                NativeRuntimeLoader.class.getClassLoader(), Paths.get(System.getProperty("user.home")),
+                PlatformDetector.detectClassifier());
+    }
+
+    static Path resolve(String runtimePathOverride, String bundledCliPath, ClassLoader classLoader, Path userHome,
+            String classifier) throws NativeRuntimeLoaderException {
+        // 1. Explicit runtime.node override
+        if (runtimePathOverride != null && !runtimePathOverride.isBlank()) {
+            return Paths.get(runtimePathOverride);
         }
 
         // 2. Extract from classpath resource
-        String version = loadVersion();
-        String classifier = PlatformDetector.detectClassifier();
         String resourcePath = "native/" + classifier + "/" + BINARY_NAME;
 
-        URL resourceUrl = NativeRuntimeLoader.class.getClassLoader().getResource(resourcePath);
+        URL resourceUrl = classLoader.getResource(resourcePath);
         if (resourceUrl != null) {
-            return extractToCache(resourceUrl, version, classifier);
+            String version = loadVersion(classLoader);
+            return extractToCache(resourceUrl, version, classifier, userHome);
         }
 
         // 3. Alongside bundled CLI (fall-through when no classpath resource)
-        String bundledCli = System.getenv("COPILOT_CLI_PATH");
-        if (bundledCli != null && !bundledCli.isBlank()) {
-            Path sibling = Paths.get(bundledCli).getParent();
+        if (bundledCliPath != null && !bundledCliPath.isBlank()) {
+            Path sibling = Paths.get(bundledCliPath).getParent();
             if (sibling != null) {
                 Path candidate = sibling.resolve(BINARY_NAME);
                 if (isValidCacheEntry(candidate)) {
@@ -103,7 +109,11 @@ public final class NativeRuntimeLoader {
      *             if the resource is missing or the version value is blank
      */
     static String loadVersion() throws NativeRuntimeLoaderException {
-        InputStream in = NativeRuntimeLoader.class.getClassLoader().getResourceAsStream(PROPERTIES_RESOURCE);
+        return loadVersion(NativeRuntimeLoader.class.getClassLoader());
+    }
+
+    static String loadVersion(ClassLoader classLoader) throws NativeRuntimeLoaderException {
+        InputStream in = classLoader.getResourceAsStream(PROPERTIES_RESOURCE);
         if (in == null) {
             throw new NativeRuntimeLoaderException("Missing classpath resource: " + PROPERTIES_RESOURCE
                     + ". Ensure the SDK JAR was built with Maven resource filtering enabled.");
@@ -123,9 +133,9 @@ public final class NativeRuntimeLoader {
         return version.trim();
     }
 
-    private static Path extractToCache(URL resourceUrl, String version, String classifier)
+    static Path extractToCache(URL resourceUrl, String version, String classifier, Path userHome)
             throws NativeRuntimeLoaderException {
-        Path cacheDir = Paths.get(System.getProperty("user.home"), ".copilot", "runtime-cache", version, classifier);
+        Path cacheDir = userHome.resolve(Paths.get(".copilot", "runtime-cache", version, classifier));
         Path cached = cacheDir.resolve(BINARY_NAME);
 
         // 1. Cache hit: regular, non-empty file
