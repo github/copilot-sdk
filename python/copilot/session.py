@@ -2566,7 +2566,10 @@ class CopilotSession:
                 handler_start,
                 session_id=self.session_id,
             )
-            return cast(PermissionRequestResult, result)
+            result = cast(PermissionRequestResult, result)
+            if isinstance(result, PermissionNoResult):
+                return PermissionDecisionUserNotAvailable()
+            return result
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission.
             logger.debug(

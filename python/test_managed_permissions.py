@@ -1,7 +1,7 @@
 import pytest
 
-from copilot.rpc import PermissionDecisionApproveOnce
-from copilot.session import PermissionHandler
+from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
+from copilot.session import CopilotSession, PermissionHandler, PermissionNoResult
 from copilot.session_events import PermissionRequestedData, PermissionRequestRead
 
 
@@ -49,3 +49,17 @@ def test_approve_all_approves_ordinary_request() -> None:
         ),
         PermissionDecisionApproveOnce,
     )
+
+
+async def test_legacy_permission_callback_rejects_no_result() -> None:
+    request = PermissionRequestRead(
+        intention="Read managed content",
+        path="/workspace/file.txt",
+        managed_approval_required=True,
+    )
+    session = CopilotSession("session-1", client=None)
+    session._register_permission_handler(lambda _request, _invocation: PermissionNoResult())
+
+    result = await session._handle_permission_request(request)
+
+    assert isinstance(result, PermissionDecisionUserNotAvailable)
