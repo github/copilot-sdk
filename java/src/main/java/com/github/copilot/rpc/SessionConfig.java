@@ -1234,14 +1234,8 @@ public class SessionConfig {
     }
 
     /**
-     * Sets whether to automatically discover MCP server configurations and skill
-     * directories from the working directory.
-     * <p>
-     * When {@code true}, the CLI scans the working directory for {@code .mcp.json},
-     * {@code .vscode/mcp.json} and skill directories, and merges them with
-     * explicitly provided {@link #setMcpServers(Map)} and
-     * {@link #setSkillDirectories(List)}, with explicit values taking precedence on
-     * name collision.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @param enableConfigDiscovery
      *            {@code true} to enable discovery, {@code false} to disable

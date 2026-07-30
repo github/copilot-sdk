@@ -3101,15 +3101,8 @@ public abstract class SessionConfigBase
     public string? ConfigDirectory { get; set; }
 
     /// <summary>
-    /// When <see langword="true"/>, automatically discovers MCP server configurations
-    /// (e.g. <c>.mcp.json</c>, <c>.vscode/mcp.json</c>) and skill directories from
-    /// the working directory and merges them with any explicitly provided
-    /// <see cref="McpServers"/> and <see cref="SkillDirectories"/>, with explicit
-    /// values taking precedence on name collision.
-    /// <para>
-    /// Custom instruction files (<c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>, etc.)
-    /// are always loaded from the working directory regardless of this setting.
-    /// </para>
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
 

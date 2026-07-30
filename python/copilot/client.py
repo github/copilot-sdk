@@ -2153,13 +2153,9 @@ class CopilotClient:
                 including tool visibility controls.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
-            enable_config_discovery: When True, automatically discovers MCP server
-                configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
-                directories from the working directory and merges them with any
-                explicitly provided ``mcp_servers`` and ``skill_directories``, with
-                explicit values taking precedence on name collision. Custom instruction
-                files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
-                always loaded regardless of this setting.
+            enable_config_discovery: Enables runtime discovery of supported
+                configuration. Explicitly supplied configuration takes precedence
+                over discovered values.
             skip_embedding_retrieval: When True, skips embedding-based retrieval.
             organization_custom_instructions: Organization-level custom instructions.
             enable_on_demand_instruction_discovery: Enables on-demand instruction file
@@ -2826,13 +2822,9 @@ class CopilotClient:
                 including tool visibility controls.
             agent: Agent to use for the session.
             config_directory: Override for the configuration directory.
-            enable_config_discovery: When True, automatically discovers MCP server
-                configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
-                directories from the working directory and merges them with any
-                explicitly provided ``mcp_servers`` and ``skill_directories``, with
-                explicit values taking precedence on name collision. Custom instruction
-                files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
-                always loaded regardless of this setting.
+            enable_config_discovery: Enables runtime discovery of supported
+                configuration. Explicitly supplied configuration takes precedence
+                over discovered values.
             skip_embedding_retrieval: When True, skips embedding-based retrieval.
             organization_custom_instructions: Organization-level custom instructions.
             enable_on_demand_instruction_discovery: Enables on-demand instruction file

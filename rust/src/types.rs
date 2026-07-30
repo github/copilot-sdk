@@ -1786,7 +1786,8 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
-    /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval for this session.
     pub skip_embedding_retrieval: Option<bool>,
@@ -2641,7 +2642,8 @@ impl SessionConfig {
         self
     }
 
-    /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
@@ -3011,7 +3013,8 @@ pub struct ResumeSessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
-    /// Enable config discovery on resume.
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval on resume.
     pub skip_embedding_retrieval: Option<bool>,
@@ -3765,7 +3768,8 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Enable or disable CLI config discovery on resume.
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
