@@ -1476,6 +1476,8 @@ class CopilotSession:
             client: The internal client connection to the Copilot CLI.
             workspace_path: Path to the session workspace directory
                 (when infinite sessions enabled).
+            managed_settings_enabled: Whether managed settings were enabled when
+                creating or resuming the session.
         """
         self.session_id = session_id
         self._managed_settings_enabled = managed_settings_enabled

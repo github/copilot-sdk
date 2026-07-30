@@ -5449,7 +5449,7 @@ pub struct PermissionRequestData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Whether managed settings are enabled for this session.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub managed_settings_enabled: bool,
     /// The full permission event params from the CLI, including the request ID
     /// and nested permission request. The shape varies by permission type and

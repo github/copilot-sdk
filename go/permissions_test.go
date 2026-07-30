@@ -67,6 +67,13 @@ func TestApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent(t *testing
 	}
 }
 
+func TestRawPermissionRequestWithMalformedJSONRequiresManagedApproval(t *testing.T) {
+	request := rpc.RawPermissionRequest{Raw: json.RawMessage(`{"managedApprovalRequired":`)}
+	if !request.RequiresManagedApproval() {
+		t.Fatal("expected malformed raw request to fail closed")
+	}
+}
+
 func ptrTo[T any](value T) *T {
 	return &value
 }

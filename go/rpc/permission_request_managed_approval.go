@@ -74,5 +74,8 @@ func (r RawPermissionRequest) RequiresManagedApproval() bool {
 	var metadata struct {
 		ManagedApprovalRequired *bool `json:"managedApprovalRequired"`
 	}
-	return json.Unmarshal(r.Raw, &metadata) == nil && managedApprovalRequired(metadata.ManagedApprovalRequired)
+	if json.Unmarshal(r.Raw, &metadata) != nil {
+		return true
+	}
+	return managedApprovalRequired(metadata.ManagedApprovalRequired)
 }
