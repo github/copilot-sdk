@@ -228,7 +228,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Reject_Resuming_Active_Session_Using_The_Same_Client()
     {
-        var session1 = await CreateSessionAsync();
+        await using var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -983,8 +983,9 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Trait(E2ETestTraits.Backend, E2ETestTraits.SelfConfiguredBackend)]
     public async Task Should_Resume_Session_With_Custom_Provider()
     {
-        var session = await CreateSessionAsync();
+        await using var session = await CreateSessionAsync();
         var sessionId = session.SessionId;
+        await SuspendAndUntrackSessionForResumeAsync(session);
 
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
@@ -1006,7 +1007,5 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             // disconnect may fail since the provider is fake
         }
-
-        await session.DisposeAsync();
     }
 }
