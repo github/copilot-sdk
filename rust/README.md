@@ -591,6 +591,8 @@ config.infinite_sessions = Some(infinite);
 
 The CLI emits `session.compaction_start` / `session.compaction_complete` events around each compaction. The session id remains stable across compactions; resume with `Client::resume_session` to pick up a prior conversation. Workspace state lives under `~/.copilot/session-state/{sessionId}` by default — override with `workspace_path` to relocate.
 
+`enable_session_store` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default client mode, the runtime default applies (enabled). In `Empty` mode, defaults to disabled.
+
 ### Memory
 
 Configure the runtime memory feature for a session:

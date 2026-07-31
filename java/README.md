@@ -239,6 +239,10 @@ Chain fluent modifiers to set tool options:
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
+## Session Store
+
+`enableSessionStore` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default `CopilotClientMode.COPILOT_CLI` mode, the runtime default applies (enabled). In `CopilotClientMode.EMPTY` mode, defaults to disabled.
+
 ## Memory
 
 Sessions can opt into persistent memory, allowing the agent to read and write memory across turns. Memory is configured per session and applies to both `createSession` and `resumeSession`.
