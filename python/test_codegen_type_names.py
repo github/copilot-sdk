@@ -1,11 +1,29 @@
+import re
+import types
+
 from copilot.generated import rpc
 
 
-def test_python_codegen_does_not_export_quicktype_synthetic_permission_approval_name():
-    assert not hasattr(rpc, "PermissionDecisionApproveForIonApproval")
-    assert "PermissionDecisionApproveForIonApproval" not in rpc.__all__
+def test_permission_approval_exports_are_union_aliases():
+    approval_exports = [
+        name
+        for name in rpc.__all__
+        if re.fullmatch(r"PermissionDecisionApproveFor.*Approval", name)
+    ]
+    assert approval_exports
 
-    assert hasattr(rpc, "PermissionDecisionApproveForSessionApproval")
-    assert hasattr(rpc, "PermissionDecisionApproveForLocationApproval")
-    assert "PermissionDecisionApproveForSessionApproval" in rpc.__all__
-    assert "PermissionDecisionApproveForLocationApproval" in rpc.__all__
+    for name in approval_exports:
+        exported = getattr(rpc, name)
+        assert isinstance(exported, types.UnionType), (
+            f"{name} must be a union alias, not a synthetic dataclass"
+        )
+
+
+def test_permission_approval_union_loaders_deserialize_expected_variants():
+    session = rpc._load_PermissionDecisionApproveForSessionApproval(
+        {"kind": "commands", "commandIdentifiers": ["git status"]}
+    )
+    location = rpc._load_PermissionDecisionApproveForLocationApproval({"kind": "read"})
+
+    assert isinstance(session, rpc.PermissionDecisionApproveForSessionApprovalCommands)
+    assert isinstance(location, rpc.PermissionDecisionApproveForLocationApprovalRead)
