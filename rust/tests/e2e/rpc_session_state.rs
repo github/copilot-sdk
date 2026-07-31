@@ -1098,11 +1098,11 @@ async fn should_report_implemented_errors_for_unsupported_session_rpc_paths() {
 }
 
 #[tokio::test]
-async fn should_compact_session_history_after_messages() {
+async fn should_report_processing_and_context_metadata() {
     super::support::with_shared_e2e_context(
         &E2E,
         "rpc_session_state",
-        "should_compact_session_history_after_messages",
+        "should_report_processing_and_context_metadata",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
