@@ -237,6 +237,7 @@ async fn should_emit_streaming_deltas_with_reasoning_effort_configured() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
+                            .with_model("gpt-5.4")
                             .with_streaming(true)
                             .with_reasoning_effort("high"),
                     )

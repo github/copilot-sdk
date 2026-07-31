@@ -679,27 +679,36 @@ class TestSessions:
         """Test that setModel passes reasoningEffort and it appears in the model_change event."""
         import asyncio
 
-        session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all
-        )
+        isolated_ctx = E2ETestContext()
+        await isolated_ctx.setup()
+        try:
+            await isolated_ctx.configure_for_test(
+                "session", "should_set_model_with_reasoningeffort"
+            )
+            session = await isolated_ctx.client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
 
-        model_change_event = asyncio.get_event_loop().create_future()
+            model_change_event = asyncio.get_event_loop().create_future()
 
-        def on_event(event):
-            if model_change_event.done():
-                return
+            def on_event(event):
+                if model_change_event.done():
+                    return
 
-            match event.data:
-                case SessionModelChangeData() as data:
-                    model_change_event.set_result(data)
+                match event.data:
+                    case SessionModelChangeData() as data:
+                        model_change_event.set_result(data)
 
-        session.on(on_event)
+            session.on(on_event)
 
-        await session.set_model("gpt-4.1", reasoning_effort="high")
+            await session.set_model("gpt-5.4", reasoning_effort="high")
 
-        data = await asyncio.wait_for(model_change_event, timeout=30)
-        assert data.new_model == "gpt-4.1"
-        assert data.reasoning_effort == "high"
+            data = await asyncio.wait_for(model_change_event, timeout=30)
+            assert data.new_model == "gpt-5.4"
+            assert data.reasoning_effort == "high"
+            await session.disconnect()
+        finally:
+            await isolated_ctx.teardown()
 
     async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
         # Write the image to disk so the model can view it
