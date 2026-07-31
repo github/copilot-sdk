@@ -1531,9 +1531,11 @@ fn permission_request_data(
         .get("permissionRequest")
         .cloned()
         .unwrap_or_else(|| event_data.clone());
-    let managed_approval_required = request_data
-        .get("managedApprovalRequired")
-        .and_then(Value::as_bool);
+    let managed_approval_required = match request_data.get("managedApprovalRequired") {
+        None => None,
+        Some(Value::Bool(value)) => Some(*value),
+        Some(_) => Some(true),
+    };
     match serde_json::from_value::<PermissionRequestData>(request_data) {
         Ok(mut data) => {
             data.extra = event_data.clone();
@@ -2605,5 +2607,39 @@ mod tests {
 
         assert_eq!(data.managed_approval_required, Some(true));
         assert_eq!(data.extra["requestId"], "permission-1");
+    }
+
+    #[test]
+    fn permission_request_data_fails_closed_for_malformed_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": "yes",
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+    }
+
+    #[test]
+    fn permission_request_data_preserves_valid_false_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": false,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(false));
     }
 }
