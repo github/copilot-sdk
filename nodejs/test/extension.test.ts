@@ -57,4 +57,25 @@ describe("joinSession", () => {
 
         expect(canvas.declaration.id).toBe("counter");
     });
+
+    it("forwards canvas providers when joining as an extension", async () => {
+        process.env.SESSION_ID = "session-123";
+        const resumeForExtension = vi
+            .spyOn(CopilotClient.prototype, "resumeSessionForExtension")
+            .mockResolvedValue({} as any);
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+
+        await joinSession({ canvases: [canvas] });
+
+        expect(resumeForExtension).toHaveBeenCalledWith(
+            "session-123",
+            expect.objectContaining({ canvases: [canvas] }),
+            undefined
+        );
+    });
 });
