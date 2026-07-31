@@ -299,10 +299,6 @@ public sealed class Model
     [JsonPropertyName("capabilities")]
     public ModelCapabilities Capabilities { get => field ??= new(); set; }
 
-    /// <summary>Default reasoning effort level (only present if model supports reasoning effort).</summary>
-    [JsonPropertyName("defaultReasoningEffort")]
-    public string? DefaultReasoningEffort { get; set; }
-
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -490,6 +486,10 @@ public sealed class CopilotUserResponseEndpoints
     /// <summary>Gets or sets the <c>api</c> value.</summary>
     [JsonPropertyName("api")]
     public string? Api { get; set; }
+
+    /// <summary>Gets or sets the <c>exp</c> value.</summary>
+    [JsonPropertyName("exp")]
+    public string? Exp { get; set; }
 
     /// <summary>Gets or sets the <c>origin-tracker</c> value.</summary>
     [JsonPropertyName("origin-tracker")]
@@ -5176,7 +5176,7 @@ internal sealed class ModelSwitchToRequest
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
 
-    /// <summary>Reasoning effort level to use for the model. "none" disables reasoning.</summary>
+    /// <summary>Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
@@ -6873,7 +6873,7 @@ public sealed class McpServer
     [JsonPropertyName("sourcePluginVersion")]
     public string? SourcePluginVersion { get; set; }
 
-    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
     [JsonPropertyName("status")]
     public McpServerStatus Status { get; set; }
 }
@@ -8854,7 +8854,7 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("provider")]
     public ProviderConfig? Provider { get; set; }
 
-    /// <summary>Reasoning effort for the selected model (model-defined enum).</summary>
+    /// <summary>Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
 
@@ -24645,7 +24645,7 @@ public sealed class ModelApi
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
     /// <param name="modelId">Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.</param>
-    /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
+    /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
@@ -26010,7 +26010,7 @@ public sealed class OptionsApi
     /// <summary>Patches the genuinely-mutable subset of session options.</summary>
     /// <param name="model">The model ID to use for assistant turns.</param>
     /// <param name="modelCapabilitiesOverrides">Per-property model capability overrides for the selected model.</param>
-    /// <param name="reasoningEffort">Reasoning effort for the selected model (model-defined enum).</param>
+    /// <param name="reasoningEffort">Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.</param>
     /// <param name="reasoningSummary">Reasoning summary mode for supported model clients.</param>
     /// <param name="verbosity">Output verbosity level for supported models.</param>
     /// <param name="clientName">Identifier of the client driving the session.</param>

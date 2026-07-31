@@ -1807,6 +1807,8 @@ class AssistantUsageData:
     model: str
     api_call_id: str | None = None
     api_endpoint: AssistantUsageApiEndpoint | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _available_tool_count: int | None = None
     cache_expires_at: datetime | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
@@ -1820,6 +1822,8 @@ class AssistantUsageData:
     input_tokens: int | None = None
     interaction_type: str | None = None
     inter_token_latency: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _num_tool_calls: int | None = None
     output_tokens: int | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
@@ -1831,6 +1835,10 @@ class AssistantUsageData:
     rte: bool | None = None
     service_request_id: str | None = None
     time_to_first_token: timedelta | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _tool_counts: dict[str, int] | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _tool_token_count: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -1838,6 +1846,7 @@ class AssistantUsageData:
         model = from_str(obj.get("model"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
+        _available_tool_count = from_union([from_none, from_int], obj.get("availableToolCount"))
         cache_expires_at = from_union([from_none, from_datetime], obj.get("cacheExpiresAt"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
@@ -1850,6 +1859,7 @@ class AssistantUsageData:
         input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         interaction_type = from_union([from_none, from_str], obj.get("interactionType"))
         inter_token_latency = from_union([from_none, from_timedelta], obj.get("interTokenLatencyMs"))
+        _num_tool_calls = from_union([from_none, from_int], obj.get("numToolCalls"))
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
@@ -1859,10 +1869,13 @@ class AssistantUsageData:
         rte = from_union([from_none, from_bool], obj.get("rte"))
         service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
+        _tool_counts = from_union([from_none, lambda x: from_dict(from_int, x)], obj.get("toolCounts"))
+        _tool_token_count = from_union([from_none, from_int], obj.get("toolTokenCount"))
         return AssistantUsageData(
             model=model,
             api_call_id=api_call_id,
             api_endpoint=api_endpoint,
+            _available_tool_count=_available_tool_count,
             cache_expires_at=cache_expires_at,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
@@ -1875,6 +1888,7 @@ class AssistantUsageData:
             input_tokens=input_tokens,
             interaction_type=interaction_type,
             inter_token_latency=inter_token_latency,
+            _num_tool_calls=_num_tool_calls,
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             provider_call_id=provider_call_id,
@@ -1884,6 +1898,8 @@ class AssistantUsageData:
             rte=rte,
             service_request_id=service_request_id,
             time_to_first_token=time_to_first_token,
+            _tool_counts=_tool_counts,
+            _tool_token_count=_tool_token_count,
         )
 
     def to_dict(self) -> dict:
@@ -1893,6 +1909,8 @@ class AssistantUsageData:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
         if self.api_endpoint is not None:
             result["apiEndpoint"] = from_union([from_none, lambda x: to_enum(AssistantUsageApiEndpoint, x)], self.api_endpoint)
+        if self._available_tool_count is not None:
+            result["availableToolCount"] = from_union([from_none, to_int], self._available_tool_count)
         if self.cache_expires_at is not None:
             result["cacheExpiresAt"] = from_union([from_none, to_datetime], self.cache_expires_at)
         if self.cache_read_tokens is not None:
@@ -1917,6 +1935,8 @@ class AssistantUsageData:
             result["interactionType"] = from_union([from_none, from_str], self.interaction_type)
         if self.inter_token_latency is not None:
             result["interTokenLatencyMs"] = from_union([from_none, to_timedelta], self.inter_token_latency)
+        if self._num_tool_calls is not None:
+            result["numToolCalls"] = from_union([from_none, to_int], self._num_tool_calls)
         if self.output_tokens is not None:
             result["outputTokens"] = from_union([from_none, to_int], self.output_tokens)
         if self.parent_tool_call_id is not None:
@@ -1935,6 +1955,10 @@ class AssistantUsageData:
             result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.time_to_first_token is not None:
             result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta], self.time_to_first_token)
+        if self._tool_counts is not None:
+            result["toolCounts"] = from_union([from_none, lambda x: from_dict(to_int, x)], self._tool_counts)
+        if self._tool_token_count is not None:
+            result["toolTokenCount"] = from_union([from_none, to_int], self._tool_token_count)
         return result
 
 
@@ -8745,21 +8769,27 @@ class ToolExecutionStartShellToolInfo:
     "Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs."
     has_write_file_redirection: bool
     possible_paths: list[str]
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    display_command: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionStartShellToolInfo":
         assert isinstance(obj, dict)
         has_write_file_redirection = from_bool(obj.get("hasWriteFileRedirection"))
         possible_paths = from_list(from_str, obj.get("possiblePaths"))
+        display_command = from_union([from_none, from_str], obj.get("displayCommand"))
         return ToolExecutionStartShellToolInfo(
             has_write_file_redirection=has_write_file_redirection,
             possible_paths=possible_paths,
+            display_command=display_command,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["hasWriteFileRedirection"] = from_bool(self.has_write_file_redirection)
         result["possiblePaths"] = from_list(from_str, self.possible_paths)
+        if self.display_command is not None:
+            result["displayCommand"] = from_union([from_none, from_str], self.display_command)
         return result
 
 
@@ -9496,6 +9526,8 @@ class AbortReason(Enum):
     REMOTE_COMMAND = "remote_command"
     # An MCP server delivered a user.abort notification.
     USER_ABORT = "user_abort"
+    # Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit.
+    AUTOPILOT_CREDIT_LIMIT = "autopilot_credit_limit"
 
 
 class AssistantMessageToolRequestType(Enum):
@@ -9753,7 +9785,7 @@ class McpServerSource(Enum):
 
 
 class McpServerStatus(Enum):
-    "Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
+    "Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured"
     # The server is connected and available.
     CONNECTED = "connected"
     # The server failed to connect or initialize.
@@ -9764,6 +9796,8 @@ class McpServerStatus(Enum):
     PENDING = "pending"
     # The server is configured but disabled.
     DISABLED = "disabled"
+    # The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.
+    STOPPED = "stopped"
     # The server is not configured for this session.
     NOT_CONFIGURED = "not_configured"
 

@@ -79,6 +79,14 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Number of tools available to the model for this call */
+        @JsonProperty("availableToolCount") Long availableToolCount,
+        /** Number of tokens used by tool definitions for this call */
+        @JsonProperty("toolTokenCount") Long toolTokenCount,
+        /** Number of tool calls returned by the model */
+        @JsonProperty("numToolCalls") Long numToolCalls,
+        /** Tool-call counts keyed by tool name */
+        @JsonProperty("toolCounts") Map<String, Long> toolCounts,
         /** Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter". */
         @JsonProperty("finishReason") String finishReason,
         /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
