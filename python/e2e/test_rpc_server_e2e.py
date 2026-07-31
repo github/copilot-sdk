@@ -55,7 +55,7 @@ from copilot.rpc import (
 )
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, wait_for_condition
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -282,30 +282,63 @@ class TestRpcServer:
                 # error from anyio. We don't want it to fail the test.
                 pass
 
-    async def test_should_list_find_and_inspect_persisted_session_state(self, ctx: E2ETestContext):
+    async def test_should_list_find_and_inspect_persisted_session_state(
+        self, authed_ctx: E2ETestContext
+    ):
+        token = os.environ.get("GITHUB_TOKEN", "fakevalue")
+        await _configure_user(authed_ctx, token)
+        client = _make_authed_client(authed_ctx, token)
+
         session_id = str(uuid.uuid4())
-        working_directory = Path(ctx.work_dir) / f"server-rpc-list-{uuid.uuid4().hex}"
+        working_directory = Path(authed_ctx.work_dir) / f"server-rpc-list-{uuid.uuid4().hex}"
         working_directory.mkdir(parents=True, exist_ok=True)
         missing_task_id = f"missing-task-{uuid.uuid4().hex}"
         missing_session_id = str(uuid.uuid4())
-
-        session = await ctx.client.create_session(
-            session_id=session_id,
-            working_directory=str(working_directory),
-            on_permission_request=PermissionHandler.approve_all,
-        )
+        session = None
         try:
-            await session.log("SERVER_RPC_LIST_READY")
-            save = await ctx.client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
-            assert save is not None
-
-            listed = await ctx.client.rpc.sessions.list(
-                SessionsListRequest(
-                    filter=SessionListFilter(cwd=str(working_directory)),
-                    metadata_limit=0,
-                )
+            await client.start()
+            session = await client.create_session(
+                session_id=session_id,
+                working_directory=str(working_directory),
+                on_permission_request=PermissionHandler.approve_all,
             )
+
+            await session.send(
+                "Record a turn for sessions.list discriminator coverage", mode="enqueue"
+            )
+
+            listed = None
+
+            async def session_is_listed() -> bool:
+                nonlocal listed
+                # Re-save on every attempt: on slower runners the enqueued turn is not
+                # necessarily recorded yet when the first save runs, so a single save
+                # followed by a fixed sleep races the CLI's own persistence.
+                save = await client.rpc.sessions.save(SessionsSaveRequest(session_id=session_id))
+                assert save is not None
+                listed = await client.rpc.sessions.list(
+                    SessionsListRequest(
+                        filter=SessionListFilter(cwd=str(working_directory)),
+                        metadata_limit=0,
+                    )
+                )
+                return any(item.session_id == session_id for item in listed.sessions or [])
+
+            await wait_for_condition(
+                session_is_listed,
+                timeout=60.0,
+                timeout_message=(
+                    "Timed out waiting for the saved session to be returned by sessions.list."
+                ),
+            )
+
+            assert listed is not None
             assert listed.sessions is not None
+            assert len(listed.sessions) >= 1
+            matching = [item for item in listed.sessions if item.session_id == session_id]
+            assert len(matching) == 1
+            assert isinstance(matching[0], LocalSessionMetadataValue)
+            assert matching[0].is_remote is False
             assert all(
                 item.context is None
                 or os.path.normcase(os.path.abspath(item.context.cwd))
@@ -313,32 +346,40 @@ class TestRpcServer:
                 for item in listed.sessions
             )
 
-            by_prefix = await ctx.client.rpc.sessions.find_by_prefix(
+            by_prefix = await client.rpc.sessions.find_by_prefix(
                 SessionsFindByPrefixRequest(prefix=session_id[:8])
             )
             assert by_prefix.session_id in (None, session_id)
 
-            by_task = await ctx.client.rpc.sessions.find_by_task_id(
+            by_task = await client.rpc.sessions.find_by_task_id(
                 SessionsFindByTaskIDRequest(task_id=missing_task_id)
             )
             assert by_task.session_id is None
 
-            last_for_context = await ctx.client.rpc.sessions.get_last_for_context(
+            last_for_context = await client.rpc.sessions.get_last_for_context(
                 SessionsGetLastForContextRequest(context=SessionContext(cwd=str(working_directory)))
             )
             assert last_for_context.session_id in (None, session_id)
 
-            sizes = await ctx.client.rpc.sessions.get_sizes()
+            sizes = await client.rpc.sessions.get_sizes()
             assert sizes.sizes is not None
             if session_id in sizes.sizes:
                 assert sizes.sizes[session_id] >= 0
 
-            in_use = await ctx.client.rpc.sessions.check_in_use(
+            in_use = await client.rpc.sessions.check_in_use(
                 SessionsCheckInUseRequest(session_ids=[session_id, missing_session_id])
             )
             assert missing_session_id not in in_use.in_use
         finally:
-            await session.disconnect()
+            if session is not None:
+                await session.disconnect()
+            try:
+                await client.stop()
+            except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
+                pass
 
     async def test_should_enrich_basic_session_metadata(self, ctx: E2ETestContext):
         session_id = str(uuid.uuid4())

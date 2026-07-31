@@ -7391,7 +7391,7 @@ class QueuedCommandHandled:
     """Queued-command response indicating the host executed the command, with an optional flag
     to stop queue processing.
     """
-    handled: ClassVar[str] = "true"
+    handled: ClassVar[bool] = True
     """The host actually executed the queued command."""
 
     stop_processing_queue: bool | None = None
@@ -7418,7 +7418,7 @@ class QueuedCommandNotHandled:
     """Queued-command response indicating the host did not execute the command and the queue may
     continue.
     """
-    handled: ClassVar[str] = "false"
+    handled: ClassVar[bool] = False
     """The host did not execute the queued command. Unblocks the queue without claiming the
     command was processed (e.g. when the handler threw before completing).
     """
@@ -31183,8 +31183,8 @@ def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
     assert isinstance(obj, dict)
     kind = obj.get("handled")
     match kind:
-        case "true": return QueuedCommandHandled.from_dict(obj)
-        case "false": return QueuedCommandNotHandled.from_dict(obj)
+        case True: return QueuedCommandHandled.from_dict(obj)
+        case False: return QueuedCommandNotHandled.from_dict(obj)
         case _: raise ValueError(f"Unknown QueuedCommandResult handled: {kind!r}")
 
 # State of the runtime-managed remote-control singleton.
@@ -31207,8 +31207,8 @@ def _load_SessionListEntry(obj: Any) -> "SessionListEntry":
     assert isinstance(obj, dict)
     kind = obj.get("isRemote")
     match kind:
-        case "false": return LocalSessionMetadataValue.from_dict(obj)
-        case "true": return RemoteSessionMetadataValue.from_dict(obj)
+        case False: return LocalSessionMetadataValue.from_dict(obj)
+        case True: return RemoteSessionMetadataValue.from_dict(obj)
         case _: raise ValueError(f"Unknown SessionListEntry isRemote: {kind!r}")
 
 # Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
