@@ -21351,11 +21351,6 @@ export function registerClientSessionApiHandlers(
     });
 }
 
-/** Handler for `hooks` client global API methods. */
-/** @experimental */
-export interface HooksHandler {
-}
-
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -21390,7 +21385,6 @@ export interface GitHubTelemetryHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
-    hooks?: HooksHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
 }
@@ -21406,11 +21400,6 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
-    connection.onRequest("hooks.invoke", async (params: HookInvokeRequest) => {
-        const handler = handlers.hooks;
-        if (!handler) throw new Error("No hooks client-global handler registered");
-        return handler.invoke(params);
-    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");

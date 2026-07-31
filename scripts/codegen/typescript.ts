@@ -1097,6 +1097,8 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
         const publicMethods = methods.filter((m) => m.visibility !== "internal");
+        // Skip groups that have no public methods — they are handled internally by the SDK.
+        if (publicMethods.length === 0) continue;
         const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
         const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
@@ -1133,7 +1135,9 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
 
     lines.push(`/** All client global API handler groups. */`);
     lines.push(`export interface ClientGlobalApiHandlers {`);
-    for (const [groupName] of groups) {
+    for (const [groupName, methods] of groups) {
+        const publicMethods = methods.filter((m) => m.visibility !== "internal");
+        if (publicMethods.length === 0) continue;
         const interfaceName = toPascalCase(groupName) + "Handler";
         lines.push(`    ${groupName}?: ${interfaceName};`);
     }
@@ -1153,7 +1157,10 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
     lines.push(`): void {`);
 
     for (const [groupName, methods] of groups) {
-        for (const method of methods) {
+        // Only wire up public methods; internal methods are handled directly by the SDK.
+        const publicMethods = methods.filter((m) => m.visibility !== "internal");
+        if (publicMethods.length === 0) continue;
+        for (const method of publicMethods) {
             const name = handlerMethodName(method.rpcMethod);
             const pType = paramsTypeName(method);
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));

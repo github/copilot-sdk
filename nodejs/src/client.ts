@@ -831,11 +831,6 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
-        // `hooks.invoke` is a client-global RPC method whose payload carries a
-        // `sessionId`; route each invocation to the matching session's dispatcher.
-        handlers.hooks = {
-            invoke: async (params) => await this.handleHooksInvoke(params),
-        };
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -2842,6 +2837,17 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+
+        // `hooks.invoke` is an internal RPC method: the runtime calls it to
+        // invoke a hook callback on the client. Route each call to the matching
+        // session's dispatcher. Not part of the public ClientGlobalApiHandlers
+        // interface because HookInvokeRequest/HookType are internal types.
+        this.connection.onRequest(
+            "hooks.invoke",
+            async (params: { sessionId: string; hookType: string; input: unknown }) => {
+                return await this.handleHooksInvoke(params);
+            },
+        );
 
         this.connection.onClose(() => {
             this.state = "disconnected";
