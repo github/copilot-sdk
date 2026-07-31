@@ -268,9 +268,10 @@ public sealed class ClientSessionLifetimeTests
         });
 
         var createRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
-        Assert.Equal(
-            new string?[] { "/repo/shared", "/repo/generated" },
-            createRequest.Params.GetProperty("additionalDirectories").EnumerateArray().Select(value => value.GetString()));
+        Assert.Collection(
+            createRequest.Params.GetProperty("additionalDirectories").EnumerateArray(),
+            value => Assert.Equal("/repo/shared", value.GetString()),
+            value => Assert.Equal("/repo/generated", value.GetString()));
 
         server.ClearRequests();
 
@@ -281,9 +282,9 @@ public sealed class ClientSessionLifetimeTests
         });
 
         var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
-        Assert.Equal(
-            new string?[] { "/repo/resumed" },
-            resumeRequest.Params.GetProperty("additionalDirectories").EnumerateArray().Select(value => value.GetString()));
+        Assert.Collection(
+            resumeRequest.Params.GetProperty("additionalDirectories").EnumerateArray(),
+            value => Assert.Equal("/repo/resumed", value.GetString()));
     }
 
     [Fact]

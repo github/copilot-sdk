@@ -500,7 +500,12 @@ public final class CreateSessionRequest {
         return additionalDirectories;
     }
 
-    /** Sets additional directories. @param additionalDirectories the additional directories */
+    /**
+     * Sets additional directories.
+     *
+     * @param additionalDirectories
+     *            the additional directories
+     */
     public void setAdditionalDirectories(List<String> additionalDirectories) {
         this.additionalDirectories = additionalDirectories;
     }
