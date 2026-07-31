@@ -145,35 +145,37 @@ describe("Streaming Fidelity", async () => {
         await session2.disconnect();
     });
 
-    it("should emit streaming deltas with reasoning effort configured", async () => {
-        const reasoningClient = createClient();
-        onTestFinished(() => reasoningClient.stop());
-        const session = await reasoningClient.createSession({
-            onPermissionRequest: approveAll,
-            model: "gpt-5.4",
-            streaming: true,
-            reasoningEffort: "high",
+    describe("reasoning effort (isolated to avoid models cache contamination)", async () => {
+        const { copilotClient: reasoningClient } = await createSdkTestContext();
+
+        it("should emit streaming deltas with reasoning effort configured", async () => {
+            const session = await reasoningClient.createSession({
+                onPermissionRequest: approveAll,
+                model: "gpt-5.4",
+                streaming: true,
+                reasoningEffort: "high",
+            });
+
+            const events: SessionEvent[] = [];
+            session.on((event) => events.push(event));
+
+            await session.sendAndWait({ prompt: "What is 15 * 17?" });
+
+            const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");
+            expect(deltaEvents.length).toBeGreaterThanOrEqual(1);
+
+            const assistantEvents = events.filter((e) => e.type === "assistant.message");
+            expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
+            const lastAssistant = assistantEvents[assistantEvents.length - 1]!;
+            expect(lastAssistant.data.content).toContain("255");
+
+            // Verify the session was created with reasoning effort via getMessages
+            const messages = await session.getEvents();
+            const startEvent = messages.find((m) => m.type === "session.start");
+            expect(startEvent).toBeDefined();
+            expect(startEvent!.data.reasoningEffort).toBe("high");
+
+            await session.disconnect();
         });
-
-        const events: SessionEvent[] = [];
-        session.on((event) => events.push(event));
-
-        await session.sendAndWait({ prompt: "What is 15 * 17?" });
-
-        const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");
-        expect(deltaEvents.length).toBeGreaterThanOrEqual(1);
-
-        const assistantEvents = events.filter((e) => e.type === "assistant.message");
-        expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
-        const lastAssistant = assistantEvents[assistantEvents.length - 1]!;
-        expect(lastAssistant.data.content).toContain("255");
-
-        // Verify the session was created with reasoning effort via getMessages
-        const messages = await session.getEvents();
-        const startEvent = messages.find((m) => m.type === "session.start");
-        expect(startEvent).toBeDefined();
-        expect(startEvent!.data.reasoningEffort).toBe("high");
-
-        await session.disconnect();
     });
 });
