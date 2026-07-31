@@ -108,7 +108,7 @@ describe("filterPublicSessionEventVariants", () => {
         expect(excludedDefinitionNames.has("InternalEvent")).toBe(true);
     });
 
-    it("keeps arms whose internal data sub-property is the only internal marker (legacy pattern)", () => {
+    it("excludes arms whose internal data sub-property is the only internal marker (legacy pattern)", () => {
         // Event types that carry a `data: InternalData` field — the `data` property is what is
         // internal, not the event wrapper type itself.
         const defs = {
@@ -191,6 +191,21 @@ export type Event = PublicEvent | Hidden;
 `;
         expect(() => assertNoPublicInternalReferences(ts, new Set(["Hidden"]))).toThrow(
             /Event \(public\) references internal type Hidden/
+        );
+    });
+
+    it("throws when a public interface member references an internal type", () => {
+        const ts = `
+/** @internal */
+export interface Hidden {
+  x: number;
+}
+export interface Public {
+  value: Hidden;
+}
+`;
+        expect(() => assertNoPublicInternalReferences(ts, new Set(["Hidden"]))).toThrow(
+            /Public \(public\) references internal type Hidden/
         );
     });
 

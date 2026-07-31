@@ -76,12 +76,13 @@ export function assertNoPublicInternalReferences(generatedTs: string, internalTy
     }
 
     // Split on export interface/type/function/const boundaries for attribution.
-    const declarationRe = /^export (?:interface|type|function|const) (\w+)\b/gm;
-    const starts: Array<{ index: number; name: string }> = [];
+    const declarationRe = /^export (interface|type|function|const) (\w+)\b/gm;
+    const starts: Array<{ index: number; kind: string; name: string }> = [];
     for (let m = declarationRe.exec(generatedTs); m !== null; m = declarationRe.exec(generatedTs)) {
-        starts.push({ index: m.index, name: m[1] });
+        starts.push({ index: m.index, kind: m[1], name: m[2] });
     }
     const blocks = starts.map((start, i) => ({
+        kind: start.kind,
         name: start.name,
         text: generatedTs.slice(start.index, i + 1 < starts.length ? starts[i + 1].index : generatedTs.length),
     }));
@@ -100,13 +101,16 @@ export function assertNoPublicInternalReferences(generatedTs: string, internalTy
             //   3. @internal-tagged member sections — TypeScript's stripInternal removes them
             //      from the .d.ts along with any types they reference.
             let publicText = block.text
-                // Remove all block comments (JSDoc and otherwise).
-                .replace(/\/\*[\s\S]*?\*\//g, "")
+                // Remove @internal-tagged member declarations before stripping comments so
+                // member-level internal references do not count as part of the public surface.
+                .replace(/^[ \t]*\/\*\*[\s\S]*?@internal[\s\S]*?\*\/\s*\n[ \t]*[^\n]+\n?/gm, "")
+                // Remove all remaining block comments (JSDoc and otherwise).
+                .replace(/\/\*[\s\S]*?\*\//g, "");
+
+            if (block.kind === "function") {
                 // Remove function bodies (from the opening { to matching closing }).
-                .replace(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "{}")
-                // Remove any remaining @internal-tagged member lines that survived (e.g. a
-                // stripped comment leaves behind a bare property declaration on the next line).
-                .replace(/[ \t]+\S[^\n]*@internal[^\n]*/g, "");
+                publicText = publicText.replace(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "{}");
+            }
 
             if (new RegExp(`\\b${intType}\\b`).test(publicText)) {
                 violations.push(`  ${block.name} (public) references internal type ${intType}`);
