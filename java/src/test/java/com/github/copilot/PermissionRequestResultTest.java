@@ -89,6 +89,34 @@ public class PermissionRequestResultTest {
     }
 
     @Test
+    void testMalformedManagedApprovalRequiredFailsClosed() throws Exception {
+        var request = MAPPER.readValue("""
+                {
+                    "kind": "read",
+                    "managedApprovalRequired": 0
+                }
+                """, PermissionRequest.class);
+
+        assertTrue(request.getManagedApprovalRequired());
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+        assertEquals("no-result", result.getKind());
+    }
+
+    @Test
+    void testManagedApprovalRequiredPreservesFalse() throws Exception {
+        var request = MAPPER.readValue("""
+                {
+                    "kind": "read",
+                    "managedApprovalRequired": false
+                }
+                """, PermissionRequest.class);
+
+        assertFalse(request.getManagedApprovalRequired());
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+        assertEquals("approve-once", result.getKind());
+    }
+
+    @Test
     void testPermissionEventValueConvertsToTypedRequest() {
         var event = MAPPER
                 .convertValue(
