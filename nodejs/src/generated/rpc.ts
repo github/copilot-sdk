@@ -21351,19 +21351,6 @@ export function registerClientSessionApiHandlers(
     });
 }
 
-/** Handler for `hooks` client global API methods. */
-/** @experimental */
-export interface HooksHandler {
-    /**
-     * Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.
-     *
-     * @param params Runtime-owned wire payload for a server-to-client hook callback invocation.
-     *
-     * @returns Optional output returned by an SDK callback hook.
-     */
-    invoke(params: HookInvokeRequest): Promise<HookInvokeResponse>;
-}
-
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -21398,7 +21385,6 @@ export interface GitHubTelemetryHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
-    hooks?: HooksHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
 }
@@ -21414,11 +21400,6 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
-    connection.onRequest("hooks.invoke", async (params: HookInvokeRequest) => {
-        const handler = handlers.hooks;
-        if (!handler) throw new Error("No hooks client-global handler registered");
-        return handler.invoke(params);
-    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");
