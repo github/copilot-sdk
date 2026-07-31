@@ -2846,7 +2846,7 @@ export class CopilotClient {
             "hooks.invoke",
             async (params: { sessionId: string; hookType: string; input: unknown }) => {
                 return await this.handleHooksInvoke(params);
-            },
+            }
         );
 
         this.connection.onClose(() => {
