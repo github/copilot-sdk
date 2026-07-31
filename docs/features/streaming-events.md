@@ -661,7 +661,7 @@ These events are emitted when the agent needs approval or input from the user be
 
 ### `permission.requested`
 
-Ephemeral. The agent needs permission to perform an action (run a command, write a file, etc.).
+The agent needs permission to perform an action (run a command, write a file, etc.).
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -684,7 +684,7 @@ All `kind` variants also include an optional `toolCallId` linking back to the to
 
 ### `permission.completed`
 
-Ephemeral. A permission request was resolved.
+A permission request was resolved.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -835,7 +835,7 @@ A system or developer prompt was injected into the conversation.
 
 ### `external_tool.requested`
 
-Ephemeral. The agent wants to invoke an external tool (one provided by the SDK consumer).
+The agent wants to invoke an external tool (one provided by the SDK consumer).
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -847,7 +847,7 @@ Ephemeral. The agent wants to invoke an external tool (one provided by the SDK c
 
 ### `external_tool.completed`
 
-Ephemeral. An external tool request was resolved.
+An external tool request was resolved.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -925,8 +925,8 @@ assistant.turn_start          → Turn begins
 ├── assistant.usage           → Token usage for this API call (ephemeral)
 │
 ├── [If tools were requested:]
-│   ├── permission.requested  → Needs user approval (ephemeral)
-│   ├── permission.completed  → Approval result (ephemeral)
+│   ├── permission.requested  → Needs user approval
+│   ├── permission.completed  → Approval result
 │   ├── tool.execution_start  → Tool begins
 │   ├── tool.execution_partial_result  → Streaming tool output (ephemeral, repeated)
 │   ├── tool.execution_progress        → Progress updates (ephemeral, repeated)
@@ -969,8 +969,8 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `session.usage_checkpoint` | | Session | `totalNanoAiu`, `totalPremiumRequests?` |
 | `session.task_complete` | | Session | `summary?` |
 | `session.shutdown` | | Session | `shutdownType`, `codeChanges`, `modelMetrics` |
-| `permission.requested` | ✅ | Permission | `requestId`, `permissionRequest` |
-| `permission.completed` | ✅ | Permission | `requestId`, `result.kind` |
+| `permission.requested` | | Permission | `requestId`, `permissionRequest` |
+| `permission.completed` | | Permission | `requestId`, `result.kind` |
 | `user_input.requested` | ✅ | User Input | `requestId`, `question`, `choices?` |
 | `user_input.completed` | ✅ | User Input | `requestId` |
 | `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `requestedSchema` |
@@ -984,8 +984,8 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `abort` | | Control | `reason` |
 | `user.message` | | User | `content`, `attachments?`, `agentMode?` |
 | `system.message` | | System | `content`, `role` |
-| `external_tool.requested` | ✅ | External Tool | `requestId`, `toolName`, `arguments?` |
-| `external_tool.completed` | ✅ | External Tool | `requestId` |
+| `external_tool.requested` | | External Tool | `requestId`, `toolName`, `arguments?` |
+| `external_tool.completed` | | External Tool | `requestId` |
 | `command.queued` | ✅ | Command | `requestId`, `command` |
 | `command.completed` | ✅ | Command | `requestId` |
 | `session_limits_exhausted.requested` | ✅ | Session | `requestId`, `maxAiCredits`, `usedAiCredits` |
