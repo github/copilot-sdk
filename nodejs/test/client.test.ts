@@ -3139,16 +3139,47 @@ describe("CopilotClient", () => {
             expect(failureCalls).toEqual(["fail-tool"]);
         });
 
+        it("registers hooks.invoke on the JSON-RPC connection and routes it to handleHooksInvoke", async () => {
+            const client = new CopilotClient();
+            const handleHooksInvoke = vi
+                .spyOn(client as any, "handleHooksInvoke")
+                .mockResolvedValue({ output: { additionalContext: "ok" } });
+
+            const fakeConnection = {
+                onNotification: vi.fn(),
+                onRequest: vi.fn(),
+                onClose: vi.fn(),
+                onError: vi.fn(),
+            };
+
+            (client as any).connection = fakeConnection;
+            (client as any).attachConnectionHandlers();
+
+            const hooksRegistration = fakeConnection.onRequest.mock.calls.find(
+                ([method]: [string, unknown]) => method === "hooks.invoke"
+            );
+            expect(hooksRegistration).toBeDefined();
+
+            const handler = hooksRegistration![1] as (params: {
+                sessionId: string;
+                hookType: string;
+                input: unknown;
+            }) => Promise<{ output?: unknown }>;
+            const payload = {
+                sessionId: "session-1",
+                hookType: "postToolUseFailure",
+                input: { toolName: "shell" },
+            };
+
+            await expect(handler(payload)).resolves.toEqual({
+                output: { additionalContext: "ok" },
+            });
+            expect(handleHooksInvoke).toHaveBeenCalledWith(payload);
+        });
+
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
-            // Validates the full JSON-RPC entry point used by the CLI:
-            // clientGlobalHandlers.hooks.invoke({sessionId, hookType, input})
-            // → CopilotSession._handleHooksInvoke(hookType, input)
-            // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
-            //
-            // This guards the wire-format contract that the bundled Copilot
-            // CLI relies on: the hookType string "postToolUseFailure" and the
-            // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
-            // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
+            // Validates the dispatch behavior for the internal `hooks.invoke`
+            // payload after the JSON-RPC connection hands it to the SDK.
             const client = new CopilotClient();
             await client.start();
             onTestFinished(() => stopClient(client));
@@ -3172,7 +3203,7 @@ describe("CopilotClient", () => {
                 cwd: "/tmp",
             };
 
-            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+            const response = await (client as any).handleHooksInvoke({
                 sessionId: session.sessionId,
                 hookType: "postToolUseFailure",
                 input: failureInput,
@@ -3249,7 +3280,7 @@ describe("CopilotClient", () => {
                 },
             });
 
-            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+            const response = await (client as any).handleHooksInvoke({
                 sessionId: session.sessionId,
                 hookType: "agentStop",
                 input: {
