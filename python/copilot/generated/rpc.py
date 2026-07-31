@@ -17641,54 +17641,6 @@ class ProviderEndpoint:
             result["wireApi"] = from_union([lambda x: to_enum(ProviderWireAPI, x), from_none], self.wire_api)
         return result
 
-@dataclass
-class PushAttachmentGitHubSide:
-    """File location on the base side of the diff. Absent for additions.
-
-    One side of a file diff (head or base)
-
-    File location on the head side of the diff. Absent for deletions.
-
-    Base side of the comparison
-
-    One side of a tree comparison (head or base)
-
-    Head side of the comparison
-    """
-    repo: PushGitHubRepoRef
-    """Repository the file lives in
-
-    Repository the revision belongs to
-    """
-    path: str | None = None
-    """Repository-relative path to the file"""
-
-    ref: str | None = None
-    """Git ref (branch, tag, or commit SHA) the file is read at"""
-
-    revision: str | None = None
-    """Git revision (branch, tag, or commit SHA)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PushAttachmentGitHubSide':
-        assert isinstance(obj, dict)
-        repo = PushGitHubRepoRef.from_dict(obj.get("repo"))
-        path = from_union([from_str, from_none], obj.get("path"))
-        ref = from_union([from_str, from_none], obj.get("ref"))
-        revision = from_union([from_str, from_none], obj.get("revision"))
-        return PushAttachmentGitHubSide(repo, path, ref, revision)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["repo"] = to_class(PushGitHubRepoRef, self.repo)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
-        if self.ref is not None:
-            result["ref"] = from_union([from_str, from_none], self.ref)
-        if self.revision is not None:
-            result["revision"] = from_union([from_str, from_none], self.revision)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PushAttachmentGitHubFileDiffSide:
@@ -21111,127 +21063,6 @@ class ExtensionList:
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensions"] = from_list(lambda x: to_class(Extension, x), self.extensions)
-        return result
-
-@dataclass
-class PermissionDecisionApproveForIonApproval:
-    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
-
-    Session-scoped approval details for specific command identifiers.
-
-    Session-scoped approval details for read-only filesystem operations.
-
-    Session-scoped approval details for filesystem write operations.
-
-    Session-scoped approval details for an MCP server tool, or all tools on the server when
-    `toolName` is null.
-
-    Session-scoped approval details for MCP sampling requests from a server.
-
-    Session-scoped approval details for writes to long-term memory.
-
-    Session-scoped approval details for a custom tool, keyed by tool name.
-
-    Session-scoped approval details for extension-management operations, optionally narrowed
-    by operation.
-
-    Session-scoped approval details for an extension's permission-gated capability access,
-    keyed by extension name.
-
-    Approval to persist for this location
-
-    Location-scoped approval details for specific command identifiers.
-
-    Location-scoped approval details for read-only filesystem operations.
-
-    Location-scoped approval details for filesystem write operations.
-
-    Location-scoped approval details for an MCP server tool, or all tools on the server when
-    `toolName` is null.
-
-    Location-scoped approval details for MCP sampling requests from a server.
-
-    Location-scoped approval details for writes to long-term memory.
-
-    Location-scoped approval details for a custom tool, keyed by tool name.
-
-    Location-scoped approval details for extension-management operations, optionally narrowed
-    by operation.
-
-    Location-scoped approval details for an extension's permission-gated capability access,
-    keyed by extension name.
-
-    The approval to add as a session-scoped rule
-
-    The approval to persist for this location
-    """
-    command_identifiers: list[str] | None = None
-    """Command identifiers covered by this approval."""
-
-    kind: ApprovalKind | None = None
-    """Approval scoped to specific command identifiers.
-
-    Approval covering read-only filesystem operations.
-
-    Approval covering filesystem write operations.
-
-    Approval covering an MCP tool.
-
-    Approval covering MCP sampling requests for a server.
-
-    Approval covering writes to long-term memory.
-
-    Approval covering a custom tool.
-
-    Approval covering extension lifecycle operations such as enable, disable, or reload.
-
-    Approval covering an extension's request to access a permission-gated capability.
-    """
-    server_name: str | None = None
-    """MCP server name."""
-
-    tool_name: str | None = None
-    """MCP tool name, or null to cover every tool on the server.
-
-    Custom tool name.
-    """
-    operation: str | None = None
-    """Optional operation identifier; when omitted, the approval covers all extension management
-    operations.
-    """
-    extension_name: str | None = None
-    """Extension name."""
-
-    external_ref_marker_external_ref_user_tool_session_approval: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
-        assert isinstance(obj, dict)
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        kind = from_union([ApprovalKind, from_none], obj.get("kind"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        external_ref_marker_external_ref_user_tool_session_approval = from_union([from_str, from_none], obj.get("__externalRefMarker___ExternalRef_UserToolSessionApproval"))
-        return PermissionDecisionApproveForIonApproval(command_identifiers, kind, server_name, tool_name, operation, extension_name, external_ref_marker_external_ref_user_tool_session_approval)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.kind is not None:
-            result["kind"] = from_union([lambda x: to_enum(ApprovalKind, x), from_none], self.kind)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        if self.external_ref_marker_external_ref_user_tool_session_approval is not None:
-            result["__externalRefMarker___ExternalRef_UserToolSessionApproval"] = from_union([from_str, from_none], self.external_ref_marker_external_ref_user_tool_session_approval)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -34297,7 +34128,6 @@ __all__ = [
     "PendingPermissionRequest",
     "PendingPermissionRequestList",
     "PermissionDecision",
-    "PermissionDecisionApproveForIonApproval",
     "PermissionDecisionApproveForLocation",
     "PermissionDecisionApproveForLocationApproval",
     "PermissionDecisionApproveForLocationApprovalCommands",
@@ -34494,7 +34324,6 @@ __all__ = [
     "PushAttachmentGitHubReleaseType",
     "PushAttachmentGitHubRepository",
     "PushAttachmentGitHubRepositoryType",
-    "PushAttachmentGitHubSide",
     "PushAttachmentGitHubSnippet",
     "PushAttachmentGitHubSnippetType",
     "PushAttachmentGitHubTreeComparison",
