@@ -813,6 +813,7 @@ export type HistoryRewindOutcome =
  * via the `definition` "HookType".
  */
 /** @experimental */
+/** @internal */
 export type HookType =
   /** Runs before a tool is invoked. */
   | "preToolUse"
@@ -4467,6 +4468,7 @@ export interface SessionCompletionItem {
  * via the `definition` "ConfigureSessionExtensionsParams".
  */
 /** @experimental */
+/** @internal */
 export interface ConfigureSessionExtensionsParams {
   /**
    * Session to attach the extension controller delegate to.
@@ -4571,6 +4573,7 @@ export interface ConnectRemoteSessionParams {
  * via the `definition` "ConnectRequest".
  */
 /** @experimental */
+/** @internal */
 export interface ConnectRequest {
   /**
    * Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
@@ -4588,6 +4591,7 @@ export interface ConnectRequest {
  * via the `definition` "ConnectResult".
  */
 /** @experimental */
+/** @internal */
 export interface ConnectResult {
   /**
    * Always true on success
@@ -6535,6 +6539,7 @@ export interface HistoryTruncateResult {
  * via the `definition` "HookInvokeRequest".
  */
 /** @experimental */
+/** @internal */
 export interface HookInvokeRequest {
   sessionId: string;
   hookType: HookType;
@@ -6547,6 +6552,7 @@ export interface HookInvokeRequest {
  * via the `definition` "HookInvokeResponse".
  */
 /** @experimental */
+/** @internal */
 export interface HookInvokeResponse {
   output?: unknown;
 }
@@ -7802,6 +7808,7 @@ export interface McpConfigUpdateRequest {
  * via the `definition` "McpConfigureGitHubRequest".
  */
 /** @experimental */
+/** @internal */
 export interface McpConfigureGitHubRequest {
   /**
    * Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).
@@ -8243,6 +8250,7 @@ export interface McpOauthRespondResult {
  * via the `definition` "McpRegisterExternalClientRequest".
  */
 /** @experimental */
+/** @internal */
 export interface McpRegisterExternalClientRequest {
   /**
    * Logical server name for the external client
@@ -8280,6 +8288,7 @@ export interface McpRegisterExternalClientRequest {
  * via the `definition` "McpReloadWithConfigRequest".
  */
 /** @experimental */
+/** @internal */
 export interface McpReloadWithConfigRequest {
   /**
    * Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).
@@ -8727,6 +8736,7 @@ export interface McpStopServerRequest {
  * via the `definition` "McpUnregisterExternalClientRequest".
  */
 /** @experimental */
+/** @internal */
 export interface McpUnregisterExternalClientRequest {
   /**
    * Server name of the external client to unregister
@@ -12377,6 +12387,7 @@ export interface RegisterEventInterestResult {
  * via the `definition` "RegisterExtensionToolsParams".
  */
 /** @experimental */
+/** @internal */
 export interface RegisterExtensionToolsParams {
   /**
    * Session to register extension tools on.
@@ -12418,6 +12429,7 @@ export interface SessionsRegisterExtensionToolsOnSessionOptions {
  * via the `definition` "RegisterExtensionToolsResult".
  */
 /** @experimental */
+/** @internal */
 export interface RegisterExtensionToolsResult {
   /**
    * In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.
@@ -21342,14 +21354,6 @@ export function registerClientSessionApiHandlers(
 /** Handler for `hooks` client global API methods. */
 /** @experimental */
 export interface HooksHandler {
-    /**
-     * Dispatches one SDK callback hook from the runtime to the connection that registered it. Internal transport plumbing: clients opt in through session initialization and the Rust hook processor owns ordering, policy, timeout, and callback routing.
-     *
-     * @param params Runtime-owned wire payload for a server-to-client hook callback invocation.
-     *
-     * @returns Optional output returned by an SDK callback hook.
-     */
-    invoke(params: HookInvokeRequest): Promise<HookInvokeResponse>;
 }
 
 /** Handler for `llmInference` client global API methods. */

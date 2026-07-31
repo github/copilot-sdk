@@ -58,66 +58,69 @@ function tsExperimentalJSDoc(indent = ""): string {
 }
 
 /**
- * Tag each strippable candidate in `candidates` with `@internal`, skipping any that public
- * declarations still reference. Runs over fully assembled file content so that references from
- * generated method signatures — not just from other type declarations — are taken into account.
+ * Validates that no public declaration in the generated TypeScript references an internal type.
+ *
+ * If the schema is valid (enforced by the runtime's `assert_no_public_internal_references` lint),
+ * this should never trigger. A failure here means the codegen itself produced a public reference
+ * to an internal type — which is a codegen bug that must be fixed, not silently worked around.
  */
-function tagInternalTypes(generatedTs: string, candidates: Set<string>): string {
-    let tagged = generatedTs;
-    for (const intType of strippableInternalTypes(tagged, candidates)) {
-        tagged = tagged.replace(
-            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
-            `$1/** @internal */\n$2`
-        );
+export function assertNoPublicInternalReferences(generatedTs: string, internalTypes: Set<string>): void {
+    if (internalTypes.size === 0) return;
+
+    // Identify declarations tagged @internal anywhere in their JSDoc (multi-line or single-line).
+    const internalDeclarations = new Set<string>();
+    for (const m of generatedTs.matchAll(
+        /\/\*\*(?:[^*]|\*(?!\/))*@internal(?:[^*]|\*(?!\/))*\*\/\s*\nexport (?:interface|type|function|const) (\w+)\b/g
+    )) {
+        internalDeclarations.add(m[1]);
     }
-    return tagged;
-}
 
-/**
- * Restrict a set of candidate `@internal` type names to those that are safe to strip.
- *
- * `@internal` drives `stripInternal`, which deletes the whole declaration from the emitted
- * `.d.ts`. That is only sound when nothing public still refers to the type: a surviving public
- * declaration naming a deleted type leaves a dangling reference, which makes the *referring* type
- * an error type that TypeScript then degrades to `any`. One stripped-but-referenced event type is
- * therefore enough to erase the type safety of the whole `SessionEvent` union for every consumer,
- * and `skipLibCheck: true` (a common consumer setting) hides the underlying error.
- *
- * So a candidate is dropped when any declaration that is not itself internal mentions it.
- */
-function strippableInternalTypes(generatedTs: string, candidates: Set<string>): Set<string> {
-    if (candidates.size === 0) return candidates;
-
-    // Split into top-level declaration blocks so each reference can be attributed to its owner.
-    const declaration = /^export (?:interface|type) (\w+)\b/gm;
+    // Split on export interface/type/function/const boundaries for attribution.
+    const declarationRe = /^export (?:interface|type|function|const) (\w+)\b/gm;
     const starts: Array<{ index: number; name: string }> = [];
-    for (let m = declaration.exec(generatedTs); m !== null; m = declaration.exec(generatedTs)) {
+    for (let m = declarationRe.exec(generatedTs); m !== null; m = declarationRe.exec(generatedTs)) {
         starts.push({ index: m.index, name: m[1] });
     }
-    if (starts.length === 0) return candidates;
     const blocks = starts.map((start, i) => ({
         name: start.name,
         text: generatedTs.slice(start.index, i + 1 < starts.length ? starts[i + 1].index : generatedTs.length),
     }));
 
-    const safe = new Set<string>();
-    for (const candidate of candidates) {
-        const referencedByPublic = blocks.some(
-            (block) =>
-                block.name !== candidate &&
-                !candidates.has(block.name) &&
-                new RegExp(`\\b${candidate}\\b`).test(block.text)
-        );
-        if (referencedByPublic) {
-            console.warn(
-                `  ! ${candidate} is marked internal but is referenced by public declarations; ` +
-                    `keeping it in the emitted .d.ts to avoid a dangling type reference`
-            );
-            continue;
+    const violations: string[] = [];
+    for (const intType of internalTypes) {
+        for (const block of blocks) {
+            if (block.name === intType) continue;
+            if (internalDeclarations.has(block.name)) continue;
+
+            // Strip content that does not appear in the emitted .d.ts:
+            //   1. All JSDoc/block comments — prevents doc-comment text that happens to name a
+            //      type (e.g. "via the definition X") from registering as a code reference.
+            //   2. Function bodies — declaration emit drops bodies, so a reference inside a
+            //      function implementation is not a public type reference.
+            //   3. @internal-tagged member sections — TypeScript's stripInternal removes them
+            //      from the .d.ts along with any types they reference.
+            let publicText = block.text
+                // Remove all block comments (JSDoc and otherwise).
+                .replace(/\/\*[\s\S]*?\*\//g, "")
+                // Remove function bodies (from the opening { to matching closing }).
+                .replace(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "{}")
+                // Remove any remaining @internal-tagged member lines that survived (e.g. a
+                // stripped comment leaves behind a bare property declaration on the next line).
+                .replace(/[ \t]+\S[^\n]*@internal[^\n]*/g, "");
+
+            if (new RegExp(`\\b${intType}\\b`).test(publicText)) {
+                violations.push(`  ${block.name} (public) references internal type ${intType}`);
+            }
         }
-        safe.add(candidate);
     }
-    return safe;
+
+    if (violations.length > 0) {
+        throw new Error(
+            `Codegen produced public declarations that reference internal types.\n` +
+            `This is a codegen bug — fix the generator so internal types are not referenced by public output:\n` +
+            violations.join("\n")
+        );
+    }
 }
 
 function sanitizeJsDocText(text: string): string {
@@ -401,21 +404,37 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
 
 // ── Session Events ──────────────────────────────────────────────────────────
 
-async function generateSessionEvents(schemaPath?: string): Promise<void> {
-    console.log("TypeScript: generating session-events...");
-
-    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
-    const processed = propagateInternalVisibility(postProcessSchema(schema));
-    const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
-    const sessionEvent =
-        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
-        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections) ??
-        processed;
+/**
+ * Filters a `SessionEvent` union schema to exclude internal arms.
+ *
+ * The schema marks internal union members with `visibility: "internal"` on the arm object itself
+ * AND on the resolved definition. An arm is excluded when either level is internal, or when the
+ * arm's resolved `data` property is internal (legacy pattern for event types that carry their
+ * payload in a `data` field).
+ *
+ * Returns the filtered arms and the set of definition names to exclude from compilation.
+ */
+export function filterPublicSessionEventVariants(
+    variants: JSONSchema7[],
+    definitionCollections: DefinitionCollections
+): { publicVariants: JSONSchema7[]; excludedDefinitionNames: Set<string> } {
     const excludedDefinitionNames = new Set<string>();
-    const publicVariants = (sessionEvent.anyOf ?? []).filter((variant) => {
+    const publicVariants = variants.filter((variant) => {
         const variantSchema = variant as JSONSchema7;
         const resolvedVariant = resolveSchema(variantSchema, definitionCollections) ?? variantSchema;
+
+        // Exclude the arm if the arm object itself or its resolved definition is internal.
+        // The schema marks internal union members at both levels; checking only the resolved
+        // definition's `data` sub-property (the original logic) missed cases where the event
+        // type itself carries `visibility: "internal"`.
+        if (isSchemaInternal(variantSchema) || isSchemaInternal(resolvedVariant)) {
+            for (const ref of [variantSchema.$ref]) {
+                const match = ref?.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/);
+                if (match) excludedDefinitionNames.add(match[1]);
+            }
+            return false;
+        }
+
         const dataSchema = resolvedVariant.properties?.data as JSONSchema7 | undefined;
         const resolvedData = dataSchema ? resolveSchema(dataSchema, definitionCollections) ?? dataSchema : undefined;
         if (!isSchemaInternal(resolvedData)) {
@@ -428,6 +447,24 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
         }
         return false;
     });
+    return { publicVariants, excludedDefinitionNames };
+}
+
+async function generateSessionEvents(schemaPath?: string): Promise<void> {
+    console.log("TypeScript: generating session-events...");
+
+    const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
+    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
+    const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections) ??
+        processed;
+    const { publicVariants, excludedDefinitionNames } = filterPublicSessionEventVariants(
+        sessionEvent.anyOf ?? [],
+        definitionCollections
+    );
     const publicDefinitions = Object.fromEntries(
         Object.entries(definitionCollections.definitions).filter(([name]) => !excludedDefinitionNames.has(name))
     );
@@ -461,6 +498,9 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     // Add @internal JSDoc annotations for session-event types marked
     // `visibility: "internal"` in the schema. The tag drives `stripInternal`
     // so the whole type is dropped from the published .d.ts.
+    // Because internal union arms are excluded from the compiled output by the
+    // publicVariants filter above, no public declaration should reference these
+    // types; assertNoPublicInternalReferences enforces that invariant hard.
     const sessionInternalTypes = new Set<string>();
     for (const [name, def] of Object.entries(definitionCollections.definitions ?? {})) {
         if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
@@ -472,7 +512,13 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
             sessionInternalTypes.add(name);
         }
     }
-    annotatedTs = tagInternalTypes(annotatedTs, sessionInternalTypes);
+    for (const intType of sessionInternalTypes) {
+        annotatedTs = annotatedTs.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+            `$1/** @internal */\n$2`
+        );
+    }
+    assertNoPublicInternalReferences(annotatedTs, sessionInternalTypes);
     const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
@@ -812,7 +858,20 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
         lines.push(...emitClientGlobalApiRegistration(schema.clientGlobal));
     }
 
-    const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", tagInternalTypes(lines.join("\n"), internalTypes));
+    // Apply @internal to RPC types in a final pass over the assembled file.
+    // The client/server method signatures that reference these types are emitted
+    // after the per-schema type chunks, so the tagging must happen here rather
+    // than per-chunk. assertNoPublicInternalReferences then enforces hard that no
+    // public declaration slipped through referencing a type the schema marked internal.
+    let rpcTs = lines.join("\n");
+    for (const intType of internalTypes) {
+        rpcTs = rpcTs.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+            `$1/** @internal */\n$2`
+        );
+    }
+    assertNoPublicInternalReferences(rpcTs, internalTypes);
+    const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", rpcTs);
     console.log(`  ✓ ${outPath}`);
 }
 
@@ -1037,6 +1096,7 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
 
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
+        const publicMethods = methods.filter((m) => m.visibility !== "internal");
         const groupDeprecated = isNodeFullyDeprecated(clientSchema[groupName] as Record<string, unknown>);
         const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
@@ -1048,7 +1108,7 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>):
             lines.push(`/** Handler for \`${groupName}\` client global API methods. */`);
         }
         lines.push(`export interface ${interfaceName} {`);
-        for (const method of methods) {
+        for (const method of publicMethods) {
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = hasSchemaPayload(getMethodParamsSchema(method));
             const pType = hasParams ? paramsTypeName(method) : "";
