@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.ExitPlanModeAction;
 import com.github.copilot.generated.ExitPlanModeCompletedEvent;
 import com.github.copilot.generated.ExitPlanModeRequestedEvent;
+import com.github.copilot.rpc.AgentMode;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -98,7 +99,7 @@ public class ModeHandlersTest {
 
             var response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.")
-                    .setMode("plan")).get(120, TimeUnit.SECONDS);
+                    .setAgentMode(AgentMode.PLAN)).get(120, TimeUnit.SECONDS);
 
             var request = handlerCalled.get(10, TimeUnit.SECONDS);
             assertEquals(summary, request.getSummary());
