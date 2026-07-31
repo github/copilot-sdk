@@ -2,7 +2,11 @@ import pytest
 
 from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
 from copilot.session import CopilotSession, PermissionHandler, PermissionNoResult
-from copilot.session_events import PermissionRequestedData, PermissionRequestRead
+from copilot.session_events import (
+    PermissionRequestCustomTool,
+    PermissionRequestedData,
+    PermissionRequestRead,
+)
 
 
 def test_permission_event_exposes_managed_approval_required() -> None:
@@ -20,6 +24,18 @@ def test_permission_event_exposes_managed_approval_required() -> None:
 
     assert data.permission_request.managed_approval_required is True
     assert data.to_dict()["permissionRequest"]["managedApprovalRequired"] is True
+
+
+def test_managed_metadata_preserves_existing_positional_constructor_order() -> None:
+    request = PermissionRequestCustomTool(
+        "Run a custom tool",
+        "custom_tool",
+        {"value": 1},
+        "tool-call-1",
+    )
+
+    assert request.tool_call_id == "tool-call-1"
+    assert request.managed_approval_required is None
 
 
 def test_approve_all_rejects_managed_settings_session() -> None:

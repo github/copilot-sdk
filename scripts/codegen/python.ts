@@ -2253,9 +2253,17 @@ function emitPyClass(
     const fieldEntries = Object.entries(schema.properties || {}).filter(
         ([, value]) => typeof value === "object"
     ) as Array<[string, JSONSchema7]>;
+    const optionalFieldEntries = fieldEntries
+        .filter(([name]) => !required.has(name))
+        .sort(([left], [right]) => {
+            const leftAppendOnly = left === "managedApprovalRequired";
+            const rightAppendOnly = right === "managedApprovalRequired";
+            if (leftAppendOnly !== rightAppendOnly) return leftAppendOnly ? 1 : -1;
+            return left.localeCompare(right);
+        });
     const orderedFieldEntries = [
         ...fieldEntries.filter(([name]) => required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
-        ...fieldEntries.filter(([name]) => !required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
+        ...optionalFieldEntries,
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
