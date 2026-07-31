@@ -916,6 +916,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableSkills ??= false;
             config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
+            config.CustomAgentsLocalOnly ??= true;
         }
     }
 
@@ -1159,6 +1160,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Agent,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.CustomAgentsLocalOnly,
                 config.SkipEmbeddingRetrieval,
                 config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
@@ -1363,6 +1365,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.WorkingDirectory,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.CustomAgentsLocalOnly,
                 config.SkipEmbeddingRetrieval,
                 config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
@@ -2724,6 +2727,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Agent,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        [property: JsonPropertyName("customAgentsLocalOnly")] bool? CustomAgentsLocalOnly,
         bool? SkipEmbeddingRetrieval,
         EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
@@ -2820,6 +2824,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        [property: JsonPropertyName("customAgentsLocalOnly")] bool? CustomAgentsLocalOnly,
         bool? SkipEmbeddingRetrieval,
         EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,

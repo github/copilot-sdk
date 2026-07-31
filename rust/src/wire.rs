@@ -129,6 +129,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents_local_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
@@ -264,6 +266,8 @@ pub(crate) struct SessionResumeWire {
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents_local_only: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

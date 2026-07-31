@@ -164,6 +164,10 @@ function handleMessage(message) {
     });
     return;
   }
+  if (message.method === "session.options.update") {
+    writeResponse(message.id, { success: true });
+    return;
+  }
   writeResponse(message.id, {});
 }
 
@@ -284,7 +288,9 @@ class TestClientOptions:
                 enable_config_discovery=True,
                 enable_on_demand_instruction_discovery=True,
                 include_sub_agent_streaming_events=False,
+                custom_agents_local_only=False,
             )
+            session_id = session.session_id
             try:
                 with open(capture_path) as f:
                     capture = json.load(f)
@@ -295,8 +301,72 @@ class TestClientOptions:
                 assert params["enableConfigDiscovery"] is True
                 assert params["enableOnDemandInstructionDiscovery"] is True
                 assert params["includeSubAgentStreamingEvents"] is False
+                assert params["customAgentsLocalOnly"] is False
             finally:
                 await session.disconnect()
+
+            resumed = await client.resume_session(
+                session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agents_local_only=False,
+            )
+            try:
+                with open(capture_path) as f:
+                    capture = json.load(f)
+                resume_request = next(
+                    r for r in capture["requests"] if r["method"] == "session.resume"
+                )
+                assert resume_request["params"]["customAgentsLocalOnly"] is False
+            finally:
+                await resumed.disconnect()
+        finally:
+            try:
+                await client.stop()
+            except Exception:
+                await client.force_stop()
+
+    async def test_should_send_empty_mode_custom_agent_locality_defaults(self, ctx: E2ETestContext):
+        cli_path = os.path.join(ctx.work_dir, "fake-cli-empty.js")
+        capture_path = os.path.join(ctx.work_dir, "fake-cli-empty-capture.json")
+        with open(cli_path, "w") as f:
+            f.write(FAKE_STDIO_CLI_SCRIPT)
+
+        client = CopilotClient(
+            **_make_options(
+                ctx,
+                cli_path=cli_path,
+                cli_args=["--capture-file", capture_path],
+                mode="empty",
+                base_directory=ctx.work_dir,
+                use_logged_in_user=False,
+            ),
+        )
+        try:
+            session = await client.create_session(
+                available_tools=["builtin:ask_user"],
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            session_id = session.session_id
+            await session.disconnect()
+
+            resumed = await client.resume_session(
+                session_id,
+                available_tools=["builtin:ask_user"],
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            try:
+                with open(capture_path) as f:
+                    capture = json.load(f)
+                create_request = next(
+                    r for r in capture["requests"] if r["method"] == "session.create"
+                )
+                resume_request = next(
+                    r for r in capture["requests"] if r["method"] == "session.resume"
+                )
+                assert create_request["params"]["customAgentsLocalOnly"] is True
+                assert resume_request["params"]["customAgentsLocalOnly"] is True
+            finally:
+                await resumed.disconnect()
         finally:
             try:
                 await client.stop()

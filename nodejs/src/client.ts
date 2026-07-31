@@ -1324,6 +1324,7 @@ export class CopilotClient {
                 enableSessionStore: false,
                 enableSkills: false,
                 memory: { enabled: false },
+                customAgentsLocalOnly: true,
             };
         }
         return {};
@@ -1426,7 +1427,9 @@ export class CopilotClient {
             await this.start();
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         // For cloud sessions, let the CLI/server assign the session id and
@@ -1571,6 +1574,7 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDirectory,
@@ -1723,7 +1727,9 @@ export class CopilotClient {
             session.registerHooks(config.hooks);
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
@@ -1813,6 +1819,7 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
