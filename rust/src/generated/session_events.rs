@@ -1033,7 +1033,8 @@ pub struct SessionPlanChangedData {
 /// Session event "session.todos_changed". Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionTodosChangedData {}
+pub struct SessionTodosChangedData {
+}
 
 /// Session event "session.workspace_file_changed". Workspace file change details including path and operation type
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1396,8 +1397,7 @@ pub(crate) struct CompactionCompleteCompactionTokensUsedCopilotUsage {
     /// Itemized token usage breakdown
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) token_details:
-        Option<Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>>,
+    pub(crate) token_details: Option<Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>>,
     /// Total cost in nano-AI units for this request
     pub total_nano_aiu: f64,
 }
@@ -1557,7 +1557,8 @@ pub struct UserMessageData {
 /// Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PendingMessagesModifiedData {}
+pub struct PendingMessagesModifiedData {
+}
 
 /// Session event "assistant.turn_start". Turn initialization metadata including identifier and interaction tracking
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -2506,22 +2507,26 @@ pub struct ToolExecutionCompleteUIResourceMetaUICsp {
 /// Marker object for camera permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {}
+pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {
+}
 
 /// Marker object for clipboard-write permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {}
+pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {
+}
 
 /// Marker object for geolocation permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {}
+pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {
+}
 
 /// Marker object for microphone permission on an MCP Apps UI resource.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {}
+pub struct ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {
+}
 
 /// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -2849,7 +2854,8 @@ pub struct SubagentSelectedData {
 /// Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SubagentDeselectedData {}
+pub struct SubagentDeselectedData {
+}
 
 /// Session event "hook.start". Hook invocation start details including type and input data
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -3017,7 +3023,7 @@ pub struct PermissionRequestShell {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestShellKind,
-    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// File paths that may be read or written by the command
@@ -3052,7 +3058,7 @@ pub struct PermissionRequestWrite {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestWriteKind,
-    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Complete new file contents for newly created files
@@ -3077,7 +3083,7 @@ pub struct PermissionRequestRead {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestReadKind,
-    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Path of the file or directory being read
@@ -3126,7 +3132,7 @@ pub struct PermissionRequestUrl {
     pub intention: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestUrlKind,
-    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
     /// Immediately preceding URL when this request is for a redirect target
@@ -4400,7 +4406,8 @@ pub struct SessionToolsUpdatedData {
 /// Session event "session.background_tasks_changed". Empty payload for `session.background_tasks_changed`, indicating background task state changed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionBackgroundTasksChangedData {}
+pub struct SessionBackgroundTasksChangedData {
+}
 
 /// Session event "factory.run_updated". Ephemeral invalidation signal for a changed factory run.
 ///
@@ -5912,9 +5919,7 @@ pub enum PermissionResult {
     ApprovedForLocation(PermissionApprovedForLocation),
     Cancelled(PermissionCancelled),
     DeniedByRules(PermissionDeniedByRules),
-    DeniedNoApprovalRuleAndCouldNotRequestFromUser(
-        PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser,
-    ),
+    DeniedNoApprovalRuleAndCouldNotRequestFromUser(PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser),
     DeniedInteractivelyByUser(PermissionDeniedInteractivelyByUser),
     DeniedByContentExclusionPolicy(PermissionDeniedByContentExclusionPolicy),
     DeniedByPermissionRequestHook(PermissionDeniedByPermissionRequestHook),
