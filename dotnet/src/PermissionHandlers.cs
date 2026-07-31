@@ -20,18 +20,23 @@ public static class PermissionHandler
                 ? Task.FromResult(PermissionDecision.NoResult())
                 : Task.FromResult(PermissionDecision.ApproveOnce());
 
-    private static bool RequiresManagedApproval(PermissionRequest request) => request switch
+    private static bool RequiresManagedApproval(PermissionRequest request)
     {
-        PermissionRequestShell shell => shell.ManagedApprovalRequired is true,
-        PermissionRequestWrite write => write.ManagedApprovalRequired is true,
-        PermissionRequestRead read => read.ManagedApprovalRequired is true,
-        PermissionRequestUrl url => url.ManagedApprovalRequired is true,
-        PermissionRequestMcp
-            or PermissionRequestMemory
-            or PermissionRequestCustomTool
-            or PermissionRequestHook
-            or PermissionRequestExtensionManagement
-            or PermissionRequestExtensionPermissionAccess => false,
-        _ => true,
-    };
+        if (request.ManagedApprovalRequired is true)
+        {
+            return true;
+        }
+
+        return request.GetType() == typeof(PermissionRequest)
+            && request.Kind is not ("shell"
+                or "write"
+                or "read"
+                or "mcp"
+                or "url"
+                or "memory"
+                or "custom-tool"
+                or "hook"
+                or "extension-management"
+                or "extension-permission-access");
+    }
 }

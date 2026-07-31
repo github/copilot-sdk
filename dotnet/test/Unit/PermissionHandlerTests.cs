@@ -38,6 +38,8 @@ public class PermissionHandlerTests
         Assert.NotNull(data);
         var request = Assert.IsType<PermissionRequestRead>(data.PermissionRequest);
         Assert.True(request.ManagedApprovalRequired);
+        PermissionRequest genericRequest = request;
+        Assert.True(genericRequest.ManagedApprovalRequired);
     }
 
     [Fact]
@@ -70,6 +72,21 @@ public class PermissionHandlerTests
     public async Task ApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent()
     {
         var request = new PermissionRequestRead
+        {
+            Intention = "Read managed content",
+            ManagedApprovalRequired = true,
+            Path = "/workspace/file.txt",
+        };
+
+        var decision = await PermissionHandler.ApproveAll(request, new PermissionInvocation());
+
+        Assert.IsType<PermissionDecisionNoResult>(decision);
+    }
+
+    [Fact]
+    public async Task ApproveAllLeavesManagedKnownVariantPendingThroughBaseType()
+    {
+        PermissionRequest request = new PermissionRequestRead
         {
             Intention = "Read managed content",
             ManagedApprovalRequired = true,

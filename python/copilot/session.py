@@ -2155,7 +2155,7 @@ class CopilotSession:
             )
         except Exception:
             logger.exception(
-                "Permission handler failed",
+                "Permission handler or response delivery failed",
                 extra={"session_id": self.session_id, "request_id": request_id},
             )
             try:
@@ -2574,8 +2574,8 @@ class CopilotSession:
             return result
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission.
-            logger.debug(
-                "Error handling permission request",
+            logger.error(
+                "Permission handler failed",
                 extra={"session_id": self.session_id},
                 exc_info=True,
             )

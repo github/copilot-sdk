@@ -1123,7 +1123,7 @@ export class CopilotSession {
             if (this.disconnected) {
                 return;
             }
-            console.error("Permission handler failed", {
+            console.error("Permission handler or response delivery failed", {
                 sessionId: this.sessionId,
                 requestId,
                 error,
