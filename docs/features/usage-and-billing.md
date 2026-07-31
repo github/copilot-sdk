@@ -137,14 +137,17 @@ func main() {
 		if !ok {
 			return
 		}
-		in, out := int64(0), int64(0)
+		in, out, cost := int64(0), int64(0), float64(0)
 		if d.InputTokens != nil {
 			in = *d.InputTokens
 		}
 		if d.OutputTokens != nil {
 			out = *d.OutputTokens
 		}
-		fmt.Printf("%s: in=%d out=%d\n", d.Model, in, out)
+		if d.Cost != nil {
+			cost = *d.Cost
+		}
+		fmt.Printf("%s: in=%d out=%d cost=%g\n", d.Model, in, out, cost)
 	})
 	_ = session
 }
@@ -157,14 +160,17 @@ session.On(func(event copilot.SessionEvent) {
     if !ok {
         return
     }
-    in, out := int64(0), int64(0)
+    in, out, cost := int64(0), int64(0), float64(0)
     if d.InputTokens != nil {
         in = *d.InputTokens
     }
     if d.OutputTokens != nil {
         out = *d.OutputTokens
     }
-    fmt.Printf("%s: in=%d out=%d\n", d.Model, in, out)
+    if d.Cost != nil {
+        cost = *d.Cost
+    }
+    fmt.Printf("%s: in=%d out=%d cost=%g\n", d.Model, in, out, cost)
 })
 ```
 
@@ -209,7 +215,8 @@ session.on(AssistantUsageEvent.class, event -> {
     var data = event.getData();
     long in = data.inputTokens() != null ? data.inputTokens() : 0;
     long out = data.outputTokens() != null ? data.outputTokens() : 0;
-    System.out.printf("%s: in=%d out=%d%n", data.model(), in, out);
+    double cost = data.cost() != null ? data.cost() : 0.0;
+    System.out.printf("%s: in=%d out=%d cost=%s%n", data.model(), in, out, cost);
 });
 ```
 
@@ -226,10 +233,11 @@ while let Ok(event) = events.recv().await {
     if event.event_type == "assistant.usage" {
         if let Some(data) = event.typed_data::<AssistantUsageData>() {
             println!(
-                "{}: in={} out={}",
+                "{}: in={} out={} cost={}",
                 data.model,
                 data.input_tokens.unwrap_or(0),
                 data.output_tokens.unwrap_or(0),
+                data.cost.unwrap_or(0.0),
             );
         }
     }
@@ -428,7 +436,7 @@ while let Ok(event) = events.recv().await {
 
 ### On-demand breakdown with `session.metadata.contextInfo`
 
-Events only fire when the context changes. To read the current breakdown at any moment—for example, right after resuming a session—call `session.metadata.contextInfo`. Pass `0` for the token limits to use the model's defaults.
+Events only fire when the context changes. To read the current breakdown at any moment—for example, right after resuming a session—call `session.metadata.contextInfo`. Pass `0` for `promptTokenLimit` to use the runtime default; pass `0` for `outputTokenLimit` if the value is unknown.
 
 The result's `contextInfo` is `null` until the session has been initialized (the system prompt and tool metadata have been cached). It breaks the total down into `systemTokens`, `conversationTokens`, and `toolDefinitionsTokens`, alongside the `promptTokenLimit`.
 
