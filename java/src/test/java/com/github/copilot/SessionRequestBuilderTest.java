@@ -96,6 +96,14 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestSetsAdditionalDirectories() {
+        var config = new SessionConfig()
+                .setAdditionalDirectories(List.of("/repo/shared", "/repo/generated"));
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals(List.of("/repo/shared", "/repo/generated"), request.getAdditionalDirectories());
+    }
+
+    @Test
     void testBuildCreateRequestSetsReasoningSummary() {
         var config = new SessionConfig().setReasoningSummary("concise");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -287,6 +295,14 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setClientName("my-app");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-10", config);
         assertEquals("my-app", request.getClientName());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsAdditionalDirectories() {
+        var config = new ResumeSessionConfig().setAdditionalDirectories(List.of("/repo/resumed"));
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-additional-directories",
+                config);
+        assertEquals(List.of("/repo/resumed"), request.getAdditionalDirectories());
     }
 
     @Test

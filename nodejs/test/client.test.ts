@@ -184,6 +184,42 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("forwards additional directories when creating and resuming sessions", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-with-additional-directories",
+            additionalDirectories: ["/repo/shared", "/repo/generated"],
+            onPermissionRequest: approveAll,
+        });
+        await client.resumeSession("resume-with-additional-directories", {
+            additionalDirectories: ["/repo/resumed"],
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                additionalDirectories: ["/repo/shared", "/repo/generated"],
+            })
+        );
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ additionalDirectories: ["/repo/resumed"] })
+        );
+    });
+
     it("registers MCP OAuth interest after cloud create only when an auth handler is configured", async () => {
         const client = new CopilotClient();
         await client.start();

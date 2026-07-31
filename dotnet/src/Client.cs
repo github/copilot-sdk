@@ -1196,7 +1196,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1410,7 +1411,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -2762,7 +2764,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
-        bool? EnableGitHubTelemetryForwarding = null);
+        bool? EnableGitHubTelemetryForwarding = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2868,7 +2871,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
-        bool? EnableGitHubTelemetryForwarding = null);
+        bool? EnableGitHubTelemetryForwarding = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(

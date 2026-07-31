@@ -256,6 +256,37 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task SessionRequests_Serialize_AdditionalDirectories()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AdditionalDirectories = ["/repo/shared", "/repo/generated"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var createRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.Equal(
+            new string?[] { "/repo/shared", "/repo/generated" },
+            createRequest.Params.GetProperty("additionalDirectories").EnumerateArray().Select(value => value.GetString()));
+
+        server.ClearRequests();
+
+        await using var resumed = await client.ResumeSessionAsync("resume-with-additional-directories", new ResumeSessionConfig
+        {
+            AdditionalDirectories = ["/repo/resumed"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.Equal(
+            new string?[] { "/repo/resumed" },
+            resumeRequest.Params.GetProperty("additionalDirectories").EnumerateArray().Select(value => value.GetString()));
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
     {
         await using var server = await FakeCopilotServer.StartAsync();

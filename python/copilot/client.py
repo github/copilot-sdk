@@ -2010,6 +2010,7 @@ class CopilotClient:
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
+        additional_directories: list[str] | None = None,
         provider: ProviderConfig | None = None,
         capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
@@ -2344,6 +2345,8 @@ class CopilotClient:
         # Add working directory if provided
         if working_directory:
             payload["workingDirectory"] = working_directory
+        if additional_directories:
+            payload["additionalDirectories"] = additional_directories
 
         # Add streaming option if provided
         if streaming is not None:
@@ -2678,6 +2681,7 @@ class CopilotClient:
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
+        additional_directories: list[str] | None = None,
         provider: ProviderConfig | None = None,
         capi: CapiSessionOptions | None = None,
         providers: list[NamedProviderConfig] | None = None,
@@ -3036,6 +3040,8 @@ class CopilotClient:
 
         if working_directory:
             payload["workingDirectory"] = working_directory
+        if additional_directories:
+            payload["additionalDirectories"] = additional_directories
         if config_directory:
             payload["configDir"] = config_directory
         if enable_config_discovery is not None:

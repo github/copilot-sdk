@@ -1562,6 +1562,7 @@ export class CopilotClient {
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 ...(this.onGitHubTelemetry != null
@@ -1794,6 +1795,7 @@ export class CopilotClient {
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
+                additionalDirectories: config.additionalDirectories,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,

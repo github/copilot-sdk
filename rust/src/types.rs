@@ -1911,6 +1911,10 @@ pub struct SessionConfig {
     /// Working directory for the session. Tool operations resolve
     /// relative paths against this directory.
     pub working_directory: Option<PathBuf>,
+    /// Additional directories the agent may access beyond the working directory.
+    /// Relative paths resolve against the session working directory. Re-supply
+    /// them when resuming a session.
+    pub additional_directories: Option<Vec<PathBuf>>,
     /// Per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
     /// which authenticates the CLI process itself; this token determines
@@ -2074,6 +2078,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
+            .field("additional_directories", &self.additional_directories)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
@@ -2188,6 +2193,7 @@ impl Default for SessionConfig {
             memory: None,
             config_directory: None,
             working_directory: None,
+            additional_directories: None,
             github_token: None,
             remote_session: None,
             cloud: None,
@@ -2346,6 +2352,7 @@ impl SessionConfig {
             memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
+            additional_directories: self.additional_directories,
             github_token: self.github_token,
             remote_session: self.remote_session,
             cloud: self.cloud,
@@ -2868,6 +2875,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set directories the agent may access beyond the working directory.
+    pub fn with_additional_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.additional_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token);
     /// this token determines the GitHub identity used for content exclusion,
@@ -3102,6 +3119,9 @@ pub struct ResumeSessionConfig {
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
     pub working_directory: Option<PathBuf>,
+    /// Additional directories the agent may access on resume. Relative paths
+    /// resolve against the session working directory.
+    pub additional_directories: Option<Vec<PathBuf>>,
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
     pub github_token: Option<String>,
@@ -3245,6 +3265,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
+            .field("additional_directories", &self.additional_directories)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
@@ -3402,6 +3423,7 @@ impl ResumeSessionConfig {
             memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
+            additional_directories: self.additional_directories,
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
@@ -3493,6 +3515,7 @@ impl ResumeSessionConfig {
             memory: None,
             config_directory: None,
             working_directory: None,
+            additional_directories: None,
             github_token: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
@@ -3988,6 +4011,16 @@ impl ResumeSessionConfig {
     /// Set the per-session working directory on resume.
     pub fn with_working_directory(mut self, dir: impl Into<PathBuf>) -> Self {
         self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Set directories the agent may access beyond the working directory on resume.
+    pub fn with_additional_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.additional_directories = Some(paths.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6220,6 +6253,7 @@ mod tests {
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_additional_directories([PathBuf::from("/tmp/shared")])
             .with_github_token("ghp_test")
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
@@ -6257,6 +6291,10 @@ mod tests {
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(
+            cfg.additional_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/shared")][..])
+        );
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
@@ -6291,6 +6329,7 @@ mod tests {
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_additional_directories([PathBuf::from("/tmp/shared")])
             .with_github_token("ghp_test")
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
@@ -6328,6 +6367,10 @@ mod tests {
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(
+            cfg.additional_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/shared")][..])
+        );
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
@@ -6360,6 +6403,29 @@ mod tests {
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("continuePendingWork").is_none());
+    }
+
+    #[test]
+    fn session_configs_serialize_additional_directories() {
+        let create = SessionConfig::default().with_additional_directories([
+            PathBuf::from("/tmp/shared"),
+            PathBuf::from("/tmp/generated"),
+        ]);
+        let (create_wire, _) = create.into_wire(None).expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["additionalDirectories"],
+            serde_json::json!(["/tmp/shared", "/tmp/generated"])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_additional_directories([PathBuf::from("/tmp/resumed")]);
+        let (resume_wire, _) = resume.into_wire().expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["additionalDirectories"],
+            serde_json::json!(["/tmp/resumed"])
+        );
     }
 
     /// The Rust field is `suppress_resume_event`, but the wire field stays

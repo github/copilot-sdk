@@ -3051,6 +3051,7 @@ public abstract class SessionConfigBase
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
+        AdditionalDirectories = other.AdditionalDirectories is not null ? [.. other.AdditionalDirectories] : null;
     }
 
     /// <summary>Client name to identify the application using the SDK.</summary>
@@ -3307,6 +3308,12 @@ public abstract class SessionConfigBase
 
     /// <summary>Working directory for the session.</summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Additional directories the agent may access beyond <see cref="WorkingDirectory"/>.
+    /// Relative paths resolve against the session working directory. Re-supply them when resuming.
+    /// </summary>
+    public IList<string>? AdditionalDirectories { get; set; }
 
     /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
