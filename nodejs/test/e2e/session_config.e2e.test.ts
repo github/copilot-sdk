@@ -9,7 +9,7 @@ import {
     type CopilotRequestContext,
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
-import { retry, waitForCondition } from "./harness/sdkTestHelper.js";
+import { retry } from "./harness/sdkTestHelper.js";
 
 describe("Session Configuration", async () => {
     const { copilotClient: client, workDir, openAiEndpoint, env } = await createSdkTestContext();
@@ -222,24 +222,21 @@ describe("Session Configuration", async () => {
         return (exchange.request.tools ?? []).map((t) => t.function.name);
     }
 
-    async function expectGitHubMcpConfigApplied(session: {
-        rpc: CopilotSession["rpc"];
-    }): Promise<void> {
-        const serverName = "github-mcp-server";
-        await waitForCondition(
-            async () =>
-                (await session.rpc.mcp.list()).servers.some(
-                    (server) => server.name === serverName && server.status === "connected"
-                ),
-            {
-                timeoutMs: 60_000,
-                intervalMs: 200,
-                timeoutMessage: `${serverName} did not reach connected`,
-            }
-        );
-
-        const tools = await session.rpc.mcp.listTools({ serverName });
-        expect(tools.tools.map((tool) => tool.name)).toContain("github_config_applied");
+    async function expectGitHubMcpConfigApplied(session: CopilotSession): Promise<void> {
+        await session.rpc.mcp.list();
+        await retry("capture configured GitHub MCP request", async () => {
+            const requests = await openAiEndpoint.getRequests();
+            const request = requests.find(
+                (entry) => entry.method === "POST" && entry.url === "/mcp"
+            );
+            expect(
+                request,
+                `captured requests: ${requests.map((entry) => `${entry.method} ${entry.url}`).join(", ")}`
+            ).toBeDefined();
+            expect(request?.headers["x-mcp-toolsets"]).toBe("all");
+            expect(request?.headers["x-mcp-insiders"]).toBe("true");
+            expect(requests.some((entry) => entry.url === "/mcp/readonly")).toBe(false);
+        });
     }
 
     async function sendAndGetNextExchange(
