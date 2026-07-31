@@ -9,7 +9,7 @@ import {
     type CopilotRequestContext,
 } from "../../src/index.js";
 import { createSdkTestContext, DEFAULT_GITHUB_TOKEN } from "./harness/sdkTestContext.js";
-import { retry } from "./harness/sdkTestHelper.js";
+import { retry, waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("Session Configuration", async () => {
     const { copilotClient: client, workDir, openAiEndpoint, env } = await createSdkTestContext();
@@ -220,6 +220,26 @@ describe("Session Configuration", async () => {
         request: { tools?: Array<{ function: { name: string } }> };
     }): string[] {
         return (exchange.request.tools ?? []).map((t) => t.function.name);
+    }
+
+    async function expectGitHubMcpConfigApplied(session: {
+        rpc: CopilotSession["rpc"];
+    }): Promise<void> {
+        const serverName = "github-mcp-server";
+        await waitForCondition(
+            async () =>
+                (await session.rpc.mcp.list()).servers.some(
+                    (server) => server.name === serverName && server.status === "connected"
+                ),
+            {
+                timeoutMs: 60_000,
+                intervalMs: 200,
+                timeoutMessage: `${serverName} did not reach connected`,
+            }
+        );
+
+        const tools = await session.rpc.mcp.listTools({ serverName });
+        expect(tools.tools.map((tool) => tool.name)).toContain("github_config_applied");
     }
 
     async function sendAndGetNextExchange(
@@ -846,6 +866,27 @@ describe("Session Configuration", async () => {
             expect(toolNames).toEqual(["view"]);
         } finally {
             await session2.disconnect();
+        }
+    });
+
+    it("should apply GitHub MCP tool config on create", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableConfigDiscovery: true,
+            enableMcpApps: true,
+            githubMcpToolConfig: {
+                enableAllTools: true,
+                additionalToolsets: ["actions"],
+                additionalTools: ["get_me"],
+                enableInsidersMode: true,
+                disableFormDeferral: true,
+            },
+        });
+
+        try {
+            await expectGitHubMcpConfigApplied(session);
+        } finally {
+            await session.disconnect();
         }
     });
 });

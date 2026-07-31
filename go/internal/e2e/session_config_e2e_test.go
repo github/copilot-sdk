@@ -988,6 +988,49 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 			t.Errorf("Expected toolNames=[view], got %v", toolNames)
 		}
 	})
+
+	t.Run("should apply GitHub MCP tool config on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		enableAllTools := true
+		enableInsidersMode := true
+		disableFormDeferral := true
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			EnableConfigDiscovery: copilot.Bool(true),
+			EnableMCPApps:         true,
+			GitHubMCPToolConfig: &copilot.GitHubMCPToolConfig{
+				EnableAllTools:      &enableAllTools,
+				AdditionalToolsets:  []string{"actions"},
+				AdditionalTools:     []string{"get_me"},
+				EnableInsidersMode:  &enableInsidersMode,
+				DisableFormDeferral: &disableFormDeferral,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		assertGitHubMCPConfigApplied(t, session)
+	})
+}
+
+func assertGitHubMCPConfigApplied(t *testing.T, session *copilot.Session) {
+	t.Helper()
+	const serverName = "github-mcp-server"
+	waitForMCPServerStatus(t, session, serverName, rpc.MCPServerStatusConnected)
+
+	tools, err := session.RPC.MCP.ListTools(t.Context(), &rpc.MCPListToolsRequest{ServerName: serverName})
+	if err != nil {
+		t.Fatalf("MCP.ListTools failed: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name == "github_config_applied" {
+			return
+		}
+	}
+	t.Fatalf("Expected configured GitHub MCP tool, got %+v", tools.Tools)
 }
 
 // createProxyProvider returns a ProviderConfig that points at the test proxy and

@@ -422,6 +422,64 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
         const requestPath = options.requestOptions.path ?? "";
+        // This snapshot verifies that enableAllTools selects the writable GitHub MCP endpoint.
+        if (
+          path.basename(state.filePath) ===
+            "should_apply_github_mcp_tool_config_on_create.yaml" &&
+          (requestPath === "/mcp" || requestPath === "/mcp/readonly") &&
+          options.requestOptions.method === "POST"
+        ) {
+          const request = JSON.parse(options.body ?? "{}") as {
+            id?: string | number;
+            method?: string;
+            params?: { protocolVersion?: string };
+          };
+          if (request.id === undefined) {
+            options.onResponseStart(202, commonResponseHeaders);
+            options.onResponseEnd();
+            return;
+          }
+
+          const result =
+            request.method === "initialize"
+              ? {
+                  protocolVersion:
+                    request.params?.protocolVersion ?? "2025-03-26",
+                  capabilities: { tools: {} },
+                  serverInfo: {
+                    name: "github-mcp-e2e-server",
+                    version: "1.0.0",
+                  },
+                }
+              : request.method === "tools/list"
+                ? {
+                    tools: [
+                      {
+                        name:
+                          requestPath === "/mcp"
+                            ? "github_config_applied"
+                            : "github_config_not_applied",
+                        description:
+                          "Reports whether the GitHub MCP E2E configuration was applied.",
+                        inputSchema: { type: "object", properties: {} },
+                      },
+                    ],
+                  }
+                : {};
+
+          options.onResponseStart(200, {
+            "content-type": "application/json",
+            ...commonResponseHeaders,
+          });
+          options.onData(
+            Buffer.from(
+              JSON.stringify({ jsonrpc: "2.0", id: request.id, result }),
+            ),
+          );
+          options.onResponseEnd();
+          return;
+        }
+
         const protocol = replayProtocols[state.backend];
         if (
           modelEndpoints.has(requestPath) &&
