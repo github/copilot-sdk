@@ -48,64 +48,65 @@ func (RawSessionEventData) sessionEventData() {}
 func (r RawSessionEventData) Type() SessionEventType {
 	return r.EventType
 }
+
 // SessionEventType identifies the kind of session event.
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort SessionEventType = "abort"
-	SessionEventTypeAssistantIdle SessionEventType = "assistant.idle"
-	SessionEventTypeAssistantIntent SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAbort                       SessionEventType = "abort"
+	SessionEventTypeAssistantIdle               SessionEventType = "assistant.idle"
+	SessionEventTypeAssistantIntent             SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage            SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta       SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart       SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning          SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta     SessionEventType = "assistant.reasoning_delta"
 	SessionEventTypeAssistantServerToolProgress SessionEventType = "assistant.server_tool_progress"
-	SessionEventTypeAssistantStreamingDelta SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantToolCallDelta SessionEventType = "assistant.tool_call_delta"
-	SessionEventTypeAssistantTurnEnd SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnRetry SessionEventType = "assistant.turn_retry"
-	SessionEventTypeAssistantTurnStart SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested SessionEventType = "external_tool.requested"
+	SessionEventTypeAssistantStreamingDelta     SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantToolCallDelta      SessionEventType = "assistant.tool_call_delta"
+	SessionEventTypeAssistantTurnEnd            SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnRetry          SessionEventType = "assistant.turn_retry"
+	SessionEventTypeAssistantTurnStart          SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage              SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted     SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested     SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged         SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted            SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute              SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued               SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged             SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted        SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested        SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted       SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested       SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted       SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested       SessionEventType = "external_tool.requested"
 	// Experimental: SessionEventTypeFactoryRunUpdated identifies an experimental event that may
 	// change or be removed.
-	SessionEventTypeFactoryRunUpdated SessionEventType = "factory.run_updated"
-	SessionEventTypeHookEnd SessionEventType = "hook.end"
-	SessionEventTypeHookProgress SessionEventType = "hook.progress"
-	SessionEventTypeHookStart SessionEventType = "hook.start"
-	SessionEventTypeMCPAppToolCallComplete SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeFactoryRunUpdated          SessionEventType = "factory.run_updated"
+	SessionEventTypeHookEnd                    SessionEventType = "hook.end"
+	SessionEventTypeHookProgress               SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                  SessionEventType = "hook.start"
+	SessionEventTypeMCPAppToolCallComplete     SessionEventType = "mcp_app.tool_call_complete"
 	SessionEventTypeMCPHeadersRefreshCompleted SessionEventType = "mcp.headers_refresh_completed"
-	SessionEventTypeMCPHeadersRefreshRequired SessionEventType = "mcp.headers_refresh_required"
-	SessionEventTypeMCPOauthCompleted SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRequired SessionEventType = "mcp.oauth_required"
-	SessionEventTypeMCPPromptsListChanged SessionEventType = "mcp.prompts.list_changed"
-	SessionEventTypeMCPResourcesListChanged SessionEventType = "mcp.resources.list_changed"
-	SessionEventTypeMCPToolsListChanged SessionEventType = "mcp.tools.list_changed"
-	SessionEventTypeModelCallFailure SessionEventType = "model.call_failure"
-	SessionEventTypeModelCallStart SessionEventType = "model.call_start"
-	SessionEventTypePendingMessagesModified SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested SessionEventType = "sampling.requested"
+	SessionEventTypeMCPHeadersRefreshRequired  SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted          SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRequired           SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMCPPromptsListChanged      SessionEventType = "mcp.prompts.list_changed"
+	SessionEventTypeMCPResourcesListChanged    SessionEventType = "mcp.resources.list_changed"
+	SessionEventTypeMCPToolsListChanged        SessionEventType = "mcp.tools.list_changed"
+	SessionEventTypeModelCallFailure           SessionEventType = "model.call_failure"
+	SessionEventTypeModelCallStart             SessionEventType = "model.call_start"
+	SessionEventTypePendingMessagesModified    SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted        SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested        SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted          SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested          SessionEventType = "sampling.requested"
 	// Experimental: SessionEventTypeSessionAutoModeResolved identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionAutoModeResolved SessionEventType = "session.auto_mode_resolved"
+	SessionEventTypeSessionAutoModeResolved          SessionEventType = "session.auto_mode_resolved"
 	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
-	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
 	// Experimental: SessionEventTypeSessionBinaryAsset identifies an experimental event that
 	// may change or be removed.
 	SessionEventTypeSessionBinaryAsset SessionEventType = "session.binary_asset"
@@ -126,68 +127,68 @@ const (
 	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
 	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionCanvasUnavailable SessionEventType = "session.canvas.unavailable"
-	SessionEventTypeSessionCompactionComplete SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart SessionEventType = "session.compaction_start"
-	SessionEventTypeSessionContextChanged SessionEventType = "session.context_changed"
-	SessionEventTypeSessionCustomAgentsUpdated SessionEventType = "session.custom_agents_updated"
-	SessionEventTypeSessionCustomNotification SessionEventType = "session.custom_notification"
-	SessionEventTypeSessionError SessionEventType = "session.error"
+	SessionEventTypeSessionCanvasUnavailable           SessionEventType = "session.canvas.unavailable"
+	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
+	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionCustomNotification          SessionEventType = "session.custom_notification"
+	SessionEventTypeSessionError                       SessionEventType = "session.error"
 	SessionEventTypeSessionExtensionsAttachmentsPushed SessionEventType = "session.extensions.attachments_pushed"
-	SessionEventTypeSessionExtensionsLoaded SessionEventType = "session.extensions_loaded"
-	SessionEventTypeSessionHandoff SessionEventType = "session.handoff"
-	SessionEventTypeSessionIdle SessionEventType = "session.idle"
-	SessionEventTypeSessionInfo SessionEventType = "session.info"
-	SessionEventTypeSessionLimitsExhaustedCompleted SessionEventType = "session_limits_exhausted.completed"
-	SessionEventTypeSessionLimitsExhaustedRequested SessionEventType = "session_limits_exhausted.requested"
+	SessionEventTypeSessionExtensionsLoaded            SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionHandoff                     SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                        SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                        SessionEventType = "session.info"
+	SessionEventTypeSessionLimitsExhaustedCompleted    SessionEventType = "session_limits_exhausted.completed"
+	SessionEventTypeSessionLimitsExhaustedRequested    SessionEventType = "session_limits_exhausted.requested"
 	// Experimental: SessionEventTypeSessionManagedSettingsEnforced identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsEnforced SessionEventType = "session.managed_settings_enforced"
 	// Experimental: SessionEventTypeSessionManagedSettingsResolved identifies an experimental
 	// event that may change or be removed.
 	SessionEventTypeSessionManagedSettingsResolved SessionEventType = "session.managed_settings_resolved"
-	SessionEventTypeSessionMCPServersLoaded SessionEventType = "session.mcp_servers_loaded"
-	SessionEventTypeSessionMCPServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionModeChanged SessionEventType = "session.mode_changed"
-	SessionEventTypeSessionModelChange SessionEventType = "session.model_change"
-	SessionEventTypeSessionPermissionsChanged SessionEventType = "session.permissions_changed"
-	SessionEventTypeSessionPlanChanged SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionResume SessionEventType = "session.resume"
-	SessionEventTypeSessionScheduleCancelled SessionEventType = "session.schedule_cancelled"
-	SessionEventTypeSessionScheduleCreated SessionEventType = "session.schedule_created"
-	SessionEventTypeSessionScheduleRearmed SessionEventType = "session.schedule_rearmed"
-	SessionEventTypeSessionSessionLimitsChanged SessionEventType = "session.session_limits_changed"
-	SessionEventTypeSessionShutdown SessionEventType = "session.shutdown"
-	SessionEventTypeSessionSkillsLoaded SessionEventType = "session.skills_loaded"
-	SessionEventTypeSessionSnapshotRewind SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionStart SessionEventType = "session.start"
-	SessionEventTypeSessionTaskComplete SessionEventType = "session.task_complete"
-	SessionEventTypeSessionTitleChanged SessionEventType = "session.title_changed"
-	SessionEventTypeSessionTodosChanged SessionEventType = "session.todos_changed"
-	SessionEventTypeSessionToolsUpdated SessionEventType = "session.tools_updated"
-	SessionEventTypeSessionTruncation SessionEventType = "session.truncation"
-	SessionEventTypeSessionUsageCheckpoint SessionEventType = "session.usage_checkpoint"
-	SessionEventTypeSessionUsageInfo SessionEventType = "session.usage_info"
-	SessionEventTypeSessionWarning SessionEventType = "session.warning"
-	SessionEventTypeSessionWorkspaceFileChanged SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSkillInvoked SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentCompleted SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentDeselected SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage SessionEventType = "system.message"
-	SessionEventTypeSystemNotification SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete SessionEventType = "tool.execution_complete"
-	SessionEventTypeToolExecutionPartialResult SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionStart SessionEventType = "tool.execution_start"
-	SessionEventTypeToolSearchActivated SessionEventType = "tool_search.activated"
-	SessionEventTypeToolUserRequested SessionEventType = "tool.user_requested"
-	SessionEventTypeUserInputCompleted SessionEventType = "user_input.completed"
-	SessionEventTypeUserInputRequested SessionEventType = "user_input.requested"
-	SessionEventTypeUserMessage SessionEventType = "user.message"
+	SessionEventTypeSessionMCPServersLoaded        SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMCPServerStatusChanged  SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionModeChanged             SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionModelChange             SessionEventType = "session.model_change"
+	SessionEventTypeSessionPermissionsChanged      SessionEventType = "session.permissions_changed"
+	SessionEventTypeSessionPlanChanged             SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged  SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResume                  SessionEventType = "session.resume"
+	SessionEventTypeSessionScheduleCancelled       SessionEventType = "session.schedule_cancelled"
+	SessionEventTypeSessionScheduleCreated         SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionScheduleRearmed         SessionEventType = "session.schedule_rearmed"
+	SessionEventTypeSessionSessionLimitsChanged    SessionEventType = "session.session_limits_changed"
+	SessionEventTypeSessionShutdown                SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded            SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind          SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                   SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete            SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged            SessionEventType = "session.title_changed"
+	SessionEventTypeSessionTodosChanged            SessionEventType = "session.todos_changed"
+	SessionEventTypeSessionToolsUpdated            SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation              SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageCheckpoint         SessionEventType = "session.usage_checkpoint"
+	SessionEventTypeSessionUsageInfo               SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                 SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged    SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                   SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted              SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected             SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                 SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected               SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted                SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                  SessionEventType = "system.message"
+	SessionEventTypeSystemNotification             SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete          SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult     SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress          SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart             SessionEventType = "tool.execution_start"
+	SessionEventTypeToolSearchActivated            SessionEventType = "tool_search.activated"
+	SessionEventTypeToolUserRequested              SessionEventType = "tool.user_requested"
+	SessionEventTypeUserInputCompleted             SessionEventType = "user_input.completed"
+	SessionEventTypeUserInputRequested             SessionEventType = "user_input.requested"
+	SessionEventTypeUserMessage                    SessionEventType = "user.message"
 )
 
 // Agent intent description for current activity or plan
@@ -196,7 +197,7 @@ type AssistantIntentData struct {
 	Intent string `json:"intent"`
 }
 
-func (*AssistantIntentData) sessionEventData() {}
+func (*AssistantIntentData) sessionEventData()      {}
 func (*AssistantIntentData) Type() SessionEventType { return SessionEventTypeAssistantIntent }
 
 // Agent mode change details including previous and new modes
@@ -207,7 +208,7 @@ type SessionModeChangedData struct {
 	PreviousMode SessionMode `json:"previousMode"`
 }
 
-func (*SessionModeChangedData) sessionEventData() {}
+func (*SessionModeChangedData) sessionEventData()      {}
 func (*SessionModeChangedData) Type() SessionEventType { return SessionEventTypeSessionModeChanged }
 
 // Assistant reasoning content for timeline display with complete thinking text
@@ -216,10 +217,10 @@ type AssistantReasoningData struct {
 	Content string `json:"content"`
 	// Unique identifier for this reasoning block
 	ReasoningID string `json:"reasoningId"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte         *bool  `json:"rte,omitempty"`
 }
 
-func (*AssistantReasoningData) sessionEventData() {}
+func (*AssistantReasoningData) sessionEventData()      {}
 func (*AssistantReasoningData) Type() SessionEventType { return SessionEventTypeAssistantReasoning }
 
 // Assistant response containing text content, optional tool requests, and interaction metadata
@@ -256,7 +257,7 @@ type AssistantMessageData struct {
 	ReasoningWireField *string `json:"reasoningWireField,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte       *bool   `json:"rte,omitempty"`
 	// Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 	ServerTools *AssistantMessageServerTools `json:"serverTools,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
@@ -267,7 +268,7 @@ type AssistantMessageData struct {
 	TurnID *string `json:"turnId,omitempty"`
 }
 
-func (*AssistantMessageData) sessionEventData() {}
+func (*AssistantMessageData) sessionEventData()      {}
 func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
 
 // Auto Intent resolution: the concrete model the session settled on for the first prompt of an auto-mode session, and why. Lets SDK clients render the chosen model and the full reason it was picked. The core selection fields (chosenModel/reasoningBucket/categoryScores) are stable; the routing-analytics fields (predictedLabel/confidence/candidateModels) mirror the upstream intent service and may evolve, hence the event's experimental stability.
@@ -306,7 +307,9 @@ type SessionAutoModeResolvedData struct {
 }
 
 func (*SessionAutoModeResolvedData) sessionEventData() {}
-func (*SessionAutoModeResolvedData) Type() SessionEventType { return SessionEventTypeSessionAutoModeResolved }
+func (*SessionAutoModeResolvedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutoModeResolved
+}
 
 // Auto mode switch completion notification
 type AutoModeSwitchCompletedData struct {
@@ -317,7 +320,9 @@ type AutoModeSwitchCompletedData struct {
 }
 
 func (*AutoModeSwitchCompletedData) sessionEventData() {}
-func (*AutoModeSwitchCompletedData) Type() SessionEventType { return SessionEventTypeAutoModeSwitchCompleted }
+func (*AutoModeSwitchCompletedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeSwitchCompleted
+}
 
 // Auto mode switch request notification requiring user approval
 type AutoModeSwitchRequestedData struct {
@@ -330,7 +335,9 @@ type AutoModeSwitchRequestedData struct {
 }
 
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
-func (*AutoModeSwitchRequestedData) Type() SessionEventType { return SessionEventTypeAutoModeSwitchRequested }
+func (*AutoModeSwitchRequestedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeSwitchRequested
+}
 
 // Autopilot objective state file operation details indicating what changed
 type SessionAutopilotObjectiveChangedData struct {
@@ -343,7 +350,9 @@ type SessionAutopilotObjectiveChangedData struct {
 }
 
 func (*SessionAutopilotObjectiveChangedData) sessionEventData() {}
-func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType { return SessionEventTypeSessionAutopilotObjectiveChanged }
+func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutopilotObjectiveChanged
+}
 
 // Canonical bytes for a content-addressed binary asset shared by reference across events
 type SessionBinaryAssetData struct {
@@ -363,7 +372,7 @@ type SessionBinaryAssetData struct {
 	Discriminator BinaryAssetType `json:"type"`
 }
 
-func (*SessionBinaryAssetData) sessionEventData() {}
+func (*SessionBinaryAssetData) sessionEventData()      {}
 func (*SessionBinaryAssetData) Type() SessionEventType { return SessionEventTypeSessionBinaryAsset }
 
 // Context window breakdown at the start of LLM-powered conversation compaction
@@ -385,7 +394,9 @@ type SessionCompactionStartData struct {
 }
 
 func (*SessionCompactionStartData) sessionEventData() {}
-func (*SessionCompactionStartData) Type() SessionEventType { return SessionEventTypeSessionCompactionStart }
+func (*SessionCompactionStartData) Type() SessionEventType {
+	return SessionEventTypeSessionCompactionStart
+}
 
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
@@ -432,7 +443,9 @@ type SessionCompactionCompleteData struct {
 }
 
 func (*SessionCompactionCompleteData) sessionEventData() {}
-func (*SessionCompactionCompleteData) Type() SessionEventType { return SessionEventTypeSessionCompactionComplete }
+func (*SessionCompactionCompleteData) Type() SessionEventType {
+	return SessionEventTypeSessionCompactionComplete
+}
 
 // Conversation truncation statistics including token counts and removed content metrics
 type SessionTruncationData struct {
@@ -454,7 +467,7 @@ type SessionTruncationData struct {
 	TokensRemovedDuringTruncation int64 `json:"tokensRemovedDuringTruncation"`
 }
 
-func (*SessionTruncationData) sessionEventData() {}
+func (*SessionTruncationData) sessionEventData()      {}
 func (*SessionTruncationData) Type() SessionEventType { return SessionEventTypeSessionTruncation }
 
 // Current context window usage statistics including token and message counts
@@ -475,7 +488,7 @@ type SessionUsageInfoData struct {
 	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
-func (*SessionUsageInfoData) sessionEventData() {}
+func (*SessionUsageInfoData) sessionEventData()      {}
 func (*SessionUsageInfoData) Type() SessionEventType { return SessionEventTypeSessionUsageInfo }
 
 // Custom agent selection details including name and available tools
@@ -488,7 +501,7 @@ type SubagentSelectedData struct {
 	Tools []string `json:"tools"`
 }
 
-func (*SubagentSelectedData) sessionEventData() {}
+func (*SubagentSelectedData) sessionEventData()      {}
 func (*SubagentSelectedData) Type() SessionEventType { return SessionEventTypeSubagentSelected }
 
 // Durable record that a canvas instance is open, used to restore open canvases on cold session resume. Intentionally omits the transient url and availability.
@@ -507,7 +520,9 @@ type SessionCanvasRecordedData struct {
 }
 
 func (*SessionCanvasRecordedData) sessionEventData() {}
-func (*SessionCanvasRecordedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRecorded }
+func (*SessionCanvasRecordedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRecorded
+}
 
 // Durable record that a canvas instance was closed, superseding a prior instance_recorded during resume replay.
 // Experimental: SessionCanvasRemovedData is part of an experimental API and may change or be removed.
@@ -520,7 +535,7 @@ type SessionCanvasRemovedData struct {
 	InstanceID string `json:"instanceId"`
 }
 
-func (*SessionCanvasRemovedData) sessionEventData() {}
+func (*SessionCanvasRemovedData) sessionEventData()      {}
 func (*SessionCanvasRemovedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRemoved }
 
 // Durable session usage checkpoint for reconstructing aggregate accounting on resume
@@ -536,7 +551,9 @@ type SessionUsageCheckpointData struct {
 }
 
 func (*SessionUsageCheckpointData) sessionEventData() {}
-func (*SessionUsageCheckpointData) Type() SessionEventType { return SessionEventTypeSessionUsageCheckpoint }
+func (*SessionUsageCheckpointData) Type() SessionEventType {
+	return SessionEventTypeSessionUsageCheckpoint
+}
 
 // Dynamic headers refresh request for a remote MCP server
 type MCPHeadersRefreshRequiredData struct {
@@ -551,7 +568,9 @@ type MCPHeadersRefreshRequiredData struct {
 }
 
 func (*MCPHeadersRefreshRequiredData) sessionEventData() {}
-func (*MCPHeadersRefreshRequiredData) Type() SessionEventType { return SessionEventTypeMCPHeadersRefreshRequired }
+func (*MCPHeadersRefreshRequiredData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshRequired
+}
 
 // Elicitation request completion with the user's response
 type ElicitationCompletedData struct {
@@ -563,7 +582,7 @@ type ElicitationCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*ElicitationCompletedData) sessionEventData() {}
+func (*ElicitationCompletedData) sessionEventData()      {}
 func (*ElicitationCompletedData) Type() SessionEventType { return SessionEventTypeElicitationCompleted }
 
 // Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
@@ -584,7 +603,7 @@ type ElicitationRequestedData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*ElicitationRequestedData) sessionEventData() {}
+func (*ElicitationRequestedData) sessionEventData()      {}
 func (*ElicitationRequestedData) Type() SessionEventType { return SessionEventTypeElicitationRequested }
 
 // Empty payload for `session.background_tasks_changed`, indicating background task state changed.
@@ -592,13 +611,15 @@ type SessionBackgroundTasksChangedData struct {
 }
 
 func (*SessionBackgroundTasksChangedData) sessionEventData() {}
-func (*SessionBackgroundTasksChangedData) Type() SessionEventType { return SessionEventTypeSessionBackgroundTasksChanged }
+func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionBackgroundTasksChanged
+}
 
 // Empty payload; the event signals that the custom agent was deselected, returning to the default agent
 type SubagentDeselectedData struct {
 }
 
-func (*SubagentDeselectedData) sessionEventData() {}
+func (*SubagentDeselectedData) sessionEventData()      {}
 func (*SubagentDeselectedData) Type() SessionEventType { return SessionEventTypeSubagentDeselected }
 
 // Empty payload; the event signals that the pending message queue has changed
@@ -606,7 +627,9 @@ type PendingMessagesModifiedData struct {
 }
 
 func (*PendingMessagesModifiedData) sessionEventData() {}
-func (*PendingMessagesModifiedData) Type() SessionEventType { return SessionEventTypePendingMessagesModified }
+func (*PendingMessagesModifiedData) Type() SessionEventType {
+	return SessionEventTypePendingMessagesModified
+}
 
 // Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
 // Experimental: SessionManagedSettingsResolvedData is part of an experimental API and may change or be removed.
@@ -630,17 +653,19 @@ type SessionManagedSettingsResolvedData struct {
 }
 
 func (*SessionManagedSettingsResolvedData) sessionEventData() {}
-func (*SessionManagedSettingsResolvedData) Type() SessionEventType { return SessionEventTypeSessionManagedSettingsResolved }
+func (*SessionManagedSettingsResolvedData) Type() SessionEventType {
+	return SessionEventTypeSessionManagedSettingsResolved
+}
 
 // Ephemeral invalidation signal for a changed factory run.
 // Experimental: FactoryRunUpdatedData is part of an experimental API and may change or be removed.
 type FactoryRunUpdatedData struct {
 	// Monotonic revision now available for the run.
-	Revision int64 `json:"revision"`
-	RunID string `json:"runId"`
+	Revision int64  `json:"revision"`
+	RunID    string `json:"runId"`
 }
 
-func (*FactoryRunUpdatedData) sessionEventData() {}
+func (*FactoryRunUpdatedData) sessionEventData()      {}
 func (*FactoryRunUpdatedData) Type() SessionEventType { return SessionEventTypeFactoryRunUpdated }
 
 // Ephemeral progress update from a running hook process
@@ -651,7 +676,7 @@ type HookProgressData struct {
 	Temporary *bool `json:"temporary,omitempty"`
 }
 
-func (*HookProgressData) sessionEventData() {}
+func (*HookProgressData) sessionEventData()      {}
 func (*HookProgressData) Type() SessionEventType { return SessionEventTypeHookProgress }
 
 // Error details for timeline display including message and optional diagnostic information
@@ -676,7 +701,7 @@ type SessionErrorData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*SessionErrorData) sessionEventData() {}
+func (*SessionErrorData) sessionEventData()      {}
 func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
 // External tool completion notification signaling UI dismissal
@@ -686,7 +711,9 @@ type ExternalToolCompletedData struct {
 }
 
 func (*ExternalToolCompletedData) sessionEventData() {}
-func (*ExternalToolCompletedData) Type() SessionEventType { return SessionEventTypeExternalToolCompleted }
+func (*ExternalToolCompletedData) Type() SessionEventType {
+	return SessionEventTypeExternalToolCompleted
+}
 
 // External tool invocation request for client-side tool execution
 type ExternalToolRequestedData struct {
@@ -709,7 +736,9 @@ type ExternalToolRequestedData struct {
 }
 
 func (*ExternalToolRequestedData) sessionEventData() {}
-func (*ExternalToolRequestedData) Type() SessionEventType { return SessionEventTypeExternalToolRequested }
+func (*ExternalToolRequestedData) Type() SessionEventType {
+	return SessionEventTypeExternalToolRequested
+}
 
 // Failed LLM API call metadata for telemetry
 type ModelCallFailureData struct {
@@ -750,7 +779,7 @@ type ModelCallFailureData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Content-free structural summary of the failing request. Contains only counts and shape flags (no prompt content), so it is safe for unrestricted telemetry. Populated only for client-error (4xx) failures.
 	RequestFingerprint *ModelCallFailureRequestFingerprint `json:"requestFingerprint,omitempty"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte                *bool                               `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
@@ -761,7 +790,7 @@ type ModelCallFailureData struct {
 	Transport *ModelCallFailureTransport `json:"transport,omitempty"`
 }
 
-func (*ModelCallFailureData) sessionEventData() {}
+func (*ModelCallFailureData) sessionEventData()      {}
 func (*ModelCallFailureData) Type() SessionEventType { return SessionEventTypeModelCallFailure }
 
 // Hook invocation completion details including output, success status, and error information
@@ -778,7 +807,7 @@ type HookEndData struct {
 	Success bool `json:"success"`
 }
 
-func (*HookEndData) sessionEventData() {}
+func (*HookEndData) sessionEventData()      {}
 func (*HookEndData) Type() SessionEventType { return SessionEventTypeHookEnd }
 
 // Hook invocation start details including type and input data
@@ -791,7 +820,7 @@ type HookStartData struct {
 	Input any `json:"input,omitempty"`
 }
 
-func (*HookStartData) sessionEventData() {}
+func (*HookStartData) sessionEventData()      {}
 func (*HookStartData) Type() SessionEventType { return SessionEventTypeHookStart }
 
 // Informational message for timeline display with categorization
@@ -806,7 +835,7 @@ type SessionInfoData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*SessionInfoData) sessionEventData() {}
+func (*SessionInfoData) sessionEventData()      {}
 func (*SessionInfoData) Type() SessionEventType { return SessionEventTypeSessionInfo }
 
 // LLM API call usage metrics including tokens, costs, quotas, and billing information
@@ -856,14 +885,14 @@ type AssistantUsageData struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte             *bool  `json:"rte,omitempty"`
 	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
 	TimeToFirstTokenMs *float64 `json:"timeToFirstTokenMs,omitempty"`
 }
 
-func (*AssistantUsageData) sessionEventData() {}
+func (*AssistantUsageData) sessionEventData()      {}
 func (*AssistantUsageData) Type() SessionEventType { return SessionEventTypeAssistantUsage }
 
 // Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
@@ -877,7 +906,9 @@ type AssistantServerToolProgressData struct {
 }
 
 func (*AssistantServerToolProgressData) sessionEventData() {}
-func (*AssistantServerToolProgressData) Type() SessionEventType { return SessionEventTypeAssistantServerToolProgress }
+func (*AssistantServerToolProgressData) Type() SessionEventType {
+	return SessionEventTypeAssistantServerToolProgress
+}
 
 // MCP App view called a tool on a connected MCP server (SEP-1865)
 type MCPAppToolCallCompleteData struct {
@@ -900,7 +931,9 @@ type MCPAppToolCallCompleteData struct {
 }
 
 func (*MCPAppToolCallCompleteData) sessionEventData() {}
-func (*MCPAppToolCallCompleteData) Type() SessionEventType { return SessionEventTypeMCPAppToolCallComplete }
+func (*MCPAppToolCallCompleteData) Type() SessionEventType {
+	return SessionEventTypeMCPAppToolCallComplete
+}
 
 // MCP OAuth request completion notification
 type MCPOauthCompletedData struct {
@@ -910,7 +943,7 @@ type MCPOauthCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*MCPOauthCompletedData) sessionEventData() {}
+func (*MCPOauthCompletedData) sessionEventData()      {}
 func (*MCPOauthCompletedData) Type() SessionEventType { return SessionEventTypeMCPOauthCompleted }
 
 // MCP headers refresh request completion notification
@@ -922,7 +955,9 @@ type MCPHeadersRefreshCompletedData struct {
 }
 
 func (*MCPHeadersRefreshCompletedData) sessionEventData() {}
-func (*MCPHeadersRefreshCompletedData) Type() SessionEventType { return SessionEventTypeMCPHeadersRefreshCompleted }
+func (*MCPHeadersRefreshCompletedData) Type() SessionEventType {
+	return SessionEventTypeMCPHeadersRefreshCompleted
+}
 
 // Metadata for an additional model inference attempt within an existing assistant turn
 type AssistantTurnRetryData struct {
@@ -934,7 +969,7 @@ type AssistantTurnRetryData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*AssistantTurnRetryData) sessionEventData() {}
+func (*AssistantTurnRetryData) sessionEventData()      {}
 func (*AssistantTurnRetryData) Type() SessionEventType { return SessionEventTypeAssistantTurnRetry }
 
 // Model API dispatch metadata for internal telemetry
@@ -948,7 +983,7 @@ type ModelCallStartData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*ModelCallStartData) sessionEventData() {}
+func (*ModelCallStartData) sessionEventData()      {}
 func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeModelCallStart }
 
 // Model change details including previous and new model identifiers
@@ -975,7 +1010,7 @@ type SessionModelChangeData struct {
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
-func (*SessionModelChangeData) sessionEventData() {}
+func (*SessionModelChangeData) sessionEventData()      {}
 func (*SessionModelChangeData) Type() SessionEventType { return SessionEventTypeSessionModelChange }
 
 // Notifies that the session's remote steering capability has changed
@@ -985,7 +1020,9 @@ type SessionRemoteSteerableChangedData struct {
 }
 
 func (*SessionRemoteSteerableChangedData) sessionEventData() {}
-func (*SessionRemoteSteerableChangedData) Type() SessionEventType { return SessionEventTypeSessionRemoteSteerableChanged }
+func (*SessionRemoteSteerableChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionRemoteSteerableChanged
+}
 
 // OAuth authentication request for an MCP server
 type MCPOauthRequiredData struct {
@@ -1007,7 +1044,7 @@ type MCPOauthRequiredData struct {
 	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
 }
 
-func (*MCPOauthRequiredData) sessionEventData() {}
+func (*MCPOauthRequiredData) sessionEventData()      {}
 func (*MCPOauthRequiredData) Type() SessionEventType { return SessionEventTypeMCPOauthRequired }
 
 // Opaque custom notification data. Consumers may branch on source and name, but payload semantics are source-defined.
@@ -1025,7 +1062,9 @@ type SessionCustomNotificationData struct {
 }
 
 func (*SessionCustomNotificationData) sessionEventData() {}
-func (*SessionCustomNotificationData) Type() SessionEventType { return SessionEventTypeSessionCustomNotification }
+func (*SessionCustomNotificationData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomNotification
+}
 
 // Payload emitted whenever the main agent's processing loop goes idle, including while related background work (running agents or in-flight attached shell commands) is still pending and the session-level idle event is therefore deferred
 type AssistantIdleData struct {
@@ -1033,7 +1072,7 @@ type AssistantIdleData struct {
 	Aborted *bool `json:"aborted,omitempty"`
 }
 
-func (*AssistantIdleData) sessionEventData() {}
+func (*AssistantIdleData) sessionEventData()      {}
 func (*AssistantIdleData) Type() SessionEventType { return SessionEventTypeAssistantIdle }
 
 // Payload identifying the MCP server associated with a list change.
@@ -1043,7 +1082,9 @@ type MCPPromptsListChangedData struct {
 }
 
 func (*MCPPromptsListChangedData) sessionEventData() {}
-func (*MCPPromptsListChangedData) Type() SessionEventType { return SessionEventTypeMCPPromptsListChanged }
+func (*MCPPromptsListChangedData) Type() SessionEventType {
+	return SessionEventTypeMCPPromptsListChanged
+}
 
 // Payload identifying the MCP server associated with a list change.
 type MCPResourcesListChangedData struct {
@@ -1052,7 +1093,9 @@ type MCPResourcesListChangedData struct {
 }
 
 func (*MCPResourcesListChangedData) sessionEventData() {}
-func (*MCPResourcesListChangedData) Type() SessionEventType { return SessionEventTypeMCPResourcesListChanged }
+func (*MCPResourcesListChangedData) Type() SessionEventType {
+	return SessionEventTypeMCPResourcesListChanged
+}
 
 // Payload identifying the MCP server associated with a list change.
 type MCPToolsListChangedData struct {
@@ -1060,7 +1103,7 @@ type MCPToolsListChangedData struct {
 	ServerName string `json:"serverName"`
 }
 
-func (*MCPToolsListChangedData) sessionEventData() {}
+func (*MCPToolsListChangedData) sessionEventData()      {}
 func (*MCPToolsListChangedData) Type() SessionEventType { return SessionEventTypeMCPToolsListChanged }
 
 // Payload indicating the session is idle with no background agents or attached shell commands in flight
@@ -1069,7 +1112,7 @@ type SessionIdleData struct {
 	Aborted *bool `json:"aborted,omitempty"`
 }
 
-func (*SessionIdleData) sessionEventData() {}
+func (*SessionIdleData) sessionEventData()      {}
 func (*SessionIdleData) Type() SessionEventType { return SessionEventTypeSessionIdle }
 
 // Payload of `session.canvas.closed` with the closed canvas instance ID, provider ID, and canvas ID.
@@ -1083,7 +1126,7 @@ type SessionCanvasClosedData struct {
 	InstanceID string `json:"instanceId"`
 }
 
-func (*SessionCanvasClosedData) sessionEventData() {}
+func (*SessionCanvasClosedData) sessionEventData()      {}
 func (*SessionCanvasClosedData) Type() SessionEventType { return SessionEventTypeSessionCanvasClosed }
 
 // Payload of `session.canvas.opened` with canvas instance and provider IDs plus optional icon, title, status, URL, and input.
@@ -1109,7 +1152,7 @@ type SessionCanvasOpenedData struct {
 	URL *string `json:"url,omitempty"`
 }
 
-func (*SessionCanvasOpenedData) sessionEventData() {}
+func (*SessionCanvasOpenedData) sessionEventData()      {}
 func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
 
 // Payload of `session.canvas.registry_changed` listing the canvas declarations currently available.
@@ -1120,7 +1163,9 @@ type SessionCanvasRegistryChangedData struct {
 }
 
 func (*SessionCanvasRegistryChangedData) sessionEventData() {}
-func (*SessionCanvasRegistryChangedData) Type() SessionEventType { return SessionEventTypeSessionCanvasRegistryChanged }
+func (*SessionCanvasRegistryChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRegistryChanged
+}
 
 // Payload of `session.custom_agents_updated` with loaded custom agents plus non-fatal warnings and fatal errors.
 type SessionCustomAgentsUpdatedData struct {
@@ -1133,7 +1178,9 @@ type SessionCustomAgentsUpdatedData struct {
 }
 
 func (*SessionCustomAgentsUpdatedData) sessionEventData() {}
-func (*SessionCustomAgentsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionCustomAgentsUpdated }
+func (*SessionCustomAgentsUpdatedData) Type() SessionEventType {
+	return SessionEventTypeSessionCustomAgentsUpdated
+}
 
 // Payload of `session.extensions.attachments_pushed` with extension-contributed attachments for the next send.
 type SessionExtensionsAttachmentsPushedData struct {
@@ -1142,7 +1189,9 @@ type SessionExtensionsAttachmentsPushedData struct {
 }
 
 func (*SessionExtensionsAttachmentsPushedData) sessionEventData() {}
-func (*SessionExtensionsAttachmentsPushedData) Type() SessionEventType { return SessionEventTypeSessionExtensionsAttachmentsPushed }
+func (*SessionExtensionsAttachmentsPushedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsAttachmentsPushed
+}
 
 // Payload of `session.extensions_loaded` listing discovered extensions and their statuses.
 type SessionExtensionsLoadedData struct {
@@ -1151,7 +1200,9 @@ type SessionExtensionsLoadedData struct {
 }
 
 func (*SessionExtensionsLoadedData) sessionEventData() {}
-func (*SessionExtensionsLoadedData) Type() SessionEventType { return SessionEventTypeSessionExtensionsLoaded }
+func (*SessionExtensionsLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionExtensionsLoaded
+}
 
 // Payload of `session.mcp_server_status_changed` for one MCP server's status and optional failure error.
 type SessionMCPServerStatusChangedData struct {
@@ -1164,7 +1215,9 @@ type SessionMCPServerStatusChangedData struct {
 }
 
 func (*SessionMCPServerStatusChangedData) sessionEventData() {}
-func (*SessionMCPServerStatusChangedData) Type() SessionEventType { return SessionEventTypeSessionMCPServerStatusChanged }
+func (*SessionMCPServerStatusChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServerStatusChanged
+}
 
 // Payload of `session.mcp_servers_loaded` listing MCP server status summaries.
 type SessionMCPServersLoadedData struct {
@@ -1173,7 +1226,9 @@ type SessionMCPServersLoadedData struct {
 }
 
 func (*SessionMCPServersLoadedData) sessionEventData() {}
-func (*SessionMCPServersLoadedData) Type() SessionEventType { return SessionEventTypeSessionMCPServersLoaded }
+func (*SessionMCPServersLoadedData) Type() SessionEventType {
+	return SessionEventTypeSessionMCPServersLoaded
+}
 
 // Payload of `session.skills_loaded` listing resolved skill metadata.
 type SessionSkillsLoadedData struct {
@@ -1181,7 +1236,7 @@ type SessionSkillsLoadedData struct {
 	Skills []SkillsLoadedSkill `json:"skills"`
 }
 
-func (*SessionSkillsLoadedData) sessionEventData() {}
+func (*SessionSkillsLoadedData) sessionEventData()      {}
 func (*SessionSkillsLoadedData) Type() SessionEventType { return SessionEventTypeSessionSkillsLoaded }
 
 // Payload of `session.tools_updated` identifying the model whose resolved tools were updated.
@@ -1190,7 +1245,7 @@ type SessionToolsUpdatedData struct {
 	Model string `json:"model"`
 }
 
-func (*SessionToolsUpdatedData) sessionEventData() {}
+func (*SessionToolsUpdatedData) sessionEventData()      {}
 func (*SessionToolsUpdatedData) Type() SessionEventType { return SessionEventTypeSessionToolsUpdated }
 
 // Payload of `user.message` with displayed and model-transformed content, attachments, source/delivery metadata, mode, and telemetry IDs.
@@ -1219,7 +1274,7 @@ type UserMessageData struct {
 	TransformedContent *string `json:"transformedContent,omitempty"`
 }
 
-func (*UserMessageData) sessionEventData() {}
+func (*UserMessageData) sessionEventData()      {}
 func (*UserMessageData) Type() SessionEventType { return SessionEventTypeUserMessage }
 
 // Permission request completion notification signaling UI dismissal
@@ -1232,7 +1287,7 @@ type PermissionCompletedData struct {
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
-func (*PermissionCompletedData) sessionEventData() {}
+func (*PermissionCompletedData) sessionEventData()      {}
 func (*PermissionCompletedData) Type() SessionEventType { return SessionEventTypePermissionCompleted }
 
 // Permission request notification requiring client approval with request details
@@ -1249,7 +1304,7 @@ type PermissionRequestedData struct {
 	RiskAssessment any `json:"riskAssessment,omitempty"`
 }
 
-func (*PermissionRequestedData) sessionEventData() {}
+func (*PermissionRequestedData) sessionEventData()      {}
 func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTypePermissionRequested }
 
 // Permissions change details carrying the aggregate allow-all transition.
@@ -1267,7 +1322,9 @@ type SessionPermissionsChangedData struct {
 }
 
 func (*SessionPermissionsChangedData) sessionEventData() {}
-func (*SessionPermissionsChangedData) Type() SessionEventType { return SessionEventTypeSessionPermissionsChanged }
+func (*SessionPermissionsChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionPermissionsChanged
+}
 
 // Persisted generic client-side tool activations restored when a session resumes.
 type ToolSearchActivatedData struct {
@@ -1277,7 +1334,7 @@ type ToolSearchActivatedData struct {
 	ToolNames []string `json:"toolNames"`
 }
 
-func (*ToolSearchActivatedData) sessionEventData() {}
+func (*ToolSearchActivatedData) sessionEventData()      {}
 func (*ToolSearchActivatedData) Type() SessionEventType { return SessionEventTypeToolSearchActivated }
 
 // Plan approval request with plan content and available user actions
@@ -1295,7 +1352,9 @@ type ExitPlanModeRequestedData struct {
 }
 
 func (*ExitPlanModeRequestedData) sessionEventData() {}
-func (*ExitPlanModeRequestedData) Type() SessionEventType { return SessionEventTypeExitPlanModeRequested }
+func (*ExitPlanModeRequestedData) Type() SessionEventType {
+	return SessionEventTypeExitPlanModeRequested
+}
 
 // Plan file operation details indicating what changed
 type SessionPlanChangedData struct {
@@ -1303,7 +1362,7 @@ type SessionPlanChangedData struct {
 	Operation PlanChangedOperation `json:"operation"`
 }
 
-func (*SessionPlanChangedData) sessionEventData() {}
+func (*SessionPlanChangedData) sessionEventData()      {}
 func (*SessionPlanChangedData) Type() SessionEventType { return SessionEventTypeSessionPlanChanged }
 
 // Plan mode exit completion with the user's approval decision and optional feedback
@@ -1321,7 +1380,9 @@ type ExitPlanModeCompletedData struct {
 }
 
 func (*ExitPlanModeCompletedData) sessionEventData() {}
-func (*ExitPlanModeCompletedData) Type() SessionEventType { return SessionEventTypeExitPlanModeCompleted }
+func (*ExitPlanModeCompletedData) Type() SessionEventType {
+	return SessionEventTypeExitPlanModeCompleted
+}
 
 // Queued command completion notification signaling UI dismissal
 type CommandCompletedData struct {
@@ -1329,7 +1390,7 @@ type CommandCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandCompletedData) sessionEventData() {}
+func (*CommandCompletedData) sessionEventData()      {}
 func (*CommandCompletedData) Type() SessionEventType { return SessionEventTypeCommandCompleted }
 
 // Queued slash command dispatch request for client execution
@@ -1340,7 +1401,7 @@ type CommandQueuedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandQueuedData) sessionEventData() {}
+func (*CommandQueuedData) sessionEventData()      {}
 func (*CommandQueuedData) Type() SessionEventType { return SessionEventTypeCommandQueued }
 
 // Registered command dispatch request routed to the owning client
@@ -1355,7 +1416,7 @@ type CommandExecuteData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*CommandExecuteData) sessionEventData() {}
+func (*CommandExecuteData) sessionEventData()      {}
 func (*CommandExecuteData) Type() SessionEventType { return SessionEventTypeCommandExecute }
 
 // Runtime enforcement of enterprise managed settings: fires when the session blocks or caps a runtime action because enterprise policy governs it, so SDK clients can explain *why* an action was governed. Unlike `session.managed_settings_resolved` (which reports *what* is managed), this reports a concrete governed action — e.g. a user or host tried to turn on a bypass-permissions escalation while policy disables it. Emitted live (not persisted to the session event log) on user/host-initiated attempts only, never for silent policy application. Marked experimental while the managed-settings surface stabilizes.
@@ -1374,7 +1435,9 @@ type SessionManagedSettingsEnforcedData struct {
 }
 
 func (*SessionManagedSettingsEnforcedData) sessionEventData() {}
-func (*SessionManagedSettingsEnforcedData) Type() SessionEventType { return SessionEventTypeSessionManagedSettingsEnforced }
+func (*SessionManagedSettingsEnforcedData) Type() SessionEventType {
+	return SessionEventTypeSessionManagedSettingsEnforced
+}
 
 // SDK command registration change notification
 type CommandsChangedData struct {
@@ -1382,7 +1445,7 @@ type CommandsChangedData struct {
 	Commands []CommandsChangedCommand `json:"commands"`
 }
 
-func (*CommandsChangedData) sessionEventData() {}
+func (*CommandsChangedData) sessionEventData()      {}
 func (*CommandsChangedData) Type() SessionEventType { return SessionEventTypeCommandsChanged }
 
 // Sampling request completion notification signaling UI dismissal
@@ -1391,7 +1454,7 @@ type SamplingCompletedData struct {
 	RequestID string `json:"requestId"`
 }
 
-func (*SamplingCompletedData) sessionEventData() {}
+func (*SamplingCompletedData) sessionEventData()      {}
 func (*SamplingCompletedData) Type() SessionEventType { return SessionEventTypeSamplingCompleted }
 
 // Sampling request from an MCP server; contains the server name and a requestId for correlation
@@ -1404,7 +1467,7 @@ type SamplingRequestedData struct {
 	ServerName string `json:"serverName"`
 }
 
-func (*SamplingRequestedData) sessionEventData() {}
+func (*SamplingRequestedData) sessionEventData()      {}
 func (*SamplingRequestedData) Type() SessionEventType { return SessionEventTypeSamplingRequested }
 
 // Scheduled prompt cancelled from the schedule manager dialog
@@ -1414,7 +1477,9 @@ type SessionScheduleCancelledData struct {
 }
 
 func (*SessionScheduleCancelledData) sessionEventData() {}
-func (*SessionScheduleCancelledData) Type() SessionEventType { return SessionEventTypeSessionScheduleCancelled }
+func (*SessionScheduleCancelledData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleCancelled
+}
 
 // Scheduled prompt registered via /every or /after
 type SessionScheduleCreatedData struct {
@@ -1441,7 +1506,9 @@ type SessionScheduleCreatedData struct {
 }
 
 func (*SessionScheduleCreatedData) sessionEventData() {}
-func (*SessionScheduleCreatedData) Type() SessionEventType { return SessionEventTypeSessionScheduleCreated }
+func (*SessionScheduleCreatedData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleCreated
+}
 
 // Self-paced schedule re-armed for its next run
 type SessionScheduleRearmedData struct {
@@ -1452,7 +1519,9 @@ type SessionScheduleRearmedData struct {
 }
 
 func (*SessionScheduleRearmedData) sessionEventData() {}
-func (*SessionScheduleRearmedData) Type() SessionEventType { return SessionEventTypeSessionScheduleRearmed }
+func (*SessionScheduleRearmedData) Type() SessionEventType {
+	return SessionEventTypeSessionScheduleRearmed
+}
 
 // Session capability change notification
 type CapabilitiesChangedData struct {
@@ -1460,7 +1529,7 @@ type CapabilitiesChangedData struct {
 	UI *CapabilitiesChangedUI `json:"ui,omitempty"`
 }
 
-func (*CapabilitiesChangedData) sessionEventData() {}
+func (*CapabilitiesChangedData) sessionEventData()      {}
 func (*CapabilitiesChangedData) Type() SessionEventType { return SessionEventTypeCapabilitiesChanged }
 
 // Session handoff metadata including source, context, and repository information
@@ -1481,7 +1550,7 @@ type SessionHandoffData struct {
 	Summary *string `json:"summary,omitempty"`
 }
 
-func (*SessionHandoffData) sessionEventData() {}
+func (*SessionHandoffData) sessionEventData()      {}
 func (*SessionHandoffData) Type() SessionEventType { return SessionEventTypeSessionHandoff }
 
 // Session initialization metadata including context and configuration
@@ -1518,7 +1587,7 @@ type SessionStartData struct {
 	Version int64 `json:"version"`
 }
 
-func (*SessionStartData) sessionEventData() {}
+func (*SessionStartData) sessionEventData()      {}
 func (*SessionStartData) Type() SessionEventType { return SessionEventTypeSessionStart }
 
 // Session limit exhaustion notification requiring user action.
@@ -1532,7 +1601,9 @@ type SessionLimitsExhaustedRequestedData struct {
 }
 
 func (*SessionLimitsExhaustedRequestedData) sessionEventData() {}
-func (*SessionLimitsExhaustedRequestedData) Type() SessionEventType { return SessionEventTypeSessionLimitsExhaustedRequested }
+func (*SessionLimitsExhaustedRequestedData) Type() SessionEventType {
+	return SessionEventTypeSessionLimitsExhaustedRequested
+}
 
 // Session limit exhaustion prompt completion notification.
 type SessionLimitsExhaustedCompletedData struct {
@@ -1543,7 +1614,9 @@ type SessionLimitsExhaustedCompletedData struct {
 }
 
 func (*SessionLimitsExhaustedCompletedData) sessionEventData() {}
-func (*SessionLimitsExhaustedCompletedData) Type() SessionEventType { return SessionEventTypeSessionLimitsExhaustedCompleted }
+func (*SessionLimitsExhaustedCompletedData) Type() SessionEventType {
+	return SessionEventTypeSessionLimitsExhaustedCompleted
+}
 
 // Session limits update details. Null clears the limits.
 type SessionSessionLimitsChangedData struct {
@@ -1552,7 +1625,9 @@ type SessionSessionLimitsChangedData struct {
 }
 
 func (*SessionSessionLimitsChangedData) sessionEventData() {}
-func (*SessionSessionLimitsChangedData) Type() SessionEventType { return SessionEventTypeSessionSessionLimitsChanged }
+func (*SessionSessionLimitsChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionSessionLimitsChanged
+}
 
 // Session resume metadata including current context and event count
 type SessionResumeData struct {
@@ -1586,7 +1661,7 @@ type SessionResumeData struct {
 	Verbosity *Verbosity `json:"verbosity,omitempty"`
 }
 
-func (*SessionResumeData) sessionEventData() {}
+func (*SessionResumeData) sessionEventData()      {}
 func (*SessionResumeData) Type() SessionEventType { return SessionEventTypeSessionResume }
 
 // Session rewind details including target event and count of removed events
@@ -1598,7 +1673,9 @@ type SessionSnapshotRewindData struct {
 }
 
 func (*SessionSnapshotRewindData) sessionEventData() {}
-func (*SessionSnapshotRewindData) Type() SessionEventType { return SessionEventTypeSessionSnapshotRewind }
+func (*SessionSnapshotRewindData) Type() SessionEventType {
+	return SessionEventTypeSessionSnapshotRewind
+}
 
 // Session termination metrics including usage statistics, code changes, and shutdown reason
 type SessionShutdownData struct {
@@ -1636,7 +1713,7 @@ type SessionShutdownData struct {
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
-func (*SessionShutdownData) sessionEventData() {}
+func (*SessionShutdownData) sessionEventData()      {}
 func (*SessionShutdownData) Type() SessionEventType { return SessionEventTypeSessionShutdown }
 
 // Session title change payload containing the new display title
@@ -1645,14 +1722,14 @@ type SessionTitleChangedData struct {
 	Title string `json:"title"`
 }
 
-func (*SessionTitleChangedData) sessionEventData() {}
+func (*SessionTitleChangedData) sessionEventData()      {}
 func (*SessionTitleChangedData) Type() SessionEventType { return SessionEventTypeSessionTitleChanged }
 
 // Signal-only event: the agent's todos or todo_deps table was written to. No payload — clients should call session.plan.readSqlTodosWithDependencies() to fetch the current state. Events arrive in order; clients can debounce on arrival if needed.
 type SessionTodosChangedData struct {
 }
 
-func (*SessionTodosChangedData) sessionEventData() {}
+func (*SessionTodosChangedData) sessionEventData()      {}
 func (*SessionTodosChangedData) Type() SessionEventType { return SessionEventTypeSessionTodosChanged }
 
 // Skill invocation details including content, allowed tools, and plugin metadata
@@ -1679,7 +1756,7 @@ type SkillInvokedData struct {
 	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
 }
 
-func (*SkillInvokedData) sessionEventData() {}
+func (*SkillInvokedData) sessionEventData()      {}
 func (*SkillInvokedData) Type() SessionEventType { return SessionEventTypeSkillInvoked }
 
 // Streaming assistant message delta for incremental response updates
@@ -1694,7 +1771,9 @@ type AssistantMessageDeltaData struct {
 }
 
 func (*AssistantMessageDeltaData) sessionEventData() {}
-func (*AssistantMessageDeltaData) Type() SessionEventType { return SessionEventTypeAssistantMessageDelta }
+func (*AssistantMessageDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantMessageDelta
+}
 
 // Streaming assistant message start metadata
 type AssistantMessageStartData struct {
@@ -1705,7 +1784,9 @@ type AssistantMessageStartData struct {
 }
 
 func (*AssistantMessageStartData) sessionEventData() {}
-func (*AssistantMessageStartData) Type() SessionEventType { return SessionEventTypeAssistantMessageStart }
+func (*AssistantMessageStartData) Type() SessionEventType {
+	return SessionEventTypeAssistantMessageStart
+}
 
 // Streaming reasoning delta for incremental extended thinking updates
 type AssistantReasoningDeltaData struct {
@@ -1716,7 +1797,9 @@ type AssistantReasoningDeltaData struct {
 }
 
 func (*AssistantReasoningDeltaData) sessionEventData() {}
-func (*AssistantReasoningDeltaData) Type() SessionEventType { return SessionEventTypeAssistantReasoningDelta }
+func (*AssistantReasoningDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantReasoningDelta
+}
 
 // Streaming response progress with cumulative byte count
 type AssistantStreamingDeltaData struct {
@@ -1725,7 +1808,9 @@ type AssistantStreamingDeltaData struct {
 }
 
 func (*AssistantStreamingDeltaData) sessionEventData() {}
-func (*AssistantStreamingDeltaData) Type() SessionEventType { return SessionEventTypeAssistantStreamingDelta }
+func (*AssistantStreamingDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantStreamingDelta
+}
 
 // Streaming tool execution output for incremental result display
 type ToolExecutionPartialResultData struct {
@@ -1736,7 +1821,9 @@ type ToolExecutionPartialResultData struct {
 }
 
 func (*ToolExecutionPartialResultData) sessionEventData() {}
-func (*ToolExecutionPartialResultData) Type() SessionEventType { return SessionEventTypeToolExecutionPartialResult }
+func (*ToolExecutionPartialResultData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionPartialResult
+}
 
 // Streaming tool-call input delta for incremental tool-call updates
 type AssistantToolCallDeltaData struct {
@@ -1751,7 +1838,9 @@ type AssistantToolCallDeltaData struct {
 }
 
 func (*AssistantToolCallDeltaData) sessionEventData() {}
-func (*AssistantToolCallDeltaData) Type() SessionEventType { return SessionEventTypeAssistantToolCallDelta }
+func (*AssistantToolCallDeltaData) Type() SessionEventType {
+	return SessionEventTypeAssistantToolCallDelta
+}
 
 // Sub-agent completion details for successful execution
 type SubagentCompletedData struct {
@@ -1771,7 +1860,7 @@ type SubagentCompletedData struct {
 	TotalToolCalls *int64 `json:"totalToolCalls,omitempty"`
 }
 
-func (*SubagentCompletedData) sessionEventData() {}
+func (*SubagentCompletedData) sessionEventData()      {}
 func (*SubagentCompletedData) Type() SessionEventType { return SessionEventTypeSubagentCompleted }
 
 // Sub-agent failure details including error message and agent information
@@ -1794,7 +1883,7 @@ type SubagentFailedData struct {
 	TotalToolCalls *int64 `json:"totalToolCalls,omitempty"`
 }
 
-func (*SubagentFailedData) sessionEventData() {}
+func (*SubagentFailedData) sessionEventData()      {}
 func (*SubagentFailedData) Type() SessionEventType { return SessionEventTypeSubagentFailed }
 
 // Sub-agent startup details including parent tool call and agent information
@@ -1811,7 +1900,7 @@ type SubagentStartedData struct {
 	ToolCallID string `json:"toolCallId"`
 }
 
-func (*SubagentStartedData) sessionEventData() {}
+func (*SubagentStartedData) sessionEventData()      {}
 func (*SubagentStartedData) Type() SessionEventType { return SessionEventTypeSubagentStarted }
 
 // System-generated notification for runtime events like background task completion
@@ -1822,7 +1911,7 @@ type SystemNotificationData struct {
 	Kind SystemNotification `json:"kind"`
 }
 
-func (*SystemNotificationData) sessionEventData() {}
+func (*SystemNotificationData) sessionEventData()      {}
 func (*SystemNotificationData) Type() SessionEventType { return SessionEventTypeSystemNotification }
 
 // System/developer instruction content with role and optional template metadata
@@ -1839,7 +1928,7 @@ type SystemMessageData struct {
 	Role SystemMessageRole `json:"role"`
 }
 
-func (*SystemMessageData) sessionEventData() {}
+func (*SystemMessageData) sessionEventData()      {}
 func (*SystemMessageData) Type() SessionEventType { return SessionEventTypeSystemMessage }
 
 // Task completion notification with summary from the agent
@@ -1856,7 +1945,7 @@ type SessionTaskCompleteData struct {
 	Summary *string `json:"summary,omitempty"`
 }
 
-func (*SessionTaskCompleteData) sessionEventData() {}
+func (*SessionTaskCompleteData) sessionEventData()      {}
 func (*SessionTaskCompleteData) Type() SessionEventType { return SessionEventTypeSessionTaskComplete }
 
 // Tool execution completion results including success status, detailed output, and error information
@@ -1877,7 +1966,7 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte    *bool                        `json:"rte,omitempty"`
 	// Whether this tool execution ran inside a sandbox container
 	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
@@ -1893,7 +1982,9 @@ type ToolExecutionCompleteData struct {
 }
 
 func (*ToolExecutionCompleteData) sessionEventData() {}
-func (*ToolExecutionCompleteData) Type() SessionEventType { return SessionEventTypeToolExecutionComplete }
+func (*ToolExecutionCompleteData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionComplete
+}
 
 // Tool execution progress notification with status message
 type ToolExecutionProgressData struct {
@@ -1904,7 +1995,9 @@ type ToolExecutionProgressData struct {
 }
 
 func (*ToolExecutionProgressData) sessionEventData() {}
-func (*ToolExecutionProgressData) Type() SessionEventType { return SessionEventTypeToolExecutionProgress }
+func (*ToolExecutionProgressData) Type() SessionEventType {
+	return SessionEventTypeToolExecutionProgress
+}
 
 // Tool execution startup details including MCP server information when applicable
 type ToolExecutionStartData struct {
@@ -1921,7 +2014,7 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
-	Rte *bool `json:"rte,omitempty"`
+	Rte              *bool   `json:"rte,omitempty"`
 	// Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
 	ShellToolInfo *ToolExecutionStartShellToolInfo `json:"shellToolInfo,omitempty"`
 	// Unique identifier for this tool call
@@ -1934,7 +2027,7 @@ type ToolExecutionStartData struct {
 	TurnID *string `json:"turnId,omitempty"`
 }
 
-func (*ToolExecutionStartData) sessionEventData() {}
+func (*ToolExecutionStartData) sessionEventData()      {}
 func (*ToolExecutionStartData) Type() SessionEventType { return SessionEventTypeToolExecutionStart }
 
 // Transient signal that an open canvas instance's provider has dropped (for example the extension is reloading mid-session). The host should keep the panel mounted and surface a reconnecting affordance rather than tearing it down; a subsequent `session.canvas.opened` for the same instanceId clears the affordance once the provider reconnects with a fresh url. Ephemeral and never persisted, so it is never replayed on cold resume.
@@ -1949,7 +2042,9 @@ type SessionCanvasUnavailableData struct {
 }
 
 func (*SessionCanvasUnavailableData) sessionEventData() {}
-func (*SessionCanvasUnavailableData) Type() SessionEventType { return SessionEventTypeSessionCanvasUnavailable }
+func (*SessionCanvasUnavailableData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasUnavailable
+}
 
 // Turn abort information including the reason for termination
 type AbortData struct {
@@ -1957,7 +2052,7 @@ type AbortData struct {
 	Reason AbortReason `json:"reason"`
 }
 
-func (*AbortData) sessionEventData() {}
+func (*AbortData) sessionEventData()      {}
 func (*AbortData) Type() SessionEventType { return SessionEventTypeAbort }
 
 // Turn completion metadata including the turn identifier
@@ -1968,7 +2063,7 @@ type AssistantTurnEndData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*AssistantTurnEndData) sessionEventData() {}
+func (*AssistantTurnEndData) sessionEventData()      {}
 func (*AssistantTurnEndData) Type() SessionEventType { return SessionEventTypeAssistantTurnEnd }
 
 // Turn initialization metadata including identifier and interaction tracking
@@ -1981,7 +2076,7 @@ type AssistantTurnStartData struct {
 	TurnID string `json:"turnId"`
 }
 
-func (*AssistantTurnStartData) sessionEventData() {}
+func (*AssistantTurnStartData) sessionEventData()      {}
 func (*AssistantTurnStartData) Type() SessionEventType { return SessionEventTypeAssistantTurnStart }
 
 // User input request completion with the user's response
@@ -1994,7 +2089,7 @@ type UserInputCompletedData struct {
 	WasFreeform *bool `json:"wasFreeform,omitempty"`
 }
 
-func (*UserInputCompletedData) sessionEventData() {}
+func (*UserInputCompletedData) sessionEventData()      {}
 func (*UserInputCompletedData) Type() SessionEventType { return SessionEventTypeUserInputCompleted }
 
 // User input request notification with question and optional predefined choices
@@ -2011,7 +2106,7 @@ type UserInputRequestedData struct {
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
-func (*UserInputRequestedData) sessionEventData() {}
+func (*UserInputRequestedData) sessionEventData()      {}
 func (*UserInputRequestedData) Type() SessionEventType { return SessionEventTypeUserInputRequested }
 
 // User-initiated tool invocation request with tool name and arguments
@@ -2024,7 +2119,7 @@ type ToolUserRequestedData struct {
 	ToolName string `json:"toolName"`
 }
 
-func (*ToolUserRequestedData) sessionEventData() {}
+func (*ToolUserRequestedData) sessionEventData()      {}
 func (*ToolUserRequestedData) Type() SessionEventType { return SessionEventTypeToolUserRequested }
 
 // Warning message for timeline display with categorization
@@ -2037,7 +2132,7 @@ type SessionWarningData struct {
 	WarningType string `json:"warningType"`
 }
 
-func (*SessionWarningData) sessionEventData() {}
+func (*SessionWarningData) sessionEventData()      {}
 func (*SessionWarningData) Type() SessionEventType { return SessionEventTypeSessionWarning }
 
 // Working directory and git context at session start
@@ -2063,7 +2158,9 @@ type SessionContextChangedData struct {
 }
 
 func (*SessionContextChangedData) sessionEventData() {}
-func (*SessionContextChangedData) Type() SessionEventType { return SessionEventTypeSessionContextChanged }
+func (*SessionContextChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionContextChanged
+}
 
 // Workspace file change details including path and operation type
 type SessionWorkspaceFileChangedData struct {
@@ -2074,16 +2171,18 @@ type SessionWorkspaceFileChangedData struct {
 }
 
 func (*SessionWorkspaceFileChangedData) sessionEventData() {}
-func (*SessionWorkspaceFileChangedData) Type() SessionEventType { return SessionEventTypeSessionWorkspaceFileChanged }
+func (*SessionWorkspaceFileChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionWorkspaceFileChanged
+}
 
 // Neutral provider-tagged server-side tool-use payload (tool search, advisor) for verbatim round-tripping
 // Experimental: AssistantMessageServerTools is part of an experimental API and may change or be removed.
 type AssistantMessageServerTools struct {
-	AdvisorModel *string `json:"advisorModel,omitempty"`
+	AdvisorModel           *string           `json:"advisorModel,omitempty"`
 	FunctionCallNamespaces map[string]string `json:"functionCallNamespaces,omitzero"`
-	Items []any `json:"items,omitzero"`
-	Provider string `json:"provider"`
-	RawContentBlocks []any `json:"rawContentBlocks,omitzero"`
+	Items                  []any             `json:"items,omitzero"`
+	Provider               string            `json:"provider"`
+	RawContentBlocks       []any             `json:"rawContentBlocks,omitzero"`
 }
 
 // A tool invocation request from the assistant
@@ -2238,6 +2337,7 @@ func (RawCitationLocation) citationLocation() {}
 func (r RawCitationLocation) Type() CitationLocationType {
 	return r.Discriminator
 }
+
 // A content-block range within a structured source document.
 type CitationLocationBlock struct {
 	// Index of the last content block of the cited range (zero-based, exclusive).
@@ -2250,6 +2350,7 @@ func (CitationLocationBlock) citationLocation() {}
 func (CitationLocationBlock) Type() CitationLocationType {
 	return CitationLocationTypeBlock
 }
+
 // A character range within the source's text content.
 type CitationLocationChar struct {
 	// End character offset within the source text (zero-based, exclusive).
@@ -2262,6 +2363,7 @@ func (CitationLocationChar) citationLocation() {}
 func (CitationLocationChar) Type() CitationLocationType {
 	return CitationLocationTypeChar
 }
+
 // A page range within a paginated source document.
 type CitationLocationPage struct {
 	// Last page number of the cited range (inclusive).
@@ -2558,6 +2660,7 @@ func (RawPermissionPromptRequest) permissionPromptRequest() {}
 func (r RawPermissionPromptRequest) Kind() PermissionPromptRequestKind {
 	return r.Discriminator
 }
+
 // Shell command permission prompt
 type PermissionPromptRequestCommands struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2583,6 +2686,7 @@ func (PermissionPromptRequestCommands) permissionPromptRequest() {}
 func (PermissionPromptRequestCommands) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindCommands
 }
+
 // Custom tool invocation permission prompt
 type PermissionPromptRequestCustomTool struct {
 	// Arguments to pass to the custom tool
@@ -2602,6 +2706,7 @@ func (PermissionPromptRequestCustomTool) permissionPromptRequest() {}
 func (PermissionPromptRequestCustomTool) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindCustomTool
 }
+
 // Extension management permission prompt
 type PermissionPromptRequestExtensionManagement struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2619,6 +2724,7 @@ func (PermissionPromptRequestExtensionManagement) permissionPromptRequest() {}
 func (PermissionPromptRequestExtensionManagement) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindExtensionManagement
 }
+
 // Extension permission access prompt
 type PermissionPromptRequestExtensionPermissionAccess struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2636,6 +2742,7 @@ func (PermissionPromptRequestExtensionPermissionAccess) permissionPromptRequest(
 func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindExtensionPermissionAccess
 }
+
 // Hook confirmation permission prompt
 type PermissionPromptRequestHook struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2655,6 +2762,7 @@ func (PermissionPromptRequestHook) permissionPromptRequest() {}
 func (PermissionPromptRequestHook) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindHook
 }
+
 // MCP tool invocation permission prompt
 type PermissionPromptRequestMCP struct {
 	// Arguments to pass to the MCP tool
@@ -2676,6 +2784,7 @@ func (PermissionPromptRequestMCP) permissionPromptRequest() {}
 func (PermissionPromptRequestMCP) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindMCP
 }
+
 // Memory operation permission prompt
 type PermissionPromptRequestMemory struct {
 	// Whether this is a store or vote memory operation
@@ -2701,6 +2810,7 @@ func (PermissionPromptRequestMemory) permissionPromptRequest() {}
 func (PermissionPromptRequestMemory) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindMemory
 }
+
 // Path access permission prompt
 type PermissionPromptRequestPath struct {
 	// Underlying permission kind that needs path approval
@@ -2718,6 +2828,7 @@ func (PermissionPromptRequestPath) permissionPromptRequest() {}
 func (PermissionPromptRequestPath) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindPath
 }
+
 // File read permission prompt
 type PermissionPromptRequestRead struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2737,6 +2848,7 @@ func (PermissionPromptRequestRead) permissionPromptRequest() {}
 func (PermissionPromptRequestRead) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindRead
 }
+
 // URL access permission prompt
 type PermissionPromptRequestURL struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2762,6 +2874,7 @@ func (PermissionPromptRequestURL) permissionPromptRequest() {}
 func (PermissionPromptRequestURL) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindURL
 }
+
 // File write permission prompt
 type PermissionPromptRequestWrite struct {
 	// Auto-approval judge information for this request; present only when auto mode is enabled.
@@ -2804,6 +2917,7 @@ func (RawPermissionRequest) permissionRequest() {}
 func (r RawPermissionRequest) Kind() PermissionRequestKind {
 	return r.Discriminator
 }
+
 // Custom tool invocation permission request
 type PermissionRequestCustomTool struct {
 	// Arguments to pass to the custom tool
@@ -2822,6 +2936,7 @@ func (PermissionRequestCustomTool) permissionRequest() {}
 func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
 	return PermissionRequestKindCustomTool
 }
+
 // Extension management permission request
 type PermissionRequestExtensionManagement struct {
 	// Name of the extension being managed
@@ -2838,6 +2953,7 @@ func (PermissionRequestExtensionManagement) permissionRequest() {}
 func (PermissionRequestExtensionManagement) Kind() PermissionRequestKind {
 	return PermissionRequestKindExtensionManagement
 }
+
 // Extension permission access request
 type PermissionRequestExtensionPermissionAccess struct {
 	// Capabilities the extension is requesting
@@ -2854,6 +2970,7 @@ func (PermissionRequestExtensionPermissionAccess) permissionRequest() {}
 func (PermissionRequestExtensionPermissionAccess) Kind() PermissionRequestKind {
 	return PermissionRequestKindExtensionPermissionAccess
 }
+
 // Hook confirmation permission request
 type PermissionRequestHook struct {
 	// Optional message from the hook explaining why confirmation is needed
@@ -2872,6 +2989,7 @@ func (PermissionRequestHook) permissionRequest() {}
 func (PermissionRequestHook) Kind() PermissionRequestKind {
 	return PermissionRequestKindHook
 }
+
 // MCP tool invocation permission request
 type PermissionRequestMCP struct {
 	// Arguments to pass to the MCP tool
@@ -2894,6 +3012,7 @@ func (PermissionRequestMCP) permissionRequest() {}
 func (PermissionRequestMCP) Kind() PermissionRequestKind {
 	return PermissionRequestKindMCP
 }
+
 // Memory operation permission request
 type PermissionRequestMemory struct {
 	// Whether this is a store or vote memory operation
@@ -2918,6 +3037,7 @@ func (PermissionRequestMemory) permissionRequest() {}
 func (PermissionRequestMemory) Kind() PermissionRequestKind {
 	return PermissionRequestKindMemory
 }
+
 // File or directory read permission request
 type PermissionRequestRead struct {
 	// Human-readable description of why the file is being read
@@ -2938,6 +3058,7 @@ func (PermissionRequestRead) permissionRequest() {}
 func (PermissionRequestRead) Kind() PermissionRequestKind {
 	return PermissionRequestKindRead
 }
+
 // Shell command permission request
 type PermissionRequestShell struct {
 	// Whether the UI can offer session-wide approval for this command pattern
@@ -2972,6 +3093,7 @@ func (PermissionRequestShell) permissionRequest() {}
 func (PermissionRequestShell) Kind() PermissionRequestKind {
 	return PermissionRequestKindShell
 }
+
 // URL access permission request
 type PermissionRequestURL struct {
 	// Human-readable description of why the URL is being accessed
@@ -2994,6 +3116,7 @@ func (PermissionRequestURL) permissionRequest() {}
 func (PermissionRequestURL) Kind() PermissionRequestKind {
 	return PermissionRequestKindURL
 }
+
 // File write permission request
 type PermissionRequestWrite struct {
 	// Whether the UI can offer session-wide approval for file write operations
@@ -3058,6 +3181,7 @@ func (RawPermissionResult) permissionResult() {}
 func (r RawPermissionResult) Kind() PermissionResultKind {
 	return r.Discriminator
 }
+
 // Permission response variant indicating the request was approved without persisting an approval rule.
 type PermissionApproved struct {
 }
@@ -3066,6 +3190,7 @@ func (PermissionApproved) permissionResult() {}
 func (PermissionApproved) Kind() PermissionResultKind {
 	return PermissionResultKindApproved
 }
+
 // Permission response variant that approves a request and persists the provided approval to a project location key.
 type PermissionApprovedForLocation struct {
 	// The approval to persist for this location
@@ -3078,6 +3203,7 @@ func (PermissionApprovedForLocation) permissionResult() {}
 func (PermissionApprovedForLocation) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForLocation
 }
+
 // Permission response variant that approves a request and remembers the provided approval for the rest of the session.
 type PermissionApprovedForSession struct {
 	// The approval to add as a session-scoped rule
@@ -3088,6 +3214,7 @@ func (PermissionApprovedForSession) permissionResult() {}
 func (PermissionApprovedForSession) Kind() PermissionResultKind {
 	return PermissionResultKindApprovedForSession
 }
+
 // Permission response variant indicating the request was cancelled before use, with an optional reason.
 type PermissionCancelled struct {
 	// Optional explanation of why the request was cancelled
@@ -3098,6 +3225,7 @@ func (PermissionCancelled) permissionResult() {}
 func (PermissionCancelled) Kind() PermissionResultKind {
 	return PermissionResultKindCancelled
 }
+
 // Permission response variant denying a path under content exclusion policy, with the path and message.
 type PermissionDeniedByContentExclusionPolicy struct {
 	// Human-readable explanation of why the path was excluded
@@ -3110,6 +3238,7 @@ func (PermissionDeniedByContentExclusionPolicy) permissionResult() {}
 func (PermissionDeniedByContentExclusionPolicy) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByContentExclusionPolicy
 }
+
 // Permission response variant denied by a permission-request hook, with optional message and interrupt flag.
 type PermissionDeniedByPermissionRequestHook struct {
 	// Whether to interrupt the current agent turn
@@ -3122,6 +3251,7 @@ func (PermissionDeniedByPermissionRequestHook) permissionResult() {}
 func (PermissionDeniedByPermissionRequestHook) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByPermissionRequestHook
 }
+
 // Permission response variant denied because matching approval rules explicitly blocked the request.
 type PermissionDeniedByRules struct {
 	// Rules that denied the request
@@ -3132,6 +3262,7 @@ func (PermissionDeniedByRules) permissionResult() {}
 func (PermissionDeniedByRules) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedByRules
 }
+
 // Permission response variant denied in an interactive user prompt, with optional feedback and force-reject flag.
 type PermissionDeniedInteractivelyByUser struct {
 	// Optional feedback from the user explaining the denial
@@ -3144,6 +3275,7 @@ func (PermissionDeniedInteractivelyByUser) permissionResult() {}
 func (PermissionDeniedInteractivelyByUser) Kind() PermissionResultKind {
 	return PermissionResultKindDeniedInteractivelyByUser
 }
+
 // Permission response variant denied because no approval rule matched and user confirmation was unavailable.
 type PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser struct {
 }
@@ -3169,6 +3301,7 @@ func (RawPersistedBinaryResult) persistedBinaryResult() {}
 func (r RawPersistedBinaryResult) Type() PersistedBinaryResultType {
 	return r.Discriminator
 }
+
 // A reference to binary data persisted once on a session.binary_asset event and shared by id
 type BinaryAssetReference struct {
 	// Content-addressed id of the session.binary_asset event that holds this binary's bytes (e.g. "sha256:...").
@@ -3180,7 +3313,7 @@ type BinaryAssetReference struct {
 	// Optional metadata from the producing tool.
 	Metadata map[string]any `json:"metadata,omitzero"`
 	// MIME type of the referenced binary data
-	MIMEType string `json:"mimeType"`
+	MIMEType      string                   `json:"mimeType"`
 	Discriminator BinaryAssetReferenceType `json:"type,omitempty"`
 }
 
@@ -3191,6 +3324,7 @@ func (r BinaryAssetReference) Type() PersistedBinaryResultType {
 	}
 	return PersistedBinaryResultType(r.Discriminator)
 }
+
 // A binary result whose data was omitted from persistence due to the inline size limit
 type OmittedBinaryResult struct {
 	// Decoded byte length of the omitted binary data
@@ -3203,7 +3337,7 @@ type OmittedBinaryResult struct {
 	MIMEType string `json:"mimeType"`
 	// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
 	OmittedReason OmittedBinaryOmittedReason `json:"omittedReason"`
-	Discriminator OmittedBinaryType `json:"type,omitempty"`
+	Discriminator OmittedBinaryType          `json:"type,omitempty"`
 }
 
 func (OmittedBinaryResult) persistedBinaryResult() {}
@@ -3213,6 +3347,7 @@ func (r OmittedBinaryResult) Type() PersistedBinaryResultType {
 	}
 	return PersistedBinaryResultType(r.Discriminator)
 }
+
 // Binary result returned by a tool for the model
 type PersistedBinaryImage struct {
 	// Base64-encoded binary data
@@ -3222,7 +3357,7 @@ type PersistedBinaryImage struct {
 	// Optional metadata from the producing tool.
 	Metadata map[string]any `json:"metadata,omitzero"`
 	// MIME type of the binary data
-	MIMEType string `json:"mimeType"`
+	MIMEType      string                   `json:"mimeType"`
 	Discriminator PersistedBinaryImageType `json:"type,omitempty"`
 }
 
@@ -3344,6 +3479,7 @@ func (RawSystemNotification) systemNotification() {}
 func (r RawSystemNotification) Type() SystemNotificationType {
 	return r.Discriminator
 }
+
 // System notification metadata for a background agent that completed or failed, including agent ID, type, status, description, and prompt.
 type SystemNotificationAgentCompleted struct {
 	// Unique identifier of the background agent
@@ -3362,6 +3498,7 @@ func (SystemNotificationAgentCompleted) systemNotification() {}
 func (SystemNotificationAgentCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentCompleted
 }
+
 // System notification metadata for a background agent that became idle, including agent ID, type, and description.
 type SystemNotificationAgentIdle struct {
 	// Unique identifier of the background agent
@@ -3376,6 +3513,7 @@ func (SystemNotificationAgentIdle) systemNotification() {}
 func (SystemNotificationAgentIdle) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentIdle
 }
+
 // System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.
 type SystemNotificationInstructionDiscovered struct {
 	// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
@@ -3392,6 +3530,7 @@ func (SystemNotificationInstructionDiscovered) systemNotification() {}
 func (SystemNotificationInstructionDiscovered) Type() SystemNotificationType {
 	return SystemNotificationTypeInstructionDiscovered
 }
+
 // System notification metadata for a new inbox message, including entry ID, sender details, and summary.
 type SystemNotificationNewInboxMessage struct {
 	// Unique identifier of the inbox entry
@@ -3408,6 +3547,7 @@ func (SystemNotificationNewInboxMessage) systemNotification() {}
 func (SystemNotificationNewInboxMessage) Type() SystemNotificationType {
 	return SystemNotificationTypeNewInboxMessage
 }
+
 // System notification metadata for a shell session that completed, including shell ID, optional exit code, and description.
 type SystemNotificationShellCompleted struct {
 	// Human-readable description of the command
@@ -3422,6 +3562,7 @@ func (SystemNotificationShellCompleted) systemNotification() {}
 func (SystemNotificationShellCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeShellCompleted
 }
+
 // System notification metadata for a detached shell session that completed, including shell ID and description.
 type SystemNotificationShellDetachedCompleted struct {
 	// Human-readable description of the command
@@ -3434,6 +3575,7 @@ func (SystemNotificationShellDetachedCompleted) systemNotification() {}
 func (SystemNotificationShellDetachedCompleted) Type() SystemNotificationType {
 	return SystemNotificationTypeShellDetachedCompleted
 }
+
 // System notification metadata from an external host that does not match a runtime-owned notification kind.
 type SystemNotificationUnclassified struct {
 	// Opaque metadata supplied by the external host, when present.
@@ -3460,6 +3602,7 @@ func (RawToolExecutionCompleteContent) toolExecutionCompleteContent() {}
 func (r RawToolExecutionCompleteContent) Type() ToolExecutionCompleteContentType {
 	return r.Discriminator
 }
+
 // Audio content block with base64-encoded data
 type ToolExecutionCompleteContentAudio struct {
 	// Base64-encoded audio data
@@ -3472,6 +3615,7 @@ func (ToolExecutionCompleteContentAudio) toolExecutionCompleteContent() {}
 func (ToolExecutionCompleteContentAudio) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeAudio
 }
+
 // Image content block with base64-encoded data
 type ToolExecutionCompleteContentImage struct {
 	// Base64-encoded image data
@@ -3484,6 +3628,7 @@ func (ToolExecutionCompleteContentImage) toolExecutionCompleteContent() {}
 func (ToolExecutionCompleteContentImage) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeImage
 }
+
 // Embedded resource content block with inline text or binary data
 type ToolExecutionCompleteContentResource struct {
 	// The embedded resource contents, either text or base64-encoded binary
@@ -3494,6 +3639,7 @@ func (ToolExecutionCompleteContentResource) toolExecutionCompleteContent() {}
 func (ToolExecutionCompleteContentResource) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeResource
 }
+
 // Resource link content block referencing an external resource
 type ToolExecutionCompleteContentResourceLink struct {
 	// Human-readable description of the resource
@@ -3516,6 +3662,7 @@ func (ToolExecutionCompleteContentResourceLink) toolExecutionCompleteContent() {
 func (ToolExecutionCompleteContentResourceLink) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeResourceLink
 }
+
 // Shell command exit metadata with optional output preview
 type ToolExecutionCompleteContentShellExit struct {
 	// Working directory where the shell command was executed
@@ -3534,6 +3681,7 @@ func (ToolExecutionCompleteContentShellExit) toolExecutionCompleteContent() {}
 func (ToolExecutionCompleteContentShellExit) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeShellExit
 }
+
 // Deprecated for shell command exit metadata. Use ToolExecutionCompleteContentShellExit instead.
 type ToolExecutionCompleteContentTerminal struct {
 	// Working directory where the command was executed
@@ -3548,6 +3696,7 @@ func (ToolExecutionCompleteContentTerminal) toolExecutionCompleteContent() {}
 func (ToolExecutionCompleteContentTerminal) Type() ToolExecutionCompleteContentType {
 	return ToolExecutionCompleteContentTypeTerminal
 }
+
 // Plain text content block
 type ToolExecutionCompleteContentText struct {
 	// The text content
@@ -3655,18 +3804,18 @@ type ToolExecutionCompleteUIResourceMeta struct {
 // MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference.
 type ToolExecutionCompleteUIResourceMetaUI struct {
 	// CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
-	Csp *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
-	Domain *string `json:"domain,omitempty"`
+	Csp    *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
+	Domain *string                                   `json:"domain,omitempty"`
 	// Browser permission metadata for an MCP Apps UI resource, including camera, microphone, geolocation, and clipboard-write.
-	Permissions *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
-	PrefersBorder *bool `json:"prefersBorder,omitempty"`
+	Permissions   *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
+	PrefersBorder *bool                                             `json:"prefersBorder,omitempty"`
 }
 
 // CSP domain allowlists for an MCP Apps UI resource, including connect, resource, frame, and base URI domains.
 type ToolExecutionCompleteUIResourceMetaUICsp struct {
-	BaseURIDomains []string `json:"baseUriDomains,omitzero"`
-	ConnectDomains []string `json:"connectDomains,omitzero"`
-	FrameDomains []string `json:"frameDomains,omitzero"`
+	BaseURIDomains  []string `json:"baseUriDomains,omitzero"`
+	ConnectDomains  []string `json:"connectDomains,omitzero"`
+	FrameDomains    []string `json:"frameDomains,omitzero"`
 	ResourceDomains []string `json:"resourceDomains,omitzero"`
 }
 
@@ -3896,8 +4045,8 @@ type CitationLocationType string
 
 const (
 	CitationLocationTypeBlock CitationLocationType = "block"
-	CitationLocationTypeChar CitationLocationType = "char"
-	CitationLocationTypePage CitationLocationType = "page"
+	CitationLocationTypeChar  CitationLocationType = "char"
+	CitationLocationTypePage  CitationLocationType = "page"
 )
 
 // The system that produced a citation.
@@ -4184,17 +4333,17 @@ const (
 type PermissionPromptRequestKind string
 
 const (
-	PermissionPromptRequestKindCommands PermissionPromptRequestKind = "commands"
-	PermissionPromptRequestKindCustomTool PermissionPromptRequestKind = "custom-tool"
-	PermissionPromptRequestKindExtensionManagement PermissionPromptRequestKind = "extension-management"
+	PermissionPromptRequestKindCommands                  PermissionPromptRequestKind = "commands"
+	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
+	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
 	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
-	PermissionPromptRequestKindHook PermissionPromptRequestKind = "hook"
-	PermissionPromptRequestKindMCP PermissionPromptRequestKind = "mcp"
-	PermissionPromptRequestKindMemory PermissionPromptRequestKind = "memory"
-	PermissionPromptRequestKindPath PermissionPromptRequestKind = "path"
-	PermissionPromptRequestKindRead PermissionPromptRequestKind = "read"
-	PermissionPromptRequestKindURL PermissionPromptRequestKind = "url"
-	PermissionPromptRequestKindWrite PermissionPromptRequestKind = "write"
+	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
+	PermissionPromptRequestKindMCP                       PermissionPromptRequestKind = "mcp"
+	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
+	PermissionPromptRequestKindPath                      PermissionPromptRequestKind = "path"
+	PermissionPromptRequestKindRead                      PermissionPromptRequestKind = "read"
+	PermissionPromptRequestKindURL                       PermissionPromptRequestKind = "url"
+	PermissionPromptRequestKindWrite                     PermissionPromptRequestKind = "write"
 )
 
 // Underlying permission kind that needs path approval
@@ -4213,16 +4362,16 @@ const (
 type PermissionRequestKind string
 
 const (
-	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
-	PermissionRequestKindExtensionManagement PermissionRequestKind = "extension-management"
+	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
+	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
 	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
-	PermissionRequestKindHook PermissionRequestKind = "hook"
-	PermissionRequestKindMCP PermissionRequestKind = "mcp"
-	PermissionRequestKindMemory PermissionRequestKind = "memory"
-	PermissionRequestKindRead PermissionRequestKind = "read"
-	PermissionRequestKindShell PermissionRequestKind = "shell"
-	PermissionRequestKindURL PermissionRequestKind = "url"
-	PermissionRequestKindWrite PermissionRequestKind = "write"
+	PermissionRequestKindHook                      PermissionRequestKind = "hook"
+	PermissionRequestKindMCP                       PermissionRequestKind = "mcp"
+	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
+	PermissionRequestKindRead                      PermissionRequestKind = "read"
+	PermissionRequestKindShell                     PermissionRequestKind = "shell"
+	PermissionRequestKindURL                       PermissionRequestKind = "url"
+	PermissionRequestKindWrite                     PermissionRequestKind = "write"
 )
 
 // Whether this is a store or vote memory operation
@@ -4249,14 +4398,14 @@ const (
 type PermissionResultKind string
 
 const (
-	PermissionResultKindApproved PermissionResultKind = "approved"
-	PermissionResultKindApprovedForLocation PermissionResultKind = "approved-for-location"
-	PermissionResultKindApprovedForSession PermissionResultKind = "approved-for-session"
-	PermissionResultKindCancelled PermissionResultKind = "cancelled"
-	PermissionResultKindDeniedByContentExclusionPolicy PermissionResultKind = "denied-by-content-exclusion-policy"
-	PermissionResultKindDeniedByPermissionRequestHook PermissionResultKind = "denied-by-permission-request-hook"
-	PermissionResultKindDeniedByRules PermissionResultKind = "denied-by-rules"
-	PermissionResultKindDeniedInteractivelyByUser PermissionResultKind = "denied-interactively-by-user"
+	PermissionResultKindApproved                                       PermissionResultKind = "approved"
+	PermissionResultKindApprovedForLocation                            PermissionResultKind = "approved-for-location"
+	PermissionResultKindApprovedForSession                             PermissionResultKind = "approved-for-session"
+	PermissionResultKindCancelled                                      PermissionResultKind = "cancelled"
+	PermissionResultKindDeniedByContentExclusionPolicy                 PermissionResultKind = "denied-by-content-exclusion-policy"
+	PermissionResultKindDeniedByPermissionRequestHook                  PermissionResultKind = "denied-by-permission-request-hook"
+	PermissionResultKindDeniedByRules                                  PermissionResultKind = "denied-by-rules"
+	PermissionResultKindDeniedInteractivelyByUser                      PermissionResultKind = "denied-interactively-by-user"
 	PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
 )
 
@@ -4275,7 +4424,7 @@ const (
 type PersistedBinaryResultType string
 
 const (
-	PersistedBinaryResultTypeImage PersistedBinaryResultType = "image"
+	PersistedBinaryResultTypeImage    PersistedBinaryResultType = "image"
 	PersistedBinaryResultTypeResource PersistedBinaryResultType = "resource"
 )
 
@@ -4351,13 +4500,13 @@ const (
 type SystemNotificationType string
 
 const (
-	SystemNotificationTypeAgentCompleted SystemNotificationType = "agent_completed"
-	SystemNotificationTypeAgentIdle SystemNotificationType = "agent_idle"
-	SystemNotificationTypeInstructionDiscovered SystemNotificationType = "instruction_discovered"
-	SystemNotificationTypeNewInboxMessage SystemNotificationType = "new_inbox_message"
-	SystemNotificationTypeShellCompleted SystemNotificationType = "shell_completed"
+	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
+	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
+	SystemNotificationTypeInstructionDiscovered  SystemNotificationType = "instruction_discovered"
+	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
+	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"
 	SystemNotificationTypeShellDetachedCompleted SystemNotificationType = "shell_detached_completed"
-	SystemNotificationTypeUnclassified SystemNotificationType = "unclassified"
+	SystemNotificationTypeUnclassified           SystemNotificationType = "unclassified"
 )
 
 // Semantic result of evaluating a task completion request
@@ -4386,13 +4535,13 @@ const (
 type ToolExecutionCompleteContentType string
 
 const (
-	ToolExecutionCompleteContentTypeAudio ToolExecutionCompleteContentType = "audio"
-	ToolExecutionCompleteContentTypeImage ToolExecutionCompleteContentType = "image"
-	ToolExecutionCompleteContentTypeResource ToolExecutionCompleteContentType = "resource"
+	ToolExecutionCompleteContentTypeAudio        ToolExecutionCompleteContentType = "audio"
+	ToolExecutionCompleteContentTypeImage        ToolExecutionCompleteContentType = "image"
+	ToolExecutionCompleteContentTypeResource     ToolExecutionCompleteContentType = "resource"
 	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
-	ToolExecutionCompleteContentTypeShellExit ToolExecutionCompleteContentType = "shell_exit"
-	ToolExecutionCompleteContentTypeTerminal ToolExecutionCompleteContentType = "terminal"
-	ToolExecutionCompleteContentTypeText ToolExecutionCompleteContentType = "text"
+	ToolExecutionCompleteContentTypeShellExit    ToolExecutionCompleteContentType = "shell_exit"
+	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
+	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
 )
 
 // Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.
@@ -4464,5 +4613,5 @@ const (
 // Type aliases for convenience.
 type (
 	PermissionRequestCommand = PermissionRequestShellCommand
-	PossibleURL = PermissionRequestShellPossibleURL
+	PossibleURL              = PermissionRequestShellPossibleURL
 )

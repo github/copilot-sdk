@@ -9,8 +9,12 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::session_events::{
+    AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest,
+    PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource,
+    UserToolSessionApproval, Verbosity,
+};
 use crate::types::{RequestId, SessionEvent, SessionId};
-use super::session_events::{AbortReason, ContextTier, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval, Verbosity};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -167,7 +171,8 @@ pub mod rpc_methods {
     /// `sessions.getRemoteControlStatus`
     pub const SESSIONS_GETREMOTECONTROLSTATUS: &str = "sessions.getRemoteControlStatus";
     /// `sessions.registerExtensionToolsOnSession`
-    pub const SESSIONS_REGISTEREXTENSIONTOOLSONSESSION: &str = "sessions.registerExtensionToolsOnSession";
+    pub const SESSIONS_REGISTEREXTENSIONTOOLSONSESSION: &str =
+        "sessions.registerExtensionToolsOnSession";
     /// `sessions.configureSessionExtensions`
     pub const SESSIONS_CONFIGURESESSIONEXTENSIONS: &str = "sessions.configureSessionExtensions";
     /// `agentRegistry.spawn`
@@ -253,7 +258,8 @@ pub mod rpc_methods {
     /// `session.plan.readSqlTodos`
     pub const SESSION_PLAN_READSQLTODOS: &str = "session.plan.readSqlTodos";
     /// `session.plan.readSqlTodosWithDependencies`
-    pub const SESSION_PLAN_READSQLTODOSWITHDEPENDENCIES: &str = "session.plan.readSqlTodosWithDependencies";
+    pub const SESSION_PLAN_READSQLTODOSWITHDEPENDENCIES: &str =
+        "session.plan.readSqlTodosWithDependencies";
     /// `session.workspaces.getWorkspace`
     pub const SESSION_WORKSPACES_GETWORKSPACE: &str = "session.workspaces.getWorkspace";
     /// `session.workspaces.updateMetadata`
@@ -275,19 +281,24 @@ pub mod rpc_methods {
     /// `session.workspaces.truncateSummaries`
     pub const SESSION_WORKSPACES_TRUNCATESUMMARIES: &str = "session.workspaces.truncateSummaries";
     /// `session.workspaces.readAutopilotObjective`
-    pub const SESSION_WORKSPACES_READAUTOPILOTOBJECTIVE: &str = "session.workspaces.readAutopilotObjective";
+    pub const SESSION_WORKSPACES_READAUTOPILOTOBJECTIVE: &str =
+        "session.workspaces.readAutopilotObjective";
     /// `session.workspaces.writeAutopilotObjective`
-    pub const SESSION_WORKSPACES_WRITEAUTOPILOTOBJECTIVE: &str = "session.workspaces.writeAutopilotObjective";
+    pub const SESSION_WORKSPACES_WRITEAUTOPILOTOBJECTIVE: &str =
+        "session.workspaces.writeAutopilotObjective";
     /// `session.workspaces.deleteAutopilotObjective`
-    pub const SESSION_WORKSPACES_DELETEAUTOPILOTOBJECTIVE: &str = "session.workspaces.deleteAutopilotObjective";
+    pub const SESSION_WORKSPACES_DELETEAUTOPILOTOBJECTIVE: &str =
+        "session.workspaces.deleteAutopilotObjective";
     /// `session.workspaces.autopilotObjectiveExists`
-    pub const SESSION_WORKSPACES_AUTOPILOTOBJECTIVEEXISTS: &str = "session.workspaces.autopilotObjectiveExists";
+    pub const SESSION_WORKSPACES_AUTOPILOTOBJECTIVEEXISTS: &str =
+        "session.workspaces.autopilotObjectiveExists";
     /// `session.workspaces.saveLargePaste`
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
     /// `session.workspaces.diff`
     pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
     /// `session.completions.getTriggerCharacters`
-    pub const SESSION_COMPLETIONS_GETTRIGGERCHARACTERS: &str = "session.completions.getTriggerCharacters";
+    pub const SESSION_COMPLETIONS_GETTRIGGERCHARACTERS: &str =
+        "session.completions.getTriggerCharacters";
     /// `session.completions.request`
     pub const SESSION_COMPLETIONS_REQUEST: &str = "session.completions.request";
     /// `session.instructions.getSources`
@@ -319,7 +330,8 @@ pub mod rpc_methods {
     /// `session.tasks.promoteToBackground`
     pub const SESSION_TASKS_PROMOTETOBACKGROUND: &str = "session.tasks.promoteToBackground";
     /// `session.tasks.promoteCurrentToBackground`
-    pub const SESSION_TASKS_PROMOTECURRENTTOBACKGROUND: &str = "session.tasks.promoteCurrentToBackground";
+    pub const SESSION_TASKS_PROMOTECURRENTTOBACKGROUND: &str =
+        "session.tasks.promoteCurrentToBackground";
     /// `session.tasks.cancel`
     pub const SESSION_TASKS_CANCEL: &str = "session.tasks.cancel";
     /// `session.tasks.remove`
@@ -373,13 +385,15 @@ pub mod rpc_methods {
     /// `session.mcp.isServerRunning`
     pub const SESSION_MCP_ISSERVERRUNNING: &str = "session.mcp.isServerRunning";
     /// `session.mcp.oauth.handlePendingRequest`
-    pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str = "session.mcp.oauth.handlePendingRequest";
+    pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
+        "session.mcp.oauth.handlePendingRequest";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
     /// `session.mcp.oauth.respond`
     pub const SESSION_MCP_OAUTH_RESPOND: &str = "session.mcp.oauth.respond";
     /// `session.mcp.headers.handlePendingHeadersRefreshRequest`
-    pub const SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST: &str = "session.mcp.headers.handlePendingHeadersRefreshRequest";
+    pub const SESSION_MCP_HEADERS_HANDLEPENDINGHEADERSREFRESHREQUEST: &str =
+        "session.mcp.headers.handlePendingHeadersRefreshRequest";
     /// `session.mcp.apps.readResource`
     pub const SESSION_MCP_APPS_READRESOURCE: &str = "session.mcp.apps.readResource";
     /// `session.mcp.apps.listTools`
@@ -419,7 +433,8 @@ pub mod rpc_methods {
     /// `session.extensions.reload`
     pub const SESSION_EXTENSIONS_RELOAD: &str = "session.extensions.reload";
     /// `session.extensions.sendAttachmentsToMessage`
-    pub const SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE: &str = "session.extensions.sendAttachmentsToMessage";
+    pub const SESSION_EXTENSIONS_SENDATTACHMENTSTOMESSAGE: &str =
+        "session.extensions.sendAttachmentsToMessage";
     /// `session.tools.handlePendingToolCall`
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
     /// `session.tools.initializeAndValidate`
@@ -439,7 +454,8 @@ pub mod rpc_methods {
     /// `session.commands.enqueue`
     pub const SESSION_COMMANDS_ENQUEUE: &str = "session.commands.enqueue";
     /// `session.commands.respondToQueuedCommand`
-    pub const SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND: &str = "session.commands.respondToQueuedCommand";
+    pub const SESSION_COMMANDS_RESPONDTOQUEUEDCOMMAND: &str =
+        "session.commands.respondToQueuedCommand";
     /// `session.telemetry.getEngagementId`
     pub const SESSION_TELEMETRY_GETENGAGEMENTID: &str = "session.telemetry.getEngagementId";
     /// `session.telemetry.setFeatureOverrides`
@@ -455,19 +471,24 @@ pub mod rpc_methods {
     /// `session.ui.handlePendingSampling`
     pub const SESSION_UI_HANDLEPENDINGSAMPLING: &str = "session.ui.handlePendingSampling";
     /// `session.ui.handlePendingAutoModeSwitch`
-    pub const SESSION_UI_HANDLEPENDINGAUTOMODESWITCH: &str = "session.ui.handlePendingAutoModeSwitch";
+    pub const SESSION_UI_HANDLEPENDINGAUTOMODESWITCH: &str =
+        "session.ui.handlePendingAutoModeSwitch";
     /// `session.ui.handlePendingSessionLimitsExhausted`
-    pub const SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED: &str = "session.ui.handlePendingSessionLimitsExhausted";
+    pub const SESSION_UI_HANDLEPENDINGSESSIONLIMITSEXHAUSTED: &str =
+        "session.ui.handlePendingSessionLimitsExhausted";
     /// `session.ui.handlePendingExitPlanMode`
     pub const SESSION_UI_HANDLEPENDINGEXITPLANMODE: &str = "session.ui.handlePendingExitPlanMode";
     /// `session.ui.registerDirectAutoModeSwitchHandler`
-    pub const SESSION_UI_REGISTERDIRECTAUTOMODESWITCHHANDLER: &str = "session.ui.registerDirectAutoModeSwitchHandler";
+    pub const SESSION_UI_REGISTERDIRECTAUTOMODESWITCHHANDLER: &str =
+        "session.ui.registerDirectAutoModeSwitchHandler";
     /// `session.ui.unregisterDirectAutoModeSwitchHandler`
-    pub const SESSION_UI_UNREGISTERDIRECTAUTOMODESWITCHHANDLER: &str = "session.ui.unregisterDirectAutoModeSwitchHandler";
+    pub const SESSION_UI_UNREGISTERDIRECTAUTOMODESWITCHHANDLER: &str =
+        "session.ui.unregisterDirectAutoModeSwitchHandler";
     /// `session.permissions.configure`
     pub const SESSION_PERMISSIONS_CONFIGURE: &str = "session.permissions.configure";
     /// `session.permissions.handlePendingPermissionRequest`
-    pub const SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST: &str = "session.permissions.handlePendingPermissionRequest";
+    pub const SESSION_PERMISSIONS_HANDLEPENDINGPERMISSIONREQUEST: &str =
+        "session.permissions.handlePendingPermissionRequest";
     /// `session.permissions.pendingRequests`
     pub const SESSION_PERMISSIONS_PENDINGREQUESTS: &str = "session.permissions.pendingRequests";
     /// `session.permissions.setApproveAll`
@@ -481,7 +502,8 @@ pub mod rpc_methods {
     /// `session.permissions.setRequired`
     pub const SESSION_PERMISSIONS_SETREQUIRED: &str = "session.permissions.setRequired";
     /// `session.permissions.resetSessionApprovals`
-    pub const SESSION_PERMISSIONS_RESETSESSIONAPPROVALS: &str = "session.permissions.resetSessionApprovals";
+    pub const SESSION_PERMISSIONS_RESETSESSIONAPPROVALS: &str =
+        "session.permissions.resetSessionApprovals";
     /// `session.permissions.notifyPromptShown`
     pub const SESSION_PERMISSIONS_NOTIFYPROMPTSHOWN: &str = "session.permissions.notifyPromptShown";
     /// `session.permissions.paths.list`
@@ -489,23 +511,30 @@ pub mod rpc_methods {
     /// `session.permissions.paths.add`
     pub const SESSION_PERMISSIONS_PATHS_ADD: &str = "session.permissions.paths.add";
     /// `session.permissions.paths.updatePrimary`
-    pub const SESSION_PERMISSIONS_PATHS_UPDATEPRIMARY: &str = "session.permissions.paths.updatePrimary";
+    pub const SESSION_PERMISSIONS_PATHS_UPDATEPRIMARY: &str =
+        "session.permissions.paths.updatePrimary";
     /// `session.permissions.paths.isPathWithinAllowedDirectories`
-    pub const SESSION_PERMISSIONS_PATHS_ISPATHWITHINALLOWEDDIRECTORIES: &str = "session.permissions.paths.isPathWithinAllowedDirectories";
+    pub const SESSION_PERMISSIONS_PATHS_ISPATHWITHINALLOWEDDIRECTORIES: &str =
+        "session.permissions.paths.isPathWithinAllowedDirectories";
     /// `session.permissions.paths.isPathWithinWorkspace`
-    pub const SESSION_PERMISSIONS_PATHS_ISPATHWITHINWORKSPACE: &str = "session.permissions.paths.isPathWithinWorkspace";
+    pub const SESSION_PERMISSIONS_PATHS_ISPATHWITHINWORKSPACE: &str =
+        "session.permissions.paths.isPathWithinWorkspace";
     /// `session.permissions.locations.resolve`
     pub const SESSION_PERMISSIONS_LOCATIONS_RESOLVE: &str = "session.permissions.locations.resolve";
     /// `session.permissions.locations.apply`
     pub const SESSION_PERMISSIONS_LOCATIONS_APPLY: &str = "session.permissions.locations.apply";
     /// `session.permissions.locations.addToolApproval`
-    pub const SESSION_PERMISSIONS_LOCATIONS_ADDTOOLAPPROVAL: &str = "session.permissions.locations.addToolApproval";
+    pub const SESSION_PERMISSIONS_LOCATIONS_ADDTOOLAPPROVAL: &str =
+        "session.permissions.locations.addToolApproval";
     /// `session.permissions.folderTrust.isTrusted`
-    pub const SESSION_PERMISSIONS_FOLDERTRUST_ISTRUSTED: &str = "session.permissions.folderTrust.isTrusted";
+    pub const SESSION_PERMISSIONS_FOLDERTRUST_ISTRUSTED: &str =
+        "session.permissions.folderTrust.isTrusted";
     /// `session.permissions.folderTrust.addTrusted`
-    pub const SESSION_PERMISSIONS_FOLDERTRUST_ADDTRUSTED: &str = "session.permissions.folderTrust.addTrusted";
+    pub const SESSION_PERMISSIONS_FOLDERTRUST_ADDTRUSTED: &str =
+        "session.permissions.folderTrust.addTrusted";
     /// `session.permissions.urls.setUnrestrictedMode`
-    pub const SESSION_PERMISSIONS_URLS_SETUNRESTRICTEDMODE: &str = "session.permissions.urls.setUnrestrictedMode";
+    pub const SESSION_PERMISSIONS_URLS_SETUNRESTRICTEDMODE: &str =
+        "session.permissions.urls.setUnrestrictedMode";
     /// `session.log`
     pub const SESSION_LOG: &str = "session.log";
     /// `session.metadata.snapshot`
@@ -517,15 +546,18 @@ pub mod rpc_methods {
     /// `session.metadata.contextInfo`
     pub const SESSION_METADATA_CONTEXTINFO: &str = "session.metadata.contextInfo";
     /// `session.metadata.getContextAttribution`
-    pub const SESSION_METADATA_GETCONTEXTATTRIBUTION: &str = "session.metadata.getContextAttribution";
+    pub const SESSION_METADATA_GETCONTEXTATTRIBUTION: &str =
+        "session.metadata.getContextAttribution";
     /// `session.metadata.getContextHeaviestMessages`
-    pub const SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES: &str = "session.metadata.getContextHeaviestMessages";
+    pub const SESSION_METADATA_GETCONTEXTHEAVIESTMESSAGES: &str =
+        "session.metadata.getContextHeaviestMessages";
     /// `session.metadata.recordContextChange`
     pub const SESSION_METADATA_RECORDCONTEXTCHANGE: &str = "session.metadata.recordContextChange";
     /// `session.metadata.setWorkingDirectory`
     pub const SESSION_METADATA_SETWORKINGDIRECTORY: &str = "session.metadata.setWorkingDirectory";
     /// `session.metadata.recomputeContextTokens`
-    pub const SESSION_METADATA_RECOMPUTECONTEXTTOKENS: &str = "session.metadata.recomputeContextTokens";
+    pub const SESSION_METADATA_RECOMPUTECONTEXTTOKENS: &str =
+        "session.metadata.recomputeContextTokens";
     /// `session.settings.snapshot`
     pub const SESSION_SETTINGS_SNAPSHOT: &str = "session.settings.snapshot";
     /// `session.settings.evaluatePredicate`
@@ -551,7 +583,8 @@ pub mod rpc_methods {
     /// `session.history.rewind`
     pub const SESSION_HISTORY_REWIND: &str = "session.history.rewind";
     /// `session.history.cancelBackgroundCompaction`
-    pub const SESSION_HISTORY_CANCELBACKGROUNDCOMPACTION: &str = "session.history.cancelBackgroundCompaction";
+    pub const SESSION_HISTORY_CANCELBACKGROUNDCOMPACTION: &str =
+        "session.history.cancelBackgroundCompaction";
     /// `session.history.abortManualCompaction`
     pub const SESSION_HISTORY_ABORTMANUALCOMPACTION: &str = "session.history.abortManualCompaction";
     /// `session.history.summarizeForHandoff`
@@ -587,7 +620,8 @@ pub mod rpc_methods {
     /// `session.queue.clear`
     pub const SESSION_QUEUE_CLEAR: &str = "session.queue.clear";
     /// `session.queue.consumeSystemNotifications`
-    pub const SESSION_QUEUE_CONSUMESYSTEMNOTIFICATIONS: &str = "session.queue.consumeSystemNotifications";
+    pub const SESSION_QUEUE_CONSUMESYSTEMNOTIFICATIONS: &str =
+        "session.queue.consumeSystemNotifications";
     /// `session.queue.enqueueResumePending`
     pub const SESSION_QUEUE_ENQUEUERESUMEPENDING: &str = "session.queue.enqueueResumePending";
     /// `session.queue.process`
@@ -1392,7 +1426,10 @@ pub struct CopilotUserResponseQuotaSnapshotsChat {
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
     /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(rename = "token_based_billing", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub token_based_billing: Option<bool>,
     /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1441,7 +1478,10 @@ pub struct CopilotUserResponseQuotaSnapshotsCompletions {
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
     /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(rename = "token_based_billing", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub token_based_billing: Option<bool>,
     /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1490,7 +1530,10 @@ pub struct CopilotUserResponseQuotaSnapshotsPremiumInteractions {
     #[serde(rename = "timestamp_utc", skip_serializing_if = "Option::is_none")]
     pub timestamp_utc: Option<String>,
     /// Whether this category uses usage-based (token/AI-credit) billing rather than a fixed premium-request count.
-    #[serde(rename = "token_based_billing", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub token_based_billing: Option<bool>,
     /// Whether the entitlement for this category is unlimited.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1515,7 +1558,10 @@ pub struct CopilotUserResponseQuotaSnapshots {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completions: Option<CopilotUserResponseQuotaSnapshotsCompletions>,
     /// Premium-interactions quota snapshot from the raw Copilot user-response passthrough, with entitlement, overage, remaining quota, reset, and billing fields.
-    #[serde(rename = "premium_interactions", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "premium_interactions",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub premium_interactions: Option<CopilotUserResponseQuotaSnapshotsPremiumInteractions>,
 }
 
@@ -1534,13 +1580,19 @@ pub struct CopilotUserResponse {
     #[serde(rename = "access_type_sku", skip_serializing_if = "Option::is_none")]
     pub access_type_sku: Option<String>,
     /// Opaque analytics tracking identifier for the user, forwarded from the Copilot API.
-    #[serde(rename = "analytics_tracking_id", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "analytics_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub analytics_tracking_id: Option<String>,
     /// Date the Copilot seat was assigned to the user, if applicable.
     #[serde(rename = "assigned_date", skip_serializing_if = "Option::is_none")]
     pub assigned_date: Option<serde_json::Value>,
     /// Whether the user is eligible to sign up for the free/limited Copilot tier.
-    #[serde(rename = "can_signup_for_limited", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "can_signup_for_limited",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub can_signup_for_limited: Option<bool>,
     /// Whether the user is able to upgrade their Copilot plan.
     #[serde(rename = "can_upgrade_plan", skip_serializing_if = "Option::is_none")]
@@ -1549,19 +1601,31 @@ pub struct CopilotUserResponse {
     #[serde(rename = "chat_enabled", skip_serializing_if = "Option::is_none")]
     pub chat_enabled: Option<bool>,
     /// Whether CLI remote control is enabled for the user.
-    #[serde(rename = "cli_remote_control_enabled", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "cli_remote_control_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cli_remote_control_enabled: Option<bool>,
     /// Whether cloud session storage is enabled for the user.
-    #[serde(rename = "cloud_session_storage_enabled", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "cloud_session_storage_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cloud_session_storage_enabled: Option<bool>,
     /// Whether the Codex agent is enabled for the user.
-    #[serde(rename = "codex_agent_enabled", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "codex_agent_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub codex_agent_enabled: Option<bool>,
     /// Copilot plan name for the user (e.g. `individual`, `business`, `enterprise`).
     #[serde(rename = "copilot_plan", skip_serializing_if = "Option::is_none")]
     pub copilot_plan: Option<String>,
     /// Whether `.copilotignore` content-exclusion support is enabled for the user.
-    #[serde(rename = "copilotignore_enabled", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "copilotignore_enabled",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub copilotignore_enabled: Option<bool>,
     /// Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1573,10 +1637,16 @@ pub struct CopilotUserResponse {
     #[serde(rename = "is_staff", skip_serializing_if = "Option::is_none")]
     pub is_staff: Option<bool>,
     /// Per-category quota allotments for free/limited-tier users, keyed by quota category.
-    #[serde(rename = "limited_user_quotas", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "limited_user_quotas",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub limited_user_quotas: Option<HashMap<String, f64>>,
     /// Date the free/limited-tier user's quotas next reset, as a raw string from the Copilot API.
-    #[serde(rename = "limited_user_reset_date", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "limited_user_reset_date",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub limited_user_reset_date: Option<String>,
     /// GitHub login of the authenticated user.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1588,25 +1658,37 @@ pub struct CopilotUserResponse {
     #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
     pub organization_list: Option<serde_json::Value>,
     /// Logins of the organizations the user belongs to.
-    #[serde(rename = "organization_login_list", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "organization_login_list",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub organization_login_list: Option<Vec<String>>,
     /// Date the user's usage quota next resets, as a raw string from the Copilot API; see `quota_reset_date_utc` for the UTC-normalized value.
     #[serde(rename = "quota_reset_date", skip_serializing_if = "Option::is_none")]
     pub quota_reset_date: Option<String>,
     /// UTC-normalized form of `quota_reset_date` (the date the user's usage quota next resets).
-    #[serde(rename = "quota_reset_date_utc", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "quota_reset_date_utc",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub quota_reset_date_utc: Option<String>,
     /// Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
     #[serde(rename = "quota_snapshots", skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<CopilotUserResponseQuotaSnapshots>,
     /// Whether the user's telemetry is subject to restricted-data handling.
-    #[serde(rename = "restricted_telemetry", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "restricted_telemetry",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub restricted_telemetry: Option<bool>,
     /// Raw passthrough of the Copilot API `te` flag for the user (an opaque server-side eligibility signal surfaced in telemetry); not otherwise interpreted by the runtime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub te: Option<bool>,
     /// Whether the account is on usage-based (token/AI-credit) billing rather than a fixed premium-request quota.
-    #[serde(rename = "token_based_billing", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "token_based_billing",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub token_based_billing: Option<bool>,
 }
 
@@ -3812,8 +3894,7 @@ pub struct FactoryAbortRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryAckResult {
-}
+pub struct FactoryAckResult {}
 
 /// Options for one factory-scoped subagent call.
 ///
@@ -4105,8 +4186,7 @@ pub struct FactoryJournalPutRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryListRunsRequest {
-}
+pub struct FactoryListRunsRequest {}
 
 /// Durable factory resource consumption.
 ///
@@ -4627,13 +4707,19 @@ pub struct GitHubTelemetryEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client: Option<GitHubTelemetryClientInfo>,
     /// Copilot tracking ID for user-level attribution.
-    #[serde(rename = "copilot_tracking_id", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "copilot_tracking_id",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub copilot_tracking_id: Option<String>,
     /// Timestamp when the event was created (ISO 8601 format).
     #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     /// Experiment assignment context.
-    #[serde(rename = "exp_assignment_context", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "exp_assignment_context",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub exp_assignment_context: Option<String>,
     /// Feature flags enabled for this session, as a map from flag to value.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5378,8 +5464,7 @@ pub struct LlmInferenceHttpRequestChunkRequest {
 /// Acknowledgement. The SDK is free to ignore the ack and treat chunk delivery as fire-and-forget.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LlmInferenceHttpRequestChunkResult {
-}
+pub struct LlmInferenceHttpRequestChunkResult {}
 
 /// The head of an outbound model-layer HTTP request.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -5415,8 +5500,7 @@ pub struct LlmInferenceHttpRequestStartRequest {
 /// Acknowledgement. Returning successfully simply means the SDK accepted the start frame; it does not imply the request will succeed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LlmInferenceHttpRequestStartResult {
-}
+pub struct LlmInferenceHttpRequestStartResult {}
 
 /// Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored.
 ///
@@ -6324,8 +6408,7 @@ pub struct McpEnableRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpExecuteSamplingRequest {
-}
+pub struct McpExecuteSamplingRequest {}
 
 /// Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.
 ///
@@ -7602,8 +7685,7 @@ pub struct MetadataRecordContextChangeRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetadataRecordContextChangeResult {
-}
+pub struct MetadataRecordContextChangeResult {}
 
 /// Absolute path to set as the session's new working directory. For local sessions the path must be absolute and exist on disk: it is validated before any session state changes, and a failing validation rejects the call with nothing mutated, persisted, or emitted. Remote sessions record the path as-is.
 ///
@@ -7844,7 +7926,10 @@ pub struct ModelCapabilitiesLimitsVision {
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesLimits {
     /// Maximum total context window size in tokens
-    #[serde(rename = "max_context_window_tokens", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "max_context_window_tokens",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_context_window_tokens: Option<i64>,
     /// Maximum number of output/completion tokens
     #[serde(rename = "max_output_tokens", skip_serializing_if = "Option::is_none")]
@@ -7965,13 +8050,19 @@ pub struct Model {
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesOverrideLimitsVision {
     /// Maximum image size in bytes
-    #[serde(rename = "max_prompt_image_size", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "max_prompt_image_size",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_prompt_image_size: Option<i64>,
     /// Maximum number of images per prompt
     #[serde(rename = "max_prompt_images", skip_serializing_if = "Option::is_none")]
     pub max_prompt_images: Option<i64>,
     /// MIME types the model accepts
-    #[serde(rename = "supported_media_types", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "supported_media_types",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub supported_media_types: Option<Vec<String>>,
 }
 
@@ -7987,7 +8078,10 @@ pub struct ModelCapabilitiesOverrideLimitsVision {
 #[serde(rename_all = "camelCase")]
 pub struct ModelCapabilitiesOverrideLimits {
     /// Maximum total context window size in tokens
-    #[serde(rename = "max_context_window_tokens", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "max_context_window_tokens",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_context_window_tokens: Option<i64>,
     /// Maximum number of output/completion tokens
     #[serde(rename = "max_output_tokens", skip_serializing_if = "Option::is_none")]
@@ -9477,7 +9571,8 @@ pub struct PermissionUrlsConfig {
 pub struct PermissionsConfigureParams {
     /// If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub additional_content_exclusion_policies: Option<Vec<PermissionsConfigureAdditionalContentExclusionPolicy>>,
+    pub additional_content_exclusion_policies:
+        Option<Vec<PermissionsConfigureAdditionalContentExclusionPolicy>>,
     /// If specified, sets whether path/URL read permission requests are auto-approved. Omit to leave the current value unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approve_all_read_permission_requests: Option<bool>,
@@ -9535,8 +9630,7 @@ pub struct PermissionsFolderTrustAddTrustedResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionsGetAllowAllRequest {
-}
+pub struct PermissionsGetAllowAllRequest {}
 
 /// Indicates whether the operation succeeded.
 ///
@@ -9632,8 +9726,7 @@ pub struct PermissionsPathsAddResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionsPathsListRequest {
-}
+pub struct PermissionsPathsListRequest {}
 
 /// Indicates whether the operation succeeded.
 ///
@@ -9660,8 +9753,7 @@ pub struct PermissionsPathsUpdatePrimaryResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionsPendingRequestsRequest {
-}
+pub struct PermissionsPendingRequestsRequest {}
 
 /// Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
 ///
@@ -11754,8 +11846,7 @@ pub struct RemoteNotifySteerableChangedRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RemoteNotifySteerableChangedResult {
-}
+pub struct RemoteNotifySteerableChangedResult {}
 
 /// Remote session connection result.
 ///
@@ -13708,7 +13799,8 @@ pub struct SessionOpenOptions {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub additional_content_exclusion_policies: Option<Vec<SessionOpenOptionsAdditionalContentExclusionPolicy>>,
+    pub additional_content_exclusion_policies:
+        Option<Vec<SessionOpenOptionsAdditionalContentExclusionPolicy>>,
     /// Additional directories the agent may access beyond the working directory. Each entry is granted to the session's file-access allow-list and surfaced to the model (system prompt context and `@`-mention completion). Absolute paths are recommended; a relative path is resolved against the session's working directory. Nonexistent or unresolvable entries are skipped with a warning. This is applied on both session creation and resume, and is not persisted: a resumed session that omits this option does not retain previously supplied directories (re-supply them, exactly as the CLI re-passes `--add-dir`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_directories: Option<Vec<String>>,
@@ -14244,8 +14336,7 @@ pub struct SessionsCloseRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionsCloseResult {
-}
+pub struct SessionsCloseResult {}
 
 /// Session ID to delete from disk.
 ///
@@ -14908,8 +14999,7 @@ pub struct SessionsReleaseLockRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionsReleaseLockResult {
-}
+pub struct SessionsReleaseLockResult {}
 
 /// Active session ID and an optional flag for deferring repo-level hooks until folder trust.
 ///
@@ -14939,8 +15029,7 @@ pub struct SessionsReloadPluginHooksRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionsReloadPluginHooksResult {
-}
+pub struct SessionsReloadPluginHooksResult {}
 
 /// Session ID whose pending events should be flushed to disk.
 ///
@@ -14967,8 +15056,7 @@ pub struct SessionsSaveRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionsSaveResult {
-}
+pub struct SessionsSaveResult {}
 
 /// Manager-wide additional plugins to register; replaces any previously-configured set.
 ///
@@ -14995,8 +15083,7 @@ pub struct SessionsSetAdditionalPluginsRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionsSetAdditionalPluginsResult {
-}
+pub struct SessionsSetAdditionalPluginsResult {}
 
 /// Patch for the singleton's steering state.
 ///
@@ -15103,7 +15190,8 @@ pub struct SessionUpdateOptionsParams {
     ///
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub additional_content_exclusion_policies: Option<Vec<OptionsUpdateAdditionalContentExclusionPolicy>>,
+    pub additional_content_exclusion_policies:
+        Option<Vec<OptionsUpdateAdditionalContentExclusionPolicy>>,
     /// Runtime context discriminator (e.g., `cli`, `actions`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
@@ -16114,8 +16202,7 @@ pub struct TasksPromoteToBackgroundResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TasksRefreshResult {
-}
+pub struct TasksRefreshResult {}
 
 /// Identifier of the completed or cancelled task to remove from tracking.
 ///
@@ -16235,8 +16322,7 @@ pub struct TasksStartAgentResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TasksWaitForPendingResult {
-}
+pub struct TasksWaitForPendingResult {}
 
 /// Feature override key/value pairs to attach to subsequent telemetry events from this session.
 ///
@@ -16341,8 +16427,7 @@ pub struct ToolsGetCurrentMetadataResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolsInitializeAndValidateResult {
-}
+pub struct ToolsInitializeAndValidateResult {}
 
 /// Optional model identifier whose tool overrides should be applied to the listing.
 ///
@@ -16370,8 +16455,7 @@ pub struct ToolsListRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolsUpdateSubagentSettingsResult {
-}
+pub struct ToolsUpdateSubagentSettingsResult {}
 
 /// Selectable option for a UI elicitation multi-select array item, with submitted value and display label.
 ///
@@ -16856,8 +16940,7 @@ pub struct UIHandlePendingResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UIHandlePendingSamplingResponse {
-}
+pub struct UIHandlePendingSamplingResponse {}
 
 /// Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).
 ///
@@ -17542,7 +17625,10 @@ pub struct WorkspacesEnsureRequest {
 pub struct WorkspacesGetWorkspaceResultWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(rename = "chronicle_sync_dismissed", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "chronicle_sync_dismissed",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub chronicle_sync_dismissed: Option<bool>,
     #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -18911,8 +18997,7 @@ pub struct SessionFactoryCancelResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionFactoryLogResult {
-}
+pub struct SessionFactoryLogResult {}
 
 /// Result of one factory-scoped subagent call.
 ///
@@ -18958,8 +19043,7 @@ pub struct SessionFactoryJournalGetResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionFactoryJournalPutResult {
-}
+pub struct SessionFactoryJournalPutResult {}
 
 /// Identifies the target session.
 ///
@@ -19244,7 +19328,10 @@ pub struct SessionWorkspacesGetWorkspaceParams {
 pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(rename = "chronicle_sync_dismissed", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "chronicle_sync_dismissed",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub chronicle_sync_dismissed: Option<bool>,
     #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -19301,7 +19388,10 @@ pub struct SessionWorkspacesGetWorkspaceResult {
 pub struct SessionWorkspacesUpdateMetadataResultWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(rename = "chronicle_sync_dismissed", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "chronicle_sync_dismissed",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub chronicle_sync_dismissed: Option<bool>,
     #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -19358,7 +19448,10 @@ pub struct SessionWorkspacesUpdateMetadataResult {
 pub struct SessionWorkspacesEnsureResultWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(rename = "chronicle_sync_dismissed", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "chronicle_sync_dismissed",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub chronicle_sync_dismissed: Option<bool>,
     #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -19522,7 +19615,10 @@ pub struct SessionWorkspacesAddSummaryResult {
 pub struct SessionWorkspacesTruncateSummariesResultWorkspace {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(rename = "chronicle_sync_dismissed", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "chronicle_sync_dismissed",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub chronicle_sync_dismissed: Option<bool>,
     #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -19997,8 +20093,7 @@ pub struct SessionTasksRefreshParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionTasksRefreshResult {
-}
+pub struct SessionTasksRefreshResult {}
 
 /// Identifies the target session.
 ///
@@ -20025,8 +20120,7 @@ pub struct SessionTasksWaitForPendingParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionTasksWaitForPendingResult {
-}
+pub struct SessionTasksWaitForPendingResult {}
 
 /// Progress information for the task, or null when no task with that ID is tracked.
 ///
@@ -20835,8 +20929,7 @@ pub struct SessionToolsInitializeAndValidateParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionToolsInitializeAndValidateResult {
-}
+pub struct SessionToolsInitializeAndValidateResult {}
 
 /// Identifies the target session.
 ///
@@ -20878,8 +20971,7 @@ pub struct SessionToolsGetCurrentMetadataResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionToolsUpdateSubagentSettingsResult {
-}
+pub struct SessionToolsUpdateSubagentSettingsResult {}
 
 /// Slash commands available in the session, after applying any include/exclude filters.
 ///
@@ -21805,8 +21897,7 @@ pub struct SessionMetadataGetContextHeaviestMessagesResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionMetadataRecordContextChangeResult {
-}
+pub struct SessionMetadataRecordContextChangeResult {}
 
 /// Update the session's working directory. Used by the host when the user explicitly changes cwd (e.g., the `/cd` slash command). The host is responsible for any related side-effects (file index, etc.); it does NOT change the process working directory (a session's cwd is per-session, not process-global). For local sessions the runtime validates the target first (an absolute path that exists on disk) and re-bases the permission primary directory; a rejected validation fails the call before anything is mutated, persisted, or emitted. Location-scoped permission rules are then re-keyed to the new directory (best-effort). Remote sessions only record the path.
 ///
@@ -22692,8 +22783,7 @@ pub struct SessionRemoteDisableParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionRemoteNotifySteerableChangedResult {
-}
+pub struct SessionRemoteNotifySteerableChangedResult {}
 
 /// Identifies the target session.
 ///
@@ -22963,8 +23053,7 @@ pub struct ProviderTokenGetTokenResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryAbortResult {
-}
+pub struct FactoryAbortResult {}
 
 /// Identifies the target session.
 ///
@@ -25642,7 +25731,9 @@ pub enum PermissionDecisionApproveForLocationApproval {
     Memory(PermissionDecisionApproveForLocationApprovalMemory),
     CustomTool(PermissionDecisionApproveForLocationApprovalCustomTool),
     ExtensionManagement(PermissionDecisionApproveForLocationApprovalExtensionManagement),
-    ExtensionPermissionAccess(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess),
+    ExtensionPermissionAccess(
+        PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess,
+    ),
 }
 
 /// Approve and persist for this project location
@@ -25771,7 +25862,9 @@ pub enum PermissionDecision {
     ApprovedForLocation(PermissionDecisionApprovedForLocation),
     Cancelled(PermissionDecisionCancelled),
     DeniedByRules(PermissionDecisionDeniedByRules),
-    DeniedNoApprovalRuleAndCouldNotRequestFromUser(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser),
+    DeniedNoApprovalRuleAndCouldNotRequestFromUser(
+        PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser,
+    ),
     DeniedInteractivelyByUser(PermissionDecisionDeniedInteractivelyByUser),
     DeniedByContentExclusionPolicy(PermissionDecisionDeniedByContentExclusionPolicy),
     DeniedByPermissionRequestHook(PermissionDecisionDeniedByPermissionRequestHook),

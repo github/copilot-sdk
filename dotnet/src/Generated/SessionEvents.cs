@@ -6959,7 +6959,7 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public new bool? ManagedApprovalRequired { get; set; }
 
     /// <summary>File paths that may be read or written by the command.</summary>
     [JsonPropertyName("possiblePaths")]
@@ -7017,7 +7017,7 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public new bool? ManagedApprovalRequired { get; set; }
 
     /// <summary>Complete new file contents for newly created files.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7055,7 +7055,7 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public new bool? ManagedApprovalRequired { get; set; }
 
     /// <summary>Path of the file or directory being read.</summary>
     [JsonPropertyName("path")]
@@ -7127,7 +7127,7 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public new bool? ManagedApprovalRequired { get; set; }
 
     /// <summary>Immediately preceding URL when this request is for a redirect target.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

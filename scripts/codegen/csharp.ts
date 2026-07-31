@@ -896,6 +896,8 @@ function generateDerivedClass(
             const prop = propSchema as JSONSchema7;
             const csharpName = toCSharpPropertyName(propName, prop);
             const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const hidingModifier =
+                propName === "managedApprovalRequired" && className.startsWith("PermissionRequest") ? "new " : "";
 
             lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
             lines.push(...emitDataAnnotations(prop, "    ", csharpType));
@@ -906,7 +908,7 @@ function generateDerivedClass(
             const propVisibility = pushCSharpInternalAttribute(lines, prop);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
-            lines.push(`    ${propVisibility} ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
+            lines.push(`    ${propVisibility} ${hidingModifier}${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
         }
     }
 
