@@ -362,9 +362,9 @@ class PermissionNoResult:
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
-class PermissionInvocation(TypedDict):
-    session_id: str
-    managed_settings_enabled: bool
+class PermissionInvocation(TypedDict, total=False):
+    session_id: Required[str]
+    managed_settings_enabled: NotRequired[bool]
 
 
 _PermissionHandlerFn = Callable[
@@ -378,8 +378,6 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: PermissionInvocation
     ) -> PermissionRequestResult:
-        if invocation.get("managed_settings_enabled", False):
-            raise RuntimeError("approve_all cannot be used when managed settings are enabled")
         if getattr(request, "managed_approval_required", False) is True:
             return PermissionNoResult()
         return PermissionDecisionApproveOnce()

@@ -1600,8 +1600,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	}()
 
 	invocation := PermissionInvocation{
-		SessionID:              s.SessionID,
-		ManagedSettingsEnabled: s.managedSettings,
+		SessionID: s.SessionID,
 	}
 
 	decision, err := handler(permissionRequest, invocation)

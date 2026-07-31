@@ -1138,16 +1138,14 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 export type PermissionHandler = (
     request: PermissionRequest,
-    invocation: { sessionId: string; managedSettingsEnabled: boolean }
+    invocation: { sessionId: string; managedSettingsEnabled?: boolean }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 /**
- * Approves permission requests for sessions without managed settings.
+ * Approves permission requests unless managed approval is required.
  */
 export const approveAll: PermissionHandler = (request, invocation) => {
-    if (invocation.managedSettingsEnabled) {
-        throw new Error("approveAll cannot be used when managed settings are enabled");
-    }
+    void invocation;
     if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
         return { kind: "no-result" };
     }

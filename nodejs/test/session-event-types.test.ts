@@ -15,6 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { approveAll } from "../src/index.js";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
@@ -160,6 +161,31 @@ describe("Session event type exports (#1156)", () => {
 
         const permissionEvent: PermissionRequestedEvent = event;
         expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
+    });
+
+    it("approves ordinary requests and leaves managed requests pending", () => {
+        expect(
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch ordinary data",
+                },
+                { sessionId: "session-1", managedSettingsEnabled: true }
+            )
+        ).toEqual({ kind: "approve-once" });
+
+        expect(
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch managed data",
+                    managedApprovalRequired: true,
+                },
+                { sessionId: "session-1", managedSettingsEnabled: true }
+            )
+        ).toEqual({ kind: "no-result" });
     });
 
     it("wraps ToolExecutionStartData inside the exported ToolExecutionStartEvent", () => {

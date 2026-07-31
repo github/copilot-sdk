@@ -375,8 +375,7 @@ type PermissionHandlerFunc func(request PermissionRequest, invocation Permission
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
-	SessionID              string
-	ManagedSettingsEnabled bool
+	SessionID string
 }
 
 // MCPAuthWwwAuthenticateParams contains parsed parameters from an MCP server's WWW-Authenticate response.
