@@ -121,7 +121,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    # Create a session (on_permission_request is optional; approve_all allows every tool)
+    # approve_all is only valid when managed settings are disabled.
     session = await client.create_session(
         on_permission_request=PermissionHandler.approve_all,
         model="gpt-5",
@@ -280,7 +280,7 @@ These are passed as keyword arguments to `create_session()`:
 - `provider` (ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (InfiniteSessionConfig): Automatic context compaction configuration
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
-- `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `PermissionHandler.approve_all` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `available_tools` / `excluded_tools` / `default_agent.excluded_tools` / custom-agent `tools`: MCP tools registered from `mcp_servers` are exposed to the runtime as `<server-key>-<tool-name>`. For `available_tools` and `excluded_tools`, prefer `ToolSet().add_mcp("<server-key>-<tool-name>")` or the raw `mcp:<server-key>-<tool-name>` form. For custom-agent `tools` and `default_agent.excluded_tools`, use `<server-key>-<tool-name>` directly.
@@ -782,7 +782,7 @@ An `on_permission_request` handler is optional when you create or resume a sessi
 
 ### Approve All (simplest)
 
-Use the built-in `PermissionHandler.approve_all` helper to allow every tool call without any checks:
+Use the built-in `PermissionHandler.approve_all` helper to approve ordinary permission requests automatically:
 
 ```python
 from copilot import CopilotClient
@@ -794,12 +794,14 @@ session = await client.create_session(
 )
 ```
 
+When `enable_managed_settings` is true for the session, `approve_all` raises an error. Use a custom handler for managed sessions; request-level `managed_approval_required` remains available for human-facing confirmation logic.
+
 ### Custom Permission Handler
 
-Provide your own function to inspect each request and apply custom logic (sync or async):
+Provide your own function to inspect each request and apply custom logic (sync or async). Check `managed_approval_required` before any automatic approval:
 
 ```python
-from copilot import PermissionRequest, PermissionRequestResult
+from copilot import PermissionNoResult, PermissionRequest, PermissionRequestResult
 from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
@@ -808,6 +810,9 @@ from copilot.session_events import PermissionRequestShell
 
 
 def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+    if getattr(request, "managed_approval_required", False) is True:
+        return PermissionNoResult()
+
     # ``PermissionRequest`` is a discriminated union — pattern-match on
     # the variant class to access the per-kind fields.
     match request:
@@ -830,6 +835,9 @@ Async handlers are also supported:
 async def on_permission_request(
     request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
+    if getattr(request, "managed_approval_required", False) is True:
+        return PermissionNoResult()
+
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)
     return PermissionDecisionApproveOnce()
@@ -839,7 +847,8 @@ async def on_permission_request(
 
 The handler returns a ``PermissionRequestResult``, which is an alias for
 ``PermissionDecision | PermissionNoResult`` (the generated wire-level
-union of every decision variant, plus a small sentinel for v1 servers).
+union of every decision variant, plus a sentinel that suppresses this SDK
+client's response).
 Approval decisions are present-tense — they describe the decision to
 apply, not the past-tense outcome reported back on `permission.completed`
 session events.
@@ -849,7 +858,7 @@ session events.
 | `PermissionDecisionApproveOnce()`             | Allow this single request                                                                   |
 | `PermissionDecisionReject(feedback="…")`      | Deny the request (optional feedback string forwarded to the LLM)                            |
 | `PermissionDecisionUserNotAvailable()`        | Deny the request because no user is available to confirm it (the default)                   |
-| `PermissionNoResult()`                        | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+| `PermissionNoResult()`                        | During event-based dispatch, suppress this SDK client's response so another connected client can answer the pending request; legacy direct callbacks cannot abstain |
 
 Several richer variants (``PermissionDecisionApproveForSession``,
 ``PermissionDecisionApproveForLocation``, ``PermissionDecisionApprovePermanently``,

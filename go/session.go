@@ -67,6 +67,7 @@ type Session struct {
 	toolHandlersM         sync.RWMutex
 	permissionHandler     PermissionHandlerFunc
 	permissionMux         sync.RWMutex
+	managedSettings       bool
 	mcpAuthHandler        MCPAuthHandler
 	mcpAuthMu             sync.RWMutex
 	userInputHandler      UserInputHandler
@@ -365,10 +366,16 @@ func canvasResultError(err error) error {
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
-func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
+func newSession(
+	sessionID string,
+	client *jsonrpc2.Client,
+	workspacePath string,
+	managedSettings bool,
+) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
+		managedSettings:   managedSettings,
 		client:            client,
 		clientSessionAPIs: &rpc.ClientSessionAPIHandlers{},
 		handlers:          make([]sessionHandler, 0),
@@ -1607,11 +1614,13 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	}()
 
 	invocation := PermissionInvocation{
-		SessionID: s.SessionID,
+		SessionID:              s.SessionID,
+		ManagedSettingsEnabled: s.managedSettings,
 	}
 
 	decision, err := handler(permissionRequest, invocation)
 	if err != nil {
+		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
 			Result:    &rpc.PermissionDecisionUserNotAvailable{},

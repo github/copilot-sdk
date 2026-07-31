@@ -2521,7 +2521,12 @@ class CopilotClient:
             to a registered session.
             """
             setup_start = time.perf_counter()
-            s = CopilotSession(sid, self._client, workspace_path=None)
+            s = CopilotSession(
+                sid,
+                self._client,
+                workspace_path=None,
+                managed_settings_enabled=enable_managed_settings is True,
+            )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
                     raise ValueError(
@@ -3143,7 +3148,12 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         setup_start = time.perf_counter()
-        session = CopilotSession(session_id, self._client, workspace_path=None)
+        session = CopilotSession(
+            session_id,
+            self._client,
+            workspace_path=None,
+            managed_settings_enabled=enable_managed_settings is True,
+        )
         if self._session_fs_config:
             if create_session_fs_handler is None:
                 raise ValueError(

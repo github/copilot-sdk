@@ -55,7 +55,6 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:               "gpt-5",
         OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -222,7 +221,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
 - `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
-- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
@@ -681,7 +680,7 @@ An `OnPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+Use the built-in `PermissionHandler.ApproveAll` helper when managed settings are disabled:
 
 ```go
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
@@ -690,9 +689,11 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 })
 ```
 
+When `EnableManagedSettings` is true for the session, `ApproveAll` returns an error. Use a custom handler for managed sessions; request-level `RequiresManagedApproval()` remains available for human-facing confirmation logic.
+
 ### Custom Permission Handler
 
-Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
+Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic. Check `RequiresManagedApproval()` before any automatic approval:
 
 ```go
 import (
@@ -705,6 +706,10 @@ import (
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        if request.RequiresManagedApproval() {
+            return &rpc.PermissionDecisionNoResult{}, nil
+        }
+
         // Type-switch on the discriminated PermissionRequest variants to
         // access per-kind fields:
         if shell, ok := request.(*copilot.PermissionRequestShell); ok {

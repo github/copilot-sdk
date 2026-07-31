@@ -7,6 +7,7 @@ use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
 };
+use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
 
 #[test]
 fn extension_running_has_expected_status_and_source() {
@@ -82,6 +83,25 @@ fn tasks_start_agent_request_fields_are_accessible() {
     assert_eq!(request.agent_type, "general-purpose");
     assert_eq!(request.name, "sdk-test-task");
     assert_eq!(request.description.as_deref(), Some("SDK task agent"));
+}
+
+#[test]
+fn permission_event_exposes_managed_approval_required() {
+    let data: PermissionRequestedData = serde_json::from_value(serde_json::json!({
+        "permissionRequest": {
+            "kind": "read",
+            "intention": "Read managed content",
+            "path": "/workspace/file.txt",
+            "managedApprovalRequired": true
+        },
+        "requestId": "permission-1"
+    }))
+    .unwrap();
+
+    let PermissionRequest::Read(request) = data.permission_request else {
+        panic!("expected read permission request");
+    };
+    assert_eq!(request.managed_approval_required, Some(true));
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

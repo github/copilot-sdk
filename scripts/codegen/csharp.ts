@@ -66,6 +66,10 @@ const TYPE_RENAMES: Record<string, string> = {
     PermissionRequestedDataPermissionRequest: "PermissionRequest",
 };
 
+const POLYMORPHIC_BASE_PROPERTIES: Record<string, readonly string[]> = {
+    PermissionRequest: ["managedApprovalRequired"],
+};
+
 /** Apply rename to a generated class name, checking both exact match and prefix replacement for derived types. */
 function applyTypeRename(className: string): string {
     if (TYPE_RENAMES[className]) return TYPE_RENAMES[className];
@@ -827,6 +831,7 @@ function generatePolymorphicClasses(
     const lines: string[] = [];
     const discriminatorInfo = findDiscriminator(variants)!;
     const renamedBase = applyTypeRename(baseClassName);
+    const baseProperties = new Set(POLYMORPHIC_BASE_PROPERTIES[renamedBase] ?? []);
 
     lines.push(...xmlDocCommentWithFallback(description, `Polymorphic base type discriminated by <c>${escapeXml(discriminatorProperty)}</c>.`, ""));
     if (experimental) pushExperimentalAttribute(lines);
@@ -845,13 +850,52 @@ function generatePolymorphicClasses(
     lines.push(`    /// <summary>The type discriminator.</summary>`);
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
+    for (const propName of baseProperties) {
+        const propSchema = variants
+            .map((variant) => variant.properties?.[propName])
+            .find((property): property is JSONSchema7 => typeof property === "object");
+        if (!propSchema) continue;
+
+        const csharpName = toCSharpPropertyName(propName, propSchema);
+        const csharpType = resolver(
+            propSchema,
+            renamedBase,
+            csharpName,
+            false,
+            knownTypes,
+            nestedClasses,
+            enumOutput
+        );
+        lines.push("");
+        lines.push(...xmlDocPropertyComment(propSchema.description, propName, "    "));
+        lines.push(...emitDataAnnotations(propSchema, "    ", csharpType));
+        if (isSchemaDeprecated(propSchema)) pushObsoleteAttributes(lines, "    ");
+        if (isSchemaExperimental(propSchema)) pushExperimentalAttribute(lines, "    ");
+        lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+        const propVisibility = pushCSharpInternalAttribute(lines, propSchema);
+        lines.push(`    [JsonPropertyName("${propName}")]`);
+        lines.push(`    ${propVisibility} virtual ${csharpType} ${csharpName} { get; set; }`);
+    }
     lines.push(`}`);
     lines.push("");
 
     for (const { value, schema } of discriminatorInfo.mapping.values()) {
         const constValue = String(value);
         const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
-        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, schema, knownTypes, nestedClasses, enumOutput, resolver, experimental, options);
+        const derivedCode = generateDerivedClass(
+            derivedClassName,
+            renamedBase,
+            discriminatorProperty,
+            constValue,
+            schema,
+            knownTypes,
+            nestedClasses,
+            enumOutput,
+            resolver,
+            experimental,
+            options,
+            baseProperties
+        );
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -872,7 +916,8 @@ function generateDerivedClass(
     enumOutput: string[],
     propertyResolver: PropertyTypeResolver,
     experimental = false,
-    options: DiscriminatedUnionGenerationOptions = {}
+    options: DiscriminatedUnionGenerationOptions = {},
+    baseProperties: ReadonlySet<string> = new Set()
 ): string {
     const lines: string[] = [];
     const required = new Set(schema.required || []);
@@ -896,6 +941,18 @@ function generateDerivedClass(
             const prop = propSchema as JSONSchema7;
             const csharpName = toCSharpPropertyName(propName, prop);
             const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+
+            if (baseProperties.has(propName)) {
+                lines.push(`    /// <inheritdoc />`);
+                if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+                lines.push(`    [JsonPropertyName("${propName}")]`);
+                lines.push(`    public override ${csharpType} ${csharpName}`);
+                lines.push(`    {`);
+                lines.push(`        get => base.${csharpName};`);
+                lines.push(`        set => base.${csharpName} = value;`);
+                lines.push(`    }`, "");
+                continue;
+            }
 
             lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
             lines.push(...emitDataAnnotations(prop, "    ", csharpType));

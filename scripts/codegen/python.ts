@@ -11,6 +11,7 @@ import path from "path";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { fileURLToPath } from "url";
 import {
+    addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
     filterNodeByVisibility,
     fixNullableRequiredRefsInApiSchema,
@@ -2341,9 +2342,19 @@ function emitPyClass(
     const fieldEntries = Object.entries(schema.properties || {}).filter(
         ([, value]) => typeof value === "object"
     ) as Array<[string, JSONSchema7]>;
+    const optionalFieldEntries = fieldEntries
+        .filter(([name]) => !required.has(name))
+        .sort(([left, leftSchema], [right, rightSchema]) => {
+            const leftAppendOnly =
+                (leftSchema as Record<string, unknown>)["x-copilot-sdk-append-last"] === true;
+            const rightAppendOnly =
+                (rightSchema as Record<string, unknown>)["x-copilot-sdk-append-last"] === true;
+            if (leftAppendOnly !== rightAppendOnly) return leftAppendOnly ? 1 : -1;
+            return left.localeCompare(right);
+        });
     const orderedFieldEntries = [
         ...fieldEntries.filter(([name]) => required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
-        ...fieldEntries.filter(([name]) => !required.has(name)).sort(([a], [b]) => a.localeCompare(b)),
+        ...optionalFieldEntries,
     ];
 
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
@@ -2930,7 +2941,9 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Python: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = (await loadSchemaJson(resolvedPath)) as JSONSchema7;
+    const schema = addManagedApprovalRequiredToPermissionRequests(
+        (await loadSchemaJson(resolvedPath)) as JSONSchema7
+    );
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     let code = generatePythonSessionEventsCode(processed);
     const { typeNames } = collectInternalSymbols(processed);

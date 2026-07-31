@@ -4992,6 +4992,7 @@ class PermissionRequestCustomTool:
     tool_name: str
     args: Any = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestCustomTool":
@@ -5000,11 +5001,13 @@ class PermissionRequestCustomTool:
         tool_name = from_str(obj.get("toolName"))
         args = obj.get("args")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestCustomTool(
             tool_description=tool_description,
             tool_name=tool_name,
             args=args,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5016,6 +5019,8 @@ class PermissionRequestCustomTool:
             result["args"] = self.args
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 
@@ -5026,6 +5031,7 @@ class PermissionRequestExtensionManagement:
     operation: str
     extension_name: str | None = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestExtensionManagement":
@@ -5033,10 +5039,12 @@ class PermissionRequestExtensionManagement:
         operation = from_str(obj.get("operation"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestExtensionManagement(
             operation=operation,
             extension_name=extension_name,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5047,6 +5055,8 @@ class PermissionRequestExtensionManagement:
             result["extensionName"] = from_union([from_none, from_str], self.extension_name)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 
@@ -5057,6 +5067,7 @@ class PermissionRequestExtensionPermissionAccess:
     extension_name: str
     kind: ClassVar[str] = "extension-permission-access"
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestExtensionPermissionAccess":
@@ -5064,10 +5075,12 @@ class PermissionRequestExtensionPermissionAccess:
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestExtensionPermissionAccess(
             capabilities=capabilities,
             extension_name=extension_name,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5077,6 +5090,8 @@ class PermissionRequestExtensionPermissionAccess:
         result["kind"] = self.kind
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 
@@ -5088,6 +5103,7 @@ class PermissionRequestHook:
     hook_message: str | None = None
     tool_args: Any = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestHook":
@@ -5096,11 +5112,13 @@ class PermissionRequestHook:
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
         tool_args = obj.get("toolArgs")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestHook(
             tool_name=tool_name,
             hook_message=hook_message,
             tool_args=tool_args,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5113,6 +5131,8 @@ class PermissionRequestHook:
             result["toolArgs"] = self.tool_args
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 
@@ -5126,6 +5146,7 @@ class PermissionRequestMcp:
     tool_title: str
     args: Any = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestMcp":
@@ -5136,6 +5157,7 @@ class PermissionRequestMcp:
         tool_title = from_str(obj.get("toolTitle"))
         args = obj.get("args")
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestMcp(
             read_only=read_only,
             server_name=server_name,
@@ -5143,6 +5165,7 @@ class PermissionRequestMcp:
             tool_title=tool_title,
             args=args,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5156,6 +5179,8 @@ class PermissionRequestMcp:
             result["args"] = self.args
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 
@@ -5170,6 +5195,7 @@ class PermissionRequestMemory:
     reason: str | None = None
     subject: str | None = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestMemory":
@@ -5181,6 +5207,7 @@ class PermissionRequestMemory:
         reason = from_union([from_none, from_str], obj.get("reason"))
         subject = from_union([from_none, from_str], obj.get("subject"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestMemory(
             fact=fact,
             action=action,
@@ -5189,6 +5216,7 @@ class PermissionRequestMemory:
             reason=reason,
             subject=subject,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5207,6 +5235,8 @@ class PermissionRequestMemory:
             result["subject"] = from_union([from_none, from_str], self.subject)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 

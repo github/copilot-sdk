@@ -6956,10 +6956,14 @@ public sealed partial class PermissionRequestShell : PermissionRequest
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
 
-    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    /// <inheritdoc />
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public override bool? ManagedApprovalRequired
+    {
+        get => base.ManagedApprovalRequired;
+        set => base.ManagedApprovalRequired = value;
+    }
 
     /// <summary>File paths that may be read or written by the command.</summary>
     [JsonPropertyName("possiblePaths")]
@@ -7014,10 +7018,14 @@ public sealed partial class PermissionRequestWrite : PermissionRequest
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
 
-    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    /// <inheritdoc />
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public override bool? ManagedApprovalRequired
+    {
+        get => base.ManagedApprovalRequired;
+        set => base.ManagedApprovalRequired = value;
+    }
 
     /// <summary>Complete new file contents for newly created files.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7052,10 +7060,14 @@ public sealed partial class PermissionRequestRead : PermissionRequest
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
 
-    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    /// <inheritdoc />
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public override bool? ManagedApprovalRequired
+    {
+        get => base.ManagedApprovalRequired;
+        set => base.ManagedApprovalRequired = value;
+    }
 
     /// <summary>Path of the file or directory being read.</summary>
     [JsonPropertyName("path")]
@@ -7124,10 +7136,14 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     [JsonPropertyName("intention")]
     public required string Intention { get; set; }
 
-    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    /// <inheritdoc />
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
-    public bool? ManagedApprovalRequired { get; set; }
+    public override bool? ManagedApprovalRequired
+    {
+        get => base.ManagedApprovalRequired;
+        set => base.ManagedApprovalRequired = value;
+    }
 
     /// <summary>Immediately preceding URL when this request is for a redirect target.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7317,6 +7333,11 @@ public partial class PermissionRequest
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("kind")]
     public virtual string Kind { get; set; } = string.Empty;
+
+    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("managedApprovalRequired")]
+    public virtual bool? ManagedApprovalRequired { get; set; }
 }
 
 

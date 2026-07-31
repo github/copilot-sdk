@@ -19,6 +19,40 @@ async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
 
+describe("approveAll", () => {
+    const request = {
+        kind: "url" as const,
+        url: "https://api.example.com/data",
+        intention: "Fetch domain data",
+    };
+    const invocation = { sessionId: "session-1", managedSettingsEnabled: false };
+
+    it("approves ordinary permission requests", () => {
+        expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
+    });
+
+    it("rejects managed settings sessions", () => {
+        expect(() => approveAll(request, { ...invocation, managedSettingsEnabled: true })).toThrow(
+            "approveAll cannot be used when managed settings are enabled"
+        );
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
+            kind: "no-result",
+        });
+    });
+
+    it("fails closed when managed approval metadata is malformed", () => {
+        const malformedRequest = {
+            ...request,
+            managedApprovalRequired: "yes",
+        } as unknown as Parameters<typeof approveAll>[0];
+
+        expect(approveAll(malformedRequest, invocation)).toEqual({ kind: "no-result" });
+    });
+});
+
 describe("CopilotClient", () => {
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();

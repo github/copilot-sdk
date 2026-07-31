@@ -1460,7 +1460,10 @@ export class CopilotClient {
                 this.connection!,
                 undefined,
                 this.onGetTraceContext,
-                { mcpAuthHandler: config.onMcpAuthRequest }
+                {
+                    mcpAuthHandler: config.onMcpAuthRequest,
+                    managedSettingsEnabled: config.enableManagedSettings,
+                }
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1691,7 +1694,10 @@ export class CopilotClient {
             this.connection!,
             undefined,
             this.onGetTraceContext,
-            { mcpAuthHandler: config.onMcpAuthRequest }
+            {
+                mcpAuthHandler: config.onMcpAuthRequest,
+                managedSettingsEnabled: config.enableManagedSettings,
+            }
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);

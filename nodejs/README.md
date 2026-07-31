@@ -36,7 +36,7 @@ import { CopilotClient, approveAll } from "@github/copilot-sdk";
 const client = new CopilotClient();
 await client.start();
 
-// Create a session (onPermissionRequest is optional; approveAll allows every tool)
+// approveAll is only valid when managed settings are disabled.
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -137,7 +137,7 @@ Create a new conversation session.
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
-- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `approveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -862,7 +862,7 @@ An `onPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `approveAll` helper to allow every tool call without any checks:
+Use the built-in `approveAll` helper when managed settings are disabled:
 
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
@@ -873,9 +873,11 @@ const session = await client.createSession({
 });
 ```
 
+When `enableManagedSettings` is true for the session, `approveAll` throws. Use a custom handler for managed sessions; request-level `managedApprovalRequired` remains available for human-facing confirmation logic.
+
 ### Custom Permission Handler
 
-Provide your own function to inspect each request and apply custom logic:
+Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
@@ -883,6 +885,11 @@ import type { PermissionRequest, PermissionRequestResult } from "@github/copilot
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: (request: PermissionRequest, invocation): PermissionRequestResult => {
+        if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
+            // Leave the request pending for the host's human-facing confirmation flow.
+            return { kind: "no-result" };
+        }
+
         // request.kind — what type of operation is being requested:
         //   "shell"       — executing a shell command
         //   "write"       — writing or editing a file
@@ -920,7 +927,7 @@ The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-
 | `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
 | `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
 | `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
-| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)  | —                                                                       |
+| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                     |
 
 ### Resuming Sessions
 

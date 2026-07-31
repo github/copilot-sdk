@@ -833,6 +833,9 @@ public sealed class PermissionInvocation
     /// Identifier of the session that triggered the permission request.
     /// </summary>
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Whether managed settings are enabled for this session.</summary>
+    public bool ManagedSettingsEnabled { get; set; }
 }
 
 // ============================================================================

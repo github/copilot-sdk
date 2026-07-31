@@ -17,6 +17,11 @@ import java.util.concurrent.CompletableFuture;
  *
  * <pre>{@code
  * PermissionHandler handler = (request, invocation) -> {
+ * 	if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+ * 		// Obtain an explicit human decision before approving this request.
+ * 		return requestHumanApproval(request);
+ * 	}
+ *
  * 	// Check the permission kind
  * 	if ("dangerous-action".equals(request.getKind())) {
  * 		// Deny dangerous actions
@@ -29,6 +34,11 @@ import java.util.concurrent.CompletableFuture;
  * 			.completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
  * };
  * }</pre>
+ * <p>
+ * Event-based permission dispatch can use
+ * {@link PermissionRequestResult#noResult()} to let another connected client
+ * answer a pending request. Legacy protocol-v2 callbacks require a decision and
+ * cannot abstain.
  *
  * <p>
  * A pre-built handler that approves all requests is available as
@@ -43,12 +53,21 @@ import java.util.concurrent.CompletableFuture;
 public interface PermissionHandler {
 
     /**
-     * A pre-built handler that approves all permission requests.
+     * A pre-built handler that approves permission requests when managed settings
+     * are disabled.
      *
      * @since 1.0.11
      */
-    PermissionHandler APPROVE_ALL = (request, invocation) -> CompletableFuture
-            .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
+    PermissionHandler APPROVE_ALL = (request, invocation) -> {
+        if (invocation.isManagedSettingsEnabled()) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("APPROVE_ALL cannot be used when managed settings are enabled"));
+        }
+        if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+            return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+        }
+        return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+    };
 
     /**
      * Handles a permission request from the assistant.

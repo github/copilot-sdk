@@ -2905,6 +2905,7 @@ func (PermissionPromptRequestWrite) Kind() PermissionPromptRequestKind {
 type PermissionRequest interface {
 	permissionRequest()
 	Kind() PermissionRequestKind
+	RequiresManagedApproval() bool
 }
 
 type RawPermissionRequest struct {
@@ -2921,6 +2922,8 @@ func (r RawPermissionRequest) Kind() PermissionRequestKind {
 type PermissionRequestCustomTool struct {
 	// Arguments to pass to the custom tool
 	Args any `json:"args,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Description of what the custom tool does
@@ -2938,6 +2941,8 @@ func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
 type PermissionRequestExtensionManagement struct {
 	// Name of the extension being managed
 	ExtensionName *string `json:"extensionName,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// The extension management operation (scaffold, reload)
 	Operation string `json:"operation"`
 	// Tool call ID that triggered this permission request
@@ -2955,6 +2960,8 @@ type PermissionRequestExtensionPermissionAccess struct {
 	Capabilities []string `json:"capabilities"`
 	// Name of the extension requesting permission access
 	ExtensionName string `json:"extensionName"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -2968,6 +2975,8 @@ func (PermissionRequestExtensionPermissionAccess) Kind() PermissionRequestKind {
 type PermissionRequestHook struct {
 	// Optional message from the hook explaining why confirmation is needed
 	HookMessage *string `json:"hookMessage,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Arguments of the tool call being gated
 	ToolArgs any `json:"toolArgs,omitempty"`
 	// Tool call ID that triggered this permission request
@@ -2985,6 +2994,8 @@ func (PermissionRequestHook) Kind() PermissionRequestKind {
 type PermissionRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args any `json:"args,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Whether this MCP tool is read-only (no side effects)
 	ReadOnly bool `json:"readOnly"`
 	// Name of the MCP server providing the tool
@@ -3012,6 +3023,8 @@ type PermissionRequestMemory struct {
 	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
 	// The fact being stored or voted on
 	Fact string `json:"fact"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Reason for the vote (vote only)
 	Reason *string `json:"reason,omitempty"`
 	// Topic or subject of the memory (store only)

@@ -14,6 +14,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import wordwrap from "wordwrap";
 import {
+    addManagedApprovalRequiredToPermissionRequests,
     cloneSchemaForCodegen,
     collectDefinitionCollections,
     collectExperimentalOnlyRpcReferencedDefinitionNames,
@@ -1812,6 +1813,9 @@ function emitGoFlatDiscriminatedUnion(
     lines.push(`type ${typeName} interface {`);
     lines.push(`\t${markerName}()`);
     lines.push(`\t${discriminatorMethodName}() ${discGoType}`);
+    if (typeName === "PermissionRequest") {
+        lines.push(`\tRequiresManagedApproval() bool`);
+    }
     lines.push(`}`);
     lines.push(``);
 
@@ -3679,7 +3683,9 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     console.log("Go: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = cloneSchemaForCodegen((await loadSchemaJson(resolvedPath)) as JSONSchema7);
+    const schema = addManagedApprovalRequiredToPermissionRequests(
+        (await loadSchemaJson(resolvedPath)) as JSONSchema7
+    );
     const processed = propagateInternalVisibility(postProcessSchema(schema));
     const processedApiSchema = apiSchema
         ? propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen(apiSchema as JSONSchema7)) as JSONSchema7)
