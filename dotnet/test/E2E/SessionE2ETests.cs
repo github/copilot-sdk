@@ -615,10 +615,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
 
-        await session.SetModelAsync("gpt-4.1", "high");
+        await session.SetModelAsync("gpt-5.4", "high");
 
         var modelChanged = await modelChangedTask;
-        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+        Assert.Equal("gpt-5.4", modelChanged.Data.NewModel);
         Assert.Equal("high", modelChanged.Data.ReasoningEffort);
     }
 

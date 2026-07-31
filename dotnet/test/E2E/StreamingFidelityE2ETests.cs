@@ -152,6 +152,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         // the streaming pipeline — deltas still arrive and complete successfully.
         var session = await CreateSessionAsync(new SessionConfig
         {
+            Model = "gpt-5.4",
             Streaming = true,
             ReasoningEffort = "high",
         });
