@@ -1687,19 +1687,6 @@ public sealed partial class McpAppToolCallCompleteEvent : SessionEvent
     public required McpAppToolCallCompleteData Data { get; set; }
 }
 
-/// <summary>Context-cleared details emitted when the clear_context tool resets the conversation.</summary>
-/// <remarks>Represents the <c>session.context_cleared</c> event.</remarks>
-public sealed partial class SessionContextClearedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "session.context_cleared";
-
-    /// <summary>The <c>session.context_cleared</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required SessionContextClearedData Data { get; set; }
-}
-
 /// <summary>Session initialization metadata including context and configuration.</summary>
 public sealed partial class SessionStartData
 {
@@ -4720,24 +4707,6 @@ public sealed partial class McpAppToolCallCompleteData
     /// <summary>MCP tool name that was invoked.</summary>
     [JsonPropertyName("toolName")]
     public required string ToolName { get; set; }
-}
-
-/// <summary>Context-cleared details emitted when the clear_context tool resets the conversation.</summary>
-public sealed partial class SessionContextClearedData
-{
-    /// <summary>Optional initial message set after clearing.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("initialMessage")]
-    public string? InitialMessage { get; set; }
-
-    /// <summary>Number of conversation messages that were cleared.</summary>
-    [JsonPropertyName("messagesCleared")]
-    public required long MessagesCleared { get; set; }
-
-    /// <summary>Runtime-injected messages re-seeded into the freshly-cleared context (e.g. self-paced loop wrappers). Persisted so a resumed session reproduces the same post-clear window instead of resurrecting the pre-clear history.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("prependMessages")]
-    public string[]? PrependMessages { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>

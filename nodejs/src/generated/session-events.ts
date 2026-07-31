@@ -119,8 +119,7 @@ export type SessionEvent =
   | CanvasRecordedEvent
   | CanvasRemovedEvent
   | ExtensionsAttachmentsPushedEvent
-  | McpAppToolCallCompleteEvent
-  | ContextClearedEvent;
+  | McpAppToolCallCompleteEvent;
 /**
  * Hosting platform type of the repository (github or ado)
  */
@@ -10013,51 +10012,4 @@ export interface McpAppToolCallCompleteToolMetaUI {
    * Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
    */
   visibility?: string[];
-}
-/**
- * Session event "session.context_cleared". Context-cleared details emitted when the clear_context tool resets the conversation
- */
-export interface ContextClearedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: ContextClearedData;
-  /**
-   * When true, the event is transient and not persisted to the session event log on disk
-   */
-  ephemeral?: boolean;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "session.context_cleared".
-   */
-  type: "session.context_cleared";
-}
-/**
- * Context-cleared details emitted when the clear_context tool resets the conversation
- */
-export interface ContextClearedData {
-  /**
-   * Optional initial message set after clearing
-   */
-  initialMessage?: string;
-  /**
-   * Number of conversation messages that were cleared
-   */
-  messagesCleared: number;
-  /**
-   * Runtime-injected messages re-seeded into the freshly-cleared context (e.g. self-paced loop wrappers). Persisted so a resumed session reproduces the same post-clear window instead of resurrecting the pre-clear history.
-   */
-  prependMessages?: string[];
 }
