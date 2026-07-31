@@ -7,18 +7,19 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.ExitPlanModeAction;
 import com.github.copilot.generated.ExitPlanModeCompletedEvent;
 import com.github.copilot.generated.ExitPlanModeRequestedEvent;
+import com.github.copilot.rpc.AgentMode;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -68,7 +69,6 @@ public class ModeHandlersTest {
     }
 
     @Test
-    @Disabled("Snapshot needs re-recording for CLI 1.0.57: https://github.com/github/copilot-sdk/issues/1547")
     void shouldInvokeExitPlanModeHandlerWhenModelUsesTool() throws Exception {
         final String summary = "Greeting file implementation plan";
         configureAuthenticatedUser("should_invoke_exit_plan_mode_handler_when_model_uses_tool");
@@ -99,20 +99,23 @@ public class ModeHandlersTest {
 
             var response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.")
-                    .setMode("plan")).get(120, TimeUnit.SECONDS);
+                    .setAgentMode(AgentMode.PLAN)).get(120, TimeUnit.SECONDS);
 
             var request = handlerCalled.get(10, TimeUnit.SECONDS);
             assertEquals(summary, request.getSummary());
-            assertNotNull(request.getActions());
-            assertTrue(request.getActions().contains("interactive"));
+            // Canonical action order after CLI 1.0.57+ (aligned with #2023 / other SDKs).
+            assertEquals(List.of("autopilot", "interactive", "exit_only"), request.getActions());
+            assertEquals("interactive", request.getRecommendedAction());
             assertNotNull(request.getPlanContent());
 
             var reqEvent = requestedEvent.get(10, TimeUnit.SECONDS);
             assertEquals(request.getSummary(), reqEvent.getData().summary());
+            assertEquals(ExitPlanModeAction.INTERACTIVE, reqEvent.getData().recommendedAction());
 
             var compEvent = completedEvent.get(10, TimeUnit.SECONDS);
             assertTrue(compEvent.getData().approved());
             assertEquals(ExitPlanModeAction.INTERACTIVE, compEvent.getData().selectedAction());
+            assertEquals("Approved by the Java E2E test", compEvent.getData().feedback());
 
             assertNotNull(response);
 
