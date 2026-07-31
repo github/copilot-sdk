@@ -146,7 +146,9 @@ describe("Streaming Fidelity", async () => {
     });
 
     it("should emit streaming deltas with reasoning effort configured", async () => {
-        const session = await client.createSession({
+        const reasoningClient = createClient();
+        onTestFinished(() => reasoningClient.stop());
+        const session = await reasoningClient.createSession({
             onPermissionRequest: approveAll,
             model: "gpt-5.4",
             streaming: true,
