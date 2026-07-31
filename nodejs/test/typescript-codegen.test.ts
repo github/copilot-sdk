@@ -231,6 +231,26 @@ export interface Following {
         expect(() => assertNoPublicInternalReferences(ts, new Set(["Hidden"]))).not.toThrow();
     });
 
+    it("does not count inline object-shaped @internal members as public references", () => {
+        const ts = `
+/** @internal */
+export interface Hidden {
+  x: number;
+}
+export interface Public {
+  /**
+   * Some field.
+   * @internal
+   */
+  secret?: {
+    [k: string]: Hidden | undefined;
+  };
+  visible: string;
+}
+`;
+        expect(() => assertNoPublicInternalReferences(ts, new Set(["Hidden"]))).not.toThrow();
+    });
+
     it("does not count function body references as public type references", () => {
         const ts = `
 /** @internal */

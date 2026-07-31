@@ -103,7 +103,12 @@ export function assertNoPublicInternalReferences(generatedTs: string, internalTy
             let publicText = block.text
                 // Remove @internal-tagged member declarations before stripping comments so
                 // member-level internal references do not count as part of the public surface.
-                .replace(/^[ \t]*\/\*\*[\s\S]*?@internal[\s\S]*?\*\/\s*\n[ \t]*[^\n]+\n?/gm, "")
+                // Handles both simple members (`foo?: Hidden;`) and inline object-shaped members
+                // (`foo?: { ... };`) used by generated TypeScript interfaces.
+                .replace(
+                    /^[ \t]*\/\*\*[\s\S]*?@internal[\s\S]*?\*\/\s*\n(?:[ \t]*[^\n{;]+;\n?|[ \t]*[^\n{]+\{\n[\s\S]*?^[ \t]*\};\n?)/gm,
+                    ""
+                )
                 // Remove all remaining block comments (JSDoc and otherwise).
                 .replace(/\/\*[\s\S]*?\*\//g, "");
 
