@@ -163,6 +163,7 @@ class TestStreamingFidelity:
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
+            model="gpt-5.4",
             streaming=True,
             reasoning_effort="high",
         )

@@ -1072,15 +1072,15 @@ func TestSetModelWithReasoningEffortE2E(t *testing.T) {
 		}
 	})
 
-	if err := session.SetModel(t.Context(), "gpt-4.1", &copilot.SetModelOptions{ReasoningEffort: copilot.String("high")}); err != nil {
+	if err := session.SetModel(t.Context(), "gpt-5.4", &copilot.SetModelOptions{ReasoningEffort: copilot.String("high")}); err != nil {
 		t.Fatalf("SetModel returned error: %v", err)
 	}
 
 	select {
 	case evt := <-modelChanged:
 		md, mdOk := evt.Data.(*copilot.SessionModelChangeData)
-		if !mdOk || md.NewModel != "gpt-4.1" {
-			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data)
+		if !mdOk || md.NewModel != "gpt-5.4" {
+			t.Errorf("Expected newModel 'gpt-5.4', got %v", evt.Data)
 		}
 		if !mdOk || md.ReasoningEffort == nil || *md.ReasoningEffort != "high" {
 			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data)

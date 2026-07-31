@@ -969,10 +969,10 @@ describe("Send Blocking Behavior", async () => {
 
         const modelChangePromise = getNextEventOfType(session, "session.model_change");
 
-        await session.setModel("gpt-4.1", { reasoningEffort: "high" });
+        await session.setModel("gpt-5.4", { reasoningEffort: "high" });
 
         const event = await modelChangePromise;
-        expect(event.data.newModel).toBe("gpt-4.1");
+        expect(event.data.newModel).toBe("gpt-5.4");
         expect(event.data.reasoningEffort).toBe("high");
     });
 });

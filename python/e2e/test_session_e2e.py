@@ -695,10 +695,10 @@ class TestSessions:
 
         session.on(on_event)
 
-        await session.set_model("gpt-4.1", reasoning_effort="high")
+        await session.set_model("gpt-5.4", reasoning_effort="high")
 
         data = await asyncio.wait_for(model_change_event, timeout=30)
-        assert data.new_model == "gpt-4.1"
+        assert data.new_model == "gpt-5.4"
         assert data.reasoning_effort == "high"
 
     async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
