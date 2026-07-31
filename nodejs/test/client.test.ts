@@ -31,13 +31,14 @@ describe("approveAll", () => {
         expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
     });
 
-    it("leaves managed requests pending even when managed settings are enabled", () => {
-        expect(
-            approveAll(
-                { ...request, managedApprovalRequired: true },
-                { ...invocation, managedSettingsEnabled: true }
-            )
-        ).toEqual({
+    it("rejects managed settings sessions", () => {
+        expect(() => approveAll(request, { ...invocation, managedSettingsEnabled: true })).toThrow(
+            "approveAll cannot be used when managed settings are enabled"
+        );
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
             kind: "no-result",
         });
     });

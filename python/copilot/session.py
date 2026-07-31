@@ -378,6 +378,8 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: PermissionInvocation
     ) -> PermissionRequestResult:
+        if invocation.get("managed_settings_enabled", False):
+            raise RuntimeError("approve_all cannot be used when managed settings are enabled")
         if getattr(request, "managed_approval_required", False) is True:
             return PermissionNoResult()
         return PermissionDecisionApproveOnce()

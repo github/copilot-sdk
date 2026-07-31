@@ -1,4 +1,4 @@
-from typing import Any
+import pytest
 
 from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
 from copilot.session import CopilotSession, PermissionHandler, PermissionNoResult
@@ -22,35 +22,31 @@ def test_permission_event_exposes_managed_approval_required() -> None:
     assert data.to_dict()["permissionRequest"]["managedApprovalRequired"] is True
 
 
-def test_approve_all_approves_ordinary_request_even_with_managed_settings_enabled() -> None:
+def test_approve_all_rejects_managed_settings_session() -> None:
     request = PermissionRequestRead(
         intention="Read ordinary content",
         path="/workspace/file.txt",
     )
 
-    assert isinstance(
+    with pytest.raises(RuntimeError, match="managed settings are enabled"):
         PermissionHandler.approve_all(
             request,
             {"session_id": "session-1", "managed_settings_enabled": True},
-        ),
-        PermissionDecisionApproveOnce,
-    )
+        )
 
 
-def test_approve_all_leaves_managed_request_pending() -> None:
+def test_approve_all_rejects_managed_request_in_managed_settings_session() -> None:
     request = PermissionRequestRead(
         intention="Read managed content",
         path="/workspace/file.txt",
         managed_approval_required=True,
     )
 
-    assert isinstance(
+    with pytest.raises(RuntimeError, match="managed settings are enabled"):
         PermissionHandler.approve_all(
             request,
             {"session_id": "session-1", "managed_settings_enabled": True},
-        ),
-        PermissionNoResult,
-    )
+        )
 
 
 def test_approve_all_approves_ordinary_request() -> None:
@@ -75,9 +71,10 @@ def test_approve_all_leaves_managed_request_pending_when_session_flag_is_absent(
         managed_approval_required=True,
     )
 
-    legacy_invocation: Any = {"session_id": "session-1"}
-
-    assert isinstance(PermissionHandler.approve_all(request, legacy_invocation), PermissionNoResult)
+    assert isinstance(
+        PermissionHandler.approve_all(request, {"session_id": "session-1"}),
+        PermissionNoResult,
+    )
 
 
 async def test_legacy_permission_callback_rejects_no_result() -> None:

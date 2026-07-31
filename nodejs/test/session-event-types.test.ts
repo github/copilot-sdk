@@ -163,8 +163,8 @@ describe("Session event type exports (#1156)", () => {
         expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
     });
 
-    it("approves ordinary requests and leaves managed requests pending", () => {
-        expect(
+    it("rejects approveAll in managed settings sessions", () => {
+        expect(() =>
             approveAll(
                 {
                     kind: "url",
@@ -173,9 +173,9 @@ describe("Session event type exports (#1156)", () => {
                 },
                 { sessionId: "session-1", managedSettingsEnabled: true }
             )
-        ).toEqual({ kind: "approve-once" });
+        ).toThrow("approveAll cannot be used when managed settings are enabled");
 
-        expect(
+        expect(() =>
             approveAll(
                 {
                     kind: "url",
@@ -184,6 +184,20 @@ describe("Session event type exports (#1156)", () => {
                     managedApprovalRequired: true,
                 },
                 { sessionId: "session-1", managedSettingsEnabled: true }
+            )
+        ).toThrow("approveAll cannot be used when managed settings are enabled");
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch managed data",
+                    managedApprovalRequired: true,
+                },
+                { sessionId: "session-1", managedSettingsEnabled: false }
             )
         ).toEqual({ kind: "no-result" });
     });

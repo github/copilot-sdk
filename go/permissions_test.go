@@ -41,6 +41,22 @@ func TestApproveAllApprovesOrdinaryRequest(t *testing.T) {
 	}
 }
 
+func TestApproveAllRejectsManagedSettingsSession(t *testing.T) {
+	decision, err := copilot.PermissionHandler.ApproveAll(
+		&copilot.PermissionRequestRead{},
+		copilot.PermissionInvocation{
+			SessionID:              "session-1",
+			ManagedSettingsEnabled: true,
+		},
+	)
+	if err == nil {
+		t.Fatal("expected managed settings error")
+	}
+	if decision != nil {
+		t.Fatalf("expected no decision, got %T", decision)
+	}
+}
+
 func TestApproveAllLeavesManagedRequestPending(t *testing.T) {
 	decision, err := copilot.PermissionHandler.ApproveAll(
 		&copilot.PermissionRequestRead{ManagedApprovalRequired: ptrTo(true)},

@@ -1142,10 +1142,12 @@ export type PermissionHandler = (
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 /**
- * Approves permission requests unless managed approval is required.
+ * Approves permission requests when managed settings are disabled.
  */
 export const approveAll: PermissionHandler = (request, invocation) => {
-    void invocation;
+    if (invocation.managedSettingsEnabled) {
+        throw new Error("approveAll cannot be used when managed settings are enabled");
+    }
     if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
         return { kind: "no-result" };
     }
