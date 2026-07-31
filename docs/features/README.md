@@ -18,6 +18,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Session limits](./session-limits.md) | Set an AI Credits budget for a session and observe budget events |
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
+| [Usage and Billing](./usage-and-billing.md) | Read token counts, context-window utilization, AI credit cost, and account quota |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
 | [Remote Sessions](./remote-sessions.md) | Share locally hosted sessions to GitHub web and mobile via Mission Control |
