@@ -42,6 +42,15 @@ describe("approveAll", () => {
             kind: "no-result",
         });
     });
+
+    it("fails closed when managed approval metadata is malformed", () => {
+        const malformedRequest = {
+            ...request,
+            managedApprovalRequired: "yes",
+        } as unknown as Parameters<typeof approveAll>[0];
+
+        expect(approveAll(malformedRequest, invocation)).toEqual({ kind: "no-result" });
+    });
 });
 
 describe("CopilotClient", () => {

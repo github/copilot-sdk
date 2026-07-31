@@ -2255,9 +2255,11 @@ function emitPyClass(
     ) as Array<[string, JSONSchema7]>;
     const optionalFieldEntries = fieldEntries
         .filter(([name]) => !required.has(name))
-        .sort(([left], [right]) => {
-            const leftAppendOnly = left === "managedApprovalRequired";
-            const rightAppendOnly = right === "managedApprovalRequired";
+        .sort(([left, leftSchema], [right, rightSchema]) => {
+            const leftAppendOnly =
+                (leftSchema as Record<string, unknown>)["x-copilot-sdk-append-last"] === true;
+            const rightAppendOnly =
+                (rightSchema as Record<string, unknown>)["x-copilot-sdk-append-last"] === true;
             if (leftAppendOnly !== rightAppendOnly) return leftAppendOnly ? 1 : -1;
             return left.localeCompare(right);
         });

@@ -1148,8 +1148,11 @@ export const approveAll: PermissionHandler = (request, invocation) => {
     if (invocation.managedSettingsEnabled) {
         throw new Error("approveAll cannot be used when managed settings are enabled");
     }
-    if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
-        return { kind: "no-result" };
+    if ("managedApprovalRequired" in request) {
+        const managedApprovalRequired = request.managedApprovalRequired;
+        if (managedApprovalRequired !== undefined && managedApprovalRequired !== false) {
+            return { kind: "no-result" };
+        }
     }
     return { kind: "approve-once" };
 };

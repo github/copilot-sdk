@@ -476,6 +476,7 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
             "When true, managed policy requires an explicit user decision and automatic approval must be bypassed.",
         type: ["boolean", "null"],
     };
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
 
     for (const definitions of [cloned.definitions, cloned.$defs]) {
         if (!definitions) continue;
