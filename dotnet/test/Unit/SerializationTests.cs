@@ -300,6 +300,51 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeGitHubMcpToolConfig_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var githubConfig = new GitHubMcpToolConfig
+        {
+            EnableAllTools = true,
+            AdditionalToolsets = ["repos"],
+            AdditionalTools = ["get_issue"],
+            EnableInsidersMode = true,
+            DisableFormDeferral = true,
+        };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("GitHubMcpToolConfig", githubConfig));
+        using var createDocument = JsonDocument.Parse(JsonSerializer.Serialize(createRequest, createRequestType, options));
+        var createConfig = createDocument.RootElement.GetProperty("githubMcpToolConfig");
+        Assert.True(createConfig.GetProperty("enableAllTools").GetBoolean());
+        Assert.Equal("repos", createConfig.GetProperty("additionalToolsets")[0].GetString());
+        Assert.True(createConfig.GetProperty("disableFormDeferral").GetBoolean());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("GitHubMcpToolConfig", githubConfig));
+        using var resumeDocument = JsonDocument.Parse(JsonSerializer.Serialize(resumeRequest, resumeRequestType, options));
+        Assert.True(resumeDocument.RootElement.TryGetProperty("githubMcpToolConfig", out _));
+    }
+
+    [Fact]
+    public void SessionRequests_OmitGitHubMcpToolConfig_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(requestType, ("SessionId", "session-id"));
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(request, requestType, options));
+            Assert.False(document.RootElement.TryGetProperty("githubMcpToolConfig", out _));
+        }
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializeReasoningSummary_WithSdkOptions()
     {
         var options = GetSerializerOptions();

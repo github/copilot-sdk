@@ -1559,6 +1559,9 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
@@ -1797,6 +1800,9 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),

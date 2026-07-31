@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -988,6 +990,79 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 			t.Errorf("Expected toolNames=[view], got %v", toolNames)
 		}
 	})
+
+	t.Run("should apply GitHub MCP tool config on create", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		enableAllTools := true
+		enableInsidersMode := true
+		disableFormDeferral := true
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			EnableConfigDiscovery: copilot.Bool(true),
+			EnableMCPApps:         true,
+			GitHubMCPToolConfig: &copilot.GitHubMCPToolConfig{
+				EnableAllTools:      &enableAllTools,
+				AdditionalToolsets:  []string{"actions"},
+				AdditionalTools:     []string{"get_me"},
+				EnableInsidersMode:  &enableInsidersMode,
+				DisableFormDeferral: &disableFormDeferral,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Disconnect() })
+
+		assertGitHubMCPConfigApplied(t, ctx, session)
+	})
+}
+
+func assertGitHubMCPConfigApplied(t *testing.T, ctx *testharness.TestContext, session *copilot.Session) {
+	t.Helper()
+	if _, err := session.RPC.MCP.List(t.Context()); err != nil {
+		t.Fatalf("MCP.List failed: %v", err)
+	}
+	deadline := time.Now().Add(60 * time.Second)
+	var lastRequests []testharness.CapturedRequest
+	for time.Now().Before(deadline) {
+		requests, err := ctx.GetRequests()
+		if err == nil {
+			lastRequests = requests
+			var writableRequest *testharness.CapturedRequest
+			hasReadonlyRequest := false
+			for i := range requests {
+				request := &requests[i]
+				if request.URL == "/mcp/readonly" {
+					hasReadonlyRequest = true
+				}
+				if request.Method == http.MethodPost && request.URL == "/mcp" {
+					writableRequest = request
+				}
+			}
+			if writableRequest != nil {
+				if hasReadonlyRequest {
+					t.Fatalf("Expected writable GitHub MCP endpoint, got requests: %+v", requests)
+				}
+				assertCapturedHeader(t, writableRequest.Headers, "x-mcp-toolsets", "all")
+				assertCapturedHeader(t, writableRequest.Headers, "x-mcp-insiders", "true")
+				return
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("Timed out waiting for configured GitHub MCP request; captured: %+v", lastRequests)
+}
+
+func assertCapturedHeader(t *testing.T, headers map[string]json.RawMessage, name, expected string) {
+	t.Helper()
+	var actual string
+	if err := json.Unmarshal(headers[name], &actual); err != nil {
+		t.Fatalf("Failed to decode %s header: %v", name, err)
+	}
+	if actual != expected {
+		t.Fatalf("Expected %s=%q, got %q", name, expected, actual)
+	}
 }
 
 // createProxyProvider returns a ProviderConfig that points at the test proxy and

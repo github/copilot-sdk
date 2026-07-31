@@ -2961,6 +2961,36 @@ public sealed class CopilotExpAssignmentResponse
 }
 
 /// <summary>
+/// Configuration for the built-in GitHub MCP server.
+/// </summary>
+public sealed class GitHubMcpToolConfig
+{
+    /// <summary>Enables all GitHub MCP tools.</summary>
+    [JsonPropertyName("enableAllTools")]
+    public bool? EnableAllTools { get; set; }
+
+    /// <summary>Additional GitHub MCP toolsets to enable.</summary>
+    [JsonPropertyName("additionalToolsets")]
+    public IList<string>? AdditionalToolsets { get; set; }
+
+    /// <summary>Additional GitHub MCP tools to enable.</summary>
+    [JsonPropertyName("additionalTools")]
+    public IList<string>? AdditionalTools { get; set; }
+
+    /// <summary>Enables GitHub MCP insiders-mode tools.</summary>
+    [JsonPropertyName("enableInsidersMode")]
+    public bool? EnableInsidersMode { get; set; }
+
+    /// <summary>
+    /// Disables form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    /// </summary>
+    [JsonPropertyName("disableFormDeferral")]
+    public bool? DisableFormDeferral { get; set; }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -2997,6 +3027,20 @@ public abstract class SessionConfigBase
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
         EnableMcpApps = other.EnableMcpApps;
+        GitHubMcpToolConfig = other.GitHubMcpToolConfig is null
+            ? null
+            : new GitHubMcpToolConfig
+            {
+                EnableAllTools = other.GitHubMcpToolConfig.EnableAllTools,
+                AdditionalToolsets = other.GitHubMcpToolConfig.AdditionalToolsets is not null
+                    ? [.. other.GitHubMcpToolConfig.AdditionalToolsets]
+                    : null,
+                AdditionalTools = other.GitHubMcpToolConfig.AdditionalTools is not null
+                    ? [.. other.GitHubMcpToolConfig.AdditionalTools]
+                    : null,
+                EnableInsidersMode = other.GitHubMcpToolConfig.EnableInsidersMode,
+                DisableFormDeferral = other.GitHubMcpToolConfig.DisableFormDeferral,
+            };
         ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -3304,6 +3348,13 @@ public abstract class SessionConfigBase
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public bool EnableMcpApps { get; set; }
+
+    /// <summary>
+    /// Configuration for the built-in GitHub MCP server.
+    /// <c>DisableFormDeferral</c> only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    /// </summary>
+    public GitHubMcpToolConfig? GitHubMcpToolConfig { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }

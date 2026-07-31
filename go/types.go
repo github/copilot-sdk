@@ -1141,6 +1141,18 @@ func (e ExpConfigEntry) MarshalJSON() ([]byte, error) {
 	return json.Marshal(w)
 }
 
+// GitHubMCPToolConfig configures the built-in GitHub MCP server.
+//
+// DisableFormDeferral only applies to the built-in GitHub MCP server and only
+// has an effect when MCP Apps and form-backed GitHub tools are enabled.
+type GitHubMCPToolConfig struct {
+	EnableAllTools      *bool    `json:"enableAllTools,omitempty"`
+	AdditionalToolsets  []string `json:"additionalToolsets,omitempty"`
+	AdditionalTools     []string `json:"additionalTools,omitempty"`
+	EnableInsidersMode  *bool    `json:"enableInsidersMode,omitempty"`
+	DisableFormDeferral *bool    `json:"disableFormDeferral,omitempty"`
+}
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -1376,6 +1388,10 @@ type SessionConfig struct {
 	// cause MCP servers to register UI-enabled tool variants the consumer cannot
 	// display.
 	EnableMCPApps bool
+	// GitHubMCPToolConfig configures the built-in GitHub MCP server.
+	// DisableFormDeferral only applies to that server and only has an effect
+	// when MCP Apps and form-backed GitHub tools are enabled.
+	GitHubMCPToolConfig *GitHubMCPToolConfig
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1840,6 +1856,10 @@ type ResumeSessionConfig struct {
 	// Experimental: EnableMCPApps is part of an experimental wire-protocol
 	// surface (SEP-1865) and may change or be removed in a future release.
 	EnableMCPApps bool
+	// GitHubMCPToolConfig configures the built-in GitHub MCP server.
+	// DisableFormDeferral only applies to that server and only has an effect
+	// when MCP Apps and form-backed GitHub tools are enabled.
+	GitHubMCPToolConfig *GitHubMCPToolConfig
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.
 	Canvases []CanvasDeclaration
@@ -2320,6 +2340,7 @@ type createSessionRequest struct {
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
+	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
@@ -2412,6 +2433,7 @@ type resumeSessionRequest struct {
 	Commands                           []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
+	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
 	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`

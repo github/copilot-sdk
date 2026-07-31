@@ -505,6 +505,46 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_github_mcp_tool_config(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            config = {
+                "enable_all_tools": True,
+                "additional_toolsets": ["repos"],
+                "additional_tools": ["get_issue"],
+                "enable_insiders_mode": True,
+                "disable_form_deferral": True,
+            }
+            session = await client.create_session(github_mcp_tool_config=config)
+            await client.resume_session(session.session_id, github_mcp_tool_config=config)
+
+            expected = {
+                "enableAllTools": True,
+                "additionalToolsets": ["repos"],
+                "additionalTools": ["get_issue"],
+                "enableInsidersMode": True,
+                "disableFormDeferral": True,
+            }
+            assert captured["session.create"]["githubMcpToolConfig"] == expected
+            assert captured["session.resume"]["githubMcpToolConfig"] == expected
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_reasoning_summary(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()

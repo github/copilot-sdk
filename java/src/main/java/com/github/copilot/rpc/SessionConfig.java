@@ -99,6 +99,7 @@ public class SessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
+    private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
@@ -1713,6 +1714,27 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the configuration for the built-in GitHub MCP server.
+     *
+     * @return the GitHub MCP configuration, or {@code null}
+     */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /**
+     * Sets the configuration for the built-in GitHub MCP server.
+     *
+     * @param githubMcpToolConfig
+     *            the GitHub MCP configuration
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setGitHubMcpToolConfig(GitHubMcpToolConfig githubMcpToolConfig) {
+        this.githubMcpToolConfig = githubMcpToolConfig;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -2001,6 +2023,7 @@ public class SessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
+        copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
