@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test:
-    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
+    name: ".NET SDK Tests (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.transport }}, ${{ matrix.backend }}, ${{ matrix.shard }})"
     if: github.event.repository.fork == false
     env:
       POWERSHELL_UPDATECHECK: Off
@@ -22,6 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        framework: [net8.0]
         transport: ["default", "inprocess"]
         backend: [capi]
         shard: [full]
@@ -34,26 +35,41 @@ jobs:
             shard: full
         include:
           # Keep xUnit serial within each process, but split the slow Windows
-          # default-transport suite across two isolated test hosts.
+          # default-transport suite across isolated test hosts.
           - os: windows-latest
+            framework: net8.0
             transport: default
             backend: capi
             shard: "1"
           - os: windows-latest
+            framework: net8.0
+            transport: default
+            backend: capi
+            shard: "2"
+          - os: windows-latest
+            framework: net472
+            transport: default
+            backend: capi
+            shard: "1"
+          - os: windows-latest
+            framework: net472
             transport: default
             backend: capi
             shard: "2"
           - os: ubuntu-latest
+            framework: net8.0
             transport: inprocess
             backend: anthropic-messages
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
           - os: ubuntu-latest
+            framework: net8.0
             transport: inprocess
             backend: openai-responses
             shard: full
             test-filter: "FullyQualifiedName~GitHub.Copilot.Test.E2E&E2EBackend!=SelfConfiguredBackend&E2EBackend!=CapiOnly"
           - os: ubuntu-latest
+            framework: net8.0
             transport: inprocess
             backend: openai-completions
             shard: full
@@ -111,7 +127,7 @@ jobs:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           DOTNET_TEST_SHARD: ${{ matrix.shard }}
         run: |
-          args=(--no-build -v n)
+          args=(--no-build -v n --framework "${{ matrix.framework }}")
 
           filter="$DOTNET_TEST_FILTER"
           if [[ "$DOTNET_TEST_SHARD" != "full" ]]; then
@@ -135,4 +151,4 @@ jobs:
           if [[ -n "$filter" ]]; then
             args+=(--filter "$filter")
           fi
-          dotnet test "${args[@]}"
+          dotnet test test/GitHub.Copilot.SDK.Test.csproj "${args[@]}"
