@@ -806,10 +806,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Model = "gpt-5",
     OnPermissionRequest = async (request, invocation) =>
     {
-        if (request is PermissionRequestShell { ManagedApprovalRequired: true }
-            or PermissionRequestWrite { ManagedApprovalRequired: true }
-            or PermissionRequestRead { ManagedApprovalRequired: true }
-            or PermissionRequestUrl { ManagedApprovalRequired: true })
+        if (request.ManagedApprovalRequired is true)
         {
             return PermissionDecision.NoResult();
         }

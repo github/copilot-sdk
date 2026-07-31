@@ -874,7 +874,7 @@ function generatePolymorphicClasses(
         lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         const propVisibility = pushCSharpInternalAttribute(lines, propSchema);
         lines.push(`    [JsonPropertyName("${propName}")]`);
-        lines.push(`    ${propVisibility} ${csharpType} ${csharpName} { get; set; }`);
+        lines.push(`    ${propVisibility} virtual ${csharpType} ${csharpName} { get; set; }`);
     }
     lines.push(`}`);
     lines.push("");
@@ -936,12 +936,23 @@ function generateDerivedClass(
         for (const [propName, propSchema] of Object.entries(schema.properties).sort(([a], [b]) => a.localeCompare(b))) {
             if (typeof propSchema !== "object") continue;
             if (propName === discriminatorProperty) continue;
-            if (baseProperties.has(propName)) continue;
 
             const isReq = required.has(propName);
             const prop = propSchema as JSONSchema7;
             const csharpName = toCSharpPropertyName(propName, prop);
             const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+
+            if (baseProperties.has(propName)) {
+                lines.push(`    /// <inheritdoc />`);
+                if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+                lines.push(`    [JsonPropertyName("${propName}")]`);
+                lines.push(`    public override ${csharpType} ${csharpName}`);
+                lines.push(`    {`);
+                lines.push(`        get => base.${csharpName};`);
+                lines.push(`        set => base.${csharpName} = value;`);
+                lines.push(`    }`, "");
+                continue;
+            }
 
             lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
             lines.push(...emitDataAnnotations(prop, "    ", csharpType));
