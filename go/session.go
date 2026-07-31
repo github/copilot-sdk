@@ -1575,6 +1575,20 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	if result.Error != "" {
 		rpcResult.Error = &result.Error
 	}
+	if result.SessionLog != "" {
+		rpcResult.SessionLog = &result.SessionLog
+	}
+	for _, b := range result.BinaryResultsForLLM {
+		entry := rpc.ExternalToolTextResultForLlmBinaryResultsForLlm{
+			Data:     b.Data,
+			MIMEType: b.MIMEType,
+			Type:     rpc.ExternalToolTextResultForLlmBinaryResultsForLlmType(b.Type),
+		}
+		if b.Description != "" {
+			entry.Description = &b.Description
+		}
+		rpcResult.BinaryResultsForLlm = append(rpcResult.BinaryResultsForLlm, entry)
+	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    rpcResult,
