@@ -611,7 +611,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Set_Model_With_ReasoningEffort()
     {
-        var session = await CreateSessionAsync();
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("session", nameof(Should_Set_Model_With_ReasoningEffort));
+        var isolatedClient = isolatedCtx.CreateClient();
+        await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient);
 
         var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
 

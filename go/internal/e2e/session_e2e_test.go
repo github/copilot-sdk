@@ -1047,7 +1047,12 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 }
 
 func TestSetModelWithReasoningEffortE2E(t *testing.T) {
+	t.Run("should set model with reasoningeffort", runSetModelWithReasoningEffortE2E)
+}
+
+func runSetModelWithReasoningEffortE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
+	ctx.ConfigureForTest(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
