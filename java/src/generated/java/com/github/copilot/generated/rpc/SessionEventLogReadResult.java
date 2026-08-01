@@ -25,13 +25,13 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionEventLogReadResult(
-    /** Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. */
+    /** Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order. */
     @JsonProperty("events") List<Object> events,
-    /** Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. */
+    /** Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly). */
     @JsonProperty("cursor") String cursor,
-    /** True when the read returned `max` events and more events are available immediately. When false, the next read with a non-zero `waitMs` will block until a new event arrives or the wait expires. */
+    /** True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window. */
     @JsonProperty("hasMore") Boolean hasMore,
-    /** Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history. */
+    /** Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page. */
     @JsonProperty("cursorStatus") EventsCursorStatus cursorStatus
 ) {
 }

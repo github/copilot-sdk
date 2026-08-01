@@ -509,6 +509,7 @@ export type SystemNotification =
   | SystemNotificationShellCompleted
   | SystemNotificationShellDetachedCompleted
   | SystemNotificationInstructionDiscovered
+  | SystemNotificationFactoryCompleted
   | SystemNotificationUnclassified;
 /**
  * Whether the agent completed successfully or failed
@@ -518,6 +519,18 @@ export type SystemNotificationAgentCompletedStatus =
   | "completed"
   /** The agent failed. */
   | "failed";
+/**
+ * Terminal status reached by a factory execution attempt.
+ */
+export type SystemNotificationFactoryCompletedStatus =
+  /** The factory completed successfully. */
+  | "completed"
+  /** The factory was halted. */
+  | "halted"
+  /** The factory was cancelled. */
+  | "cancelled"
+  /** The factory failed. */
+  | "error";
 /**
  * Details of the permission being requested
  */
@@ -531,6 +544,7 @@ export type PermissionRequest =
   | PermissionRequestCustomTool
   | PermissionRequestHook
   | PermissionRequestExtensionManagement
+  | PermissionRequestFactory
   | PermissionRequestExtensionPermissionAccess;
 /**
  * Whether this is a store or vote memory operation
@@ -549,6 +563,14 @@ export type PermissionRequestMemoryDirection =
   /** Vote that the memory is incorrect or outdated. */
   | "downvote";
 /**
+ * Operation gated by a factory permission request.
+ */
+export type FactoryPermissionOperation =
+  /** Running a registered factory, which spends subagents, active time, and AI credits under the approved limits. */
+  | "run"
+  /** Authoring a factory, which writes JavaScript into a session-scoped extension and loads it. */
+  | "author";
+/**
  * Derived user-facing permission prompt details for UI consumers
  */
 export type PermissionPromptRequest =
@@ -562,6 +584,7 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestPath
   | PermissionPromptRequestHook
   | PermissionPromptRequestExtensionManagement
+  | PermissionPromptRequestFactory
   | PermissionPromptRequestExtensionPermissionAccess;
 /**
  * Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
@@ -625,6 +648,7 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalMemory
   | UserToolSessionApprovalCustomTool
   | UserToolSessionApprovalExtensionManagement
+  | UserToolSessionApprovalFactory
   | UserToolSessionApprovalExtensionPermissionAccess;
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -894,6 +918,7 @@ export interface StartData {
    * When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
    */
   detachedFromSpawningParentSessionId?: string;
+  githubMcpToolConfig?: GitHubMcpToolConfig;
   /**
    * Identifier of the software producing the events (e.g., "copilot-agent")
    */
@@ -963,6 +988,27 @@ export interface WorkingDirectoryContext {
    * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
    */
   repositoryHost?: string;
+}
+/**
+ * Per-session configuration for the built-in GitHub MCP server
+ */
+export interface GitHubMcpToolConfig {
+  /**
+   * Additional GitHub MCP tools requested by the session
+   */
+  additionalTools?: string[];
+  /**
+   * Additional GitHub MCP toolsets requested by the session
+   */
+  additionalToolsets?: string[];
+  /**
+   * Whether to use the read-write endpoint and request all toolsets
+   */
+  enableAllTools?: boolean;
+  /**
+   * Whether to request the GitHub MCP insiders build
+   */
+  enableInsidersMode?: boolean;
 }
 /**
  * Optional session limits.
@@ -3567,6 +3613,14 @@ export interface AssistantMessageData {
    */
   apiCallId?: string;
   /**
+   * Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1.
+   */
+  chunkCount?: number;
+  /**
+   * Zero-based position of this message within its model call's response. Absent when the response was not split into chunks.
+   */
+  chunkIndex?: number;
+  /**
    * Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
    *
    * @experimental
@@ -6094,6 +6148,54 @@ export interface SystemNotificationInstructionDiscovered {
   type: "instruction_discovered";
 }
 /**
+ * System notification metadata for a factory execution attempt that reached a terminal state.
+ */
+export interface SystemNotificationFactoryCompleted {
+  /**
+   * Execution attempt that reached this terminal state.
+   */
+  attempt: number;
+  /**
+   * Consumed AI usage in nano-AIU.
+   */
+  consumedNanoAiu: number;
+  /**
+   * Subagents consumed by the run across all attempts.
+   */
+  consumedSubagents: number;
+  /**
+   * Accumulated active execution time in milliseconds.
+   */
+  elapsedMs: number;
+  /**
+   * Persisted factory name.
+   */
+  factoryName: string;
+  /**
+   * Machine-readable terminal failure details, when present.
+   */
+  failure?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Bounded prompt-safe preview of the completed result.
+   */
+  resultPreview?: string;
+  /**
+   * Actionable run_factory resume guidance for a resource-limit failure.
+   */
+  retryGuidance?: string;
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  status: SystemNotificationFactoryCompletedStatus;
+  /**
+   * Type discriminator. Always "factory_completed".
+   */
+  type: "factory_completed";
+}
+/**
  * System notification metadata from an external host that does not match a runtime-owned notification kind.
  */
 export interface SystemNotificationUnclassified {
@@ -6512,6 +6614,73 @@ export interface PermissionRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
+ * Factory run or authoring permission request
+ */
+export interface PermissionRequestFactory {
+  /**
+   * Canonical key used for scoped factory approvals
+   */
+  approvalKey: string;
+  /**
+   * Whether this factory is eligible for persistent approval
+   */
+  canPersistApproval: boolean;
+  declaredMaxAiCredits?: number;
+  declaredMaxConcurrentSubagents?: number;
+  declaredMaxTotalSubagents?: number;
+  declaredTimeoutSeconds?: number;
+  /**
+   * Factory description
+   */
+  description: string;
+  /**
+   * Permission kind discriminator
+   */
+  kind: "factory";
+  /**
+   * Effective AI-credit limit; omitted means unlimited
+   */
+  maxAiCredits?: number;
+  /**
+   * Effective concurrent-subagent limit; omitted means unlimited
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Effective total-subagent limit; omitted means unlimited
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Factory name
+   */
+  name: string;
+  operation: FactoryPermissionOperation;
+  /**
+   * Declared factory phases
+   */
+  phases: FactoryPermissionPhase[];
+  /**
+   * Effective active-time limit in seconds; omitted means unlimited
+   */
+  timeoutSeconds?: number;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * A declared phase shown in a factory permission prompt.
+ */
+export interface FactoryPermissionPhase {
+  /**
+   * Optional phase detail
+   */
+  detail?: string;
+  /**
+   * Phase title
+   */
+  title: string;
+}
+/**
  * Extension permission access request
  */
 export interface PermissionRequestExtensionPermissionAccess {
@@ -6900,6 +7069,70 @@ export interface PermissionPromptRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
+ * Factory run or authoring permission prompt
+ */
+export interface PermissionPromptRequestFactory {
+  /**
+   * Canonical key used for scoped factory approvals
+   */
+  approvalKey: string;
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
+   * Whether this factory is eligible for persistent approval
+   */
+  canPersistApproval: boolean;
+  declaredMaxAiCredits?: number;
+  declaredMaxConcurrentSubagents?: number;
+  declaredMaxTotalSubagents?: number;
+  declaredTimeoutSeconds?: number;
+  /**
+   * Factory description
+   */
+  description: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "factory";
+  /**
+   * Whether managed policy requires a human response and forbids host auto-approval
+   */
+  managedApprovalRequired?: boolean;
+  /**
+   * Effective AI-credit limit; omitted means unlimited
+   */
+  maxAiCredits?: number;
+  /**
+   * Effective concurrent-subagent limit; omitted means unlimited
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Effective total-subagent limit; omitted means unlimited
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Factory name
+   */
+  name: string;
+  operation: FactoryPermissionOperation;
+  /**
+   * Declared factory phases
+   */
+  phases: FactoryPermissionPhase[];
+  /**
+   * Effective active-time limit in seconds; omitted means unlimited
+   */
+  timeoutSeconds?: number;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
  * Extension permission access prompt
  */
 export interface PermissionPromptRequestExtensionPermissionAccess {
@@ -7071,6 +7304,19 @@ export interface UserToolSessionApprovalExtensionManagement {
    * Optional operation identifier
    */
   operation?: string;
+}
+/**
+ * Session-scoped factory approval, optionally narrowed by approval key.
+ */
+export interface UserToolSessionApprovalFactory {
+  /**
+   * Optional factory operation name or canonical approval key
+   */
+  approvalKey?: string;
+  /**
+   * Factory approval kind
+   */
+  kind: "factory";
 }
 /**
  * Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.

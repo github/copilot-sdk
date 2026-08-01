@@ -1700,6 +1700,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("detachedFromSpawningParentSessionId")]
     public string? DetachedFromSpawningParentSessionId { get; set; }
 
+    /// <summary>Per-session GitHub MCP override persisted for cold resume.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("githubMcpToolConfig")]
+    public GitHubMcpToolConfig? GitHubMcpToolConfig { get; set; }
+
     /// <summary>Identifier of the software producing the events (e.g., "copilot-agent").</summary>
     [JsonPropertyName("producer")]
     public required string Producer { get; set; }
@@ -2769,6 +2774,16 @@ public sealed partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("apiCallId")]
     public string? ApiCallId { get; set; }
+
+    /// <summary>Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("chunkCount")]
+    public long? ChunkCount { get; set; }
+
+    /// <summary>Zero-based position of this message within its model call's response. Absent when the response was not split into chunks.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("chunkIndex")]
+    public long? ChunkIndex { get; set; }
 
     /// <summary>Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.</summary>
     [Experimental(Diagnostics.Experimental)]
@@ -4714,6 +4729,31 @@ public sealed partial class WorkingDirectoryContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("repositoryHost")]
     public string? RepositoryHost { get; set; }
+}
+
+/// <summary>Per-session configuration for the built-in GitHub MCP server.</summary>
+/// <remarks>Nested data type for <c>GitHubMcpToolConfig</c>.</remarks>
+public sealed partial class GitHubMcpToolConfig
+{
+    /// <summary>Additional GitHub MCP tools requested by the session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("additionalTools")]
+    public string[]? AdditionalTools { get; set; }
+
+    /// <summary>Additional GitHub MCP toolsets requested by the session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("additionalToolsets")]
+    public string[]? AdditionalToolsets { get; set; }
+
+    /// <summary>Whether to use the read-write endpoint and request all toolsets.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("enableAllTools")]
+    public bool? EnableAllTools { get; set; }
+
+    /// <summary>Whether to request the GitHub MCP insiders build.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("enableInsidersMode")]
+    public bool? EnableInsidersMode { get; set; }
 }
 
 /// <summary>Optional session limits.</summary>
@@ -6884,6 +6924,60 @@ public sealed partial class SystemNotificationInstructionDiscovered : SystemNoti
     public required string TriggerTool { get; set; }
 }
 
+/// <summary>System notification metadata for a factory execution attempt that reached a terminal state.</summary>
+/// <remarks>The <c>factory_completed</c> variant of <see cref="SystemNotification"/>.</remarks>
+public sealed partial class SystemNotificationFactoryCompleted : SystemNotification
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "factory_completed";
+
+    /// <summary>Execution attempt that reached this terminal state.</summary>
+    [JsonPropertyName("attempt")]
+    public required long Attempt { get; set; }
+
+    /// <summary>Consumed AI usage in nano-AIU.</summary>
+    [JsonPropertyName("consumedNanoAiu")]
+    public required long ConsumedNanoAiu { get; set; }
+
+    /// <summary>Subagents consumed by the run across all attempts.</summary>
+    [JsonPropertyName("consumedSubagents")]
+    public required long ConsumedSubagents { get; set; }
+
+    /// <summary>Accumulated active execution time in milliseconds.</summary>
+    [JsonPropertyName("elapsedMs")]
+    public required long ElapsedMs { get; set; }
+
+    /// <summary>Persisted factory name.</summary>
+    [JsonPropertyName("factoryName")]
+    public required string FactoryName { get; set; }
+
+    /// <summary>Machine-readable terminal failure details, when present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("failure")]
+    public JsonElement? Failure { get; set; }
+
+    /// <summary>Bounded prompt-safe preview of the completed result.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(256)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resultPreview")]
+    public string? ResultPreview { get; set; }
+
+    /// <summary>Actionable run_factory resume guidance for a resource-limit failure.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("retryGuidance")]
+    public string? RetryGuidance { get; set; }
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public required string RunId { get; set; }
+
+    /// <summary>Terminal status reached by this execution attempt.</summary>
+    [JsonPropertyName("status")]
+    public required SystemNotificationFactoryCompletedStatus Status { get; set; }
+}
+
 /// <summary>System notification metadata from an external host that does not match a runtime-owned notification kind.</summary>
 /// <remarks>The <c>unclassified</c> variant of <see cref="SystemNotification"/>.</remarks>
 public sealed partial class SystemNotificationUnclassified : SystemNotification
@@ -6909,6 +7003,7 @@ public sealed partial class SystemNotificationUnclassified : SystemNotification
 [JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
 [JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
 [JsonDerivedType(typeof(SystemNotificationInstructionDiscovered), "instruction_discovered")]
+[JsonDerivedType(typeof(SystemNotificationFactoryCompleted), "factory_completed")]
 [JsonDerivedType(typeof(SystemNotificationUnclassified), "unclassified")]
 public partial class SystemNotification
 {
@@ -7321,6 +7416,98 @@ public sealed partial class PermissionRequestExtensionManagement : PermissionReq
     public string? ToolCallId { get; set; }
 }
 
+/// <summary>A declared phase shown in a factory permission prompt.</summary>
+/// <remarks>Nested data type for <c>FactoryPermissionPhase</c>.</remarks>
+public sealed partial class FactoryPermissionPhase
+{
+    /// <summary>Optional phase detail.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("detail")]
+    public string? Detail { get; set; }
+
+    /// <summary>Phase title.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
+/// <summary>Factory run or authoring permission request.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="PermissionRequest"/>.</remarks>
+public sealed partial class PermissionRequestFactory : PermissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Canonical key used for scoped factory approvals.</summary>
+    [JsonPropertyName("approvalKey")]
+    public required string ApprovalKey { get; set; }
+
+    /// <summary>Whether this factory is eligible for persistent approval.</summary>
+    [JsonPropertyName("canPersistApproval")]
+    public required bool CanPersistApproval { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxAiCredits</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxAiCredits")]
+    public double? DeclaredMaxAiCredits { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxConcurrentSubagents</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxConcurrentSubagents")]
+    public long? DeclaredMaxConcurrentSubagents { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxTotalSubagents</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxTotalSubagents")]
+    public long? DeclaredMaxTotalSubagents { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredTimeoutSeconds</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredTimeoutSeconds")]
+    public double? DeclaredTimeoutSeconds { get; set; }
+
+    /// <summary>Factory description.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Effective AI-credit limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxAiCredits")]
+    public double? MaxAiCredits { get; set; }
+
+    /// <summary>Effective concurrent-subagent limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxConcurrentSubagents")]
+    public long? MaxConcurrentSubagents { get; set; }
+
+    /// <summary>Effective total-subagent limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxTotalSubagents")]
+    public long? MaxTotalSubagents { get; set; }
+
+    /// <summary>Factory name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Factory operation, either run or author.</summary>
+    [JsonPropertyName("operation")]
+    public required FactoryPermissionOperation Operation { get; set; }
+
+    /// <summary>Declared factory phases.</summary>
+    [JsonPropertyName("phases")]
+    public required FactoryPermissionPhase[] Phases { get; set; }
+
+    /// <summary>Effective active-time limit in seconds; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("timeoutSeconds")]
+    public double? TimeoutSeconds { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
 /// <summary>Extension permission access request.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public sealed partial class PermissionRequestExtensionPermissionAccess : PermissionRequest
@@ -7357,6 +7544,7 @@ public sealed partial class PermissionRequestExtensionPermissionAccess : Permiss
 [JsonDerivedType(typeof(PermissionRequestCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionRequestHook), "hook")]
 [JsonDerivedType(typeof(PermissionRequestExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionRequestFactory), "factory")]
 [JsonDerivedType(typeof(PermissionRequestExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionRequest
 {
@@ -7779,6 +7967,95 @@ public sealed partial class PermissionPromptRequestExtensionManagement : Permiss
     public string? ToolCallId { get; set; }
 }
 
+/// <summary>Factory run or authoring permission prompt.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
+public sealed partial class PermissionPromptRequestFactory : PermissionPromptRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Canonical key used for scoped factory approvals.</summary>
+    [JsonPropertyName("approvalKey")]
+    public required string ApprovalKey { get; set; }
+
+    /// <summary>Auto-approval judge information for this request; present only when auto mode is enabled.</summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproval")]
+    public PermissionAutoApproval? AutoApproval { get; set; }
+
+    /// <summary>Whether this factory is eligible for persistent approval.</summary>
+    [JsonPropertyName("canPersistApproval")]
+    public required bool CanPersistApproval { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxAiCredits</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxAiCredits")]
+    public double? DeclaredMaxAiCredits { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxConcurrentSubagents</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxConcurrentSubagents")]
+    public long? DeclaredMaxConcurrentSubagents { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredMaxTotalSubagents</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredMaxTotalSubagents")]
+    public long? DeclaredMaxTotalSubagents { get; set; }
+
+    /// <summary>Gets or sets the <c>declaredTimeoutSeconds</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("declaredTimeoutSeconds")]
+    public double? DeclaredTimeoutSeconds { get; set; }
+
+    /// <summary>Factory description.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Whether managed policy requires a human response and forbids host auto-approval.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("managedApprovalRequired")]
+    public bool? ManagedApprovalRequired { get; set; }
+
+    /// <summary>Effective AI-credit limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxAiCredits")]
+    public double? MaxAiCredits { get; set; }
+
+    /// <summary>Effective concurrent-subagent limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxConcurrentSubagents")]
+    public long? MaxConcurrentSubagents { get; set; }
+
+    /// <summary>Effective total-subagent limit; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("maxTotalSubagents")]
+    public long? MaxTotalSubagents { get; set; }
+
+    /// <summary>Factory name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Factory operation, either run or author.</summary>
+    [JsonPropertyName("operation")]
+    public required FactoryPermissionOperation Operation { get; set; }
+
+    /// <summary>Declared factory phases.</summary>
+    [JsonPropertyName("phases")]
+    public required FactoryPermissionPhase[] Phases { get; set; }
+
+    /// <summary>Effective active-time limit in seconds; omitted means unlimited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("timeoutSeconds")]
+    public double? TimeoutSeconds { get; set; }
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+}
+
 /// <summary>Extension permission access prompt.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionPromptRequest"/>.</remarks>
 public sealed partial class PermissionPromptRequestExtensionPermissionAccess : PermissionPromptRequest
@@ -7822,6 +8099,7 @@ public sealed partial class PermissionPromptRequestExtensionPermissionAccess : P
 [JsonDerivedType(typeof(PermissionPromptRequestPath), "path")]
 [JsonDerivedType(typeof(PermissionPromptRequestHook), "hook")]
 [JsonDerivedType(typeof(PermissionPromptRequestExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionPromptRequestFactory), "factory")]
 [JsonDerivedType(typeof(PermissionPromptRequestExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionPromptRequest
 {
@@ -7924,6 +8202,20 @@ public sealed partial class UserToolSessionApprovalExtensionManagement : UserToo
     public string? Operation { get; set; }
 }
 
+/// <summary>Session-scoped factory approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
+public sealed partial class UserToolSessionApprovalFactory : UserToolSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Optional factory operation name or canonical approval key.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approvalKey")]
+    public string? ApprovalKey { get; set; }
+}
+
 /// <summary>Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="UserToolSessionApproval"/>.</remarks>
 public sealed partial class UserToolSessionApprovalExtensionPermissionAccess : UserToolSessionApproval
@@ -7949,6 +8241,7 @@ public sealed partial class UserToolSessionApprovalExtensionPermissionAccess : U
 [JsonDerivedType(typeof(UserToolSessionApprovalMemory), "memory")]
 [JsonDerivedType(typeof(UserToolSessionApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(UserToolSessionApprovalExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(UserToolSessionApprovalFactory), "factory")]
 [JsonDerivedType(typeof(UserToolSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
 public partial class UserToolSessionApproval
 {
@@ -10818,6 +11111,73 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     }
 }
 
+/// <summary>Terminal status reached by a factory execution attempt.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SystemNotificationFactoryCompletedStatus : IEquatable<SystemNotificationFactoryCompletedStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SystemNotificationFactoryCompletedStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SystemNotificationFactoryCompletedStatus"/>.</param>
+    [JsonConstructor]
+    public SystemNotificationFactoryCompletedStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SystemNotificationFactoryCompletedStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The factory completed successfully.</summary>
+    public static SystemNotificationFactoryCompletedStatus Completed { get; } = new("completed");
+
+    /// <summary>The factory was halted.</summary>
+    public static SystemNotificationFactoryCompletedStatus Halted { get; } = new("halted");
+
+    /// <summary>The factory was cancelled.</summary>
+    public static SystemNotificationFactoryCompletedStatus Cancelled { get; } = new("cancelled");
+
+    /// <summary>The factory failed.</summary>
+    public static SystemNotificationFactoryCompletedStatus Error { get; } = new("error");
+
+    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationFactoryCompletedStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(SystemNotificationFactoryCompletedStatus left, SystemNotificationFactoryCompletedStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SystemNotificationFactoryCompletedStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(SystemNotificationFactoryCompletedStatus left, SystemNotificationFactoryCompletedStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SystemNotificationFactoryCompletedStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SystemNotificationFactoryCompletedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SystemNotificationFactoryCompletedStatus}"/> for serializing <see cref="SystemNotificationFactoryCompletedStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SystemNotificationFactoryCompletedStatus>
+    {
+        /// <inheritdoc />
+        public override SystemNotificationFactoryCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SystemNotificationFactoryCompletedStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationFactoryCompletedStatus));
+        }
+    }
+}
+
 /// <summary>Whether this is a store or vote memory operation.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -10936,6 +11296,67 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
         public override void Write(Utf8JsonWriter writer, PermissionRequestMemoryDirection value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryDirection));
+        }
+    }
+}
+
+/// <summary>Operation gated by a factory permission request.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct FactoryPermissionOperation : IEquatable<FactoryPermissionOperation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="FactoryPermissionOperation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FactoryPermissionOperation"/>.</param>
+    [JsonConstructor]
+    public FactoryPermissionOperation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="FactoryPermissionOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.</summary>
+    public static FactoryPermissionOperation Run { get; } = new("run");
+
+    /// <summary>Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.</summary>
+    public static FactoryPermissionOperation Author { get; } = new("author");
+
+    /// <summary>Returns a value indicating whether two <see cref="FactoryPermissionOperation"/> instances are equivalent.</summary>
+    public static bool operator ==(FactoryPermissionOperation left, FactoryPermissionOperation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FactoryPermissionOperation"/> instances are not equivalent.</summary>
+    public static bool operator !=(FactoryPermissionOperation left, FactoryPermissionOperation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is FactoryPermissionOperation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(FactoryPermissionOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{FactoryPermissionOperation}"/> for serializing <see cref="FactoryPermissionOperation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<FactoryPermissionOperation>
+    {
+        /// <inheritdoc />
+        public override FactoryPermissionOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, FactoryPermissionOperation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FactoryPermissionOperation));
         }
     }
 }
@@ -12508,8 +12929,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ExternalToolCompletedEvent))]
 [JsonSerializable(typeof(ExternalToolRequestedData))]
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
+[JsonSerializable(typeof(FactoryPermissionPhase))]
 [JsonSerializable(typeof(FactoryRunUpdatedData))]
 [JsonSerializable(typeof(FactoryRunUpdatedEvent))]
+[JsonSerializable(typeof(GitHubMcpToolConfig))]
 [JsonSerializable(typeof(GitHubRepoRef))]
 [JsonSerializable(typeof(HandoffRepository))]
 [JsonSerializable(typeof(HeaderEntry))]
@@ -12559,6 +12982,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionPromptRequestCustomTool))]
 [JsonSerializable(typeof(PermissionPromptRequestExtensionManagement))]
 [JsonSerializable(typeof(PermissionPromptRequestExtensionPermissionAccess))]
+[JsonSerializable(typeof(PermissionPromptRequestFactory))]
 [JsonSerializable(typeof(PermissionPromptRequestHook))]
 [JsonSerializable(typeof(PermissionPromptRequestMcp))]
 [JsonSerializable(typeof(PermissionPromptRequestMemory))]
@@ -12570,6 +12994,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
 [JsonSerializable(typeof(PermissionRequestExtensionManagement))]
 [JsonSerializable(typeof(PermissionRequestExtensionPermissionAccess))]
+[JsonSerializable(typeof(PermissionRequestFactory))]
 [JsonSerializable(typeof(PermissionRequestHook))]
 [JsonSerializable(typeof(PermissionRequestMcp))]
 [JsonSerializable(typeof(PermissionRequestMemory))]
@@ -12729,6 +13154,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
+[JsonSerializable(typeof(SystemNotificationFactoryCompleted))]
 [JsonSerializable(typeof(SystemNotificationInstructionDiscovered))]
 [JsonSerializable(typeof(SystemNotificationNewInboxMessage))]
 [JsonSerializable(typeof(SystemNotificationShellCompleted))]
@@ -12786,6 +13212,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(UserToolSessionApprovalCustomTool))]
 [JsonSerializable(typeof(UserToolSessionApprovalExtensionManagement))]
 [JsonSerializable(typeof(UserToolSessionApprovalExtensionPermissionAccess))]
+[JsonSerializable(typeof(UserToolSessionApprovalFactory))]
 [JsonSerializable(typeof(UserToolSessionApprovalMcp))]
 [JsonSerializable(typeof(UserToolSessionApprovalMemory))]
 [JsonSerializable(typeof(UserToolSessionApprovalRead))]

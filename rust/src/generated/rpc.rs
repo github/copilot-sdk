@@ -50,6 +50,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `extensions.*` sub-namespace.
+    pub fn extensions(&self) -> ClientRpcExtensions<'a> {
+        ClientRpcExtensions {
+            client: self.client,
+        }
+    }
+
     /// `instructions.*` sub-namespace.
     pub fn instructions(&self) -> ClientRpcInstructions<'a> {
         ClientRpcInstructions {
@@ -493,6 +500,86 @@ impl<'a> ClientRpcCommands<'a> {
             .call(rpc_methods::COMMANDS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `extensions.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcExtensions<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcExtensions<'a> {
+    /// Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
+    ///
+    /// Wire method: `extensions.discover`.
+    ///
+    /// # Returns
+    ///
+    /// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn discover(&self) -> Result<DiscoveredExtensions, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_DISCOVER, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Persistently enables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.enable to update them.
+    ///
+    /// Wire method: `extensions.enable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source-qualified extension identifiers to persistently enable for future sessions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn enable(&self, params: DiscoveredExtensionsEnableRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_ENABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Persistently disables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.disable to update them.
+    ///
+    /// Wire method: `extensions.disable`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Source-qualified extension identifiers to persistently disable for future sessions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn disable(&self, params: DiscoveredExtensionsDisableRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::EXTENSIONS_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 
@@ -3298,6 +3385,32 @@ impl<'a> SessionRpcAgent<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Sets an in-memory authored prompt override for an available agent. For built-in agents, this replaces only the static base prompt while preserving runtime-owned dynamic prompt composition and behavior. The special `general-purpose` agent is not overrideable. Overrides are not persisted; resumed and forked sessions start without them, so the host must re-apply them.
+    ///
+    /// Wire method: `session.agent.setPrompt`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - An in-memory authored prompt override for an available agent.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_prompt(&self, params: AgentSetPromptRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_AGENT_SETPROMPT, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
     /// Gets the currently selected custom agent for the session.
     ///
     /// Wire method: `session.agent.getCurrent`.
@@ -3962,7 +4075,7 @@ pub struct SessionRpcEventLog<'a> {
 }
 
 impl<'a> SessionRpcEventLog<'a> {
-    /// Reads a batch of session events from a cursor, optionally waiting for new events.
+    /// Reads a batch of session events from a cursor, optionally waiting for new events. Supports tail-first reads via `direction: backward`.
     ///
     /// Wire method: `session.eventLog.read`.
     ///
@@ -5941,6 +6054,38 @@ impl<'a> SessionRpcMcpOauth<'a> {
             )
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Notifies the session that MCP OAuth authentication succeeded and updated credentials were persisted, so cached tool definitions can be refreshed.
+    ///
+    /// Wire method: `session.mcp.oauth.authenticationStateChanged`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies the MCP server whose persisted OAuth credentials were updated.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn authentication_state_changed(
+        &self,
+        params: McpOauthAuthenticationStateChangedRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_OAUTH_AUTHENTICATIONSTATECHANGED,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 
     /// Starts OAuth authentication for a remote MCP server.

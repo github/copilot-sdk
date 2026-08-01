@@ -1180,6 +1180,75 @@ internal sealed class McpConfigDisableRequest
     public IList<string> Names { get => field ??= []; set; }
 }
 
+/// <summary>Installed plugin that contributes a discovered extension.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class DiscoveredExtensionPlugin
+{
+    /// <summary>Installed plugin name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Discovered extension metadata and persistent enablement state.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class DiscoveredExtension
+{
+    /// <summary>Whether this extension's persistent per-ID preference is enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Source-qualified ID accepted by both server and session extension enablement methods.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable extension name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute path to the extension entry module, suitable for revealing it in a file manager.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Containing plugin metadata for plugin-contributed extensions.</summary>
+    [JsonPropertyName("plugin")]
+    public DiscoveredExtensionPlugin? Plugin { get; set; }
+
+    /// <summary>Discovery source.</summary>
+    [JsonPropertyName("source")]
+    public DiscoveredExtensionSource Source { get; set; }
+}
+
+/// <summary>Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class DiscoveredExtensions
+{
+    /// <summary>Discovered user and enabled installed-plugin extensions from persisted Copilot home state.</summary>
+    [JsonPropertyName("extensions")]
+    public IList<DiscoveredExtension> Extensions { get => field ??= []; set; }
+
+    /// <summary>Effective extension loading mode. Defaults to load_and_augment when unset.</summary>
+    [JsonPropertyName("mode")]
+    public DiscoveredExtensionMode Mode { get; set; }
+}
+
+/// <summary>Source-qualified extension identifiers to persistently enable for future sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class DiscoveredExtensionsEnableRequest
+{
+    /// <summary>Source-qualified user or plugin extension IDs to enable.</summary>
+    [JsonPropertyName("ids")]
+    public IList<string> Ids { get => field ??= []; set; }
+}
+
+/// <summary>Source-qualified extension identifiers to persistently disable for future sessions.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class DiscoveredExtensionsDisableRequest
+{
+    /// <summary>Source-qualified user or plugin extension IDs to disable.</summary>
+    [JsonPropertyName("ids")]
+    public IList<string> Ids { get => field ??= []; set; }
+}
+
 /// <summary>Information about an installed plugin tracked in global state.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class InstalledPluginInfo
@@ -6093,6 +6162,23 @@ internal sealed class SessionAgentListRequestWithSession
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>An in-memory authored prompt override for an available agent.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class AgentSetPromptRequest
+{
+    /// <summary>Stable effective agent id. Plugin namespace separators are normalized.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Replacement authored prompt. Empty text is valid.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>The currently selected custom agent, or null when using the default agent.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentGetCurrentResult
@@ -7384,6 +7470,23 @@ internal sealed class McpOauthHandlePendingRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Identifies the MCP server whose persisted OAuth credentials were updated.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpOauthAuthenticationStateChangedRequest
+{
+    /// <summary>Whether the target session must mint a session-scoped access token instead of reusing a shared access token persisted by another session.</summary>
+    [JsonPropertyName("refreshSessionToken")]
+    public bool? RefreshSessionToken { get; set; }
+
+    /// <summary>Name of the MCP server whose OAuth credentials were updated. Omit only when the host cannot identify the server.</summary>
+    [JsonPropertyName("serverName")]
+    public string? ServerName { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpOauthLoginResult
@@ -8627,6 +8730,10 @@ public sealed class SandboxConfig
     /// <summary>Whether to auto-add the current working directory to readwritePaths. Default: true.</summary>
     [JsonPropertyName("addCurrentWorkingDirectory")]
     public bool? AddCurrentWorkingDirectory { get; set; }
+
+    /// <summary>Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).</summary>
+    [JsonPropertyName("allowDevToolCaches")]
+    public bool? AllowDevToolCaches { get; set; }
 
     /// <summary>Whether sandboxing is enabled for the session.</summary>
     [JsonPropertyName("enabled")]
@@ -10551,6 +10658,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalFactory), "factory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionDecisionApproveForSessionApproval
 {
@@ -10665,6 +10773,21 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionManagem
     public string? Operation { get; set; }
 }
 
+/// <summary>Session-scoped factory approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionDecisionApproveForSessionApprovalFactory : PermissionDecisionApproveForSessionApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approvalKey")]
+    public string? ApprovalKey { get; set; }
+}
+
 /// <summary>Session-scoped approval details for an extension's permission-gated capability access, keyed by extension name.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
 [Experimental(Diagnostics.Experimental)]
@@ -10713,6 +10836,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalMemory), "memory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalFactory), "factory")]
 [JsonDerivedType(typeof(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionDecisionApproveForLocationApproval
 {
@@ -10825,6 +10949,21 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionManage
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("operation")]
     public string? Operation { get; set; }
+}
+
+/// <summary>Location-scoped factory approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionDecisionApproveForLocationApprovalFactory : PermissionDecisionApproveForLocationApproval
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approvalKey")]
+    public string? ApprovalKey { get; set; }
 }
 
 /// <summary>Location-scoped approval details for an extension's permission-gated capability access, keyed by extension name.</summary>
@@ -11140,7 +11279,7 @@ internal sealed class PermissionsSetAllowAllRequest
     [JsonPropertyName("mode")]
     public PermissionsAllowAllMode? Mode { get; set; }
 
-    /// <summary>Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.</summary>
+    /// <summary>Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
@@ -11476,6 +11615,7 @@ public sealed class PermissionsLocationsAddToolApprovalResult
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMemory), "memory")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCustomTool), "custom-tool")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsFactory), "factory")]
 [JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess), "extension-permission-access")]
 public partial class PermissionsLocationsAddToolApprovalDetails
 {
@@ -11588,6 +11728,21 @@ public partial class PermissionsLocationsAddToolApprovalDetailsExtensionManageme
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("operation")]
     public string? Operation { get; set; }
+}
+
+/// <summary>Location-persisted factory approval, optionally narrowed by approval key.</summary>
+/// <remarks>The <c>factory</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsFactory : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "factory";
+
+    /// <summary>Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approvalKey")]
+    public string? ApprovalKey { get; set; }
 }
 
 /// <summary>Location-persisted tool approval details for an extension's permission-gated capability access, keyed by extension name.</summary>
@@ -13376,19 +13531,19 @@ internal sealed class SessionQueueProcessRequest
 [Experimental(Diagnostics.Experimental)]
 public sealed class EventsReadResult
 {
-    /// <summary>Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned.</summary>
+    /// <summary>Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).</summary>
     [JsonPropertyName("cursor")]
     public string Cursor { get; set; } = string.Empty;
 
-    /// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.</summary>
+    /// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.</summary>
     [JsonPropertyName("cursorStatus")]
     public EventsCursorStatus CursorStatus { get; set; }
 
-    /// <summary>Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`.</summary>
+    /// <summary>Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.</summary>
     [JsonPropertyName("events")]
     public IList<SessionEvent> Events { get => field ??= []; set; }
 
-    /// <summary>True when the read returned `max` events and more events are available immediately. When false, the next read with a non-zero `waitMs` will block until a new event arrives or the wait expires.</summary>
+    /// <summary>True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.</summary>
     [JsonPropertyName("hasMore")]
     public bool HasMore { get; set; }
 }
@@ -13397,6 +13552,10 @@ public sealed class EventsReadResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class EventLogReadRequest
 {
+    /// <summary>Optional non-empty list of subagent identifiers. When provided, only events owned by one of these agents are returned; ownership recognizes the event envelope's agentId plus legacy data.agentId and data.parentToolCallId markers. This filter takes precedence over agentScope.</summary>
+    [JsonPropertyName("agentIds")]
+    public IList<string>? AgentIds { get; set; }
+
     /// <summary>Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.</summary>
     [JsonPropertyName("agentScope")]
     public EventsAgentScope? AgentScope { get; set; }
@@ -13405,7 +13564,11 @@ internal sealed class EventLogReadRequest
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
 
-    /// <summary>When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order).</summary>
+    /// <summary>Direction to page through the session's persisted event history. 'forward' (default) pages from the cursor toward newer events (or from the start of history when no cursor is given). 'backward' enables tail-first reads: with no cursor it returns the NEWEST `max` events, and the returned cursor pages toward OLDER events on subsequent backward reads. Events within a returned batch are always in chronological (oldest-to-newest) order, even for a backward read. Backward reads cover PERSISTED history only; ephemeral events are never returned by a backward read. `direction` selects the INITIAL read only: the returned cursor is self-describing, so a continuation read pages in the cursor's own direction regardless of the `direction` passed alongside it — a forward cursor always pages forward and a backward cursor always pages backward. Pass the direction that matches the cursor to avoid confusion.</summary>
+    [JsonPropertyName("direction")]
+    public EventsReadDirection? Direction { get; set; }
+
+    /// <summary>When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order). Ignored by backward reads, which always cover persisted history only.</summary>
     [JsonPropertyName("includeEphemeral")]
     public bool? IncludeEphemeral { get; set; }
 
@@ -13421,7 +13584,7 @@ internal sealed class EventLogReadRequest
     [JsonPropertyName("types")]
     public JsonElement? Types { get; set; }
 
-    /// <summary>Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).</summary>
+    /// <summary>Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen). This applies to forward reads only: a backward read always returns immediately and ignores `waitMs`, because backward paging covers persisted history only while new events append at the tail (the opposite end from a backward page), so no blocking or ephemeral delivery can occur.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("waitMs")]
     public TimeSpan? Wait { get; set; }
@@ -15272,6 +15435,135 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
         public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
+        }
+    }
+}
+
+
+/// <summary>Persisted extension discovery source.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct DiscoveredExtensionSource : IEquatable<DiscoveredExtensionSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="DiscoveredExtensionSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="DiscoveredExtensionSource"/>.</param>
+    [JsonConstructor]
+    public DiscoveredExtensionSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="DiscoveredExtensionSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Extension discovered from the user's extensions directory.</summary>
+    public static DiscoveredExtensionSource User { get; } = new("user");
+
+    /// <summary>Extension contributed by an installed plugin.</summary>
+    public static DiscoveredExtensionSource Plugin { get; } = new("plugin");
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredExtensionSource"/> instances are equivalent.</summary>
+    public static bool operator ==(DiscoveredExtensionSource left, DiscoveredExtensionSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredExtensionSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(DiscoveredExtensionSource left, DiscoveredExtensionSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is DiscoveredExtensionSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(DiscoveredExtensionSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{DiscoveredExtensionSource}"/> for serializing <see cref="DiscoveredExtensionSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<DiscoveredExtensionSource>
+    {
+        /// <inheritdoc />
+        public override DiscoveredExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, DiscoveredExtensionSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredExtensionSource));
+        }
+    }
+}
+
+
+/// <summary>Effective extension loading and agent-management mode.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct DiscoveredExtensionMode : IEquatable<DiscoveredExtensionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="DiscoveredExtensionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="DiscoveredExtensionMode"/>.</param>
+    [JsonConstructor]
+    public DiscoveredExtensionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="DiscoveredExtensionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Extensions are not loaded.</summary>
+    public static DiscoveredExtensionMode Disabled { get; } = new("disabled");
+
+    /// <summary>Extensions are loaded, but the agent cannot create, reload, or manage them.</summary>
+    public static DiscoveredExtensionMode LoadOnly { get; } = new("load_only");
+
+    /// <summary>Extensions are loaded and the agent can create, reload, and manage them.</summary>
+    public static DiscoveredExtensionMode LoadAndAugment { get; } = new("load_and_augment");
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredExtensionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(DiscoveredExtensionMode left, DiscoveredExtensionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="DiscoveredExtensionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(DiscoveredExtensionMode left, DiscoveredExtensionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is DiscoveredExtensionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(DiscoveredExtensionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{DiscoveredExtensionMode}"/> for serializing <see cref="DiscoveredExtensionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<DiscoveredExtensionMode>
+    {
+        /// <inheritdoc />
+        public override DiscoveredExtensionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, DiscoveredExtensionMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredExtensionMode));
         }
     }
 }
@@ -21780,7 +22072,7 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
 }
 
 
-/// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.</summary>
+/// <summary>Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -21901,6 +22193,69 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
         public override void Write(Utf8JsonWriter writer, EventsAgentScope value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
+        }
+    }
+}
+
+
+/// <summary>Direction to page through the session's persisted event history. 'forward' pages from the cursor toward newer events; 'backward' returns the newest window first (tail-first) and pages toward older events. Events within a returned batch are always chronological (oldest-to-newest), even for a backward read.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct EventsReadDirection : IEquatable<EventsReadDirection>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="EventsReadDirection"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="EventsReadDirection"/>.</param>
+    [JsonConstructor]
+    public EventsReadDirection(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="EventsReadDirection"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Page from the cursor toward newer events (default).</summary>
+    public static EventsReadDirection Forward { get; } = new("forward");
+
+    /// <summary>Tail-first: return the newest events and page toward older events.</summary>
+    public static EventsReadDirection Backward { get; } = new("backward");
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are equivalent.</summary>
+    public static bool operator ==(EventsReadDirection left, EventsReadDirection right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="EventsReadDirection"/> instances are not equivalent.</summary>
+    public static bool operator !=(EventsReadDirection left, EventsReadDirection right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is EventsReadDirection other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(EventsReadDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{EventsReadDirection}"/> for serializing <see cref="EventsReadDirection"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<EventsReadDirection>
+    {
+        /// <inheritdoc />
+        public override EventsReadDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, EventsReadDirection value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsReadDirection));
         }
     }
 }
@@ -22680,6 +23035,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Extensions APIs.</summary>
+    public ServerExtensionsApi Extensions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Plugins APIs.</summary>
     public ServerPluginsApi Plugins =>
         field ??
@@ -23000,6 +23361,48 @@ public sealed class ServerMcpConfigApi
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.reload", [], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Extensions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerExtensionsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerExtensionsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.</returns>
+    public async Task<DiscoveredExtensions> DiscoverAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<DiscoveredExtensions>(_rpc, "extensions.discover", [], cancellationToken);
+    }
+
+    /// <summary>Persistently enables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.enable to update them.</summary>
+    /// <param name="ids">Source-qualified user or plugin extension IDs to enable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task EnableAsync(IList<string> ids, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var request = new DiscoveredExtensionsEnableRequest { Ids = ids };
+        await CopilotClient.InvokeRpcAsync(_rpc, "extensions.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Persistently disables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.disable to update them.</summary>
+    /// <param name="ids">Source-qualified user or plugin extension IDs to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task DisableAsync(IList<string> ids, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var request = new DiscoveredExtensionsDisableRequest { Ids = ids };
+        await CopilotClient.InvokeRpcAsync(_rpc, "extensions.disable", [request], cancellationToken);
     }
 }
 
@@ -25152,6 +25555,20 @@ public sealed class AgentApi
         return await CopilotClient.InvokeRpcAsync<AgentList>(_session.Rpc, "session.agent.list", [rpcRequest], cancellationToken);
     }
 
+    /// <summary>Sets an in-memory authored prompt override for an available agent. For built-in agents, this replaces only the static base prompt while preserving runtime-owned dynamic prompt composition and behavior. The special `general-purpose` agent is not overrideable. Overrides are not persisted; resumed and forked sessions start without them, so the host must re-apply them.</summary>
+    /// <param name="id">Stable effective agent id. Plugin namespace separators are normalized.</param>
+    /// <param name="prompt">Replacement authored prompt. Empty text is valid.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetPromptAsync(string id, string prompt, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(prompt);
+        _session.ThrowIfDisposed();
+
+        var request = new AgentSetPromptRequest { SessionId = _session.SessionId, Id = id, Prompt = prompt };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.agent.setPrompt", [request], cancellationToken);
+    }
+
     /// <summary>Gets the currently selected custom agent for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The currently selected custom agent, or null when using the default agent.</returns>
@@ -25711,6 +26128,18 @@ public sealed class McpOauthApi
 
         var request = new McpOauthHandlePendingRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
         return await CopilotClient.InvokeRpcAsync<McpOauthHandlePendingResult>(_session.Rpc, "session.mcp.oauth.handlePendingRequest", [request], cancellationToken);
+    }
+
+    /// <summary>Notifies the session that MCP OAuth authentication succeeded and updated credentials were persisted, so cached tool definitions can be refreshed.</summary>
+    /// <param name="serverName">Name of the MCP server whose OAuth credentials were updated. Omit only when the host cannot identify the server.</param>
+    /// <param name="refreshSessionToken">Whether the target session must mint a session-scoped access token instead of reusing a shared access token persisted by another session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task AuthenticationStateChangedAsync(string? serverName = null, bool? refreshSessionToken = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new McpOauthAuthenticationStateChangedRequest { SessionId = _session.SessionId, ServerName = serverName, RefreshSessionToken = refreshSessionToken };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.oauth.authenticationStateChanged", [request], cancellationToken);
     }
 
     /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
@@ -26586,7 +27015,7 @@ public sealed class PermissionsApi
     /// <summary>Sets the allow-all permission mode for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. The `on` mode swaps in unrestricted path and URL managers and emits `session.permissions_changed` on transition; the `auto` mode keeps normal prompt paths active while attaching LLM safety recommendations. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.</summary>
     /// <param name="mode">Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.</param>
     /// <param name="enabled">Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`.</param>
-    /// <param name="model">Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.</param>
+    /// <param name="model">Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.</param>
     /// <param name="source">Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the operation succeeded and reports the post-mutation state.</returns>
@@ -27476,20 +27905,22 @@ public sealed class EventLogApi
         _session = session;
     }
 
-    /// <summary>Reads a batch of session events from a cursor, optionally waiting for new events.</summary>
+    /// <summary>Reads a batch of session events from a cursor, optionally waiting for new events. Supports tail-first reads via `direction: backward`.</summary>
     /// <param name="cursor">Opaque cursor returned by a previous read. Omit on the first call to start from the beginning of the session's persisted history.</param>
     /// <param name="max">Maximum number of events to return in this batch (1–1000, default 200).</param>
-    /// <param name="waitMs">Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).</param>
+    /// <param name="waitMs">Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen). This applies to forward reads only: a backward read always returns immediately and ignores `waitMs`, because backward paging covers persisted history only while new events append at the tail (the opposite end from a backward page), so no blocking or ephemeral delivery can occur.</param>
     /// <param name="types">Either '*' to receive all event types, or a non-empty list of event types to receive.</param>
     /// <param name="agentScope">Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.</param>
-    /// <param name="includeEphemeral">When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order).</param>
+    /// <param name="agentIds">Optional non-empty list of subagent identifiers. When provided, only events owned by one of these agents are returned; ownership recognizes the event envelope's agentId plus legacy data.agentId and data.parentToolCallId markers. This filter takes precedence over agentScope.</param>
+    /// <param name="direction">Direction to page through the session's persisted event history. 'forward' (default) pages from the cursor toward newer events (or from the start of history when no cursor is given). 'backward' enables tail-first reads: with no cursor it returns the NEWEST `max` events, and the returned cursor pages toward OLDER events on subsequent backward reads. Events within a returned batch are always in chronological (oldest-to-newest) order, even for a backward read. Backward reads cover PERSISTED history only; ephemeral events are never returned by a backward read. `direction` selects the INITIAL read only: the returned cursor is self-describing, so a continuation read pages in the cursor's own direction regardless of the `direction` passed alongside it — a forward cursor always pages forward and a backward cursor always pages backward. Pass the direction that matches the cursor to avoid confusion.</param>
+    /// <param name="includeEphemeral">When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order). Ignored by backward reads, which always cover persisted history only.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Batch of session events returned by a read, with cursor and continuation metadata.</returns>
-    public async Task<EventsReadResult> ReadAsync(string? cursor = null, long? max = null, TimeSpan? waitMs = null, object? types = null, EventsAgentScope? agentScope = null, bool? includeEphemeral = null, CancellationToken cancellationToken = default)
+    public async Task<EventsReadResult> ReadAsync(string? cursor = null, long? max = null, TimeSpan? waitMs = null, object? types = null, EventsAgentScope? agentScope = null, IList<string>? agentIds = null, EventsReadDirection? direction = null, bool? includeEphemeral = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new EventLogReadRequest { SessionId = _session.SessionId, Cursor = cursor, Max = max, Wait = waitMs, Types = CopilotClient.ToJsonElementForWire(types), AgentScope = agentScope, IncludeEphemeral = includeEphemeral };
+        var request = new EventLogReadRequest { SessionId = _session.SessionId, Cursor = cursor, Max = max, Wait = waitMs, Types = CopilotClient.ToJsonElementForWire(types), AgentScope = agentScope, AgentIds = agentIds, Direction = direction, IncludeEphemeral = includeEphemeral };
         return await CopilotClient.InvokeRpcAsync<EventsReadResult>(_session.Rpc, "session.eventLog.read", [request], cancellationToken);
     }
 
@@ -28251,8 +28682,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionOperation), TypeInfoPropertyName = "SessionEventsFactoryPermissionOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.FactoryPermissionPhase), TypeInfoPropertyName = "SessionEventsFactoryPermissionPhase")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedData), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedData")]
 [JsonSerializable(typeof(GitHub.Copilot.FactoryRunUpdatedEvent), TypeInfoPropertyName = "SessionEventsFactoryRunUpdatedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.GitHubMcpToolConfig), TypeInfoPropertyName = "SessionEventsGitHubMcpToolConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.GitHubRepoRef), TypeInfoPropertyName = "SessionEventsGitHubRepoRef")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
 [JsonSerializable(typeof(GitHub.Copilot.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
@@ -28317,6 +28751,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
@@ -28329,6 +28764,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestFactory), TypeInfoPropertyName = "SessionEventsPermissionRequestFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
@@ -28396,6 +28832,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationFactoryCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationFactoryCompletedStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
 [JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
@@ -28457,6 +28895,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalFactory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalFactory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
 [JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
@@ -28488,6 +28927,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AgentReloadResult))]
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
+[JsonSerializable(typeof(AgentSetPromptRequest))]
 [JsonSerializable(typeof(AgentsDiscoverRequest))]
 [JsonSerializable(typeof(AgentsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(AllowAllPermissionSetResult))]
@@ -28547,6 +28987,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(DebugCollectLogsResult))]
 [JsonSerializable(typeof(DebugCollectLogsSkippedEntry))]
 [JsonSerializable(typeof(DiscoveredCanvas))]
+[JsonSerializable(typeof(DiscoveredExtension))]
+[JsonSerializable(typeof(DiscoveredExtensionPlugin))]
+[JsonSerializable(typeof(DiscoveredExtensions))]
+[JsonSerializable(typeof(DiscoveredExtensionsDisableRequest))]
+[JsonSerializable(typeof(DiscoveredExtensionsEnableRequest))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(EnqueueCommandParams))]
 [JsonSerializable(typeof(EnqueueCommandResult))]
@@ -28693,6 +29138,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpIsServerRunningResult))]
 [JsonSerializable(typeof(McpListToolsRequest))]
 [JsonSerializable(typeof(McpListToolsResult))]
+[JsonSerializable(typeof(McpOauthAuthenticationStateChangedRequest))]
 [JsonSerializable(typeof(McpOauthHandlePendingRequest))]
 [JsonSerializable(typeof(McpOauthHandlePendingResult))]
 [JsonSerializable(typeof(McpOauthLoginRequest))]

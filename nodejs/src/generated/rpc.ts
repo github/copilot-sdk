@@ -419,6 +419,32 @@ export type DebugCollectLogsResultKind =
   /** A directory containing redacted files was written. */
   | "directory";
 /**
+ * Persisted extension discovery source
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensionSource".
+ */
+/** @experimental */
+export type DiscoveredExtensionSource =
+  /** Extension discovered from the user's extensions directory. */
+  | "user"
+  /** Extension contributed by an installed plugin. */
+  | "plugin";
+/**
+ * Effective extension loading and agent-management mode
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensionMode".
+ */
+/** @experimental */
+export type DiscoveredExtensionMode =
+  /** Extensions are not loaded. */
+  | "disabled"
+  /** Extensions are loaded, but the agent cannot create, reload, or manage them. */
+  | "load_only"
+  /** Extensions are loaded and the agent can create, reload, and manage them. */
+  | "load_and_augment";
+/**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -455,7 +481,19 @@ export type EventsAgentScope =
   /** Return events from all agents. */
   | "all";
 /**
- * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.
+ * Direction to page through the session's persisted event history. 'forward' pages from the cursor toward newer events; 'backward' returns the newest window first (tail-first) and pages toward older events. Events within a returned batch are always chronological (oldest-to-newest), even for a backward read.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "EventsReadDirection".
+ */
+/** @experimental */
+export type EventsReadDirection =
+  /** Page from the cursor toward newer events (default). */
+  | "forward"
+  /** Tail-first: return the newest events and page toward older events. */
+  | "backward";
+/**
+ * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "EventsCursorStatus".
@@ -1561,6 +1599,7 @@ export type PermissionDecisionApproveForSessionApproval =
   | PermissionDecisionApproveForSessionApprovalMemory
   | PermissionDecisionApproveForSessionApprovalCustomTool
   | PermissionDecisionApproveForSessionApprovalExtensionManagement
+  | PermissionDecisionApproveForSessionApprovalFactory
   | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess;
 /**
  * Approval to persist for this location
@@ -1578,6 +1617,7 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalMemory
   | PermissionDecisionApproveForLocationApprovalCustomTool
   | PermissionDecisionApproveForLocationApprovalExtensionManagement
+  | PermissionDecisionApproveForLocationApprovalFactory
   | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess;
 /**
  * Tool approval to persist and apply
@@ -1595,6 +1635,7 @@ export type PermissionsLocationsAddToolApprovalDetails =
   | PermissionsLocationsAddToolApprovalDetailsMemory
   | PermissionsLocationsAddToolApprovalDetailsCustomTool
   | PermissionsLocationsAddToolApprovalDetailsExtensionManagement
+  | PermissionsLocationsAddToolApprovalDetailsFactory
   | PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess;
 /**
  * Whether the location is a git repo or directory
@@ -3729,6 +3770,23 @@ export interface AgentSelectResult {
   agent: AgentInfo;
 }
 /**
+ * An in-memory authored prompt override for an available agent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AgentSetPromptRequest".
+ */
+/** @experimental */
+export interface AgentSetPromptRequest {
+  /**
+   * Stable effective agent id. Plugin namespace separators are normalized.
+   */
+  id: string;
+  /**
+   * Replacement authored prompt. Empty text is valid.
+   */
+  prompt: string;
+}
+/**
  * Optional project paths to include when enumerating agent discovery directories.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4873,6 +4931,86 @@ export interface DebugCollectLogsSkippedEntry {
   reason: string;
 }
 /**
+ * Discovered extension metadata and persistent enablement state.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtension".
+ */
+/** @experimental */
+export interface DiscoveredExtension {
+  /**
+   * Source-qualified ID accepted by both server and session extension enablement methods
+   */
+  id: string;
+  /**
+   * Human-readable extension name
+   */
+  name: string;
+  /**
+   * Absolute path to the extension entry module, suitable for revealing it in a file manager
+   */
+  path: string;
+  source: DiscoveredExtensionSource;
+  /**
+   * Whether this extension's persistent per-ID preference is enabled
+   */
+  enabled: boolean;
+  plugin?: DiscoveredExtensionPlugin;
+}
+/**
+ * Installed plugin that contributes a discovered extension.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensionPlugin".
+ */
+/** @experimental */
+export interface DiscoveredExtensionPlugin {
+  /**
+   * Installed plugin name
+   */
+  name: string;
+}
+/**
+ * Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensions".
+ */
+/** @experimental */
+export interface DiscoveredExtensions {
+  /**
+   * Discovered user and enabled installed-plugin extensions from persisted Copilot home state
+   */
+  extensions: DiscoveredExtension[];
+  mode: DiscoveredExtensionMode;
+}
+/**
+ * Source-qualified extension identifiers to persistently disable for future sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensionsDisableRequest".
+ */
+/** @experimental */
+export interface DiscoveredExtensionsDisableRequest {
+  /**
+   * Source-qualified user or plugin extension IDs to disable
+   */
+  ids: string[];
+}
+/**
+ * Source-qualified extension identifiers to persistently enable for future sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredExtensionsEnableRequest".
+ */
+/** @experimental */
+export interface DiscoveredExtensionsEnableRequest {
+  /**
+   * Source-qualified user or plugin extension IDs to enable
+   */
+  ids: string[];
+}
+/**
  * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4942,13 +5080,20 @@ export interface EventLogReadRequest {
    */
   max?: number;
   /**
-   * Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).
+   * Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen). This applies to forward reads only: a backward read always returns immediately and ignores `waitMs`, because backward paging covers persisted history only while new events append at the tail (the opposite end from a backward page), so no blocking or ephemeral delivery can occur.
    */
   waitMs?: number;
   types?: EventLogTypes;
   agentScope?: EventsAgentScope;
   /**
-   * When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order).
+   * Optional non-empty list of subagent identifiers. When provided, only events owned by one of these agents are returned; ownership recognizes the event envelope's agentId plus legacy data.agentId and data.parentToolCallId markers. This filter takes precedence over agentScope.
+   *
+   * @minItems 1
+   */
+  agentIds?: [string, ...string[]];
+  direction?: EventsReadDirection;
+  /**
+   * When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order). Ignored by backward reads, which always cover persisted history only.
    */
   includeEphemeral?: boolean;
 }
@@ -4987,15 +5132,15 @@ export interface EventLogTailResult {
 /** @experimental */
 export interface EventsReadResult {
   /**
-   * Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`.
+   * Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
    */
   events: SessionEvent[];
   /**
-   * Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned.
+   * Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
    */
   cursor: string;
   /**
-   * True when the read returned `max` events and more events are available immediately. When false, the next read with a non-zero `waitMs` will block until a new event arrives or the wait expires.
+   * True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
    */
   hasMore: boolean;
   cursorStatus: EventsCursorStatus;
@@ -8141,6 +8286,23 @@ export interface McpToolUi {
   visibility?: McpToolUiVisibility[];
 }
 /**
+ * Identifies the MCP server whose persisted OAuth credentials were updated.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthAuthenticationStateChangedRequest".
+ */
+/** @experimental */
+export interface McpOauthAuthenticationStateChangedRequest {
+  /**
+   * Name of the MCP server whose OAuth credentials were updated. Omit only when the host cannot identify the server.
+   */
+  serverName?: string;
+  /**
+   * Whether the target session must mint a session-scoped access token instead of reusing a shared access token persisted by another session.
+   */
+  refreshSessionToken?: boolean;
+}
+/**
  * Pending MCP OAuth request ID and host-provided token or cancellation response.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9744,6 +9906,23 @@ export interface PermissionDecisionApproveForSessionApprovalExtensionManagement 
   operation?: string;
 }
 /**
+ * Session-scoped factory approval, optionally narrowed by approval key.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionApproveForSessionApprovalFactory".
+ */
+/** @experimental */
+export interface PermissionDecisionApproveForSessionApprovalFactory {
+  /**
+   * Approval covering factory operations.
+   */
+  kind: "factory";
+  /**
+   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   */
+  approvalKey?: string;
+}
+/**
  * Session-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9905,6 +10084,23 @@ export interface PermissionDecisionApproveForLocationApprovalExtensionManagement
    * Optional operation identifier; when omitted, the approval covers all extension management operations.
    */
   operation?: string;
+}
+/**
+ * Location-scoped factory approval, optionally narrowed by approval key.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionApproveForLocationApprovalFactory".
+ */
+/** @experimental */
+export interface PermissionDecisionApproveForLocationApprovalFactory {
+  /**
+   * Approval covering factory operations.
+   */
+  kind: "factory";
+  /**
+   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   */
+  approvalKey?: string;
 }
 /**
  * Location-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
@@ -10280,6 +10476,23 @@ export interface PermissionsLocationsAddToolApprovalDetailsExtensionManagement {
    * Optional operation identifier; when omitted, the approval covers all extension management operations.
    */
   operation?: string;
+}
+/**
+ * Location-persisted factory approval, optionally narrowed by approval key.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsLocationsAddToolApprovalDetailsFactory".
+ */
+/** @experimental */
+export interface PermissionsLocationsAddToolApprovalDetailsFactory {
+  /**
+   * Approval covering factory operations.
+   */
+  kind: "factory";
+  /**
+   * Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+   */
+  approvalKey?: string;
 }
 /**
  * Location-persisted tool approval details for an extension's permission-gated capability access, keyed by extension name.
@@ -10785,7 +10998,7 @@ export interface PermissionsSetAllowAllRequest {
    */
   enabled?: boolean;
   /**
-   * Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+   * Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
    */
   model?: string;
   source?: PermissionsSetAllowAllSource;
@@ -12812,6 +13025,10 @@ export interface SandboxConfig {
    * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
    */
   ghAuth?: boolean;
+  /**
+   * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).
+   */
+  allowDevToolCaches?: boolean;
 }
 /**
  * User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -18444,6 +18661,30 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("mcp.discover", params),
         },
         /** @experimental */
+        extensions: {
+            /**
+             * Discovers user and enabled installed-plugin extensions from persisted Copilot home state, including enablement preferences. Launch-scoped additional plugins are not included.
+             *
+             * @returns Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
+             */
+            discover: async (): Promise<DiscoveredExtensions> =>
+                connection.sendRequest("extensions.discover", {}),
+            /**
+             * Persistently enables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.enable to update them.
+             *
+             * @param params Source-qualified extension identifiers to persistently enable for future sessions.
+             */
+            enable: async (params: DiscoveredExtensionsEnableRequest): Promise<void> =>
+                connection.sendRequest("extensions.enable", params),
+            /**
+             * Persistently disables extension IDs for future sessions. Active sessions are unchanged; use session.extensions.disable to update them.
+             *
+             * @param params Source-qualified extension identifiers to persistently disable for future sessions.
+             */
+            disable: async (params: DiscoveredExtensionsDisableRequest): Promise<void> =>
+                connection.sendRequest("extensions.disable", params),
+        },
+        /** @experimental */
         plugins: {
             /**
              * Lists plugins installed in user/global state.
@@ -19569,6 +19810,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             list: async (params?: SessionAgentListRequest): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId, ...params }),
             /**
+             * Sets an in-memory authored prompt override for an available agent. For built-in agents, this replaces only the static base prompt while preserving runtime-owned dynamic prompt composition and behavior. The special `general-purpose` agent is not overrideable. Overrides are not persisted; resumed and forked sessions start without them, so the host must re-apply them.
+             *
+             * @param params An in-memory authored prompt override for an available agent.
+             */
+            setPrompt: async (params: AgentSetPromptRequest): Promise<void> =>
+                connection.sendRequest("session.agent.setPrompt", { sessionId, ...params }),
+            /**
              * Gets the currently selected custom agent for the session.
              *
              * @returns The currently selected custom agent, or null when using the default agent.
@@ -19844,6 +20092,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 handlePendingRequest: async (params: McpOauthHandlePendingRequest): Promise<McpOauthHandlePendingResult> =>
                     connection.sendRequest("session.mcp.oauth.handlePendingRequest", { sessionId, ...params }),
+                /**
+                 * Notifies the session that MCP OAuth authentication succeeded and updated credentials were persisted, so cached tool definitions can be refreshed.
+                 *
+                 * @param params Identifies the MCP server whose persisted OAuth credentials were updated.
+                 */
+                authenticationStateChanged: async (params: McpOauthAuthenticationStateChangedRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.oauth.authenticationStateChanged", { sessionId, ...params }),
                 /**
                  * Starts OAuth authentication for a remote MCP server.
                  *
@@ -20744,7 +20999,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         /** @experimental */
         eventLog: {
             /**
-             * Reads a batch of session events from a cursor, optionally waiting for new events.
+             * Reads a batch of session events from a cursor, optionally waiting for new events. Supports tail-first reads via `direction: backward`.
              *
              * @param params Cursor, batch size, and optional long-poll/filter parameters for reading session events.
              *
