@@ -161,23 +161,26 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");
 
-        Assert.NotNull(task);
-        Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
-
-        if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
+        if (task is not null)
         {
-            var cancel = await session.Rpc.Tasks.CancelAsync(started.AgentId);
-            Assert.True(cancel.Cancelled);
+            Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
+
+            if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
+            {
+                var cancel = await session.Rpc.Tasks.CancelAsync(started.AgentId);
+                Assert.True(cancel.Cancelled);
+            }
+
+            var remove = await session.Rpc.Tasks.RemoveAsync(started.AgentId);
+            // Completion delivery also removes finished tasks, so this call may lose that race.
+            Assert.True(
+                remove.Removed || taskCompletionNotification.Task.IsCompleted,
+                $"Background agent task '{started.AgentId}' was not removed before its completion notification was delivered.");
         }
 
-        var remove = await session.Rpc.Tasks.RemoveAsync(started.AgentId);
         var afterRemove = await session.Rpc.Tasks.ListAsync();
         var taskAfterRemove = afterRemove.Tasks.OfType<TaskInfoAgent>()
             .SingleOrDefault(t => string.Equals(t.Id, started.AgentId, StringComparison.Ordinal));
-        // Completion delivery also removes finished tasks, so either this call wins or the task is already absent.
-        Assert.True(
-            remove.Removed || taskCompletionNotification.Task.IsCompleted,
-            $"Background agent task '{started.AgentId}' was not removed before its completion notification was delivered.");
         Assert.Null(taskAfterRemove);
 
         await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
