@@ -152,10 +152,10 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             async () =>
             {
                 task = await FindAgentTaskAsync(session, started.AgentId);
-                return task?.LatestResponse?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Result?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed;
+                return task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Cancelled
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Idle;
             },
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");
