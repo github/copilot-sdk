@@ -726,6 +726,13 @@ export class CopilotSession {
             resolveIdle = resolve;
             rejectWithError = reject;
         });
+        // A `session.error` can arrive while `send()`'s RPC is still in flight —
+        // that is, before the `Promise.race` below attaches the first consumer to
+        // `idlePromise`. Mark the promise handled now so such a rejection can never
+        // surface as an unhandled rejection, which terminates the process under
+        // Node's default `--unhandled-rejections=throw`. This extra `catch` does
+        // not consume the rejection: the `race` below still sees and rethrows it.
+        void idlePromise.catch(() => {});
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
 
