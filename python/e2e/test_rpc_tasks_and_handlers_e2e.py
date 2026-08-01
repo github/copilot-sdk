@@ -455,7 +455,8 @@ class TestRpcTasksAndHandlers:
                 remove = await session.rpc.tasks.remove(TasksRemoveRequest(id=task_id))
                 # Completion delivery also removes finished tasks, so this call may lose that race.
                 assert remove.removed or task_completion_notification.done(), (
-                    f"Task {task_id} was not removed before its completion notification was delivered"
+                    f"Task {task_id} was not removed before its completion "
+                    "notification was delivered"
                 )
 
             after_remove = await session.rpc.tasks.list()
