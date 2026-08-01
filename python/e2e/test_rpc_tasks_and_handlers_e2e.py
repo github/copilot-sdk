@@ -459,8 +459,8 @@ class TestRpcTasksAndHandlers:
                 None,
             )
             # Completion delivery also removes finished tasks, so this call may lose that race.
-            assert remove.removed or task_after_remove is None, (
-                f"Task {task_id} remained tracked after remove returned false"
+            assert remove.removed or task_completion_notification.done(), (
+                f"Task {task_id} was not removed before its completion notification was delivered"
             )
             assert task_after_remove is None
 

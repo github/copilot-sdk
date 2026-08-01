@@ -152,10 +152,11 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             async () =>
             {
                 task = await FindAgentTaskAsync(session, started.AgentId);
-                return task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Cancelled
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Idle;
+                return task is null
+                    || task.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
+                    || task.Status == GitHub.Copilot.Rpc.TaskStatus.Failed
+                    || task.Status == GitHub.Copilot.Rpc.TaskStatus.Cancelled
+                    || task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle;
             },
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");
@@ -175,8 +176,8 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             .SingleOrDefault(t => string.Equals(t.Id, started.AgentId, StringComparison.Ordinal));
         // Completion delivery also removes finished tasks, so either this call wins or the task is already absent.
         Assert.True(
-            remove.Removed || taskAfterRemove is null,
-            $"Background agent task '{started.AgentId}' remained tracked after remove returned false.");
+            remove.Removed || taskCompletionNotification.Task.IsCompleted,
+            $"Background agent task '{started.AgentId}' was not removed before its completion notification was delivered.");
         Assert.Null(taskAfterRemove);
 
         await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
