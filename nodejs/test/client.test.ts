@@ -2166,6 +2166,17 @@ describe("CopilotClient", () => {
             expect((client as any).isExternalServer).toBe(true);
         });
 
+        it("should parse bracketed IPv6 host:port URL format", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forUri("[::1]:9000"),
+                logLevel: "error",
+            });
+
+            expect((client as any).runtimePort).toBe(9000);
+            expect((client as any).actualHost).toBe("::1");
+            expect((client as any).isExternalServer).toBe(true);
+        });
+
         it("should parse http://host:port URL format", () => {
             const client = new CopilotClient({
                 connection: RuntimeConnection.forUri("http://localhost:7000"),
@@ -2174,6 +2185,17 @@ describe("CopilotClient", () => {
 
             expect((client as any).runtimePort).toBe(7000);
             expect((client as any).actualHost).toBe("localhost");
+            expect((client as any).isExternalServer).toBe(true);
+        });
+
+        it("should parse http://[ipv6]:port URL format", () => {
+            const client = new CopilotClient({
+                connection: RuntimeConnection.forUri("http://[::1]:7000"),
+                logLevel: "error",
+            });
+
+            expect((client as any).runtimePort).toBe(7000);
+            expect((client as any).actualHost).toBe("::1");
             expect((client as any).isExternalServer).toBe(true);
         });
 
@@ -2192,6 +2214,15 @@ describe("CopilotClient", () => {
             expect(() => {
                 new CopilotClient({
                     connection: RuntimeConnection.forUri("invalid-url"),
+                    logLevel: "error",
+                });
+            }).toThrow(/Invalid cliUrl format/);
+        });
+
+        it("should throw error for URL path", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("http://localhost:8080/path"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid cliUrl format/);

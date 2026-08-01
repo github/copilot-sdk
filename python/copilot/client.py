@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
+from urllib.parse import urlsplit
 
 from ._diagnostics import log_timing
 from ._ffi_runtime_host import FfiRuntimeHost
@@ -1630,8 +1631,8 @@ class CopilotClient:
         """
         Parse CLI URL into host and port.
 
-        Supports formats: "host:port", "http://host:port", "https://host:port",
-        or just "port".
+        Supports formats: "host:port", "[ipv6]:port", "http://host:port",
+        "https://host:port", or just "port".
 
         Args:
             url: The CLI URL to parse.
@@ -1642,10 +1643,7 @@ class CopilotClient:
         Raises:
             ValueError: If the URL format is invalid or the port is out of range.
         """
-        import re
-
-        # Remove protocol if present
-        clean_url = re.sub(r"^https?://", "", url)
+        clean_url = url.strip()
 
         # Check if it's just a port number
         if clean_url.isdigit():
@@ -1654,21 +1652,22 @@ class CopilotClient:
                 raise ValueError(f"Invalid port in cli_url: {url}")
             return ("localhost", port)
 
-        # Parse host:port format
-        parts = clean_url.split(":")
-        if len(parts) != 2:
+        parsed = urlsplit(clean_url if "://" in clean_url else f"tcp://{clean_url}")
+        if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
             raise ValueError(f"Invalid cli_url format: {url}")
 
-        host = parts[0] if parts[0] else "localhost"
         try:
-            port = int(parts[1])
+            port = parsed.port
         except ValueError as e:
             raise ValueError(f"Invalid port in cli_url: {url}") from e
+
+        if port is None:
+            raise ValueError(f"Invalid cli_url format: {url}")
 
         if port <= 0 or port > 65535:
             raise ValueError(f"Invalid port in cli_url: {url}")
 
-        return (host, port)
+        return (parsed.hostname or "localhost", port)
 
     async def __aenter__(self) -> CopilotClient:
         """

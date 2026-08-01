@@ -49,12 +49,30 @@ func TestClient_URLParsing(t *testing.T) {
 		}
 	})
 
+	t.Run("should parse bracketed IPv6 host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "[::1]:9000"},
+		})
+		if client.actualPort != 9000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://localhost:7000"},
 		})
 		if client.actualPort != 7000 || client.actualHost != "localhost" {
 			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
+
+	t.Run("should parse http://[ipv6]:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "http://[::1]:7000"},
+		})
+		if client.actualPort != 7000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -74,6 +92,15 @@ func TestClient_URLParsing(t *testing.T) {
 			}
 		}()
 		NewClient(&ClientOptions{Connection: URIConnection{URL: "invalid-url"}})
+	})
+
+	t.Run("should panic for URL path", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for invalid URL path")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "http://localhost:8080/path"}})
 	})
 
 	t.Run("should panic for invalid port - too high", func(t *testing.T) {

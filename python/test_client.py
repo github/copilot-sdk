@@ -1196,10 +1196,22 @@ class TestURLParsing:
         assert client._actual_host == "127.0.0.1"
         assert client._is_external_server
 
+    def test_parse_bracketed_ipv6_host_port_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
+        assert client._runtime_port == 9000
+        assert client._actual_host == "::1"
+        assert client._is_external_server
+
     def test_parse_http_url(self):
         client = CopilotClient(connection=RuntimeConnection.for_uri("http://localhost:7000"))
         assert client._runtime_port == 7000
         assert client._actual_host == "localhost"
+        assert client._is_external_server
+
+    def test_parse_http_ipv6_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("http://[::1]:7000"))
+        assert client._runtime_port == 7000
+        assert client._actual_host == "::1"
         assert client._is_external_server
 
     def test_parse_https_url(self):
@@ -1211,6 +1223,10 @@ class TestURLParsing:
     def test_invalid_url_format(self):
         with pytest.raises(ValueError, match="Invalid cli_url format"):
             CopilotClient(connection=RuntimeConnection.for_uri("invalid-url"))
+
+    def test_invalid_url_path(self):
+        with pytest.raises(ValueError, match="Invalid cli_url format"):
+            CopilotClient(connection=RuntimeConnection.for_uri("http://localhost:8080/path"))
 
     def test_invalid_port_too_high(self):
         with pytest.raises(ValueError, match="Invalid port in cli_url"):
