@@ -1538,6 +1538,7 @@ type CopilotUserResponse struct {
 // or be removed.
 type CopilotUserResponseEndpoints struct {
 	API           *string `json:"api,omitempty"`
+	Exp           *string `json:"exp,omitempty"`
 	OriginTracker *string `json:"origin-tracker,omitempty"`
 	Proxy         *string `json:"proxy,omitempty"`
 	Telemetry     *string `json:"telemetry,omitempty"`
@@ -4550,7 +4551,8 @@ type MCPServer struct {
 	SourcePlugin *string `json:"sourcePlugin,omitempty"`
 	// Plugin version that provided this server, when source is plugin.
 	SourcePluginVersion *string `json:"sourcePluginVersion,omitempty"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or
+	// not_configured
 	Status MCPServerStatus `json:"status"`
 }
 
@@ -4952,8 +4954,6 @@ type Model struct {
 	Billing *ModelBilling `json:"billing,omitempty"`
 	// Model capabilities and limits
 	Capabilities ModelCapabilities `json:"capabilities"`
-	// Default reasoning effort level (only present if model supports reasoning effort)
-	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
 	ID string `json:"id"`
 	// Model capability category for grouping in the model picker
@@ -5220,7 +5220,9 @@ type ModelSwitchToRequest struct {
 	// `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id
 	// (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
 	ModelID string `json:"modelId"`
-	// Reasoning effort level to use for the model. "none" disables reasoning.
+	// Reasoning effort level to use for the model. CAPI values are model-defined and validated
+	// against the selected model; BYOK providers may define additional values. "none" disables
+	// reasoning. When omitted, no effort override is applied.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode to request for supported model clients
 	ReasoningSummary *ReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -9493,7 +9495,9 @@ type SessionOpenOptions struct {
 	// rejected.
 	// Experimental: Providers is part of an experimental API and may change or be removed.
 	Providers []NamedProviderConfig `json:"providers,omitzero"`
-	// Initial reasoning effort level.
+	// Initial reasoning effort level. CAPI values are model-defined and validated against the
+	// selected model; BYOK providers may define additional values. When omitted, no effort
+	// override is applied.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Initial reasoning summary mode for supported model clients.
 	ReasoningSummary *SessionOpenOptionsReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -10533,7 +10537,9 @@ type SessionUpdateOptionsParams struct {
 	OrganizationCustomInstructions *string `json:"organizationCustomInstructions,omitempty"`
 	// Custom model-provider configuration (BYOK).
 	Provider *ProviderConfig `json:"provider,omitempty"`
-	// Reasoning effort for the selected model (model-defined enum).
+	// Reasoning effort for the selected model. CAPI values are model-defined and validated
+	// against the selected model; BYOK providers may define additional values. When omitted, no
+	// effort override is applied.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode for supported model clients.
 	ReasoningSummary *OptionsUpdateReasoningSummary `json:"reasoningSummary,omitempty"`
@@ -12542,6 +12548,9 @@ type WorkspacesWriteAutopilotObjectiveResult struct {
 type AbortReason string
 
 const (
+	// Autopilot stopped the run because the active objective reached its user-set
+	// --max-ai-credits limit.
+	AbortReasonAutopilotCreditLimit AbortReason = "autopilot_credit_limit"
 	// A remote command requested the abort.
 	AbortReasonRemoteCommand AbortReason = "remote_command"
 	// An MCP server delivered a user.abort notification.
@@ -13573,7 +13582,8 @@ const (
 	MCPServerSourceWorkspace MCPServerSource = "workspace"
 )
 
-// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or
+// not_configured
 // Experimental: MCPServerStatus is part of an experimental API and may change or be removed.
 type MCPServerStatus string
 
@@ -13590,6 +13600,10 @@ const (
 	MCPServerStatusNotConfigured MCPServerStatus = "not_configured"
 	// The server connection is still being established.
 	MCPServerStatusPending MCPServerStatus = "pending"
+	// The server was intentionally stopped and can be restarted on demand when policy permits;
+	// a server quarantined by restrictive managed policy stays stopped and cannot be restarted
+	// until the policy allows it.
+	MCPServerStatusStopped MCPServerStatus = "stopped"
 )
 
 // How environment-variable values supplied to MCP servers are resolved. "direct" passes

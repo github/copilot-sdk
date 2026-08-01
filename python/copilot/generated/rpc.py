@@ -126,6 +126,7 @@ class CopilotUserResponseEndpoints:
     """Endpoint URLs from the raw Copilot `/copilot_internal/v2/token` user-response passthrough."""
 
     api: str | None = None
+    exp: str | None = None
     origin_tracker: str | None = None
     proxy: str | None = None
     telemetry: str | None = None
@@ -134,15 +135,18 @@ class CopilotUserResponseEndpoints:
     def from_dict(obj: Any) -> 'CopilotUserResponseEndpoints':
         assert isinstance(obj, dict)
         api = from_union([from_str, from_none], obj.get("api"))
+        exp = from_union([from_str, from_none], obj.get("exp"))
         origin_tracker = from_union([from_str, from_none], obj.get("origin-tracker"))
         proxy = from_union([from_str, from_none], obj.get("proxy"))
         telemetry = from_union([from_str, from_none], obj.get("telemetry"))
-        return CopilotUserResponseEndpoints(api, origin_tracker, proxy, telemetry)
+        return CopilotUserResponseEndpoints(api, exp, origin_tracker, proxy, telemetry)
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.api is not None:
             result["api"] = from_union([from_str, from_none], self.api)
+        if self.exp is not None:
+            result["exp"] = from_union([from_str, from_none], self.exp)
         if self.origin_tracker is not None:
             result["origin-tracker"] = from_union([from_str, from_none], self.origin_tracker)
         if self.proxy is not None:
@@ -17353,8 +17357,9 @@ class MCPServer:
     """Server name (config key)"""
 
     status: McpServerStatus
-    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
-
+    """Connection status: connected, failed, needs-auth, pending, disabled, stopped, or
+    not_configured
+    """
     error: str | None = None
     """Error message if the server failed to connect"""
 
@@ -25206,8 +25211,10 @@ class SessionOpenOptions:
     rejected.
     """
     reasoning_effort: str | None = None
-    """Initial reasoning effort level."""
-
+    """Initial reasoning effort level. CAPI values are model-defined and validated against the
+    selected model; BYOK providers may define additional values. When omitted, no effort
+    override is applied.
+    """
     reasoning_summary: ReasoningSummary | None = None
     """Initial reasoning summary mode for supported model clients."""
 
@@ -25612,8 +25619,10 @@ class SessionUpdateOptionsParams:
     """Custom model-provider configuration (BYOK)."""
 
     reasoning_effort: str | None = None
-    """Reasoning effort for the selected model (model-defined enum)."""
-
+    """Reasoning effort for the selected model. CAPI values are model-defined and validated
+    against the selected model; BYOK providers may define additional values. When omitted, no
+    effort override is applied.
+    """
     reasoning_summary: ReasoningSummary | None = None
     """Reasoning summary mode for supported model clients."""
 
@@ -27221,9 +27230,6 @@ class Model:
     billing: ModelBilling | None = None
     """Billing information"""
 
-    default_reasoning_effort: str | None = None
-    """Default reasoning effort level (only present if model supports reasoning effort)"""
-
     model_picker_category: ModelPickerCategory | None = None
     """Model capability category for grouping in the model picker"""
 
@@ -27243,12 +27249,11 @@ class Model:
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
         billing = from_union([ModelBilling.from_dict, from_none], obj.get("billing"))
-        default_reasoning_effort = from_union([from_str, from_none], obj.get("defaultReasoningEffort"))
         model_picker_category = from_union([ModelPickerCategory, from_none], obj.get("modelPickerCategory"))
         model_picker_price_category = from_union([ModelPickerPriceCategory, from_none], obj.get("modelPickerPriceCategory"))
         policy = from_union([ModelPolicy.from_dict, from_none], obj.get("policy"))
         supported_reasoning_efforts = from_union([lambda x: from_list(from_str, x), from_none], obj.get("supportedReasoningEfforts"))
-        return Model(capabilities, id, name, billing, default_reasoning_effort, model_picker_category, model_picker_price_category, policy, supported_reasoning_efforts)
+        return Model(capabilities, id, name, billing, model_picker_category, model_picker_price_category, policy, supported_reasoning_efforts)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -27257,8 +27262,6 @@ class Model:
         result["name"] = from_str(self.name)
         if self.billing is not None:
             result["billing"] = from_union([lambda x: to_class(ModelBilling, x), from_none], self.billing)
-        if self.default_reasoning_effort is not None:
-            result["defaultReasoningEffort"] = from_union([from_str, from_none], self.default_reasoning_effort)
         if self.model_picker_category is not None:
             result["modelPickerCategory"] = from_union([lambda x: to_enum(ModelPickerCategory, x), from_none], self.model_picker_category)
         if self.model_picker_price_category is not None:
@@ -27315,8 +27318,10 @@ class ModelSwitchToRequest:
     """Override individual model capabilities resolved by the runtime"""
 
     reasoning_effort: str | None = None
-    """Reasoning effort level to use for the model. "none" disables reasoning."""
-
+    """Reasoning effort level to use for the model. CAPI values are model-defined and validated
+    against the selected model; BYOK providers may define additional values. "none" disables
+    reasoning. When omitted, no effort override is applied.
+    """
     reasoning_summary: ReasoningSummary | None = None
     """Reasoning summary mode to request for supported model clients"""
 

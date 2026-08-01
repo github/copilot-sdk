@@ -36,7 +36,7 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
     public record SessionMcpServerStatusChangedEventData(
         /** Name of the MCP server whose status changed */
         @JsonProperty("serverName") String serverName,
-        /** Connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
+        /** Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured */
         @JsonProperty("status") McpServerStatus status,
         /** Error message if the server entered a failed state */
         @JsonProperty("error") String error

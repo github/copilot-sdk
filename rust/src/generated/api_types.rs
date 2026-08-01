@@ -1376,6 +1376,8 @@ pub struct AllowAllPermissionState {
 pub struct CopilotUserResponseEndpoints {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp: Option<String>,
     #[serde(rename = "origin-tracker", skip_serializing_if = "Option::is_none")]
     pub origin_tracker: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -7176,7 +7178,7 @@ pub struct McpServer {
     /// Plugin version that provided this server, when source is plugin.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_plugin_version: Option<String>,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
     pub status: McpServerStatus,
 }
 
@@ -8017,9 +8019,6 @@ pub struct Model {
     pub billing: Option<ModelBilling>,
     /// Model capabilities and limits
     pub capabilities: ModelCapabilities,
-    /// Default reasoning effort level (only present if model supports reasoning effort)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_reasoning_effort: Option<String>,
     /// Model identifier (e.g., "claude-sonnet-4.5")
     pub id: String,
     /// Model capability category for grouping in the model picker
@@ -8234,7 +8233,7 @@ pub struct ModelSwitchToRequest {
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     /// Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
     pub model_id: String,
-    /// Reasoning effort level to use for the model. "none" disables reasoning.
+    /// Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode to request for supported model clients
@@ -13958,7 +13957,7 @@ pub struct SessionOpenOptions {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<Vec<NamedProviderConfig>>,
-    /// Initial reasoning effort level.
+    /// Initial reasoning effort level. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Initial reasoning summary mode for supported model clients.
@@ -15309,7 +15308,7 @@ pub struct SessionUpdateOptionsParams {
     /// Custom model-provider configuration (BYOK).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
-    /// Reasoning effort for the selected model (model-defined enum).
+    /// Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode for supported model clients.

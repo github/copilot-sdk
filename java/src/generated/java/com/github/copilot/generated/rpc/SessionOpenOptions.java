@@ -29,7 +29,7 @@ public record SessionOpenOptions(
     @JsonProperty("name") String name,
     /** Initial model identifier. */
     @JsonProperty("model") String model,
-    /** Initial reasoning effort level. */
+    /** Initial reasoning effort level. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Initial reasoning summary mode for supported model clients. */
     @JsonProperty("reasoningSummary") SessionOpenOptionsReasoningSummary reasoningSummary,

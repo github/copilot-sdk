@@ -2876,6 +2876,7 @@ export interface CopilotUserResponseEndpoints {
   "origin-tracker"?: string;
   proxy?: string;
   telemetry?: string;
+  exp?: string;
 }
 /**
  * Quota snapshot map from the raw Copilot user-response passthrough, with chat, completions, premium-interactions, and other entries.
@@ -9025,10 +9026,6 @@ export interface Model {
    * Supported reasoning effort levels (only present if model supports reasoning effort)
    */
   supportedReasoningEfforts?: string[];
-  /**
-   * Default reasoning effort level (only present if model supports reasoning effort)
-   */
-  defaultReasoningEffort?: string;
   modelPickerCategory?: ModelPickerCategory;
   modelPickerPriceCategory?: ModelPickerPriceCategory;
 }
@@ -9377,7 +9374,7 @@ export interface ModelSwitchToRequest {
    */
   modelId: string;
   /**
-   * Reasoning effort level to use for the model. "none" disables reasoning.
+   * Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
@@ -14347,7 +14344,7 @@ export interface SessionOpenOptions {
    */
   model?: string;
   /**
-   * Initial reasoning effort level.
+   * Initial reasoning effort level. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
    */
   reasoningEffort?: string;
   reasoningSummary?: SessionOpenOptionsReasoningSummary;
@@ -15623,7 +15620,7 @@ export interface SessionUpdateOptionsParams {
   model?: string;
   modelCapabilitiesOverrides?: ModelCapabilitiesOverride;
   /**
-   * Reasoning effort for the selected model (model-defined enum).
+   * Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
    */
   reasoningEffort?: string;
   reasoningSummary?: OptionsUpdateReasoningSummary;

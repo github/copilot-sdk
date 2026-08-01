@@ -844,6 +844,9 @@ type AssistantUsageData struct {
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
+	// Number of tools available to the model for this call
+	// Internal: AvailableToolCount is part of the SDK's internal API surface and is not intended for external use.
+	AvailableToolCount *int64 `json:"availableToolCount,omitempty"`
 	// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
 	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Number of tokens read from prompt cache
@@ -871,6 +874,9 @@ type AssistantUsageData struct {
 	InterTokenLatencyMs *float64 `json:"interTokenLatencyMs,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
+	// Number of tool calls returned by the model
+	// Internal: NumToolCalls is part of the SDK's internal API surface and is not intended for external use.
+	NumToolCalls *int64 `json:"numToolCalls,omitempty"`
 	// Number of output tokens produced
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Parent tool call ID when this usage originates from a sub-agent
@@ -890,6 +896,12 @@ type AssistantUsageData struct {
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
 	TimeToFirstTokenMs *float64 `json:"timeToFirstTokenMs,omitempty"`
+	// Tool-call counts keyed by tool name
+	// Internal: ToolCounts is part of the SDK's internal API surface and is not intended for external use.
+	ToolCounts map[string]int64 `json:"toolCounts,omitzero"`
+	// Number of tokens used by tool definitions for this call
+	// Internal: ToolTokenCount is part of the SDK's internal API surface and is not intended for external use.
+	ToolTokenCount *int64 `json:"toolTokenCount,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
@@ -1210,7 +1222,7 @@ type SessionMCPServerStatusChangedData struct {
 	Error *string `json:"error,omitempty"`
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 	Status MCPServerStatus `json:"status"`
 }
 
@@ -2608,7 +2620,7 @@ type MCPServersLoadedServer struct {
 	PluginVersion *string `json:"pluginVersion,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 	Status MCPServerStatus `json:"status"`
 	// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
 	Transport *MCPServerTransport `json:"transport,omitempty"`
@@ -3849,6 +3861,9 @@ type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 
 // Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
 type ToolExecutionStartShellToolInfo struct {
+	// The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
+	// Experimental: DisplayCommand is part of an experimental API and may change or be removed.
+	DisplayCommand *string `json:"displayCommand,omitempty"`
 	// Whether the command includes a file write redirection (e.g., > or >>).
 	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
 	// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.

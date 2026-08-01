@@ -28,7 +28,7 @@ public record SessionModelSwitchToParams(
     @JsonProperty("sessionId") String sessionId,
     /** Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model. */
     @JsonProperty("modelId") String modelId,
-    /** Reasoning effort level to use for the model. "none" disables reasoning. */
+    /** Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode to request for supported model clients */
     @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
