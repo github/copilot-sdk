@@ -445,20 +445,28 @@ class TestRpcTasksAndHandlers:
                 60.0,
                 f"Task {task_id} did not produce a final observable state",
             )
-            assert found_task is not None, f"Task {task_id} disappeared before it completed"
-            assert "TASK_AGENT_DONE" in (found_task.latest_response or found_task.result or "")
-            await asyncio.wait_for(task_completion_notification, timeout=30.0)
+            if found_task is not None:
+                assert "TASK_AGENT_DONE" in (found_task.latest_response or found_task.result or "")
 
-            if found_task.status == TaskInfoStatus.IDLE:
-                cancel = await session.rpc.tasks.cancel(TasksCancelRequest(id=task_id))
-                assert cancel.cancelled is True
+                if found_task.status == TaskInfoStatus.IDLE:
+                    cancel = await session.rpc.tasks.cancel(TasksCancelRequest(id=task_id))
+                    assert cancel.cancelled is True
 
-            # Remove the task
-            remove = await session.rpc.tasks.remove(TasksRemoveRequest(id=task_id))
-            assert remove.removed is True
+                remove = await session.rpc.tasks.remove(TasksRemoveRequest(id=task_id))
+                # Completion delivery also removes finished tasks, so this call may lose that race.
+                assert remove.removed or task_completion_notification.done(), (
+                    f"Task {task_id} was not removed before its completion "
+                    "notification was delivered"
+                )
 
             after_remove = await session.rpc.tasks.list()
-            assert not any(t.id == task_id for t in (after_remove.tasks or []))
+            task_after_remove = next(
+                (task for task in (after_remove.tasks or []) if task.id == task_id),
+                None,
+            )
+            assert task_after_remove is None
+
+            await asyncio.wait_for(task_completion_notification, timeout=30.0)
         finally:
             unsubscribe()
             await session.disconnect()
