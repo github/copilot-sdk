@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
@@ -43,6 +44,45 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 	decodedObjectValue, ok := decodedObject.(*ExternalToolTextResultForLlm)
 	if !ok || decodedObjectValue.TextResultForLlm != "expanded" {
 		t.Fatalf("unmarshal object result = %#v", decodedObject)
+	}
+}
+
+func TestPingResultUnmarshalsIsoTimestamp(t *testing.T) {
+	var result PingResult
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":"2026-05-21T08:29:54.042Z","protocolVersion":3}`), &result); err != nil {
+		t.Fatalf("unmarshal ping result: %v", err)
+	}
+
+	expected := time.Date(2026, 5, 21, 8, 29, 54, 42_000_000, time.UTC)
+	if !result.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", result.Timestamp, expected)
+	}
+	if result.ProtocolVersion != 3 {
+		t.Fatalf("protocol version = %d, want 3", result.ProtocolVersion)
+	}
+}
+
+func TestPingResultUnmarshalsEpochMillisecondsTimestamp(t *testing.T) {
+	var result PingResult
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":1779352370134,"protocolVersion":3}`), &result); err != nil {
+		t.Fatalf("unmarshal ping result: %v", err)
+	}
+
+	expected := time.UnixMilli(1779352370134)
+	if !result.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", result.Timestamp, expected)
+	}
+}
+
+func TestPingResultUnmarshalsStringEpochMillisecondsTimestamp(t *testing.T) {
+	var result PingResult
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":"1779352370134","protocolVersion":3}`), &result); err != nil {
+		t.Fatalf("unmarshal ping result: %v", err)
+	}
+
+	expected := time.UnixMilli(1779352370134)
+	if !result.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", result.Timestamp, expected)
 	}
 }
 

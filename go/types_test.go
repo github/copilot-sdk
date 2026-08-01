@@ -3,6 +3,7 @@ package copilot
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
@@ -30,6 +31,45 @@ func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
 	}
 	if headers["Authorization"] != "Bearer provider-token" {
 		t.Fatalf("expected Authorization header, got %v", headers["Authorization"])
+	}
+}
+
+func TestPingResponseUnmarshalsIsoTimestamp(t *testing.T) {
+	var response PingResponse
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":"2026-05-21T08:29:54.042Z","protocolVersion":3}`), &response); err != nil {
+		t.Fatalf("unmarshal ping response: %v", err)
+	}
+
+	expected := time.Date(2026, 5, 21, 8, 29, 54, 42_000_000, time.UTC)
+	if !response.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", response.Timestamp, expected)
+	}
+	if response.ProtocolVersion == nil || *response.ProtocolVersion != 3 {
+		t.Fatalf("protocol version = %v, want 3", response.ProtocolVersion)
+	}
+}
+
+func TestPingResponseUnmarshalsEpochMillisecondsTimestamp(t *testing.T) {
+	var response PingResponse
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":1779352370134,"protocolVersion":3}`), &response); err != nil {
+		t.Fatalf("unmarshal ping response: %v", err)
+	}
+
+	expected := time.UnixMilli(1779352370134)
+	if !response.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", response.Timestamp, expected)
+	}
+}
+
+func TestPingResponseUnmarshalsStringEpochMillisecondsTimestamp(t *testing.T) {
+	var response PingResponse
+	if err := json.Unmarshal([]byte(`{"message":"pong","timestamp":"1779352370134","protocolVersion":3}`), &response); err != nil {
+		t.Fatalf("unmarshal ping response: %v", err)
+	}
+
+	expected := time.UnixMilli(1779352370134)
+	if !response.Timestamp.Equal(expected) {
+		t.Fatalf("timestamp = %s, want %s", response.Timestamp, expected)
 	}
 }
 
