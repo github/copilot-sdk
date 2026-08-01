@@ -296,9 +296,9 @@ The SDK supports image attachments via the `Attachments` parameter. You can atta
 await session.SendAsync(new MessageOptions
 {
     Prompt = "What's in this image?",
-    Attachments = new List<UserMessageDataAttachmentsItem>
+    Attachments = new List<Attachment>
     {
-        new UserMessageDataAttachmentsItemFile
+        new AttachmentFile
         {
             Path = "/path/to/image.jpg",
             DisplayName = "image.jpg",
@@ -310,9 +310,9 @@ await session.SendAsync(new MessageOptions
 await session.SendAsync(new MessageOptions
 {
     Prompt = "What's in this image?",
-    Attachments = new List<UserMessageDataAttachmentsItem>
+    Attachments = new List<Attachment>
     {
-        new UserMessageDataAttachmentsItemBlob
+        new AttachmentBlob
         {
             Data = base64ImageData,
             MimeType = "image/png",
@@ -721,11 +721,10 @@ await session2.SendAsync(new MessageOptions { Prompt = "Hello from session 2" })
 await session.SendAsync(new MessageOptions
 {
     Prompt = "Analyze this file",
-    Attachments = new List<UserMessageDataAttachmentsItem>
+    Attachments = new List<Attachment>
     {
-        new UserMessageDataAttachmentsItem
+        new AttachmentFile
         {
-            Type = UserMessageDataAttachmentsItemType.File,
             Path = "/path/to/file.cs",
             DisplayName = "My File"
         }
