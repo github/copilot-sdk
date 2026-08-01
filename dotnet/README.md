@@ -84,7 +84,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 - `Connection` - How to connect to the Copilot runtime. Defaults to `null` (equivalent to `RuntimeConnection.ForStdio()` with the bundled runtime). See "RuntimeConnection" below.
 - `LogLevel` - Runtime log level. Accepts well-known values `CopilotLogLevel.None`, `Error`, `Warning`, `Info`, `Debug`, `All`. Defaults to null (the runtime's own default).
-- `WorkingDirectory` - Working directory for the runtime process.
+- `WorkingDirectory` - Working directory for the runtime process. When not set, the spawned runtime inherits the calling application's current working directory.
 - `BaseDirectory` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime process. When not set, the runtime defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when connecting via `RuntimeConnection.ForUri(...)`.
 - `EnableRemoteSessions` - Enables remote-session features.
 - `Environment` - Environment variables to pass to the runtime process.
@@ -131,10 +131,33 @@ Create a new conversation session.
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
+- `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
+- `EnableConfigDiscovery` - Enables runtime discovery of supported configuration. Set to `false` to avoid loading project or user configuration for the session.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+
+`CopilotClientOptions.WorkingDirectory` and `SessionConfig.WorkingDirectory` control different working directories. The client option controls the OS working directory for the spawned runtime process. The session option is sent to the runtime as the session working directory. If the session value is `null`, the runtime falls back to its process working directory, so a desktop or debug app may pick up the application's binary directory.
+
+For a project-neutral chat, set both values to a stable neutral directory and disable config discovery:
+
+```csharp
+var neutralDirectory = Path.GetTempPath();
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    WorkingDirectory = neutralDirectory
+});
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    WorkingDirectory = neutralDirectory,
+    EnableConfigDiscovery = false
+});
+```
+
+Use the same `WorkingDirectory` and `EnableConfigDiscovery` values with `ResumeSessionConfig` when resuming the session to keep the context stable.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 
