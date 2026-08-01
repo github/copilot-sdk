@@ -152,17 +152,16 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             async () =>
             {
                 task = await FindAgentTaskAsync(session, started.AgentId);
-                return task?.LatestResponse?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Result?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
-                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed;
+                return task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Cancelled
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Idle;
             },
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");
 
         Assert.NotNull(task);
         Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
-        await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
         {
@@ -171,10 +170,16 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         }
 
         var remove = await session.Rpc.Tasks.RemoveAsync(started.AgentId);
-        Assert.True(remove.Removed);
-
         var afterRemove = await session.Rpc.Tasks.ListAsync();
-        Assert.DoesNotContain(afterRemove.Tasks.OfType<TaskInfoAgent>(), t => string.Equals(t.Id, started.AgentId, StringComparison.Ordinal));
+        var taskAfterRemove = afterRemove.Tasks.OfType<TaskInfoAgent>()
+            .SingleOrDefault(t => string.Equals(t.Id, started.AgentId, StringComparison.Ordinal));
+        // Completion delivery also removes finished tasks, so either this call wins or the task is already absent.
+        Assert.True(
+            remove.Removed || taskAfterRemove is null,
+            $"Background agent task '{started.AgentId}' remained tracked after remove returned false.");
+        Assert.Null(taskAfterRemove);
+
+        await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
