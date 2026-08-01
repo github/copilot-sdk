@@ -3845,6 +3845,7 @@ public sealed class PingResponse
     /// <summary>
     /// ISO 8601 timestamp when the ping was processed.
     /// </summary>
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
     public DateTimeOffset Timestamp { get; set; }
     /// <summary>
     /// Protocol version supported by the server.

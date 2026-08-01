@@ -914,6 +914,82 @@ public class SerializationTests
     }
 
     [Fact]
+    public void PingResponse_DeserializesIsoTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var response = JsonSerializer.Deserialize<GitHub.Copilot.PingResponse>(
+            """{"message":"pong","timestamp":"2026-05-21T08:29:54.042Z","protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(response);
+        Assert.Equal("pong", response.Message);
+        Assert.Equal(3, response.ProtocolVersion);
+        Assert.Equal(DateTimeOffset.Parse("2026-05-21T08:29:54.042Z"), response.Timestamp);
+    }
+
+    [Fact]
+    public void PingResponse_DeserializesEpochMillisecondsTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var response = JsonSerializer.Deserialize<GitHub.Copilot.PingResponse>(
+            """{"message":"pong","timestamp":1779352370134,"protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(response);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1779352370134), response.Timestamp);
+    }
+
+    [Fact]
+    public void PingResponse_DeserializesStringEpochMillisecondsTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var response = JsonSerializer.Deserialize<GitHub.Copilot.PingResponse>(
+            """{"message":"pong","timestamp":"1779352370134","protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(response);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1779352370134), response.Timestamp);
+    }
+
+    [Fact]
+    public void RpcPingResult_DeserializesIsoTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var result = JsonSerializer.Deserialize<PingResult>(
+            """{"message":"pong","timestamp":"2026-05-21T08:29:54.042Z","protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(result);
+        Assert.Equal("pong", result.Message);
+        Assert.Equal(3, result.ProtocolVersion);
+        Assert.Equal(DateTimeOffset.Parse("2026-05-21T08:29:54.042Z"), result.Timestamp);
+    }
+
+    [Fact]
+    public void RpcPingResult_DeserializesEpochMillisecondsTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var result = JsonSerializer.Deserialize<PingResult>(
+            """{"message":"pong","timestamp":1779352370134,"protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(result);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1779352370134), result.Timestamp);
+    }
+
+    [Fact]
+    public void RpcPingResult_DeserializesStringEpochMillisecondsTimestamp_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var result = JsonSerializer.Deserialize<PingResult>(
+            """{"message":"pong","timestamp":"1779352370134","protocolVersion":3}""",
+            options);
+
+        Assert.NotNull(result);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1779352370134), result.Timestamp);
+    }
+
+    [Fact]
     public void AgentStopHookOutput_SerializesBlockDecision_WithSdkOptions()
     {
         var options = GetSerializerOptions();

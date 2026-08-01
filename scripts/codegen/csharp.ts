@@ -492,6 +492,9 @@ function isMillisecondsDurationProperty(propName: string | undefined, schema: JS
     return isDurationProperty(schema) && !isSecondsDurationPropertyName(propName);
 }
 
+function isFlexiblePingTimestampProperty(className: string, propName: string, schema: JSONSchema7): boolean {
+    return className === "PingResult" && propName === "timestamp" && schema.format === "date-time";
+}
 
 const COPYRIGHT = `/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -1736,6 +1739,9 @@ function emitRpcClass(
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
         if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isFlexiblePingTimestampProperty(inlineTypeParentName, propName, prop)) {
+            lines.push(`    [JsonConverter(typeof(GitHub.Copilot.UnixMillisecondsDateTimeOffsetConverter))]`);
+        }
         const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 

@@ -31,6 +31,7 @@ public sealed class PingResult
     public long ProtocolVersion { get; set; }
 
     /// <summary>ISO 8601 timestamp when the server handled the ping.</summary>
+    [JsonConverter(typeof(GitHub.Copilot.UnixMillisecondsDateTimeOffsetConverter))]
     [JsonPropertyName("timestamp")]
     public DateTimeOffset Timestamp { get; set; }
 }
