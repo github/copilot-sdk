@@ -59,7 +59,7 @@ line-length = 100
 target-version = "py311"
 exclude = [
     "generated",
-    "copilot/generated",
+    "copilot/_generated",
 ]
 
 [tool.ruff.lint]
@@ -82,7 +82,7 @@ invalid-argument-type = "warn"
 [tool.ty.src]
 exclude = [
     "generated",
-    "copilot/generated",
+    "copilot/_generated",
     "copilot/test_*.py",
 ]
 

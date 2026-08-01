@@ -10,7 +10,7 @@ on:
       - 'scripts/codegen/**'
       - 'nodejs/src/generated/**'
       - 'dotnet/src/Generated/**'
-      - 'python/copilot/generated/**'
+      - 'python/copilot/_generated/**'
       - 'go/generated_*.go'
       - 'go/rpc/**'
       - 'rust/src/generated/**'

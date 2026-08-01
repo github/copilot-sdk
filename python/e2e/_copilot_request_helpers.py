@@ -24,7 +24,7 @@ import httpx
 import pytest_asyncio
 
 from copilot import CopilotClient, CopilotRequestHandler, RuntimeConnection
-from copilot.generated.session_events import AssistantMessageData
+from copilot.session_events import AssistantMessageData
 
 from .testharness import E2ETestContext
 

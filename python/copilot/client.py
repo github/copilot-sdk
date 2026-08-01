@@ -33,6 +33,26 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._ffi_runtime_host import FfiRuntimeHost
+from ._generated.rpc import (
+    ClientGlobalApiHandlers,
+    ClientSessionApiHandlers,
+    GitHubTelemetryNotification,
+    ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext,  # noqa: F401
+    OpenCanvasInstance,
+    RemoteSessionMode,
+    ServerRpc,
+    _ConnectResult,
+    _HookInvokeRequest,
+    _HookInvokeResponse,
+    from_datetime,
+    register_client_global_api_handlers,
+    register_client_session_api_handlers,
+)
+from ._generated.session_events import (
+    SessionEvent,
+    session_event_from_dict,
+)
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
     CopilotClientMode,
@@ -64,26 +84,6 @@ from .canvas import (
     ExtensionInfo,
 )
 from .copilot_request_handler import CopilotRequestHandler, create_copilot_request_adapter
-from .generated.rpc import (
-    ClientGlobalApiHandlers,
-    ClientSessionApiHandlers,
-    GitHubTelemetryNotification,
-    ModelBillingTokenPrices,
-    ModelBillingTokenPricesLongContext,  # noqa: F401
-    OpenCanvasInstance,
-    RemoteSessionMode,
-    ServerRpc,
-    _ConnectResult,
-    _HookInvokeRequest,
-    _HookInvokeResponse,
-    from_datetime,
-    register_client_global_api_handlers,
-    register_client_session_api_handlers,
-)
-from .generated.session_events import (
-    SessionEvent,
-    session_event_from_dict,
-)
 from .session import (
     AutoModeSwitchHandler,
     BearerTokenProvider,
@@ -4356,7 +4356,7 @@ class CopilotClient:
         If the patch is rejected, tear the session down so empty-mode callers
         never end up with a permissive session.
         """
-        from .generated.rpc import SessionInstalledPlugin, SessionUpdateOptionsParams
+        from ._generated.rpc import SessionInstalledPlugin, SessionUpdateOptionsParams
 
         patch = _post_create_options_patch(
             mode,

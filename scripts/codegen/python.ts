@@ -2950,7 +2950,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     code = renameInternalPythonSymbols(code, typeNames);
     code = appendPythonSessionEventsAllList(code, processed, typeNames);
 
-    const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", code);
+    const outPath = await writeGeneratedFile("python/copilot/_generated/session_events.py", code);
     console.log(`  ✓ ${outPath}`);
 }
 
@@ -3408,13 +3408,13 @@ def _patch_model_capabilities(data: dict) -> dict:
 
     finalCode = appendPythonRpcAllList(finalCode, rpcDefinitions);
 
-    const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
+    const outPath = await writeGeneratedFile("python/copilot/_generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
 }
 
 /**
  * Appends an `__all__` list to the generated session-events module so that
- * the public ``copilot.session_events`` shim can ``from .generated.session_events
+ * the public ``copilot.session_events`` shim can ``from ._generated.session_events
  * import *`` without leaking helper functions (``from_str``, ``from_int``, …)
  * or TypeVars (``T``, ``EnumT``). Internal-marked types are omitted so they
  * remain hidden from the SDK's public surface even though their renamed
@@ -3464,7 +3464,7 @@ function appendPythonSessionEventsAllList(code: string, _schema: JSONSchema7, in
 
 /**
  * Appends an `__all__` list to the generated RPC module so that the public
- * ``copilot.rpc`` shim can ``from .generated.rpc import *`` without leaking
+ * ``copilot.rpc`` shim can ``from ._generated.rpc import *`` without leaking
  * helper functions (``from_str``, ``from_int``, …) or TypeVars
  * (``T``, ``EnumT``).
  *

@@ -1,7 +1,7 @@
 import re
 import types
 
-from copilot.generated import rpc
+from copilot._generated import rpc
 
 
 def test_permission_approval_exports_are_union_aliases():

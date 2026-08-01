@@ -15,7 +15,7 @@ both seams:
   transparent forwarding connection via the ``websockets`` library.
 
 :func:`create_copilot_request_adapter` converts a handler into the generated
-:class:`~copilot.generated.rpc.LlmInferenceHandler` shape so the RPC dispatcher
+:class:`~copilot.rpc.LlmInferenceHandler` shape so the RPC dispatcher
 can route inbound ``httpRequestStart`` / ``httpRequestChunk`` frames through it.
 """
 
@@ -27,7 +27,7 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .generated.rpc import (
+from ._generated.rpc import (
     LlmInferenceHTTPRequestChunkRequest,
     LlmInferenceHTTPRequestChunkResult,
     LlmInferenceHTTPRequestStartRequest,

@@ -177,7 +177,7 @@ class TestEventForwardCompatibility:
         the schema default instead of ``None`` and broke ``from_dict(to_dict(x))``
         round-trips for instances where the field was ``None``.
         """
-        from copilot.generated.session_events import (
+        from copilot._generated.session_events import (
             _load_PermissionPromptRequest,
             _load_PermissionRequest,
         )
@@ -224,13 +224,13 @@ class TestEventForwardCompatibility:
 
         # PermissionRequest is now a discriminated union; the dispatch loader
         # should round-trip via the correct variant class.
-        from copilot.generated.session_events import _load_PermissionRequest
+        from copilot._generated.session_events import _load_PermissionRequest
 
         round_tripped = _load_PermissionRequest(permission.to_dict())
         assert isinstance(round_tripped, PermissionRequestMemory)
         assert round_tripped == permission
         # PermissionPromptRequest likewise.
-        from copilot.generated.session_events import _load_PermissionPromptRequest
+        from copilot._generated.session_events import _load_PermissionPromptRequest
 
         round_tripped_prompt = _load_PermissionPromptRequest(prompt.to_dict())
         assert isinstance(round_tripped_prompt, PermissionPromptRequestMemory)

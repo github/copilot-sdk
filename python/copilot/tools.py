@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overloa
 from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
-    from .generated.rpc import CurrentToolMetadata
+    from ._generated.rpc import CurrentToolMetadata
 
-from .generated.rpc import (
+from ._generated.rpc import (
     ExternalToolTextResultForLlm,
     ExternalToolTextResultForLlmBinaryResultsForLlm,
     ExternalToolTextResultForLlmBinaryResultsForLlmType,
