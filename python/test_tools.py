@@ -1,6 +1,10 @@
 """Unit tests for define_tool"""
 
+import datetime
+import decimal
+import enum
 import json
+import uuid
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -387,6 +391,33 @@ class TestNormalizeResult:
         result = _normalize_result(items)
         parsed = json.loads(result.text_result_for_llm)
         assert parsed == [{"name": "a", "value": 1}, {"name": "b", "value": 2}]
+        assert result.result_type == "success"
+
+    def test_pydantic_model_with_non_primitive_fields_is_serialized(self):
+        class IssueState(enum.StrEnum):
+            OPEN = "open"
+            CLOSED = "closed"
+
+        class Issue(BaseModel):
+            id: uuid.UUID
+            created_at: datetime.datetime
+            price: decimal.Decimal
+            state: IssueState
+
+        issue = Issue(
+            id=uuid.UUID("6b686a99-0000-4000-8000-000000000000"),
+            created_at=datetime.datetime(2026, 8, 1, 1, 49, 10),
+            price=decimal.Decimal("1.5"),
+            state=IssueState.OPEN,
+        )
+        result = _normalize_result(issue)
+        parsed = json.loads(result.text_result_for_llm)
+        assert parsed == {
+            "id": "6b686a99-0000-4000-8000-000000000000",
+            "created_at": "2026-08-01T01:49:10",
+            "price": "1.5",
+            "state": "open",
+        }
         assert result.result_type == "success"
 
     def test_raises_for_unserializable_value(self):

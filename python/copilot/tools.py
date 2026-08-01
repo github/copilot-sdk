@@ -351,7 +351,11 @@ def _normalize_result(result: Any) -> ToolResult:
     # Everything else gets JSON-serialized (with Pydantic model support)
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
-            return obj.model_dump()
+            # mode="json" coerces datetime/UUID/Decimal/Enum fields to JSON-native
+            # types. The default mode="python" leaves them as native objects, which
+            # json.dumps then passes back into this hook and we reject as
+            # unserializable -- turning an ordinary tool result into a failure.
+            return obj.model_dump(mode="json")
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:
