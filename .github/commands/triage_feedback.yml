@@ -4,7 +4,8 @@ description: Provide feedback on the triage agent's classification of this issue
 surfaces:
   - issue
 steps:
-  - type: form
+  - type: format
+          check-up
     style: modal
     body:
       - type: textarea
