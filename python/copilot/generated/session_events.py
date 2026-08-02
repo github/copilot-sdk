@@ -5304,6 +5304,7 @@ class PermissionRequestFactory:
     max_total_subagents: int | None = None
     timeout_seconds: float | None = None
     tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRequestFactory":
@@ -5323,6 +5324,7 @@ class PermissionRequestFactory:
         max_total_subagents = from_union([from_none, from_int], obj.get("maxTotalSubagents"))
         timeout_seconds = from_union([from_none, from_float], obj.get("timeoutSeconds"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
         return PermissionRequestFactory(
             approval_key=approval_key,
             can_persist_approval=can_persist_approval,
@@ -5339,6 +5341,7 @@ class PermissionRequestFactory:
             max_total_subagents=max_total_subagents,
             timeout_seconds=timeout_seconds,
             tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
         )
 
     def to_dict(self) -> dict:
@@ -5368,6 +5371,8 @@ class PermissionRequestFactory:
             result["timeoutSeconds"] = from_union([from_none, to_float], self.timeout_seconds)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
         return result
 
 

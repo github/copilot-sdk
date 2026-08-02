@@ -28,6 +28,12 @@ func (r PermissionRequestExtensionPermissionAccess) RequiresManagedApproval() bo
 
 // RequiresManagedApproval reports whether managed policy requires an explicit
 // human decision for this request.
+func (r PermissionRequestFactory) RequiresManagedApproval() bool {
+	return managedApprovalRequired(r.ManagedApprovalRequired)
+}
+
+// RequiresManagedApproval reports whether managed policy requires an explicit
+// human decision for this request.
 func (r PermissionRequestHook) RequiresManagedApproval() bool {
 	return managedApprovalRequired(r.ManagedApprovalRequired)
 }

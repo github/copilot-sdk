@@ -461,7 +461,7 @@ export class CopilotSession {
                 },
             });
 
-            return toPublicFactoryRunResult(envelope);
+            return this.settleFactoryRun(envelope);
         }) as SessionFactoryApi["run"],
         resume: (async (runId: string, options?: Parameters<SessionFactoryApi["resume"]>[1]) => {
             let response;
@@ -483,7 +483,7 @@ export class CopilotSession {
                 }
                 throw error;
             }
-            return toPublicFactoryRunResult(response.run);
+            return this.settleFactoryRun(response.run);
         }) as SessionFactoryApi["resume"],
         getRun: async (runId) => toPublicFactoryRunResult(await this.rpc.factory.getRun({ runId })),
         waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
@@ -493,6 +493,20 @@ export class CopilotSession {
             this.rpc.factory.getRunProgress({ runId, ...options }),
         cancel: async (runId) => toPublicFactoryRunResult(await this.rpc.factory.cancel({ runId })),
     };
+
+    /**
+     * Resolve a start/resume envelope into the terminal envelope callers expect.
+     *
+     * The CLI may answer `session.factory.run` and `session.factory.resume`
+     * before the run settles, so a non-terminal envelope is followed by a wait
+     * on the run's terminal state.
+     */
+    private settleFactoryRun(envelope: WireFactoryRunResult): Promise<FactoryRunResult> {
+        if (isFactoryRunTerminal(envelope.status)) {
+            return Promise.resolve(toPublicFactoryRunResult(envelope));
+        }
+        return this.waitForFactoryRun(envelope.runId);
+    }
 
     /**
      * Resolve when a factory run reaches a terminal status.

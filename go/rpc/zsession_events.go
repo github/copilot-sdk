@@ -3061,6 +3061,8 @@ type PermissionRequestFactory struct {
 	DeclaredTimeoutSeconds         *float64 `json:"declaredTimeoutSeconds,omitempty"`
 	// Factory description
 	Description string `json:"description"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Effective AI-credit limit; omitted means unlimited
 	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
 	// Effective concurrent-subagent limit; omitted means unlimited

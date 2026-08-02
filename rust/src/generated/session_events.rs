@@ -3322,6 +3322,9 @@ pub struct PermissionRequestFactory {
     pub description: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestFactoryKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Effective AI-credit limit; omitted means unlimited
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_ai_credits: Option<f64>,

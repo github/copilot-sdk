@@ -4731,31 +4731,6 @@ public sealed partial class WorkingDirectoryContext
     public string? RepositoryHost { get; set; }
 }
 
-/// <summary>Per-session configuration for the built-in GitHub MCP server.</summary>
-/// <remarks>Nested data type for <c>GitHubMcpToolConfig</c>.</remarks>
-public sealed partial class GitHubMcpToolConfig
-{
-    /// <summary>Additional GitHub MCP tools requested by the session.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("additionalTools")]
-    public string[]? AdditionalTools { get; set; }
-
-    /// <summary>Additional GitHub MCP toolsets requested by the session.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("additionalToolsets")]
-    public string[]? AdditionalToolsets { get; set; }
-
-    /// <summary>Whether to use the read-write endpoint and request all toolsets.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("enableAllTools")]
-    public bool? EnableAllTools { get; set; }
-
-    /// <summary>Whether to request the GitHub MCP insiders build.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("enableInsidersMode")]
-    public bool? EnableInsidersMode { get; set; }
-}
-
 /// <summary>Optional session limits.</summary>
 /// <remarks>Nested data type for <c>SessionLimitsConfig</c>.</remarks>
 public sealed partial class SessionLimitsConfig
