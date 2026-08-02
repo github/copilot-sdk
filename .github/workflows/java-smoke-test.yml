@@ -1,4 +1,4 @@
-name: "Java smoke test 2"
+name: "Java smoke test"
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-            write
 
 jobs:
   smoke-test-jdk17:
