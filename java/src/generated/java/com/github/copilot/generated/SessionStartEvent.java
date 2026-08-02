@@ -59,6 +59,8 @@ public final class SessionStartEvent extends SessionEvent {
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
         /** Working directory and git context at session start */
         @JsonProperty("context") WorkingDirectoryContext context,
+        /** Per-session GitHub MCP override persisted for cold resume */
+        @JsonProperty("githubMcpToolConfig") GitHubMcpToolConfig gitHubMcpToolConfig,
         /** Whether the session was already in use by another client at start time */
         @JsonProperty("alreadyInUse") Boolean alreadyInUse,
         /** Whether this session supports remote steering via GitHub */

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Allow-all mode to apply for the session.
+ * An in-memory authored prompt override for an available agent.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,16 +23,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsSetAllowAllParams(
+public record SessionAgentSetPromptParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both. */
-    @JsonProperty("mode") PermissionsAllowAllMode mode,
-    /** Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`. */
-    @JsonProperty("enabled") Boolean enabled,
-    /** Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions. */
-    @JsonProperty("model") String model,
-    /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
-    @JsonProperty("source") PermissionsSetAllowAllSource source
+    /** Stable effective agent id. Plugin namespace separators are normalized. */
+    @JsonProperty("id") String id,
+    /** Replacement authored prompt. Empty text is valid. */
+    @JsonProperty("prompt") String prompt
 ) {
 }

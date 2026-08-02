@@ -105,6 +105,8 @@ type (
 	ExtensionsLoadedExtensionStatus                                = rpc.ExtensionsLoadedExtensionStatus
 	ExternalToolCompletedData                                      = rpc.ExternalToolCompletedData
 	ExternalToolRequestedData                                      = rpc.ExternalToolRequestedData
+	FactoryPermissionOperation                                     = rpc.FactoryPermissionOperation
+	FactoryPermissionPhase                                         = rpc.FactoryPermissionPhase
 	FactoryRunUpdatedData                                          = rpc.FactoryRunUpdatedData
 	GitHubRepoRef                                                  = rpc.GitHubRepoRef
 	HandoffRepository                                              = rpc.HandoffRepository
@@ -168,6 +170,7 @@ type (
 	PermissionPromptRequestCustomTool                              = rpc.PermissionPromptRequestCustomTool
 	PermissionPromptRequestExtensionManagement                     = rpc.PermissionPromptRequestExtensionManagement
 	PermissionPromptRequestExtensionPermissionAccess               = rpc.PermissionPromptRequestExtensionPermissionAccess
+	PermissionPromptRequestFactory                                 = rpc.PermissionPromptRequestFactory
 	PermissionPromptRequestHook                                    = rpc.PermissionPromptRequestHook
 	PermissionPromptRequestKind                                    = rpc.PermissionPromptRequestKind
 	PermissionPromptRequestMCP                                     = rpc.PermissionPromptRequestMCP
@@ -183,6 +186,7 @@ type (
 	PermissionRequestedData                                        = rpc.PermissionRequestedData
 	PermissionRequestExtensionManagement                           = rpc.PermissionRequestExtensionManagement
 	PermissionRequestExtensionPermissionAccess                     = rpc.PermissionRequestExtensionPermissionAccess
+	PermissionRequestFactory                                       = rpc.PermissionRequestFactory
 	PermissionRequestHook                                          = rpc.PermissionRequestHook
 	PermissionRequestKind                                          = rpc.PermissionRequestKind
 	PermissionRequestMCP                                           = rpc.PermissionRequestMCP
@@ -298,6 +302,8 @@ type (
 	SystemNotificationAgentCompletedStatus                         = rpc.SystemNotificationAgentCompletedStatus
 	SystemNotificationAgentIdle                                    = rpc.SystemNotificationAgentIdle
 	SystemNotificationData                                         = rpc.SystemNotificationData
+	SystemNotificationFactoryCompleted                             = rpc.SystemNotificationFactoryCompleted
+	SystemNotificationFactoryCompletedStatus                       = rpc.SystemNotificationFactoryCompletedStatus
 	SystemNotificationInstructionDiscovered                        = rpc.SystemNotificationInstructionDiscovered
 	SystemNotificationNewInboxMessage                              = rpc.SystemNotificationNewInboxMessage
 	SystemNotificationShellCompleted                               = rpc.SystemNotificationShellCompleted
@@ -353,6 +359,7 @@ type (
 	UserToolSessionApprovalCustomTool                              = rpc.UserToolSessionApprovalCustomTool
 	UserToolSessionApprovalExtensionManagement                     = rpc.UserToolSessionApprovalExtensionManagement
 	UserToolSessionApprovalExtensionPermissionAccess               = rpc.UserToolSessionApprovalExtensionPermissionAccess
+	UserToolSessionApprovalFactory                                 = rpc.UserToolSessionApprovalFactory
 	UserToolSessionApprovalKind                                    = rpc.UserToolSessionApprovalKind
 	UserToolSessionApprovalMCP                                     = rpc.UserToolSessionApprovalMCP
 	UserToolSessionApprovalMemory                                  = rpc.UserToolSessionApprovalMemory
@@ -451,6 +458,8 @@ const (
 	ExtensionsLoadedExtensionStatusFailed                              = rpc.ExtensionsLoadedExtensionStatusFailed
 	ExtensionsLoadedExtensionStatusRunning                             = rpc.ExtensionsLoadedExtensionStatusRunning
 	ExtensionsLoadedExtensionStatusStarting                            = rpc.ExtensionsLoadedExtensionStatusStarting
+	FactoryPermissionOperationAuthor                                   = rpc.FactoryPermissionOperationAuthor
+	FactoryPermissionOperationRun                                      = rpc.FactoryPermissionOperationRun
 	HandoffSourceTypeLocal                                             = rpc.HandoffSourceTypeLocal
 	HandoffSourceTypeRemote                                            = rpc.HandoffSourceTypeRemote
 	ManagedSettingsEnforcedActionBypassPermissionsBlocked              = rpc.ManagedSettingsEnforcedActionBypassPermissionsBlocked
@@ -510,6 +519,7 @@ const (
 	PermissionPromptRequestKindCustomTool                              = rpc.PermissionPromptRequestKindCustomTool
 	PermissionPromptRequestKindExtensionManagement                     = rpc.PermissionPromptRequestKindExtensionManagement
 	PermissionPromptRequestKindExtensionPermissionAccess               = rpc.PermissionPromptRequestKindExtensionPermissionAccess
+	PermissionPromptRequestKindFactory                                 = rpc.PermissionPromptRequestKindFactory
 	PermissionPromptRequestKindHook                                    = rpc.PermissionPromptRequestKindHook
 	PermissionPromptRequestKindMCP                                     = rpc.PermissionPromptRequestKindMCP
 	PermissionPromptRequestKindMemory                                  = rpc.PermissionPromptRequestKindMemory
@@ -523,6 +533,7 @@ const (
 	PermissionRequestKindCustomTool                                    = rpc.PermissionRequestKindCustomTool
 	PermissionRequestKindExtensionManagement                           = rpc.PermissionRequestKindExtensionManagement
 	PermissionRequestKindExtensionPermissionAccess                     = rpc.PermissionRequestKindExtensionPermissionAccess
+	PermissionRequestKindFactory                                       = rpc.PermissionRequestKindFactory
 	PermissionRequestKindHook                                          = rpc.PermissionRequestKindHook
 	PermissionRequestKindMCP                                           = rpc.PermissionRequestKindMCP
 	PermissionRequestKindMemory                                        = rpc.PermissionRequestKindMemory
@@ -692,8 +703,13 @@ const (
 	SystemMessageRoleSystem                                            = rpc.SystemMessageRoleSystem
 	SystemNotificationAgentCompletedStatusCompleted                    = rpc.SystemNotificationAgentCompletedStatusCompleted
 	SystemNotificationAgentCompletedStatusFailed                       = rpc.SystemNotificationAgentCompletedStatusFailed
+	SystemNotificationFactoryCompletedStatusCancelled                  = rpc.SystemNotificationFactoryCompletedStatusCancelled
+	SystemNotificationFactoryCompletedStatusCompleted                  = rpc.SystemNotificationFactoryCompletedStatusCompleted
+	SystemNotificationFactoryCompletedStatusError                      = rpc.SystemNotificationFactoryCompletedStatusError
+	SystemNotificationFactoryCompletedStatusHalted                     = rpc.SystemNotificationFactoryCompletedStatusHalted
 	SystemNotificationTypeAgentCompleted                               = rpc.SystemNotificationTypeAgentCompleted
 	SystemNotificationTypeAgentIdle                                    = rpc.SystemNotificationTypeAgentIdle
+	SystemNotificationTypeFactoryCompleted                             = rpc.SystemNotificationTypeFactoryCompleted
 	SystemNotificationTypeInstructionDiscovered                        = rpc.SystemNotificationTypeInstructionDiscovered
 	SystemNotificationTypeNewInboxMessage                              = rpc.SystemNotificationTypeNewInboxMessage
 	SystemNotificationTypeShellCompleted                               = rpc.SystemNotificationTypeShellCompleted
@@ -726,6 +742,7 @@ const (
 	UserToolSessionApprovalKindCustomTool                              = rpc.UserToolSessionApprovalKindCustomTool
 	UserToolSessionApprovalKindExtensionManagement                     = rpc.UserToolSessionApprovalKindExtensionManagement
 	UserToolSessionApprovalKindExtensionPermissionAccess               = rpc.UserToolSessionApprovalKindExtensionPermissionAccess
+	UserToolSessionApprovalKindFactory                                 = rpc.UserToolSessionApprovalKindFactory
 	UserToolSessionApprovalKindMCP                                     = rpc.UserToolSessionApprovalKindMCP
 	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
 	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead

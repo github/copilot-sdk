@@ -457,6 +457,7 @@ const PERMISSION_REQUEST_DEFINITION_NAMES = [
     "PermissionRequestCustomTool",
     "PermissionRequestExtensionManagement",
     "PermissionRequestExtensionPermissionAccess",
+    "PermissionRequestFactory",
     "PermissionRequestHook",
     "PermissionRequestMcp",
     "PermissionRequestMemory",
