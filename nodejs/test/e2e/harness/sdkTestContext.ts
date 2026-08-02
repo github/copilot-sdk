@@ -291,7 +291,20 @@ export async function createSdkTestContext({
     });
 
     afterAll(async () => {
-        await copilotClient.stop();
+        const stopResult = await stopClientWithFallback(copilotClient, {
+            // Keep this above the client's runtime-shutdown timeout (10s) so we only
+            // force-stop if graceful teardown has truly stalled.
+            timeoutMs: isInProcess && process.platform === "win32" ? 12_000 : undefined,
+        });
+        if (stopResult.timedOut) {
+            console.warn("WARN: Copilot client stop timed out during e2e cleanup; force-stopped.");
+        } else if (stopResult.errors.length > 0) {
+            console.warn(
+                `WARN: Copilot client stop returned ${stopResult.errors.length} cleanup error(s): ${stopResult.errors
+                    .map((error) => error.message)
+                    .join("; ")}`
+            );
+        }
         await openAiEndpoint.stop(anyTestFailed);
         // On Windows, this Vitest worker can retain the in-process runtime's session.db
         // lock until the worker exits. Retrying from its afterAll hook cannot succeed:
@@ -340,5 +353,33 @@ async function rmDir(message: string, path: string, maxTries = 30): Promise<void
         console.warn(
             `WARN: ${message} failed; leaving temp dir for OS cleanup: ${formatError(error)}`
         );
+    }
+}
+
+async function stopClientWithFallback(
+    client: CopilotClient,
+    options: { timeoutMs?: number } = {}
+): Promise<{ timedOut: boolean; errors: Error[] }> {
+    const stopPromise = client.stop();
+    if (!options.timeoutMs) {
+        return { timedOut: false, errors: await stopPromise };
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<"timeout">((resolve) => {
+        timeoutId = setTimeout(() => resolve("timeout"), options.timeoutMs);
+    });
+    try {
+        const result = await Promise.race([stopPromise, timeoutPromise]);
+        if (result === "timeout") {
+            stopPromise.catch(() => undefined);
+            await client.forceStop();
+            return { timedOut: true, errors: [] };
+        }
+        return { timedOut: false, errors: result };
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
     }
 }
