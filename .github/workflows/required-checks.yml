@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+            write
   pull-requests: read
 
 jobs:
