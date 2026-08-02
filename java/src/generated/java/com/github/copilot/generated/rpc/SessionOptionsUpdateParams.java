@@ -32,7 +32,7 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("model") String model,
     /** Per-property model capability overrides for the selected model. */
     @JsonProperty("modelCapabilitiesOverrides") ModelCapabilitiesOverride modelCapabilitiesOverrides,
-    /** Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied. */
+    /** Reasoning effort for the selected model (model-defined enum). */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode for supported model clients. */
     @JsonProperty("reasoningSummary") OptionsUpdateReasoningSummary reasoningSummary,

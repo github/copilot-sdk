@@ -402,9 +402,7 @@ export type AbortReason =
   /** A remote command requested the abort. */
   | "remote_command"
   /** An MCP server delivered a user.abort notification. */
-  | "user_abort"
-  /** Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit. */
-  | "autopilot_credit_limit";
+  | "user_abort";
 /**
  * Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
  */
@@ -789,7 +787,7 @@ export type McpServerSource =
   /** Server bundled with the runtime. */
   | "builtin";
 /**
- * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+ * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  */
 export type McpServerStatus =
   /** The server is connected and available. */
@@ -802,8 +800,6 @@ export type McpServerStatus =
   | "pending"
   /** The server is configured but disabled. */
   | "disabled"
-  /** The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it. */
-  | "stopped"
   /** The server is not configured for this session. */
   | "not_configured";
 /**
@@ -4032,12 +4028,6 @@ export interface AssistantUsageData {
   apiCallId?: string;
   apiEndpoint?: AssistantUsageApiEndpoint;
   /**
-   * Number of tools available to the model for this call
-   *
-   * @internal
-   */
-  availableToolCount?: number;
-  /**
    * Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
    */
   cacheExpiresAt?: string;
@@ -4089,12 +4079,6 @@ export interface AssistantUsageData {
    */
   model: string;
   /**
-   * Number of tool calls returned by the model
-   *
-   * @internal
-   */
-  numToolCalls?: number;
-  /**
    * Number of output tokens produced
    */
   outputTokens?: number;
@@ -4132,20 +4116,6 @@ export interface AssistantUsageData {
    * Time to first token in milliseconds. Only available for streaming requests
    */
   timeToFirstTokenMs?: number;
-  /**
-   * Tool-call counts keyed by tool name
-   *
-   * @internal
-   */
-  toolCounts?: {
-    [k: string]: number | undefined;
-  };
-  /**
-   * Number of tokens used by tool definitions for this call
-   *
-   * @internal
-   */
-  toolTokenCount?: number;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
@@ -4564,12 +4534,6 @@ export interface ToolExecutionStartData {
  * Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
  */
 export interface ToolExecutionStartShellToolInfo {
-  /**
-   * The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
-   *
-   * @experimental
-   */
-  displayCommand?: string;
   /**
    * Whether the command includes a file write redirection (e.g., > or >>).
    */

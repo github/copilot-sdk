@@ -1986,10 +1986,6 @@ pub struct AssistantUsageData {
     /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_endpoint: Option<AssistantUsageApiEndpoint>,
-    /// Number of tools available to the model for this call
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) available_tool_count: Option<i64>,
     /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_expires_at: Option<String>,
@@ -2035,10 +2031,6 @@ pub struct AssistantUsageData {
     pub inter_token_latency_ms: Option<f64>,
     /// Model identifier used for this API call
     pub model: String,
-    /// Number of tool calls returned by the model
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) num_tool_calls: Option<i64>,
     /// Number of output tokens produced
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
@@ -2068,14 +2060,6 @@ pub struct AssistantUsageData {
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_to_first_token_ms: Option<f64>,
-    /// Tool-call counts keyed by tool name
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) tool_counts: Option<HashMap<String, i64>>,
-    /// Number of tokens used by tool definitions for this call
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) tool_token_count: Option<i64>,
 }
 
 /// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
@@ -2213,16 +2197,6 @@ pub struct ToolUserRequestedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionStartShellToolInfo {
-    /// The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub display_command: Option<String>,
     /// Whether the command includes a file write redirection (e.g., > or >>).
     pub has_write_file_redirection: bool,
     /// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
@@ -4527,7 +4501,7 @@ pub struct McpServersLoadedServer {
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     pub status: McpServerStatus,
     /// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4551,7 +4525,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub error: Option<String>,
     /// Name of the MCP server whose status changed
     pub server_name: String,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     pub status: McpServerStatus,
 }
 
@@ -5295,9 +5269,6 @@ pub enum AbortReason {
     /// An MCP server delivered a user.abort notification.
     #[serde(rename = "user_abort")]
     UserAbort,
-    /// Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit.
-    #[serde(rename = "autopilot_credit_limit")]
-    AutopilotCreditLimit,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -6253,7 +6224,7 @@ pub enum McpServerSource {
     Unknown,
 }
 
-/// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+/// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerStatus {
     /// The server is connected and available.
@@ -6271,9 +6242,6 @@ pub enum McpServerStatus {
     /// The server is configured but disabled.
     #[serde(rename = "disabled")]
     Disabled,
-    /// The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.
-    #[serde(rename = "stopped")]
-    Stopped,
     /// The server is not configured for this session.
     #[serde(rename = "not_configured")]
     NotConfigured,

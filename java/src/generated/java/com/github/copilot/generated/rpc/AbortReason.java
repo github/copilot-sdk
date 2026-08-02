@@ -21,9 +21,7 @@ public enum AbortReason {
     /** The {@code remote_command} variant. */
     REMOTE_COMMAND("remote_command"),
     /** The {@code user_abort} variant. */
-    USER_ABORT("user_abort"),
-    /** The {@code autopilot_credit_limit} variant. */
-    AUTOPILOT_CREDIT_LIMIT("autopilot_credit_limit");
+    USER_ABORT("user_abort");
 
     private final String value;
     AbortReason(String value) { this.value = value; }

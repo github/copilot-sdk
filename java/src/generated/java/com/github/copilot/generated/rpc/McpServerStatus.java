@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
+ * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  *
  * @since 1.0.0
  */
@@ -26,8 +26,6 @@ public enum McpServerStatus {
     PENDING("pending"),
     /** The {@code disabled} variant. */
     DISABLED("disabled"),
-    /** The {@code stopped} variant. */
-    STOPPED("stopped"),
     /** The {@code not_configured} variant. */
     NOT_CONFIGURED("not_configured");
 

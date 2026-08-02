@@ -2938,12 +2938,6 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("apiEndpoint")]
     public AssistantUsageApiEndpoint? ApiEndpoint { get; set; }
 
-    /// <summary>Number of tools available to the model for this call.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("availableToolCount")]
-    internal long? AvailableToolCount { get; set; }
-
     /// <summary>Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cacheExpiresAt")]
@@ -3011,12 +3005,6 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("model")]
     public required string Model { get; set; }
 
-    /// <summary>Number of tool calls returned by the model.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("numToolCalls")]
-    internal long? NumToolCalls { get; set; }
-
     /// <summary>Number of output tokens produced.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("outputTokens")]
@@ -3067,18 +3055,6 @@ public sealed partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("timeToFirstTokenMs")]
     public TimeSpan? TimeToFirstToken { get; set; }
-
-    /// <summary>Tool-call counts keyed by tool name.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("toolCounts")]
-    internal IDictionary<string, long>? ToolCounts { get; set; }
-
-    /// <summary>Number of tokens used by tool definitions for this call.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("toolTokenCount")]
-    internal long? ToolTokenCount { get; set; }
 }
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
@@ -4440,7 +4416,7 @@ public sealed partial class SessionMcpServerStatusChangedData
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required McpServerStatus Status { get; set; }
 }
@@ -5860,12 +5836,6 @@ public sealed partial class ModelCallFailureRequestFingerprint
 /// <remarks>Nested data type for <c>ToolExecutionStartShellToolInfo</c>.</remarks>
 public sealed partial class ToolExecutionStartShellToolInfo
 {
-    /// <summary>The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.</summary>
-    [Experimental(Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("displayCommand")]
-    public string? DisplayCommand { get; set; }
-
     /// <summary>Whether the command includes a file write redirection (e.g., &gt; or &gt;&gt;).</summary>
     [JsonPropertyName("hasWriteFileRedirection")]
     public required bool HasWriteFileRedirection { get; set; }
@@ -8361,7 +8331,7 @@ public sealed partial class McpServersLoadedServer
     [JsonPropertyName("source")]
     public McpServerSource? Source { get; set; }
 
-    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required McpServerStatus Status { get; set; }
 
@@ -10165,9 +10135,6 @@ public readonly struct AbortReason : IEquatable<AbortReason>
 
     /// <summary>An MCP server delivered a user.abort notification.</summary>
     public static AbortReason UserAbort { get; } = new("user_abort");
-
-    /// <summary>Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit.</summary>
-    public static AbortReason AutopilotCreditLimit { get; } = new("autopilot_credit_limit");
 
     /// <summary>Returns a value indicating whether two <see cref="AbortReason"/> instances are equivalent.</summary>
     public static bool operator ==(AbortReason left, AbortReason right) => left.Equals(right);
@@ -12121,7 +12088,7 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
     }
 }
 
-/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured.</summary>
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct McpServerStatus : IEquatable<McpServerStatus>
@@ -12154,9 +12121,6 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
 
     /// <summary>The server is configured but disabled.</summary>
     public static McpServerStatus Disabled { get; } = new("disabled");
-
-    /// <summary>The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.</summary>
-    public static McpServerStatus Stopped { get; } = new("stopped");
 
     /// <summary>The server is not configured for this session.</summary>
     public static McpServerStatus NotConfigured { get; } = new("not_configured");

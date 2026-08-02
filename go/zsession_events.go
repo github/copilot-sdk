@@ -366,7 +366,6 @@ type (
 
 // Session-event constants are generated in the rpc package and re-exported here for source compatibility.
 const (
-	AbortReasonAutopilotCreditLimit                                    = rpc.AbortReasonAutopilotCreditLimit
 	AbortReasonRemoteCommand                                           = rpc.AbortReasonRemoteCommand
 	AbortReasonUserAbort                                               = rpc.AbortReasonUserAbort
 	AbortReasonUserInitiated                                           = rpc.AbortReasonUserInitiated
@@ -485,7 +484,6 @@ const (
 	MCPServerStatusNeedsAuth                                           = rpc.MCPServerStatusNeedsAuth
 	MCPServerStatusNotConfigured                                       = rpc.MCPServerStatusNotConfigured
 	MCPServerStatusPending                                             = rpc.MCPServerStatusPending
-	MCPServerStatusStopped                                             = rpc.MCPServerStatusStopped
 	MCPServerTransportHTTP                                             = rpc.MCPServerTransportHTTP
 	MCPServerTransportMemory                                           = rpc.MCPServerTransportMemory
 	MCPServerTransportSSE                                              = rpc.MCPServerTransportSSE

@@ -25,8 +25,6 @@ public record ToolExecutionStartShellToolInfo(
     /** File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. */
     @JsonProperty("possiblePaths") List<String> possiblePaths,
     /** Whether the command includes a file write redirection (e.g., > or >>). */
-    @JsonProperty("hasWriteFileRedirection") Boolean hasWriteFileRedirection,
-    /** The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand. */
-    @JsonProperty("displayCommand") String displayCommand
+    @JsonProperty("hasWriteFileRedirection") Boolean hasWriteFileRedirection
 ) {
 }
