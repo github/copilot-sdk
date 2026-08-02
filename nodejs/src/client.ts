@@ -85,6 +85,7 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
+import type { FactoryHandle } from "./factory.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -830,6 +831,11 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
+        // `hooks.invoke` is a client-global RPC method whose payload carries a
+        // `sessionId`; route each invocation to the matching session's dispatcher.
+        handlers.hooks = {
+            invoke: async (params) => await this.handleHooksInvoke(params),
+        };
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -1521,6 +1527,7 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
+                    metadata: tool.metadata,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
@@ -1657,6 +1664,23 @@ export class CopilotClient {
      * ```
      */
     async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config);
+    }
+
+    /** @internal */
+    async resumeSessionForExtension(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        factories?: FactoryHandle[]
+    ): Promise<CopilotSession> {
+        return this.resumeSessionInternal(sessionId, config, factories);
+    }
+
+    private async resumeSessionInternal(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        factories?: FactoryHandle[]
+    ): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
         }
@@ -1673,6 +1697,7 @@ export class CopilotClient {
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
+        session.registerFactories(factories);
         const {
             wireProvider: bearerWireProvider,
             wireProviders: bearerWireProviders,
@@ -1740,9 +1765,11 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                     defer: tool.defer,
+                    metadata: tool.metadata,
                 })),
                 toolSearch: config.toolSearch,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
+                factories: factories?.map((factory) => factory.meta),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
@@ -2792,15 +2819,6 @@ export class CopilotClient {
                 params: AutoModeSwitchRequest & { sessionId: string }
             ): Promise<{ response: AutoModeSwitchResponse }> =>
                 await this.handleAutoModeSwitchRequest(params)
-        );
-
-        this.connection.onRequest(
-            "hooks.invoke",
-            async (params: {
-                sessionId: string;
-                hookType: string;
-                input: unknown;
-            }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
         );
 
         this.connection.onRequest(

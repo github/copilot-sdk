@@ -1669,7 +1669,8 @@ function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
                 eventExperimental: isSchemaExperimental(variant),
                 dataExperimental: isSchemaExperimental(dataSchema),
             };
-        });
+        })
+        .filter((variant) => !isSchemaInternal(variant.dataSchema));
 }
 
 function getPySharedEventEnvelopeProperties(schema: JSONSchema7, ctx: PyCodegenCtx): PyEventEnvelopeProperty[] {

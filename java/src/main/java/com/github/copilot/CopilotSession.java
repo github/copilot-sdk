@@ -1599,7 +1599,7 @@ public final class CopilotSession implements AutoCloseable {
                 return;
             }
             upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
-                    data.canvasId(), data.title(), data.status(), data.url(), data.input()));
+                    data.canvasId(), data.icon(), data.title(), data.status(), data.url(), data.input()));
         }
     }
 

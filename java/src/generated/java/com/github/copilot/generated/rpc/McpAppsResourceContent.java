@@ -14,7 +14,7 @@ import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
- * Deprecated/obsolete MCP Apps alias for `McpResourceContent`; use `session.mcp.resources.read` instead.
+ * MCP Apps resource content with URI, optional MIME type, text or base64 blob, and resource metadata.
  *
  * @since 1.0.0
  */
@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpAppsResourceContent(
-    /** The resource URI */
+    /** The resource URI (typically ui://...) */
     @JsonProperty("uri") String uri,
     /** MIME type of the content */
     @JsonProperty("mimeType") String mimeType,
@@ -30,7 +30,7 @@ public record McpAppsResourceContent(
     @JsonProperty("text") String text,
     /** Base64-encoded binary content */
     @JsonProperty("blob") String blob,
-    /** Resource-level metadata */
+    /** Resource-level metadata (CSP, permissions, etc.) */
     @JsonProperty("_meta") Map<String, Object> meta
 ) {
 }

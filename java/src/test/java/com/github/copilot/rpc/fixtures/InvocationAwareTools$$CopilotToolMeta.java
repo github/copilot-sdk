@@ -23,7 +23,7 @@ public final class InvocationAwareTools$$CopilotToolMeta implements CopilotToolM
                     Map<String, Object> args = invocation.getArguments();
                     String phase = (String) args.get("phase");
                     return CompletableFuture.completedFuture(instance.reportProgress(phase, invocation));
-                }, null, null, null),
+                }, null, null, null, null),
                 new ToolDefinition("report_progress_async", "Reports progress asynchronously with invocation context",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -33,7 +33,7 @@ public final class InvocationAwareTools$$CopilotToolMeta implements CopilotToolM
                             Map<String, Object> args = invocation.getArguments();
                             String phase = (String) args.get("phase");
                             return instance.reportProgressAsync(phase, invocation).thenApply(r -> (Object) r);
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("report_progress_first", "Reports progress with invocation first",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(
@@ -43,11 +43,11 @@ public final class InvocationAwareTools$$CopilotToolMeta implements CopilotToolM
                             Map<String, Object> args = invocation.getArguments();
                             String phase = (String) args.get("phase");
                             return CompletableFuture.completedFuture(instance.reportProgressFirst(invocation, phase));
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("only_context", "Reports context with invocation only",
                         Map.of("type", "object", "properties", Map.of(), "required", List.of()),
                         invocation -> CompletableFuture.completedFuture(instance.onlyContext(invocation)), null, null,
-                        null),
+                        null, null),
                 new ToolDefinition("report_progress_middle", "Reports progress with invocation in the middle", Map.of(
                         "type", "object", "properties",
                         Map.ofEntries(Map.entry("phase", Map.of("type", "string", "description", "Current phase")),
@@ -58,7 +58,7 @@ public final class InvocationAwareTools$$CopilotToolMeta implements CopilotToolM
                             int limit = ((Number) args.get("limit")).intValue();
                             return CompletableFuture
                                     .completedFuture(instance.reportProgressMiddle(phase, invocation, limit));
-                        }, null, null, null),
+                        }, null, null, null, null),
                 new ToolDefinition("report_progress_with_record", "Reports progress with record args and invocation",
                         Map.of("type", "object", "properties",
                                 Map.ofEntries(Map.entry("query", Map.of("type", "string")),
@@ -69,6 +69,6 @@ public final class InvocationAwareTools$$CopilotToolMeta implements CopilotToolM
                                     RecordInvocationArgs.class);
                             return CompletableFuture
                                     .completedFuture(instance.reportProgressWithRecord(args, invocation));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

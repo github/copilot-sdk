@@ -140,6 +140,7 @@ func TestToolsE2E(t *testing.T) {
 
 		if answer == nil {
 			t.Fatalf("Expected non-nil assistant message")
+			return
 		}
 		ad, ok := answer.Data.(*copilot.AssistantMessageData)
 		if !ok {

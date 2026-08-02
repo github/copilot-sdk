@@ -352,6 +352,12 @@ pub struct Tool {
     /// runtime decide.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub defer: Option<DeferMode>,
+    /// Opaque, host-defined metadata associated with the tool definition.
+    /// Keys are namespaced and not part of the stable public API; values are
+    /// not interpreted and may be recognized to inform host-specific behavior.
+    /// Unknown keys are preserved and round-tripped untouched.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub metadata: IndexMap<String, Value>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -471,6 +477,13 @@ impl Tool {
         self
     }
 
+    /// Set opaque, host-defined metadata for the tool. Keys are namespaced and
+    /// not part of the stable public API. Replaces any previously-set metadata.
+    pub fn with_metadata(mut self, metadata: IndexMap<String, Value>) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
     /// Attach a runtime implementation. The SDK will dispatch matching
     /// `external_tool.requested` broadcasts to `handler` for this tool's
     /// name. Without a handler the tool is declaration-only.
@@ -499,6 +512,7 @@ impl std::fmt::Debug for Tool {
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
             .field("defer", &self.defer)
+            .field("metadata", &self.metadata)
             .field(
                 "handler",
                 &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
@@ -628,6 +642,12 @@ pub struct CustomAgentConfig {
     /// falling back to the parent session model if unavailable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Reasoning effort level for this agent's model.
+    ///
+    /// When unset, no per-agent override is sent and the backend chooses its
+    /// default. The parent session effort is not inherited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -693,6 +713,12 @@ impl CustomAgentConfig {
     /// Set the model identifier for this agent.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the reasoning effort level for this agent's model.
+    pub fn with_reasoning_effort(mut self, reasoning_effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(reasoning_effort.into());
         self
     }
 }
@@ -5445,6 +5471,32 @@ mod tests {
     }
 
     #[test]
+    fn tool_metadata_serialization() {
+        use indexmap::IndexMap;
+
+        let mut metadata = IndexMap::new();
+        metadata.insert(
+            "github.com/copilot:safeForTelemetry".to_string(),
+            json!({ "name": true, "inputsNames": false }),
+        );
+        let tool = Tool::new("lookup").with_metadata(metadata);
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(
+            value
+                .get("metadata")
+                .unwrap()
+                .get("github.com/copilot:safeForTelemetry")
+                .unwrap(),
+            &json!({ "name": true, "inputsNames": false })
+        );
+
+        // Empty metadata is omitted on the wire.
+        let plain = Tool::new("plain");
+        let value = serde_json::to_value(&plain).unwrap();
+        assert!(value.get("metadata").is_none());
+    }
+
+    #[test]
     fn custom_agent_config_builder_with_model() {
         let agent = CustomAgentConfig::new("my-agent", "You are helpful.")
             .with_model("claude-haiku-4.5")
@@ -5467,6 +5519,28 @@ mod tests {
         let agent = CustomAgentConfig::new("no-model-agent", "prompt");
         let wire = serde_json::to_value(&agent).unwrap();
         assert!(wire.get("model").is_none());
+    }
+
+    #[test]
+    fn custom_agent_config_builder_with_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        assert_eq!(agent.reasoning_effort.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["reasoningEffort"], "high");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_reasoning_effort_when_none() {
+        let agent = CustomAgentConfig::new("default-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("reasoningEffort").is_none());
     }
 
     #[test]

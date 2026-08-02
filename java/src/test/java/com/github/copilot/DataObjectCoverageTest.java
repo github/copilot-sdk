@@ -186,7 +186,7 @@ class DataObjectCoverageTest {
         assertEquals("session-xyz", input.getSessionId());
     }
 
-    // ===== CustomAgentConfig model field =====
+    // ===== CustomAgentConfig model fields =====
 
     @Test
     void customAgentConfigModelGetterAndSetter() {
@@ -225,6 +225,36 @@ class DataObjectCoverageTest {
 
         var json = mapper.writeValueAsString(cfg);
         assertFalse(json.contains("\"model\""));
+    }
+
+    @Test
+    void customAgentConfigReasoningEffortGetterAndFluentSetter() {
+        var cfg = new CustomAgentConfig();
+        assertNull(cfg.getReasoningEffort());
+
+        var result = cfg.setReasoningEffort("high");
+        assertSame(cfg, result);
+        assertEquals("high", cfg.getReasoningEffort());
+    }
+
+    @Test
+    void customAgentConfigReasoningEffortSerializationRoundTrip() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var cfg = new CustomAgentConfig().setName("reasoning-agent").setReasoningEffort("high");
+
+        var json = mapper.writeValueAsString(cfg);
+        assertTrue(json.contains("\"reasoningEffort\":\"high\""));
+
+        var deserialized = mapper.readValue(json, CustomAgentConfig.class);
+        assertEquals("high", deserialized.getReasoningEffort());
+    }
+
+    @Test
+    void customAgentConfigReasoningEffortOmittedWhenNull() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(new CustomAgentConfig().setName("default-agent"));
+
+        assertFalse(json.contains("\"reasoningEffort\""));
     }
 
     // ===== PermissionRequestResult setRules =====

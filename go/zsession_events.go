@@ -19,6 +19,7 @@ type (
 	AssistantMessageToolRequestType                                = rpc.AssistantMessageToolRequestType
 	AssistantReasoningData                                         = rpc.AssistantReasoningData
 	AssistantReasoningDeltaData                                    = rpc.AssistantReasoningDeltaData
+	AssistantServerToolProgressData                                = rpc.AssistantServerToolProgressData
 	AssistantStreamingDeltaData                                    = rpc.AssistantStreamingDeltaData
 	AssistantToolCallDeltaData                                     = rpc.AssistantToolCallDeltaData
 	AssistantTurnEndData                                           = rpc.AssistantTurnEndData
@@ -104,10 +105,12 @@ type (
 	GitHubRepoRef                                                  = rpc.GitHubRepoRef
 	HandoffRepository                                              = rpc.HandoffRepository
 	HandoffSourceType                                              = rpc.HandoffSourceType
+	HeaderEntry                                                    = rpc.HeaderEntry
 	HookEndData                                                    = rpc.HookEndData
 	HookEndError                                                   = rpc.HookEndError
 	HookProgressData                                               = rpc.HookProgressData
 	HookStartData                                                  = rpc.HookStartData
+	ManagedSettingsResolvedSource                                  = rpc.ManagedSettingsResolvedSource
 	MCPAppToolCallCompleteData                                     = rpc.MCPAppToolCallCompleteData
 	MCPAppToolCallCompleteError                                    = rpc.MCPAppToolCallCompleteError
 	MCPAppToolCallCompleteToolMeta                                 = rpc.MCPAppToolCallCompleteToolMeta
@@ -118,6 +121,7 @@ type (
 	MCPHeadersRefreshRequiredReason                                = rpc.MCPHeadersRefreshRequiredReason
 	MCPOauthCompletedData                                          = rpc.MCPOauthCompletedData
 	MCPOauthCompletionOutcome                                      = rpc.MCPOauthCompletionOutcome
+	MCPOauthHTTPResponse                                           = rpc.MCPOauthHTTPResponse
 	MCPOauthRequestReason                                          = rpc.MCPOauthRequestReason
 	MCPOauthRequiredData                                           = rpc.MCPOauthRequiredData
 	MCPOauthRequiredStaticClientConfig                             = rpc.MCPOauthRequiredStaticClientConfig
@@ -231,6 +235,7 @@ type (
 	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
 	SessionLimitsExhaustedResponse                                 = rpc.SessionLimitsExhaustedResponse
 	SessionLimitsExhaustedResponseAction                           = rpc.SessionLimitsExhaustedResponseAction
+	SessionManagedSettingsResolvedData                             = rpc.SessionManagedSettingsResolvedData
 	SessionMCPServersLoadedData                                    = rpc.SessionMCPServersLoadedData
 	SessionMCPServerStatusChangedData                              = rpc.SessionMCPServerStatusChangedData
 	SessionMode                                                    = rpc.SessionMode
@@ -422,6 +427,9 @@ const (
 	ExtensionsLoadedExtensionStatusStarting                            = rpc.ExtensionsLoadedExtensionStatusStarting
 	HandoffSourceTypeLocal                                             = rpc.HandoffSourceTypeLocal
 	HandoffSourceTypeRemote                                            = rpc.HandoffSourceTypeRemote
+	ManagedSettingsResolvedSourceDevice                                = rpc.ManagedSettingsResolvedSourceDevice
+	ManagedSettingsResolvedSourceNone                                  = rpc.ManagedSettingsResolvedSourceNone
+	ManagedSettingsResolvedSourceServer                                = rpc.ManagedSettingsResolvedSourceServer
 	MCPHeadersRefreshCompletedOutcomeHeaders                           = rpc.MCPHeadersRefreshCompletedOutcomeHeaders
 	MCPHeadersRefreshCompletedOutcomeNone                              = rpc.MCPHeadersRefreshCompletedOutcomeNone
 	MCPHeadersRefreshCompletedOutcomeTimeout                           = rpc.MCPHeadersRefreshCompletedOutcomeTimeout
@@ -516,6 +524,7 @@ const (
 	SessionEventTypeAssistantMessageStart                              = rpc.SessionEventTypeAssistantMessageStart
 	SessionEventTypeAssistantReasoning                                 = rpc.SessionEventTypeAssistantReasoning
 	SessionEventTypeAssistantReasoningDelta                            = rpc.SessionEventTypeAssistantReasoningDelta
+	SessionEventTypeAssistantServerToolProgress                        = rpc.SessionEventTypeAssistantServerToolProgress
 	SessionEventTypeAssistantStreamingDelta                            = rpc.SessionEventTypeAssistantStreamingDelta
 	SessionEventTypeAssistantToolCallDelta                             = rpc.SessionEventTypeAssistantToolCallDelta
 	SessionEventTypeAssistantTurnEnd                                   = rpc.SessionEventTypeAssistantTurnEnd
@@ -574,6 +583,7 @@ const (
 	SessionEventTypeSessionInfo                                        = rpc.SessionEventTypeSessionInfo
 	SessionEventTypeSessionLimitsExhaustedCompleted                    = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
 	SessionEventTypeSessionLimitsExhaustedRequested                    = rpc.SessionEventTypeSessionLimitsExhaustedRequested
+	SessionEventTypeSessionManagedSettingsResolved                     = rpc.SessionEventTypeSessionManagedSettingsResolved
 	SessionEventTypeSessionMCPServersLoaded                            = rpc.SessionEventTypeSessionMCPServersLoaded
 	SessionEventTypeSessionMCPServerStatusChanged                      = rpc.SessionEventTypeSessionMCPServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged

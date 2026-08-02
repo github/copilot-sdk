@@ -640,6 +640,14 @@ export interface Tool<TArgs = unknown> {
      * Optional; defaults to `"auto"`.
      */
     defer?: "auto" | "never";
+    /**
+     * Opaque, host-defined metadata associated with the tool definition.
+     *
+     * Keys are namespaced and are not part of the stable public API. Values are
+     * not interpreted and may be recognized to inform host-specific behavior.
+     * Unknown keys are preserved and round-tripped untouched.
+     */
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -655,6 +663,7 @@ export function defineTool<T = unknown>(
         overridesBuiltInTool?: boolean;
         skipPermission?: boolean;
         defer?: "auto" | "never";
+        metadata?: Record<string, unknown>;
     }
 ): Tool<T> {
     return { name, ...config };
@@ -1632,6 +1641,12 @@ export interface CustomAgentConfig {
      * falling back to the parent session model if unavailable.
      */
     model?: string;
+    /**
+     * Reasoning effort level for this agent's model.
+     * When omitted, no per-agent override is sent and the backend chooses its
+     * default. The parent session effort is not inherited.
+     */
+    reasoningEffort?: ReasoningEffort;
 }
 
 /**
@@ -1819,6 +1834,38 @@ export interface CanvasProviderIdentity {
     id: string;
     /** Optional display name surfaced as the canvas extension name. */
     name?: string;
+}
+
+/**
+ * Static resource ceilings declared by a factory before it runs.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryLimits {
+    /** Maximum number of factory subagents that may run concurrently. Must be positive when present. */
+    maxConcurrentSubagents?: number;
+    /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
+    maxTotalSubagents?: number;
+    /** Wall-clock timeout for the factory run, in milliseconds. Must be positive when present. */
+    timeout?: number;
+}
+
+/**
+ * Registration metadata for an extension-authored factory.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryMeta {
+    /** Stable factory name used for invocation. */
+    name: string;
+    /** Human-readable factory description. */
+    description: string;
+    /** Display metadata for the progress phases the factory may report. */
+    phases: Array<{ title: string; detail?: string }>;
+    /** Optional resource ceilings presented to the user before execution. */
+    limits?: FactoryLimits;
 }
 
 /**

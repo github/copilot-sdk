@@ -34,6 +34,6 @@ public final class OverrideTools$$CopilotToolMeta implements CopilotToolMetadata
                             Map<String, Object> args = invocation.getArguments();
                             String pattern = (String) args.get("pattern");
                             return CompletableFuture.completedFuture(instance.customGrep(pattern));
-                        }, Boolean.TRUE, null, null));
+                        }, Boolean.TRUE, null, null, null));
     }
 }

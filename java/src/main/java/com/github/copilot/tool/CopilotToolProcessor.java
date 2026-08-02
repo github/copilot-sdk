@@ -276,8 +276,46 @@ public class CopilotToolProcessor extends AbstractProcessor {
         out.println("                },");
         out.println("                " + overridesArg + ",");
         out.println("                " + skipPermArg + ",");
-        out.println("                " + deferArg);
+        out.println("                " + deferArg + ",");
+        out.println("                " + metadataSource(annotation));
         out.print("            )");
+    }
+
+    /**
+     * Converts the {@code @CopilotTool(metadata = ...)} entries into a Java source
+     * literal. Returns {@code "null"} when no metadata is present, otherwise a
+     * {@code Map.<String, Object>of(...)} expression.
+     */
+    private String metadataSource(CopilotTool annotation) {
+        CopilotTool.MetadataEntry[] entries = annotation.metadata();
+        if (entries.length == 0) {
+            return "null";
+        }
+        List<String> parts = new ArrayList<>();
+        for (CopilotTool.MetadataEntry entry : entries) {
+            parts.add("\"" + escapeJava(entry.key()) + "\", " + metadataValueSource(entry.value()));
+        }
+        return "Map.<String, Object>of(" + String.join(", ", parts) + ")";
+    }
+
+    /**
+     * Converts a single {@link CopilotTool.MetadataValue} into a Java source
+     * literal. A non-empty {@code flags} map takes precedence, then a non-empty
+     * {@code str}, otherwise the {@code bool} scalar.
+     */
+    private String metadataValueSource(CopilotTool.MetadataValue value) {
+        CopilotTool.MetadataFlag[] flags = value.flags();
+        if (flags.length > 0) {
+            List<String> flagParts = new ArrayList<>();
+            for (CopilotTool.MetadataFlag flag : flags) {
+                flagParts.add("\"" + escapeJava(flag.name()) + "\", " + flag.value());
+            }
+            return "Map.of(" + String.join(", ", flagParts) + ")";
+        }
+        if (!value.str().isEmpty()) {
+            return "\"" + escapeJava(value.str()) + "\"";
+        }
+        return String.valueOf(value.bool());
     }
 
     private String generateSchemaWithParamMetadata(List<? extends VariableElement> parameters) {
