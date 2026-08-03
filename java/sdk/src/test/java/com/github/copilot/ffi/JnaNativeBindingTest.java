@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.sun.jna.Library;
 import com.sun.jna.Native;
@@ -64,15 +65,23 @@ class JnaNativeBindingTest {
     /**
      * JNA interface for the simplified test library. Maps Java names to the
      * snake_case exports of {@code libcallback_test}.
+     *
+     * <p>
+     * Note: This test library exports simplified names ({@code host_start},
+     * {@code connection_open}, etc.) rather than the production
+     * {@code copilot_runtime_*} names. Production symbol resolution is validated
+     * lazily by JNA when each method is first called through
+     * {@link JnaNativeBinding.CopilotRuntimeLibrary}.
      */
     interface CallbackTestLib extends Library {
         /** Simulates {@code copilot_runtime_host_start}; always returns 42. */
         int host_start();
 
         /**
-         * Simulates {@code copilot_runtime_host_shutdown}; always returns {@code true}.
+         * Simulates {@code copilot_runtime_host_shutdown}; always returns nonzero.
+         * Returns {@code byte} to match the Rust ABI one-byte {@code bool}.
          */
-        boolean host_shutdown(int serverHandle);
+        byte host_shutdown(int serverHandle);
 
         /**
          * Simulates {@code copilot_runtime_connection_open}. Spawns a native thread
@@ -81,16 +90,16 @@ class JnaNativeBindingTest {
         int connection_open(int serverHandle, OutboundCallback callback, Pointer userData, int burstCount);
 
         /**
-         * Simulates {@code copilot_runtime_connection_write}; always returns
-         * {@code true}.
+         * Simulates {@code copilot_runtime_connection_write}; always returns nonzero.
+         * Returns {@code byte} to match the Rust ABI one-byte {@code bool}.
          */
-        boolean connection_write(int connectionHandle, byte[] data, int len);
+        byte connection_write(int connectionHandle, byte[] data, int len);
 
         /**
-         * Simulates {@code copilot_runtime_connection_close}; always returns
-         * {@code true}.
+         * Simulates {@code copilot_runtime_connection_close}; always returns nonzero.
+         * Returns {@code byte} to match the Rust ABI one-byte {@code bool}.
          */
-        boolean connection_close(int connectionHandle);
+        byte connection_close(int connectionHandle);
     }
 
     // -------------------------------------------------------------------------
@@ -103,15 +112,16 @@ class JnaNativeBindingTest {
      */
     private static class StubRuntimeLibrary implements JnaNativeBinding.CopilotRuntimeLibrary {
         int hostStartReturn = 1;
-        boolean hostShutdownReturn = true;
+        byte hostShutdownReturn = 1;
         int connectionOpenReturn = 1;
-        boolean connectionWriteReturn = true;
-        boolean connectionCloseReturn = true;
+        byte connectionWriteReturn = 1;
+        byte connectionCloseReturn = 1;
 
         byte[] lastArgvJson;
         int lastArgvJsonLen;
         int lastServerId;
         int lastConnectionId;
+        OutboundCallback lastCallback;
 
         @Override
         public int copilot_runtime_host_start(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
@@ -121,7 +131,7 @@ class JnaNativeBindingTest {
         }
 
         @Override
-        public boolean copilot_runtime_host_shutdown(int serverId) {
+        public byte copilot_runtime_host_shutdown(int serverId) {
             lastServerId = serverId;
             return hostShutdownReturn;
         }
@@ -131,17 +141,18 @@ class JnaNativeBindingTest {
                 byte[] extSource, int extSourceLen, byte[] extName, int extNameLen, byte[] connToken,
                 int connTokenLen) {
             lastServerId = serverId;
+            lastCallback = callback;
             return connectionOpenReturn;
         }
 
         @Override
-        public boolean copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen) {
+        public byte copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen) {
             lastConnectionId = connectionId;
             return connectionWriteReturn;
         }
 
         @Override
-        public boolean copilot_runtime_connection_close(int connectionId) {
+        public byte copilot_runtime_connection_close(int connectionId) {
             lastConnectionId = connectionId;
             return connectionCloseReturn;
         }
@@ -199,7 +210,7 @@ class JnaNativeBindingTest {
     @Test
     void hostShutdownDelegatesToLibrary() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.hostShutdownReturn = true;
+        stub.hostShutdownReturn = 1;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
 
         assertTrue(binding.hostShutdown(42));
@@ -209,7 +220,7 @@ class JnaNativeBindingTest {
     @Test
     void hostShutdownReturnsFalseOnFailure() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.hostShutdownReturn = false;
+        stub.hostShutdownReturn = 0;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         assertFalse(binding.hostShutdown(1));
     }
@@ -243,7 +254,7 @@ class JnaNativeBindingTest {
     @Test
     void connectionWriteDelegatesToLibrary() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.connectionWriteReturn = true;
+        stub.connectionWriteReturn = 1;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
 
         byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
@@ -254,7 +265,7 @@ class JnaNativeBindingTest {
     @Test
     void connectionWriteReturnsFalseOnFailure() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.connectionWriteReturn = false;
+        stub.connectionWriteReturn = 0;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
 
         byte[] data = "x".getBytes(StandardCharsets.UTF_8);
@@ -265,7 +276,7 @@ class JnaNativeBindingTest {
     @Test
     void connectionCloseDelegatesToLibrary() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.connectionCloseReturn = true;
+        stub.connectionCloseReturn = 1;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         assertTrue(binding.connectionClose(7));
         assertEquals(7, stub.lastConnectionId);
@@ -274,7 +285,7 @@ class JnaNativeBindingTest {
     @Test
     void connectionCloseReturnsFalseOnFailure() {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
-        stub.connectionCloseReturn = false;
+        stub.connectionCloseReturn = 0;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         assertFalse(binding.connectionClose(1));
     }
@@ -292,18 +303,14 @@ class JnaNativeBindingTest {
 
     @Test
     void loadByPathSucceedsWhenLibraryExists() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         JnaNativeBinding binding = new JnaNativeBinding(testLibAbsPath());
         assertNotNull(binding);
     }
 
     @Test
     void loadByPathTwiceWithSamePathSucceeds() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         new JnaNativeBinding(testLibAbsPath());
         // Second construction with the same absolute path must not throw.
         new JnaNativeBinding(testLibAbsPath());
@@ -311,9 +318,7 @@ class JnaNativeBindingTest {
 
     @Test
     void activeCallbacksStartsAtZeroAfterPathLoad() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         JnaNativeBinding binding = new JnaNativeBinding(testLibAbsPath());
         assertEquals(0, binding.activeCallbacks.get());
     }
@@ -324,9 +329,7 @@ class JnaNativeBindingTest {
 
     @Test
     void loadFromDifferentPathThrowsIllegalState(@TempDir Path tempDir) throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         Path altPath = tempDir.resolve("libcallback_test_alt.so");
         Files.copy(testLibAbsPath(), altPath);
 
@@ -342,9 +345,7 @@ class JnaNativeBindingTest {
 
     @Test
     void duplicateLoadDiagnosticMentionsNotSupported(@TempDir Path tempDir) throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         Path altPath = tempDir.resolve("libcallback_test_b.so");
         Files.copy(testLibAbsPath(), altPath);
 
@@ -357,9 +358,7 @@ class JnaNativeBindingTest {
 
     @Test
     void resetForTestingAllowsReloadFromDifferentPath(@TempDir Path tempDir) throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         Path altPath = tempDir.resolve("libcallback_test_reset.so");
         Files.copy(testLibAbsPath(), altPath);
 
@@ -377,9 +376,7 @@ class JnaNativeBindingTest {
 
     @Test
     void callbackIsInvokedFromNativeThread() throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
         assertEquals(42, serverHandle, "host_start should return 42");
@@ -412,45 +409,32 @@ class JnaNativeBindingTest {
     }
 
     @Test
-    void activeCallbackCountIsIncrementedDuringCallback() throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
-        CallbackTestLib lib = loadTestLib();
-        int serverHandle = lib.host_start();
+    void activeCallbackCountIsIncrementedDuringCallback() {
+        StubRuntimeLibrary stub = new StubRuntimeLibrary();
+        stub.connectionOpenReturn = 99;
+        JnaNativeBinding binding = new JnaNativeBinding(stub);
 
-        int burstCount = 1;
-        CountDownLatch enteredLatch = new CountDownLatch(burstCount);
-        CountDownLatch exitLatch = new CountDownLatch(burstCount);
-        AtomicInteger observedOnEntry = new AtomicInteger(-1);
-        AtomicInteger observedOnExit = new AtomicInteger(-1);
-        AtomicInteger activeCallbacks = new AtomicInteger(0);
+        AtomicInteger observedDuringCallback = new AtomicInteger(-1);
 
-        OutboundCallback callback = (userData, data, len) -> {
-            observedOnEntry.set(activeCallbacks.incrementAndGet());
-            enteredLatch.countDown();
-            try {
-                data.getByteArray(0, len); // copy as required
-            } finally {
-                observedOnExit.set(activeCallbacks.decrementAndGet());
-                exitLatch.countDown();
-            }
+        OutboundCallback userCallback = (userData, data, len) -> {
+            // Observe binding.activeCallbacks while inside the callback
+            observedDuringCallback.set(binding.activeCallbacks.get());
         };
 
-        lib.connection_open(serverHandle, callback, Pointer.NULL, burstCount);
+        binding.connectionOpen(1, userCallback, Pointer.NULL, null, 0, null, 0, null, 0);
 
-        assertTrue(enteredLatch.await(10, TimeUnit.SECONDS), "Callback must be entered within 10 seconds");
-        assertEquals(1, observedOnEntry.get(), "Active count must be 1 while callback is executing");
+        // The stub captured the tracked wrapper — invoke it to trigger tracking
+        assertNotNull(stub.lastCallback, "Stub must have captured the tracked callback");
+        stub.lastCallback.invoke(Pointer.NULL, Pointer.NULL, 0);
 
-        assertTrue(exitLatch.await(10, TimeUnit.SECONDS), "Callback must exit within 10 seconds");
-        assertEquals(0, observedOnExit.get(), "Active count must return to 0 after callback exits");
+        assertEquals(1, observedDuringCallback.get(), "binding.activeCallbacks must be 1 during callback execution");
+        assertEquals(0, binding.activeCallbacks.get(),
+                "binding.activeCallbacks must return to 0 after callback completes");
     }
 
     @Test
     void callbackDataContainsJsonRpcContent() throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
 
@@ -476,9 +460,7 @@ class JnaNativeBindingTest {
 
     @Test
     void multipleCallbacksDoNotLeakActiveCount() throws Exception {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
 
@@ -507,39 +489,33 @@ class JnaNativeBindingTest {
 
     @Test
     void connectionWriteReturnsTrueForValidHandle() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
         int connHandle = lib.connection_open(serverHandle, (ud, data, len) -> {
         }, Pointer.NULL, 0);
 
         byte[] payload = "{\"jsonrpc\":\"2.0\",\"method\":\"ping\"}".getBytes(StandardCharsets.UTF_8);
-        assertTrue(lib.connection_write(connHandle, payload, payload.length),
-                "connection_write should return true for valid data");
+        assertTrue(lib.connection_write(connHandle, payload, payload.length) != 0,
+                "connection_write should return nonzero for valid data");
     }
 
     @Test
     void connectionCloseReturnsTrueForValidHandle() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
         int connHandle = lib.connection_open(serverHandle, (ud, data, len) -> {
         }, Pointer.NULL, 0);
 
-        assertTrue(lib.connection_close(connHandle), "connection_close should return true");
+        assertTrue(lib.connection_close(connHandle) != 0, "connection_close should return nonzero");
     }
 
     @Test
     void hostShutdownReturnsTrueForValidHandle() {
-        if (!testLibExists()) {
-            return;
-        }
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
         CallbackTestLib lib = loadTestLib();
         int serverHandle = lib.host_start();
-        assertTrue(lib.host_shutdown(serverHandle), "host_shutdown should return true");
+        assertTrue(lib.host_shutdown(serverHandle) != 0, "host_shutdown should return nonzero");
     }
 }

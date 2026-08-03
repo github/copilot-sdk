@@ -9,6 +9,8 @@ import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -58,18 +60,33 @@ final class JnaNativeBinding implements NativeBinding {
         /** Corresponds to {@code copilot_runtime_host_start}. */
         int copilot_runtime_host_start(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen);
 
-        /** Corresponds to {@code copilot_runtime_host_shutdown}. */
-        boolean copilot_runtime_host_shutdown(int serverId);
+        /**
+         * Corresponds to {@code copilot_runtime_host_shutdown}.
+         *
+         * <p>
+         * Returns {@code byte} (not Java {@code boolean}) because the Rust ABI exports
+         * a one-byte {@code bool}. JNA maps Java {@code boolean} as a 32-bit C
+         * {@code int}, which would read three extra bytes.
+         */
+        byte copilot_runtime_host_shutdown(int serverId);
 
         /** Corresponds to {@code copilot_runtime_connection_open}. */
         int copilot_runtime_connection_open(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
                 int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen);
 
-        /** Corresponds to {@code copilot_runtime_connection_write}. */
-        boolean copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen);
+        /**
+         * Corresponds to {@code copilot_runtime_connection_write}.
+         *
+         * @see #copilot_runtime_host_shutdown for why this returns {@code byte}
+         */
+        byte copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen);
 
-        /** Corresponds to {@code copilot_runtime_connection_close}. */
-        boolean copilot_runtime_connection_close(int connectionId);
+        /**
+         * Corresponds to {@code copilot_runtime_connection_close}.
+         *
+         * @see #copilot_runtime_host_shutdown for why this returns {@code byte}
+         */
+        byte copilot_runtime_connection_close(int connectionId);
     }
 
     // -------------------------------------------------------------------------
@@ -105,6 +122,12 @@ final class JnaNativeBinding implements NativeBinding {
      */
     final AtomicInteger activeCallbacks = new AtomicInteger(0);
 
+    /**
+     * Tracked callback wrappers keyed by connection handle. Prevents GC of the JNA
+     * callback function pointer while native code still holds it.
+     */
+    private final Map<Integer, OutboundCallback> trackedCallbacks = new ConcurrentHashMap<>();
+
     // -------------------------------------------------------------------------
     // Constructors
     // -------------------------------------------------------------------------
@@ -123,7 +146,11 @@ final class JnaNativeBinding implements NativeBinding {
         synchronized (LOAD_LOCK) {
             if (loadedLib == null) {
                 LOG.fine(() -> "Loading native library from: " + absPath);
-                loadedLib = Native.load(absPath.toString(), CopilotRuntimeLibrary.class);
+                try {
+                    loadedLib = Native.load(absPath.toString(), CopilotRuntimeLibrary.class);
+                } catch (UnsatisfiedLinkError e) {
+                    throw new IllegalStateException("Failed to load native library from '" + absPath + "'", e);
+                }
                 loadedPath = absPath;
                 LOG.fine(() -> "Native library loaded: " + absPath);
             } else if (!absPath.equals(loadedPath)) {
@@ -161,7 +188,7 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean hostShutdown(int serverId) {
-        return lib.copilot_runtime_host_shutdown(serverId);
+        return lib.copilot_runtime_host_shutdown(serverId) != 0;
     }
 
     @Override
@@ -176,18 +203,27 @@ final class JnaNativeBinding implements NativeBinding {
                 activeCallbacks.decrementAndGet();
             }
         };
-        return lib.copilot_runtime_connection_open(serverId, tracked, userData, extSource, extSourceLen, extName,
-                extNameLen, connToken, connTokenLen);
+        int connectionId = lib.copilot_runtime_connection_open(serverId, tracked, userData, extSource, extSourceLen,
+                extName, extNameLen, connToken, connTokenLen);
+        if (connectionId != 0) {
+            // Hold a strong reference to prevent GC of the JNA function pointer.
+            trackedCallbacks.put(connectionId, tracked);
+        }
+        return connectionId;
     }
 
     @Override
     public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
-        return lib.copilot_runtime_connection_write(connectionId, data, dataLen);
+        return lib.copilot_runtime_connection_write(connectionId, data, dataLen) != 0;
     }
 
     @Override
     public boolean connectionClose(int connectionId) {
-        return lib.copilot_runtime_connection_close(connectionId);
+        try {
+            return lib.copilot_runtime_connection_close(connectionId) != 0;
+        } finally {
+            trackedCallbacks.remove(connectionId);
+        }
     }
 
     // -------------------------------------------------------------------------
