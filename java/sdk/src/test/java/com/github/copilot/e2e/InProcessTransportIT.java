@@ -47,8 +47,16 @@ import com.github.copilot.rpc.RuntimeConnection;
  * {@code COPILOT_CLI_PATH} to the pinned CLI whose sibling {@code runtime.node}
  * this test loads, and forces {@code forkCount=1} because the FFI host and env
  * guard mutate process-global state.
+ *
+ * <p>
+ * {@link RequireInProcess} disables this test unless the {@code -Pinprocess}
+ * profile is active: without it, the {@code copilot-sdk-java-runtime}
+ * classifier JAR providing {@code runtime.node} is not on the classpath, so
+ * the test would fail with a {@code FileNotFoundException} rather than being
+ * skipped.
  */
 @AllowCopilotExperimental
+@RequireInProcess
 class InProcessTransportIT {
 
     private static E2ETestContext ctx;
