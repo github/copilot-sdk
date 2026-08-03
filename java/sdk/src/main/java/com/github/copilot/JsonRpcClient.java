@@ -94,6 +94,13 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     /**
+     * Creates a JSON-RPC client over arbitrary input/output streams.
+     */
+    public static JsonRpcClient fromStreams(InputStream inputStream, OutputStream outputStream) {
+        return new JsonRpcClient(inputStream, outputStream, null, null);
+    }
+
+    /**
      * Registers a handler for JSON-RPC method calls (requests/notifications from
      * server).
      */
