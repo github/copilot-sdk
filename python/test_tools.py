@@ -390,7 +390,7 @@ class TestNormalizeResult:
         assert result.result_type == "success"
 
     def test_pydantic_model_with_non_primitive_fields_is_serialized(self):
-        from datetime import datetime, date
+        from datetime import date, datetime
         from decimal import Decimal
         from enum import Enum
         from uuid import UUID
@@ -404,6 +404,7 @@ class TestNormalizeResult:
             day: date
             score: Decimal
             status: Status
+            tags: set[str]
 
         record = Record(
             id=UUID("12345678-1234-5678-1234-567812345678"),
@@ -411,12 +412,19 @@ class TestNormalizeResult:
             day=date(2026, 1, 15),
             score=Decimal("99.5"),
             status=Status.ACTIVE,
+            tags={"python", "sdk"},
         )
         result = _normalize_result(record)
         parsed = json.loads(result.text_result_for_llm)
-        assert parsed["id"] == "12345678-1234-5678-1234-567812345678"
-        assert parsed["status"] == "active"
-        assert parsed["score"] == "99.5"
+        assert parsed == {
+            "id": "12345678-1234-5678-1234-567812345678",
+            "created": "2026-01-15T10:30:00",
+            "day": "2026-01-15",
+            "score": "99.5",
+            "status": "active",
+            "tags": parsed["tags"],
+        }
+        assert set(parsed["tags"]) == {"python", "sdk"}
         assert result.result_type == "success"
 
     def test_raises_for_unserializable_value(self):
