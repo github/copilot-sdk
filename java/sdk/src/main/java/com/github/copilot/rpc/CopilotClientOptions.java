@@ -222,9 +222,11 @@ public class CopilotClientOptions {
      * When set, the connection takes precedence over the transport-selecting
      * options {@link #setUseStdio(boolean)}, {@link #setCliUrl(String)},
      * {@link #setCliPath(String)}, {@link #setPort(int)} and
-     * {@link #setTcpConnectionToken(String)}; combining a connection with any of
-     * those options makes the client constructor throw
-     * {@link IllegalArgumentException}.
+     * {@link #setTcpConnectionToken(String)}; combining a connection with
+     * conflicting values for any of those options makes the client constructor
+     * throw {@link IllegalArgumentException}. Values that match what the connection
+     * implies are accepted, so the same options instance can be reused across
+     * multiple client constructions.
      *
      * @param connection
      *            the connection, or {@code null} to infer the transport from the

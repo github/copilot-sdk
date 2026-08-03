@@ -154,6 +154,11 @@ public final class CopilotClient implements AutoCloseable {
         } else {
             requestedConnection = resolveDefaultConnection(this.options);
             validateEnvironmentOptions(this.options, requestedConnection);
+            // When the env var overrides inference (e.g. inprocess), validate that
+            // no legacy transport options conflict with the resolved connection.
+            if (requestedConnection != null) {
+                validateConnectionConflicts(this.options, requestedConnection);
+            }
         }
         this.runtimeConnection = requestedConnection;
 
@@ -266,14 +271,23 @@ public final class CopilotClient implements AutoCloseable {
      */
     private static RuntimeConnection inferConnectionFromOptions(CopilotClientOptions options) {
         String cliUrl = options.getCliUrl();
+        List<String> args = options.getCliArgs() != null ? Arrays.asList(options.getCliArgs()) : null;
         if (cliUrl != null && !cliUrl.isEmpty()) {
             return RuntimeConnection.forUri(cliUrl).setConnectionToken(options.getTcpConnectionToken());
         }
         if (options.isUseStdio()) {
-            return RuntimeConnection.forStdio(options.getCliPath());
+            StdioRuntimeConnection stdio = RuntimeConnection.forStdio(options.getCliPath());
+            if (args != null) {
+                stdio.setArgs(args);
+            }
+            return stdio;
         }
-        return RuntimeConnection.forTcp().setPath(options.getCliPath()).setPort(options.getPort())
+        TcpRuntimeConnection tcp = RuntimeConnection.forTcp().setPath(options.getCliPath()).setPort(options.getPort())
                 .setConnectionToken(options.getTcpConnectionToken());
+        if (args != null) {
+            tcp.setArgs(args);
+        }
+        return tcp;
     }
 
     /**
