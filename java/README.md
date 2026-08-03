@@ -32,14 +32,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.5-01</version>
+    <version>1.0.9-preview.3</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.9-preview.3-01'
+implementation 'com.github:copilot-sdk-java:1.0.9-preview.3'
 ```
 
 #### Snapshot Builds
