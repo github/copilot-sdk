@@ -53,6 +53,10 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("encryptedContent") String encryptedContent,
         /** Generation phase for phased-output models (e.g., thinking vs. response phases) */
         @JsonProperty("phase") String phase,
+        /** Zero-based position of this message within its model call's response. Absent when the response was not split into chunks. */
+        @JsonProperty("chunkIndex") Long chunkIndex,
+        /** Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1. */
+        @JsonProperty("chunkCount") Long chunkCount,
         /** Actual output token count from the API response (completion_tokens), used for accurate token accounting */
         @JsonProperty("outputTokens") Long outputTokens,
         /** CAPI interaction ID for correlating this message with upstream telemetry */

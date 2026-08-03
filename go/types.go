@@ -1287,6 +1287,10 @@ type SessionConfig struct {
 	// Experimental: SessionLimits is part of an experimental runtime accounting
 	// surface and may change or be removed in future SDK or CLI releases.
 	SessionLimits *rpc.SessionLimitsConfig
+	// EnableExperimentalMode controls whether the session enables experimental
+	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
+	// runtime decides.
+	EnableExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -1693,6 +1697,10 @@ type ResumeSessionConfig struct {
 	// Experimental: SessionLimits is part of an experimental runtime accounting
 	// surface and may change or be removed in future SDK or CLI releases.
 	SessionLimits *rpc.SessionLimitsConfig
+	// EnableExperimentalMode controls whether the session enables experimental
+	// features. When nil, it defaults to false in [ModeEmpty]; otherwise the
+	// runtime decides.
+	EnableExperimentalMode *bool
 	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
 	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
 	SkipCustomInstructions *bool
@@ -2299,6 +2307,7 @@ type createSessionRequest struct {
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
@@ -2390,6 +2399,7 @@ type resumeSessionRequest struct {
 	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
 	EnableCitations                    *bool                                  `json:"enableCitations,omitempty"`
 	SessionLimits                      *rpc.SessionLimitsConfig               `json:"sessionLimits,omitempty"`
+	IsExperimentalMode                 *bool                                  `json:"isExperimentalMode,omitempty"`
 	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
 	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
 	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`

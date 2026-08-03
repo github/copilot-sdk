@@ -1318,6 +1318,8 @@ class AssistantMessageData:
     content: str
     message_id: str
     api_call_id: str | None = None
+    chunk_count: int | None = None
+    chunk_index: int | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     citations: Citations | None = None
     client_request_id: str | None = None
@@ -1344,6 +1346,8 @@ class AssistantMessageData:
         content = from_str(obj.get("content"))
         message_id = from_str(obj.get("messageId"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
+        chunk_count = from_union([from_none, from_int], obj.get("chunkCount"))
+        chunk_index = from_union([from_none, from_int], obj.get("chunkIndex"))
         citations = from_union([from_none, Citations.from_dict], obj.get("citations"))
         client_request_id = from_union([from_none, from_str], obj.get("clientRequestId"))
         encrypted_content = from_union([from_none, from_str], obj.get("encryptedContent"))
@@ -1365,6 +1369,8 @@ class AssistantMessageData:
             content=content,
             message_id=message_id,
             api_call_id=api_call_id,
+            chunk_count=chunk_count,
+            chunk_index=chunk_index,
             citations=citations,
             client_request_id=client_request_id,
             encrypted_content=encrypted_content,
@@ -1390,6 +1396,10 @@ class AssistantMessageData:
         result["messageId"] = from_str(self.message_id)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_none, from_str], self.api_call_id)
+        if self.chunk_count is not None:
+            result["chunkCount"] = from_union([from_none, to_int], self.chunk_count)
+        if self.chunk_index is not None:
+            result["chunkIndex"] = from_union([from_none, to_int], self.chunk_index)
         if self.citations is not None:
             result["citations"] = from_union([from_none, lambda x: to_class(Citations, x)], self.citations)
         if self.client_request_id is not None:
@@ -3427,6 +3437,65 @@ class ExternalToolRequestedData:
 
 
 @dataclass
+class FactoryPermissionPhase:
+    "A declared phase shown in a factory permission prompt."
+    title: str
+    detail: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "FactoryPermissionPhase":
+        assert isinstance(obj, dict)
+        title = from_str(obj.get("title"))
+        detail = from_union([from_none, from_str], obj.get("detail"))
+        return FactoryPermissionPhase(
+            title=title,
+            detail=detail,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["title"] = from_str(self.title)
+        if self.detail is not None:
+            result["detail"] = from_union([from_none, from_str], self.detail)
+        return result
+
+
+@dataclass
+class GitHubMcpToolConfig:
+    "Per-session configuration for the built-in GitHub MCP server"
+    additional_tools: list[str] | None = None
+    additional_toolsets: list[str] | None = None
+    enable_all_tools: bool | None = None
+    enable_insiders_mode: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "GitHubMcpToolConfig":
+        assert isinstance(obj, dict)
+        additional_tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("additionalTools"))
+        additional_toolsets = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("additionalToolsets"))
+        enable_all_tools = from_union([from_none, from_bool], obj.get("enableAllTools"))
+        enable_insiders_mode = from_union([from_none, from_bool], obj.get("enableInsidersMode"))
+        return GitHubMcpToolConfig(
+            additional_tools=additional_tools,
+            additional_toolsets=additional_toolsets,
+            enable_all_tools=enable_all_tools,
+            enable_insiders_mode=enable_insiders_mode,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.additional_tools is not None:
+            result["additionalTools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.additional_tools)
+        if self.additional_toolsets is not None:
+            result["additionalToolsets"] = from_union([from_none, lambda x: from_list(from_str, x)], self.additional_toolsets)
+        if self.enable_all_tools is not None:
+            result["enableAllTools"] = from_union([from_none, from_bool], self.enable_all_tools)
+        if self.enable_insiders_mode is not None:
+            result["enableInsidersMode"] = from_union([from_none, from_bool], self.enable_insiders_mode)
+        return result
+
+
+@dataclass
 class GitHubRepoRef:
     "Pointer to a GitHub repository."
     name: str
@@ -4678,6 +4747,103 @@ class PermissionPromptRequestExtensionPermissionAccess:
 
 
 @dataclass
+class PermissionPromptRequestFactory:
+    "Factory run or authoring permission prompt"
+    approval_key: str
+    can_persist_approval: bool
+    description: str
+    kind: ClassVar[str] = "factory"
+    name: str
+    operation: FactoryPermissionOperation
+    phases: list[FactoryPermissionPhase]
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    auto_approval: PermissionAutoApproval | None = None
+    declared_max_ai_credits: float | None = None
+    declared_max_concurrent_subagents: int | None = None
+    declared_max_total_subagents: int | None = None
+    declared_timeout_seconds: float | None = None
+    managed_approval_required: bool | None = None
+    max_ai_credits: float | None = None
+    max_concurrent_subagents: int | None = None
+    max_total_subagents: int | None = None
+    timeout_seconds: float | None = None
+    tool_call_id: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionPromptRequestFactory":
+        assert isinstance(obj, dict)
+        approval_key = from_str(obj.get("approvalKey"))
+        can_persist_approval = from_bool(obj.get("canPersistApproval"))
+        description = from_str(obj.get("description"))
+        name = from_str(obj.get("name"))
+        operation = parse_enum(FactoryPermissionOperation, obj.get("operation"))
+        phases = from_list(FactoryPermissionPhase.from_dict, obj.get("phases"))
+        auto_approval = from_union([from_none, PermissionAutoApproval.from_dict], obj.get("autoApproval"))
+        declared_max_ai_credits = from_union([from_none, from_float], obj.get("declaredMaxAiCredits"))
+        declared_max_concurrent_subagents = from_union([from_none, from_int], obj.get("declaredMaxConcurrentSubagents"))
+        declared_max_total_subagents = from_union([from_none, from_int], obj.get("declaredMaxTotalSubagents"))
+        declared_timeout_seconds = from_union([from_none, from_float], obj.get("declaredTimeoutSeconds"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        max_concurrent_subagents = from_union([from_none, from_int], obj.get("maxConcurrentSubagents"))
+        max_total_subagents = from_union([from_none, from_int], obj.get("maxTotalSubagents"))
+        timeout_seconds = from_union([from_none, from_float], obj.get("timeoutSeconds"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        return PermissionPromptRequestFactory(
+            approval_key=approval_key,
+            can_persist_approval=can_persist_approval,
+            description=description,
+            name=name,
+            operation=operation,
+            phases=phases,
+            auto_approval=auto_approval,
+            declared_max_ai_credits=declared_max_ai_credits,
+            declared_max_concurrent_subagents=declared_max_concurrent_subagents,
+            declared_max_total_subagents=declared_max_total_subagents,
+            declared_timeout_seconds=declared_timeout_seconds,
+            managed_approval_required=managed_approval_required,
+            max_ai_credits=max_ai_credits,
+            max_concurrent_subagents=max_concurrent_subagents,
+            max_total_subagents=max_total_subagents,
+            timeout_seconds=timeout_seconds,
+            tool_call_id=tool_call_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approvalKey"] = from_str(self.approval_key)
+        result["canPersistApproval"] = from_bool(self.can_persist_approval)
+        result["description"] = from_str(self.description)
+        result["kind"] = self.kind
+        result["name"] = from_str(self.name)
+        result["operation"] = to_enum(FactoryPermissionOperation, self.operation)
+        result["phases"] = from_list(lambda x: to_class(FactoryPermissionPhase, x), self.phases)
+        if self.auto_approval is not None:
+            result["autoApproval"] = from_union([from_none, lambda x: to_class(PermissionAutoApproval, x)], self.auto_approval)
+        if self.declared_max_ai_credits is not None:
+            result["declaredMaxAiCredits"] = from_union([from_none, to_float], self.declared_max_ai_credits)
+        if self.declared_max_concurrent_subagents is not None:
+            result["declaredMaxConcurrentSubagents"] = from_union([from_none, to_int], self.declared_max_concurrent_subagents)
+        if self.declared_max_total_subagents is not None:
+            result["declaredMaxTotalSubagents"] = from_union([from_none, to_int], self.declared_max_total_subagents)
+        if self.declared_timeout_seconds is not None:
+            result["declaredTimeoutSeconds"] = from_union([from_none, to_float], self.declared_timeout_seconds)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        if self.max_concurrent_subagents is not None:
+            result["maxConcurrentSubagents"] = from_union([from_none, to_int], self.max_concurrent_subagents)
+        if self.max_total_subagents is not None:
+            result["maxTotalSubagents"] = from_union([from_none, to_int], self.max_total_subagents)
+        if self.timeout_seconds is not None:
+            result["timeoutSeconds"] = from_union([from_none, to_float], self.timeout_seconds)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        return result
+
+
+@dataclass
 class PermissionPromptRequestHook:
     "Hook confirmation permission prompt"
     kind: ClassVar[str] = "hook"
@@ -5112,6 +5278,97 @@ class PermissionRequestExtensionPermissionAccess:
         result["capabilities"] = from_list(from_str, self.capabilities)
         result["extensionName"] = from_str(self.extension_name)
         result["kind"] = self.kind
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.managed_approval_required is not None:
+            result["managedApprovalRequired"] = from_union([from_none, from_bool], self.managed_approval_required)
+        return result
+
+
+@dataclass
+class PermissionRequestFactory:
+    "Factory run or authoring permission request"
+    approval_key: str
+    can_persist_approval: bool
+    description: str
+    kind: ClassVar[str] = "factory"
+    name: str
+    operation: FactoryPermissionOperation
+    phases: list[FactoryPermissionPhase]
+    declared_max_ai_credits: float | None = None
+    declared_max_concurrent_subagents: int | None = None
+    declared_max_total_subagents: int | None = None
+    declared_timeout_seconds: float | None = None
+    max_ai_credits: float | None = None
+    max_concurrent_subagents: int | None = None
+    max_total_subagents: int | None = None
+    timeout_seconds: float | None = None
+    tool_call_id: str | None = None
+    managed_approval_required: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "PermissionRequestFactory":
+        assert isinstance(obj, dict)
+        approval_key = from_str(obj.get("approvalKey"))
+        can_persist_approval = from_bool(obj.get("canPersistApproval"))
+        description = from_str(obj.get("description"))
+        name = from_str(obj.get("name"))
+        operation = parse_enum(FactoryPermissionOperation, obj.get("operation"))
+        phases = from_list(FactoryPermissionPhase.from_dict, obj.get("phases"))
+        declared_max_ai_credits = from_union([from_none, from_float], obj.get("declaredMaxAiCredits"))
+        declared_max_concurrent_subagents = from_union([from_none, from_int], obj.get("declaredMaxConcurrentSubagents"))
+        declared_max_total_subagents = from_union([from_none, from_int], obj.get("declaredMaxTotalSubagents"))
+        declared_timeout_seconds = from_union([from_none, from_float], obj.get("declaredTimeoutSeconds"))
+        max_ai_credits = from_union([from_none, from_float], obj.get("maxAiCredits"))
+        max_concurrent_subagents = from_union([from_none, from_int], obj.get("maxConcurrentSubagents"))
+        max_total_subagents = from_union([from_none, from_int], obj.get("maxTotalSubagents"))
+        timeout_seconds = from_union([from_none, from_float], obj.get("timeoutSeconds"))
+        tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        managed_approval_required = from_union([from_none, from_bool], obj.get("managedApprovalRequired"))
+        return PermissionRequestFactory(
+            approval_key=approval_key,
+            can_persist_approval=can_persist_approval,
+            description=description,
+            name=name,
+            operation=operation,
+            phases=phases,
+            declared_max_ai_credits=declared_max_ai_credits,
+            declared_max_concurrent_subagents=declared_max_concurrent_subagents,
+            declared_max_total_subagents=declared_max_total_subagents,
+            declared_timeout_seconds=declared_timeout_seconds,
+            max_ai_credits=max_ai_credits,
+            max_concurrent_subagents=max_concurrent_subagents,
+            max_total_subagents=max_total_subagents,
+            timeout_seconds=timeout_seconds,
+            tool_call_id=tool_call_id,
+            managed_approval_required=managed_approval_required,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approvalKey"] = from_str(self.approval_key)
+        result["canPersistApproval"] = from_bool(self.can_persist_approval)
+        result["description"] = from_str(self.description)
+        result["kind"] = self.kind
+        result["name"] = from_str(self.name)
+        result["operation"] = to_enum(FactoryPermissionOperation, self.operation)
+        result["phases"] = from_list(lambda x: to_class(FactoryPermissionPhase, x), self.phases)
+        if self.declared_max_ai_credits is not None:
+            result["declaredMaxAiCredits"] = from_union([from_none, to_float], self.declared_max_ai_credits)
+        if self.declared_max_concurrent_subagents is not None:
+            result["declaredMaxConcurrentSubagents"] = from_union([from_none, to_int], self.declared_max_concurrent_subagents)
+        if self.declared_max_total_subagents is not None:
+            result["declaredMaxTotalSubagents"] = from_union([from_none, to_int], self.declared_max_total_subagents)
+        if self.declared_timeout_seconds is not None:
+            result["declaredTimeoutSeconds"] = from_union([from_none, to_float], self.declared_timeout_seconds)
+        if self.max_ai_credits is not None:
+            result["maxAiCredits"] = from_union([from_none, to_float], self.max_ai_credits)
+        if self.max_concurrent_subagents is not None:
+            result["maxConcurrentSubagents"] = from_union([from_none, to_int], self.max_concurrent_subagents)
+        if self.max_total_subagents is not None:
+            result["maxTotalSubagents"] = from_union([from_none, to_int], self.max_total_subagents)
+        if self.timeout_seconds is not None:
+            result["timeoutSeconds"] = from_union([from_none, to_float], self.timeout_seconds)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
         if self.managed_approval_required is not None:
@@ -6925,6 +7182,7 @@ class SessionStartData:
     context: WorkingDirectoryContext | None = None
     context_tier: ContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
+    github_mcp_tool_config: GitHubMcpToolConfig | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
     remote_steerable: bool | None = None
@@ -6944,6 +7202,7 @@ class SessionStartData:
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
         context_tier = from_union([from_none, lambda x: parse_enum(ContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
+        github_mcp_tool_config = from_union([from_none, GitHubMcpToolConfig.from_dict], obj.get("githubMcpToolConfig"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
         remote_steerable = from_union([from_none, from_bool], obj.get("remoteSteerable"))
@@ -6960,6 +7219,7 @@ class SessionStartData:
             context=context,
             context_tier=context_tier,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
+            github_mcp_tool_config=github_mcp_tool_config,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
             remote_steerable=remote_steerable,
@@ -6983,6 +7243,8 @@ class SessionStartData:
             result["contextTier"] = from_union([from_none, lambda x: to_enum(ContextTier, x)], self.context_tier)
         if self.detached_from_spawning_parent_session_id is not None:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
+        if self.github_mcp_tool_config is not None:
+            result["githubMcpToolConfig"] = from_union([from_none, lambda x: to_class(GitHubMcpToolConfig, x)], self.github_mcp_tool_config)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_summary is not None:
@@ -7858,6 +8120,66 @@ class SystemNotificationData:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["kind"] = self.kind.to_dict()
+        return result
+
+
+@dataclass
+class SystemNotificationFactoryCompleted:
+    "System notification metadata for a factory execution attempt that reached a terminal state."
+    attempt: int
+    consumed_nano_aiu: int
+    consumed_subagents: int
+    elapsed_ms: int
+    factory_name: str
+    run_id: str
+    status: SystemNotificationFactoryCompletedStatus
+    type: ClassVar[str] = "factory_completed"
+    failure: Any = None
+    result_preview: str | None = None
+    retry_guidance: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SystemNotificationFactoryCompleted":
+        assert isinstance(obj, dict)
+        attempt = from_int(obj.get("attempt"))
+        consumed_nano_aiu = from_int(obj.get("consumedNanoAiu"))
+        consumed_subagents = from_int(obj.get("consumedSubagents"))
+        elapsed_ms = from_int(obj.get("elapsedMs"))
+        factory_name = from_str(obj.get("factoryName"))
+        run_id = from_str(obj.get("runId"))
+        status = parse_enum(SystemNotificationFactoryCompletedStatus, obj.get("status"))
+        failure = obj.get("failure")
+        result_preview = from_union([from_none, from_str], obj.get("resultPreview"))
+        retry_guidance = from_union([from_none, from_str], obj.get("retryGuidance"))
+        return SystemNotificationFactoryCompleted(
+            attempt=attempt,
+            consumed_nano_aiu=consumed_nano_aiu,
+            consumed_subagents=consumed_subagents,
+            elapsed_ms=elapsed_ms,
+            factory_name=factory_name,
+            run_id=run_id,
+            status=status,
+            failure=failure,
+            result_preview=result_preview,
+            retry_guidance=retry_guidance,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["attempt"] = to_int(self.attempt)
+        result["consumedNanoAiu"] = to_int(self.consumed_nano_aiu)
+        result["consumedSubagents"] = to_int(self.consumed_subagents)
+        result["elapsedMs"] = to_int(self.elapsed_ms)
+        result["factoryName"] = from_str(self.factory_name)
+        result["runId"] = from_str(self.run_id)
+        result["status"] = to_enum(SystemNotificationFactoryCompletedStatus, self.status)
+        result["type"] = self.type
+        if self.failure is not None:
+            result["failure"] = self.failure
+        if self.result_preview is not None:
+            result["resultPreview"] = from_union([from_none, from_str], self.result_preview)
+        if self.retry_guidance is not None:
+            result["retryGuidance"] = from_union([from_none, from_str], self.retry_guidance)
         return result
 
 
@@ -9198,6 +9520,28 @@ class UserToolSessionApprovalExtensionPermissionAccess:
 
 
 @dataclass
+class UserToolSessionApprovalFactory:
+    "Session-scoped factory approval, optionally narrowed by approval key."
+    kind: ClassVar[str] = "factory"
+    approval_key: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "UserToolSessionApprovalFactory":
+        assert isinstance(obj, dict)
+        approval_key = from_union([from_none, from_str], obj.get("approvalKey"))
+        return UserToolSessionApprovalFactory(
+            approval_key=approval_key,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = self.kind
+        if self.approval_key is not None:
+            result["approvalKey"] = from_union([from_none, from_str], self.approval_key)
+        return result
+
+
+@dataclass
 class UserToolSessionApprovalMcp:
     "Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when `toolName` is null."
     kind: ClassVar[str] = "mcp"
@@ -9378,6 +9722,7 @@ def _load_PermissionPromptRequest(obj: Any) -> "PermissionPromptRequest":
         case "path": return PermissionPromptRequestPath.from_dict(obj)
         case "hook": return PermissionPromptRequestHook.from_dict(obj)
         case "extension-management": return PermissionPromptRequestExtensionManagement.from_dict(obj)
+        case "factory": return PermissionPromptRequestFactory.from_dict(obj)
         case "extension-permission-access": return PermissionPromptRequestExtensionPermissionAccess.from_dict(obj)
         case _: raise ValueError(f"Unknown PermissionPromptRequest kind: {kind!r}")
 
@@ -9395,6 +9740,7 @@ def _load_PermissionRequest(obj: Any) -> "PermissionRequest":
         case "custom-tool": return PermissionRequestCustomTool.from_dict(obj)
         case "hook": return PermissionRequestHook.from_dict(obj)
         case "extension-management": return PermissionRequestExtensionManagement.from_dict(obj)
+        case "factory": return PermissionRequestFactory.from_dict(obj)
         case "extension-permission-access": return PermissionRequestExtensionPermissionAccess.from_dict(obj)
         case _: raise ValueError(f"Unknown PermissionRequest kind: {kind!r}")
 
@@ -9425,6 +9771,7 @@ def _load_SystemNotification(obj: Any) -> "SystemNotification":
         case "shell_completed": return SystemNotificationShellCompleted.from_dict(obj)
         case "shell_detached_completed": return SystemNotificationShellDetachedCompleted.from_dict(obj)
         case "instruction_discovered": return SystemNotificationInstructionDiscovered.from_dict(obj)
+        case "factory_completed": return SystemNotificationFactoryCompleted.from_dict(obj)
         case "unclassified": return SystemNotificationUnclassified.from_dict(obj)
         case _: raise ValueError(f"Unknown SystemNotification type: {kind!r}")
 
@@ -9454,6 +9801,7 @@ def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
         case "memory": return UserToolSessionApprovalMemory.from_dict(obj)
         case "custom-tool": return UserToolSessionApprovalCustomTool.from_dict(obj)
         case "extension-management": return UserToolSessionApprovalExtensionManagement.from_dict(obj)
+        case "factory": return UserToolSessionApprovalFactory.from_dict(obj)
         case "extension-permission-access": return UserToolSessionApprovalExtensionPermissionAccess.from_dict(obj)
         case _: raise ValueError(f"Unknown UserToolSessionApproval kind: {kind!r}")
 
@@ -9471,11 +9819,11 @@ Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | Attach
 
 
 # Derived user-facing permission prompt details for UI consumers
-PermissionPromptRequest = PermissionPromptRequestCommands | PermissionPromptRequestWrite | PermissionPromptRequestRead | PermissionPromptRequestMcp | PermissionPromptRequestUrl | PermissionPromptRequestMemory | PermissionPromptRequestCustomTool | PermissionPromptRequestPath | PermissionPromptRequestHook | PermissionPromptRequestExtensionManagement | PermissionPromptRequestExtensionPermissionAccess
+PermissionPromptRequest = PermissionPromptRequestCommands | PermissionPromptRequestWrite | PermissionPromptRequestRead | PermissionPromptRequestMcp | PermissionPromptRequestUrl | PermissionPromptRequestMemory | PermissionPromptRequestCustomTool | PermissionPromptRequestPath | PermissionPromptRequestHook | PermissionPromptRequestExtensionManagement | PermissionPromptRequestFactory | PermissionPromptRequestExtensionPermissionAccess
 
 
 # Details of the permission being requested
-PermissionRequest = PermissionRequestShell | PermissionRequestWrite | PermissionRequestRead | PermissionRequestMcp | PermissionRequestUrl | PermissionRequestMemory | PermissionRequestCustomTool | PermissionRequestHook | PermissionRequestExtensionManagement | PermissionRequestExtensionPermissionAccess
+PermissionRequest = PermissionRequestShell | PermissionRequestWrite | PermissionRequestRead | PermissionRequestMcp | PermissionRequestUrl | PermissionRequestMemory | PermissionRequestCustomTool | PermissionRequestHook | PermissionRequestExtensionManagement | PermissionRequestFactory | PermissionRequestExtensionPermissionAccess
 
 
 # Location within a cited source (character, page, or content-block range) that supports a span.
@@ -9483,11 +9831,11 @@ CitationLocation = CitationLocationChar | CitationLocationPage | CitationLocatio
 
 
 # Structured metadata identifying what triggered this notification
-SystemNotification = SystemNotificationAgentCompleted | SystemNotificationAgentIdle | SystemNotificationNewInboxMessage | SystemNotificationShellCompleted | SystemNotificationShellDetachedCompleted | SystemNotificationInstructionDiscovered | SystemNotificationUnclassified
+SystemNotification = SystemNotificationAgentCompleted | SystemNotificationAgentIdle | SystemNotificationNewInboxMessage | SystemNotificationShellCompleted | SystemNotificationShellDetachedCompleted | SystemNotificationInstructionDiscovered | SystemNotificationFactoryCompleted | SystemNotificationUnclassified
 
 
 # The approval to add as a session-scoped rule
-UserToolSessionApproval = UserToolSessionApprovalCommands | UserToolSessionApprovalRead | UserToolSessionApprovalWrite | UserToolSessionApprovalMcp | UserToolSessionApprovalMemory | UserToolSessionApprovalCustomTool | UserToolSessionApprovalExtensionManagement | UserToolSessionApprovalExtensionPermissionAccess
+UserToolSessionApproval = UserToolSessionApprovalCommands | UserToolSessionApprovalRead | UserToolSessionApprovalWrite | UserToolSessionApprovalMcp | UserToolSessionApprovalMemory | UserToolSessionApprovalCustomTool | UserToolSessionApprovalExtensionManagement | UserToolSessionApprovalFactory | UserToolSessionApprovalExtensionPermissionAccess
 
 
 # The embedded resource contents, either text or base64-encoded binary
@@ -9722,6 +10070,14 @@ class ExtensionsLoadedExtensionStatus(Enum):
     FAILED = "failed"
     # The extension process is starting.
     STARTING = "starting"
+
+
+class FactoryPermissionOperation(Enum):
+    "Operation gated by a factory permission request."
+    # Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.
+    RUN = "run"
+    # Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.
+    AUTHOR = "author"
 
 
 class HandoffSourceType(Enum):
@@ -10028,6 +10384,18 @@ class SystemNotificationAgentCompletedStatus(Enum):
     COMPLETED = "completed"
     # The agent failed.
     FAILED = "failed"
+
+
+class SystemNotificationFactoryCompletedStatus(Enum):
+    "Terminal status reached by a factory execution attempt."
+    # The factory completed successfully.
+    COMPLETED = "completed"
+    # The factory was halted.
+    HALTED = "halted"
+    # The factory was cancelled.
+    CANCELLED = "cancelled"
+    # The factory failed.
+    ERROR = "error"
 
 
 class TaskCompletionOutcome(Enum):
@@ -10382,7 +10750,10 @@ __all__ = [
     "ExtensionsLoadedExtensionStatus",
     "ExternalToolCompletedData",
     "ExternalToolRequestedData",
+    "FactoryPermissionOperation",
+    "FactoryPermissionPhase",
     "FactoryRunUpdatedData",
+    "GitHubMcpToolConfig",
     "GitHubRepoRef",
     "HandoffRepository",
     "HandoffSourceType",
@@ -10444,6 +10815,7 @@ __all__ = [
     "PermissionPromptRequestCustomTool",
     "PermissionPromptRequestExtensionManagement",
     "PermissionPromptRequestExtensionPermissionAccess",
+    "PermissionPromptRequestFactory",
     "PermissionPromptRequestHook",
     "PermissionPromptRequestMcp",
     "PermissionPromptRequestMemory",
@@ -10456,6 +10828,7 @@ __all__ = [
     "PermissionRequestCustomTool",
     "PermissionRequestExtensionManagement",
     "PermissionRequestExtensionPermissionAccess",
+    "PermissionRequestFactory",
     "PermissionRequestHook",
     "PermissionRequestMcp",
     "PermissionRequestMemory",
@@ -10561,6 +10934,8 @@ __all__ = [
     "SystemNotificationAgentCompletedStatus",
     "SystemNotificationAgentIdle",
     "SystemNotificationData",
+    "SystemNotificationFactoryCompleted",
+    "SystemNotificationFactoryCompletedStatus",
     "SystemNotificationInstructionDiscovered",
     "SystemNotificationNewInboxMessage",
     "SystemNotificationShellCompleted",
@@ -10614,6 +10989,7 @@ __all__ = [
     "UserToolSessionApprovalCustomTool",
     "UserToolSessionApprovalExtensionManagement",
     "UserToolSessionApprovalExtensionPermissionAccess",
+    "UserToolSessionApprovalFactory",
     "UserToolSessionApprovalMcp",
     "UserToolSessionApprovalMemory",
     "UserToolSessionApprovalRead",

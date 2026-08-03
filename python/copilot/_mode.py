@@ -259,6 +259,14 @@ def _custom_agents_local_only_default(
     return _empty_mode_bool_default(mode, supplied, True)
 
 
+def _enable_experimental_mode_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults experimental mode to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
 def _mcp_oauth_token_storage_default(
     mode: CopilotClientMode | None,
     supplied: Literal["persistent", "in-memory"] | None,

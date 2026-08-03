@@ -291,6 +291,15 @@ pub(crate) fn memory_for_mode(
     }
 }
 
+/// Returns the `enable_experimental_mode` value to send for the given mode.
+pub(crate) fn experimental_mode_for_mode(mode: ClientMode, supplied: Option<bool>) -> Option<bool> {
+    if mode == ClientMode::Empty {
+        Some(supplied.unwrap_or(false))
+    } else {
+        supplied
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -532,6 +541,30 @@ mod tests {
         assert_eq!(
             memory_for_mode(ClientMode::Empty, Some(MemoryConfiguration::enabled())),
             Some(MemoryConfiguration::enabled())
+        );
+    }
+
+    #[test]
+    fn experimental_mode_defaults_false_in_empty_mode() {
+        assert_eq!(
+            experimental_mode_for_mode(ClientMode::Empty, None),
+            Some(false)
+        );
+        assert_eq!(
+            experimental_mode_for_mode(ClientMode::Empty, Some(true)),
+            Some(true)
+        );
+        assert_eq!(
+            experimental_mode_for_mode(ClientMode::Empty, Some(false)),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn experimental_mode_remains_runtime_controlled_in_copilot_cli_mode() {
+        assert_eq!(
+            experimental_mode_for_mode(ClientMode::CopilotCli, None),
+            None
         );
     }
 }

@@ -433,6 +433,16 @@ type AgentSelectResult struct {
 	Agent AgentInfo `json:"agent"`
 }
 
+// An in-memory authored prompt override for an available agent.
+// Experimental: AgentSetPromptRequest is part of an experimental API and may change or be
+// removed.
+type AgentSetPromptRequest struct {
+	// Stable effective agent id. Plugin namespace separators are normalized.
+	ID string `json:"id"`
+	// Replacement authored prompt. Empty text is valid.
+	Prompt string `json:"prompt"`
+}
+
 // Optional project paths to include when enumerating agent discovery directories.
 // Experimental: AgentsGetDiscoveryPathsRequest is part of an experimental API and may
 // change or be removed.
@@ -1860,6 +1870,59 @@ type DiscoveredCanvas struct {
 	InputSchema any `json:"inputSchema,omitempty"`
 }
 
+// Discovered extension metadata and persistent enablement state.
+// Experimental: DiscoveredExtension is part of an experimental API and may change or be
+// removed.
+type DiscoveredExtension struct {
+	// Whether this extension's persistent per-ID preference is enabled
+	Enabled bool `json:"enabled"`
+	// Source-qualified ID accepted by both server and session extension enablement methods
+	ID string `json:"id"`
+	// Human-readable extension name
+	Name string `json:"name"`
+	// Absolute path to the extension entry module, suitable for revealing it in a file manager
+	Path string `json:"path"`
+	// Containing plugin metadata for plugin-contributed extensions
+	Plugin *DiscoveredExtensionPlugin `json:"plugin,omitempty"`
+	// Discovery source
+	Source DiscoveredExtensionSource `json:"source"`
+}
+
+// Installed plugin that contributes a discovered extension.
+// Experimental: DiscoveredExtensionPlugin is part of an experimental API and may change or
+// be removed.
+type DiscoveredExtensionPlugin struct {
+	// Installed plugin name
+	Name string `json:"name"`
+}
+
+// Extensions discovered from persisted Copilot home state and their effective loading mode.
+// Launch-scoped additional plugins are not included.
+// Experimental: DiscoveredExtensions is part of an experimental API and may change or be
+// removed.
+type DiscoveredExtensions struct {
+	// Discovered user and enabled installed-plugin extensions from persisted Copilot home state
+	Extensions []DiscoveredExtension `json:"extensions"`
+	// Effective extension loading mode. Defaults to load_and_augment when unset.
+	Mode DiscoveredExtensionMode `json:"mode"`
+}
+
+// Source-qualified extension identifiers to persistently disable for future sessions.
+// Experimental: DiscoveredExtensionsDisableRequest is part of an experimental API and may
+// change or be removed.
+type DiscoveredExtensionsDisableRequest struct {
+	// Source-qualified user or plugin extension IDs to disable
+	IDs []string `json:"ids"`
+}
+
+// Source-qualified extension identifiers to persistently enable for future sessions.
+// Experimental: DiscoveredExtensionsEnableRequest is part of an experimental API and may
+// change or be removed.
+type DiscoveredExtensionsEnableRequest struct {
+	// Source-qualified user or plugin extension IDs to enable
+	IDs []string `json:"ids"`
+}
+
 // MCP server discovered by `mcp.discover`, with config source, optional plugin source,
 // transport type, and enabled state.
 // Experimental: DiscoveredMCPServer is part of an experimental API and may change or be
@@ -1901,6 +1964,11 @@ type EnqueueCommandResult struct {
 // Experimental: EventLogReadRequest is part of an experimental API and may change or be
 // removed.
 type EventLogReadRequest struct {
+	// Optional non-empty list of subagent identifiers. When provided, only events owned by one
+	// of these agents are returned; ownership recognizes the event envelope's agentId plus
+	// legacy data.agentId and data.parentToolCallId markers. This filter takes precedence over
+	// agentScope.
+	AgentIDs []string `json:"agentIds,omitzero"`
 	// Agent-scope filter: 'primary' returns only main-agent events plus events whose type
 	// starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns
 	// events from all agents (matching wildcard-subscription behavior). Default is 'all' to
@@ -1909,10 +1977,23 @@ type EventLogReadRequest struct {
 	// Opaque cursor returned by a previous read. Omit on the first call to start from the
 	// beginning of the session's persisted history.
 	Cursor *string `json:"cursor,omitempty"`
+	// Direction to page through the session's persisted event history. 'forward' (default)
+	// pages from the cursor toward newer events (or from the start of history when no cursor is
+	// given). 'backward' enables tail-first reads: with no cursor it returns the NEWEST `max`
+	// events, and the returned cursor pages toward OLDER events on subsequent backward reads.
+	// Events within a returned batch are always in chronological (oldest-to-newest) order, even
+	// for a backward read. Backward reads cover PERSISTED history only; ephemeral events are
+	// never returned by a backward read. `direction` selects the INITIAL read only: the
+	// returned cursor is self-describing, so a continuation read pages in the cursor's own
+	// direction regardless of the `direction` passed alongside it — a forward cursor always
+	// pages forward and a backward cursor always pages backward. Pass the direction that
+	// matches the cursor to avoid confusion.
+	Direction *EventsReadDirection `json:"direction,omitempty"`
 	// When false, skip ephemeral events entirely and return only durable (persisted) events.
 	// History-backfill callers that discard ephemerals anyway should set this so the read is
 	// bounded by the durable log length instead of racing the ephemeral ring on a busy session.
 	// Defaults to true (ephemerals are interleaved with durable events in creation order).
+	// Ignored by backward reads, which always cover persisted history only.
 	IncludeEphemeral *bool `json:"includeEphemeral,omitempty"`
 	// Maximum number of events to return in this batch (1–1000, default 200).
 	Max *int64 `json:"max,omitempty"`
@@ -1922,7 +2003,10 @@ type EventLogReadRequest struct {
 	// (default) returns immediately even if no events are available. Capped at 30000ms.
 	// Ephemeral events that arrive during the wait are delivered in this batch but are NOT
 	// replayable on a subsequent read (use a non-zero waitMs in your next call to capture
-	// future ephemerals as they happen).
+	// future ephemerals as they happen). This applies to forward reads only: a backward read
+	// always returns immediately and ignores `waitMs`, because backward paging covers persisted
+	// history only while new events append at the tail (the opposite end from a backward page),
+	// so no blocking or ephemeral delivery can occur.
 	WaitMs *int32 `json:"waitMs,omitempty"`
 }
 
@@ -1960,21 +2044,31 @@ type EventLogTypes struct {
 // removed.
 type EventsReadResult struct {
 	// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue
-	// from where this read left off. Always present, even when no events were returned.
+	// from where this read left off. Always present, even when no events were returned. For a
+	// backward read this cursor pages toward OLDER events; keep passing `direction: backward`
+	// with it (the cursor is also self-describing, so backward paging continues correctly).
 	Cursor string `json:"cursor"`
 	// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
 	// referred to an event that no longer exists in history (e.g. truncated or compacted away)
-	// and the read started from the beginning of the remaining history.
+	// and the read fell back to a boundary of the remaining history. For a forward read the
+	// fallback starts from the beginning of the remaining history; for a backward read it falls
+	// back to the tail (the newest window). Because the fallback page is a fresh boundary
+	// snapshot rather than a continuation of the requested cursor, it may overlap events the
+	// consumer has already rendered — a backward fallback to the tail in particular can repeat
+	// the newest window. On 'expired', consumers should reset or rebase their local pagination
+	// state (or deduplicate by event id) before continuing from the returned cursor rather than
+	// blindly appending/prepending the fallback page.
 	CursorStatus EventsCursorStatus `json:"cursorStatus"`
 	// Session events for this batch, merged into a single stream in creation order: durable
 	// (persisted) events and ephemeral events interleave exactly as they were emitted. Set
 	// `includeEphemeral: false` to receive only durable events. Ephemeral events are never
 	// replayable once pruned from the in-memory ring, so a consumer that needs them should keep
-	// reading with a non-zero `waitMs`.
+	// reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window
+	// contains persisted events only, still in chronological (oldest-to-newest) append order.
 	Events []SessionEvent `json:"events"`
-	// True when the read returned `max` events and more events are available immediately. When
-	// false, the next read with a non-zero `waitMs` will block until a new event arrives or the
-	// wait expires.
+	// True when more events are available in the read's direction. For a forward read, true
+	// means the batch returned `max` events and more are available immediately. For a backward
+	// read, true means older persisted events remain before the returned window.
 	HasMore bool `json:"hasMore"`
 }
 
@@ -2030,12 +2124,22 @@ type ExtensionsDisableRequest struct {
 	ID string `json:"id"`
 }
 
+// Experimental: ExtensionsDisableResult is part of an experimental API and may change or be
+// removed.
+type ExtensionsDisableResult struct {
+}
+
 // Source-qualified extension identifier to enable for the session.
 // Experimental: ExtensionsEnableRequest is part of an experimental API and may change or be
 // removed.
 type ExtensionsEnableRequest struct {
 	// Source-qualified extension ID to enable
 	ID string `json:"id"`
+}
+
+// Experimental: ExtensionsEnableResult is part of an experimental API and may change or be
+// removed.
+type ExtensionsEnableResult struct {
 }
 
 // Tool call result (string or expanded result object)
@@ -4181,6 +4285,18 @@ type MCPListToolsResult struct {
 	Tools []MCPTools `json:"tools"`
 }
 
+// Identifies the MCP server whose persisted OAuth credentials were updated.
+// Experimental: MCPOauthAuthenticationStateChangedRequest is part of an experimental API
+// and may change or be removed.
+type MCPOauthAuthenticationStateChangedRequest struct {
+	// Whether the target session must mint a session-scoped access token instead of reusing a
+	// shared access token persisted by another session.
+	RefreshSessionToken *bool `json:"refreshSessionToken,omitempty"`
+	// Name of the MCP server whose OAuth credentials were updated. Omit only when the host
+	// cannot identify the server.
+	ServerName *string `json:"serverName,omitempty"`
+}
+
 // Pending MCP OAuth request ID and host-provided token or cancellation response.
 // Experimental: MCPOauthHandlePendingRequest is part of an experimental API and may change
 // or be removed.
@@ -5707,6 +5823,21 @@ func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kin
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
 
+// Location-scoped factory approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForLocationApprovalFactory is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForLocationApprovalFactory struct {
+	// Optional factory operation name or canonical approval key; when omitted, the approval
+	// covers all factory operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForLocationApprovalFactory) permissionDecisionApproveForLocationApproval() {
+}
+func (PermissionDecisionApproveForLocationApprovalFactory) Kind() PermissionDecisionApproveForLocationApprovalKind {
+	return PermissionDecisionApproveForLocationApprovalKindFactory
+}
+
 // Location-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
@@ -5850,6 +5981,21 @@ func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) perm
 }
 func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
+}
+
+// Session-scoped factory approval, optionally narrowed by approval key.
+// Experimental: PermissionDecisionApproveForSessionApprovalFactory is part of an
+// experimental API and may change or be removed.
+type PermissionDecisionApproveForSessionApprovalFactory struct {
+	// Optional factory operation name or canonical approval key; when omitted, the approval
+	// covers all factory operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionDecisionApproveForSessionApprovalFactory) permissionDecisionApproveForSessionApproval() {
+}
+func (PermissionDecisionApproveForSessionApprovalFactory) Kind() PermissionDecisionApproveForSessionApprovalKind {
+	return PermissionDecisionApproveForSessionApprovalKindFactory
 }
 
 // Session-scoped approval details for an MCP server tool, or all tools on the server when
@@ -6265,6 +6411,21 @@ func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind(
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
 
+// Location-persisted factory approval, optionally narrowed by approval key.
+// Experimental: PermissionsLocationsAddToolApprovalDetailsFactory is part of an
+// experimental API and may change or be removed.
+type PermissionsLocationsAddToolApprovalDetailsFactory struct {
+	// Optional factory operation name or canonical approval key; when omitted, the approval
+	// covers all factory operations.
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (PermissionsLocationsAddToolApprovalDetailsFactory) permissionsLocationsAddToolApprovalDetails() {
+}
+func (PermissionsLocationsAddToolApprovalDetailsFactory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
+	return PermissionsLocationsAddToolApprovalDetailsKindFactory
+}
+
 // Location-persisted tool approval details for an MCP server tool, or all tools when
 // `toolName` is null.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
@@ -6425,7 +6586,8 @@ type PermissionsSetAllowAllRequest struct {
 	// auto-approval; `off` disables both.
 	Mode *PermissionsAllowAllMode `json:"mode,omitempty"`
 	// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when
-	// `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+	// `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge
+	// model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
 	Model *string `json:"model,omitempty"`
 	// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
 	Source *PermissionsSetAllowAllSource `json:"source,omitempty"`
@@ -7941,6 +8103,13 @@ type RuntimeShutdownResult struct {
 type SandboxConfig struct {
 	// Whether to auto-add the current working directory to readwritePaths. Default: true.
 	AddCurrentWorkingDirectory *bool `json:"addCurrentWorkingDirectory,omitempty"`
+	// Whether to auto-grant read access to common developer-tool caches, registries, and
+	// toolchains in their default home locations (cargo, go, npm, Maven, and more), plus
+	// read-write access to (and, on Unix, up-front creation of) the scratch caches builds write
+	// on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so
+	// builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default;
+	// set to false to opt out).
+	AllowDevToolCaches *bool `json:"allowDevToolCaches,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
 	// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the
@@ -8426,6 +8595,11 @@ type SessionAgentListRequest struct {
 	// When true, request authored base prompt text on each AgentInfo. Prompt text may be
 	// omitted when unavailable, such as for agents projected through a relay session.
 	IncludePrompt *bool `json:"includePrompt,omitempty"`
+}
+
+// Experimental: SessionAgentSetPromptResult is part of an experimental API and may change
+// or be removed.
+type SessionAgentSetPromptResult struct {
 }
 
 // Authentication status and account metadata for the session.
@@ -9235,6 +9409,11 @@ type SessionMCPDisableResult struct {
 // Experimental: SessionMCPEnableResult is part of an experimental API and may change or be
 // removed.
 type SessionMCPEnableResult struct {
+}
+
+// Experimental: SessionMCPOauthAuthenticationStateChangedResult is part of an experimental
+// API and may change or be removed.
+type SessionMCPOauthAuthenticationStateChangedResult struct {
 }
 
 // Experimental: SessionMCPRegisterExternalClientResult is part of an experimental API and
@@ -12161,6 +12340,19 @@ func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionAp
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
 
+// Session-scoped factory approval, optionally narrowed by approval key.
+// Experimental: UserToolSessionApprovalFactory is part of an experimental API and may
+// change or be removed.
+type UserToolSessionApprovalFactory struct {
+	// Optional factory operation name or canonical approval key
+	ApprovalKey *string `json:"approvalKey,omitempty"`
+}
+
+func (UserToolSessionApprovalFactory) userToolSessionApproval() {}
+func (UserToolSessionApprovalFactory) Kind() UserToolSessionApprovalKind {
+	return UserToolSessionApprovalKindFactory
+}
+
 // Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
@@ -12898,6 +13090,32 @@ const (
 	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
 )
 
+// Effective extension loading and agent-management mode
+// Experimental: DiscoveredExtensionMode is part of an experimental API and may change or be
+// removed.
+type DiscoveredExtensionMode string
+
+const (
+	// Extensions are not loaded.
+	DiscoveredExtensionModeDisabled DiscoveredExtensionMode = "disabled"
+	// Extensions are loaded and the agent can create, reload, and manage them.
+	DiscoveredExtensionModeLoadAndAugment DiscoveredExtensionMode = "load_and_augment"
+	// Extensions are loaded, but the agent cannot create, reload, or manage them.
+	DiscoveredExtensionModeLoadOnly DiscoveredExtensionMode = "load_only"
+)
+
+// Persisted extension discovery source
+// Experimental: DiscoveredExtensionSource is part of an experimental API and may change or
+// be removed.
+type DiscoveredExtensionSource string
+
+const (
+	// Extension contributed by an installed plugin.
+	DiscoveredExtensionSourcePlugin DiscoveredExtensionSource = "plugin"
+	// Extension discovered from the user's extensions directory.
+	DiscoveredExtensionSourceUser DiscoveredExtensionSource = "user"
+)
+
 // Server transport type: stdio, http, sse (deprecated), or memory
 // Experimental: DiscoveredMCPServerType is part of an experimental API and may change or be
 // removed.
@@ -12937,7 +13155,11 @@ const (
 
 // Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor
 // referred to an event that no longer exists in history (e.g. truncated or compacted away)
-// and the read started from the beginning of the remaining history.
+// and the read fell back to a boundary of the remaining history (the beginning for a
+// forward read, the tail for a backward read). The fallback page is a fresh boundary
+// snapshot, not a continuation of the requested cursor, so it may overlap already-rendered
+// events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate
+// by event id) before continuing from the returned cursor.
 // Experimental: EventsCursorStatus is part of an experimental API and may change or be
 // removed.
 type EventsCursorStatus string
@@ -12947,6 +13169,21 @@ const (
 	EventsCursorStatusExpired EventsCursorStatus = "expired"
 	// The cursor was applied successfully.
 	EventsCursorStatusOk EventsCursorStatus = "ok"
+)
+
+// Direction to page through the session's persisted event history. 'forward' pages from the
+// cursor toward newer events; 'backward' returns the newest window first (tail-first) and
+// pages toward older events. Events within a returned batch are always chronological
+// (oldest-to-newest), even for a backward read.
+// Experimental: EventsReadDirection is part of an experimental API and may change or be
+// removed.
+type EventsReadDirection string
+
+const (
+	// Tail-first: return the newest events and page toward older events.
+	EventsReadDirectionBackward EventsReadDirection = "backward"
+	// Page from the cursor toward newer events (default).
+	EventsReadDirectionForward EventsReadDirection = "forward"
 )
 
 // Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
@@ -13796,6 +14033,7 @@ const (
 	PermissionDecisionApproveForLocationApprovalKindCustomTool                PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
 	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
 	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
+	PermissionDecisionApproveForLocationApprovalKindFactory                   PermissionDecisionApproveForLocationApprovalKind = "factory"
 	PermissionDecisionApproveForLocationApprovalKindMCP                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
 	PermissionDecisionApproveForLocationApprovalKindMCPSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
@@ -13811,6 +14049,7 @@ const (
 	PermissionDecisionApproveForSessionApprovalKindCustomTool                PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
 	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
 	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
+	PermissionDecisionApproveForSessionApprovalKindFactory                   PermissionDecisionApproveForSessionApprovalKind = "factory"
 	PermissionDecisionApproveForSessionApprovalKindMCP                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
 	PermissionDecisionApproveForSessionApprovalKindMCPSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
 	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
@@ -13887,6 +14126,7 @@ const (
 	PermissionsLocationsAddToolApprovalDetailsKindCustomTool                PermissionsLocationsAddToolApprovalDetailsKind = "custom-tool"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement       PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess PermissionsLocationsAddToolApprovalDetailsKind = "extension-permission-access"
+	PermissionsLocationsAddToolApprovalDetailsKindFactory                   PermissionsLocationsAddToolApprovalDetailsKind = "factory"
 	PermissionsLocationsAddToolApprovalDetailsKindMCP                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
 	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
 	PermissionsLocationsAddToolApprovalDetailsKindMemory                    PermissionsLocationsAddToolApprovalDetailsKind = "memory"
@@ -14891,6 +15131,7 @@ const (
 	UserToolSessionApprovalKindCustomTool                UserToolSessionApprovalKind = "custom-tool"
 	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
 	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
+	UserToolSessionApprovalKindFactory                   UserToolSessionApprovalKind = "factory"
 	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
@@ -15153,6 +15394,67 @@ func (a *ServerCommandsAPI) List(ctx context.Context) (*CommandList, error) {
 		return nil, err
 	}
 	var result CommandList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerExtensionsAPI contains experimental APIs that may change or be
+// removed.
+type ServerExtensionsAPI serverAPI
+
+// Disable persistently disables extension IDs for future sessions. Active sessions are
+// unchanged; use session.extensions.disable to update them.
+//
+// RPC method: extensions.disable.
+//
+// Parameters: Source-qualified extension identifiers to persistently disable for future
+// sessions.
+func (a *ServerExtensionsAPI) Disable(ctx context.Context, params *DiscoveredExtensionsDisableRequest) (*ExtensionsDisableResult, error) {
+	raw, err := a.client.Request(ctx, "extensions.disable", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ExtensionsDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Discovers user and enabled installed-plugin extensions from persisted Copilot home state,
+// including enablement preferences. Launch-scoped additional plugins are not included.
+//
+// RPC method: extensions.discover.
+//
+// Returns: Extensions discovered from persisted Copilot home state and their effective
+// loading mode. Launch-scoped additional plugins are not included.
+func (a *ServerExtensionsAPI) Discover(ctx context.Context) (*DiscoveredExtensions, error) {
+	raw, err := a.client.Request(ctx, "extensions.discover", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result DiscoveredExtensions
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Enable persistently enables extension IDs for future sessions. Active sessions are
+// unchanged; use session.extensions.enable to update them.
+//
+// RPC method: extensions.enable.
+//
+// Parameters: Source-qualified extension identifiers to persistently enable for future
+// sessions.
+func (a *ServerExtensionsAPI) Enable(ctx context.Context, params *DiscoveredExtensionsEnableRequest) (*ExtensionsEnableResult, error) {
+	raw, err := a.client.Request(ctx, "extensions.enable", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ExtensionsEnableResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -16416,6 +16718,7 @@ type ServerRPC struct {
 	AgentRegistry *ServerAgentRegistryAPI
 	Agents        *ServerAgentsAPI
 	Commands      *ServerCommandsAPI
+	Extensions    *ServerExtensionsAPI
 	Instructions  *ServerInstructionsAPI
 	LlmInference  *ServerLlmInferenceAPI
 	MCP           *ServerMCPAPI
@@ -16458,6 +16761,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.AgentRegistry = (*ServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*ServerAgentsAPI)(&r.common)
 	r.Commands = (*ServerCommandsAPI)(&r.common)
+	r.Extensions = (*ServerExtensionsAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
@@ -16829,6 +17133,32 @@ func (a *AgentAPI) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 		return nil, err
 	}
 	var result AgentSelectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetPrompt sets an in-memory authored prompt override for an available agent. For built-in
+// agents, this replaces only the static base prompt while preserving runtime-owned dynamic
+// prompt composition and behavior. The special `general-purpose` agent is not overrideable.
+// Overrides are not persisted; resumed and forked sessions start without them, so the host
+// must re-apply them.
+//
+// RPC method: session.agent.setPrompt.
+//
+// Parameters: An in-memory authored prompt override for an available agent.
+func (a *AgentAPI) SetPrompt(ctx context.Context, params *AgentSetPromptRequest) (*SessionAgentSetPromptResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+		req["prompt"] = params.Prompt
+	}
+	raw, err := a.client.Request(ctx, "session.agent.setPrompt", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentSetPromptResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -17247,6 +17577,7 @@ func (a *DebugAPI) CollectLogs(ctx context.Context, params *DebugCollectLogsRequ
 type EventLogAPI sessionAPI
 
 // Reads a batch of session events from a cursor, optionally waiting for new events.
+// Supports tail-first reads via `direction: backward`.
 //
 // RPC method: session.eventLog.read.
 //
@@ -17258,11 +17589,17 @@ type EventLogAPI sessionAPI
 func (a *EventLogAPI) Read(ctx context.Context, params *EventLogReadRequest) (*EventsReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.AgentIDs != nil {
+			req["agentIds"] = params.AgentIDs
+		}
 		if params.AgentScope != nil {
 			req["agentScope"] = *params.AgentScope
 		}
 		if params.Cursor != nil {
 			req["cursor"] = *params.Cursor
+		}
+		if params.Direction != nil {
+			req["direction"] = *params.Direction
 		}
 		if params.IncludeEphemeral != nil {
 			req["includeEphemeral"] = *params.IncludeEphemeral
@@ -18613,6 +18950,33 @@ func (s *MCPAPI) Headers() *MCPHeadersAPI {
 
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
 type MCPOauthAPI sessionAPI
+
+// AuthenticationStateChanged notifies the session that MCP OAuth authentication succeeded
+// and updated credentials were persisted, so cached tool definitions can be refreshed.
+//
+// RPC method: session.mcp.oauth.authenticationStateChanged.
+//
+// Parameters: Identifies the MCP server whose persisted OAuth credentials were updated.
+func (a *MCPOauthAPI) AuthenticationStateChanged(ctx context.Context, params *MCPOauthAuthenticationStateChangedRequest) (*SessionMCPOauthAuthenticationStateChangedResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.RefreshSessionToken != nil {
+			req["refreshSessionToken"] = *params.RefreshSessionToken
+		}
+		if params.ServerName != nil {
+			req["serverName"] = *params.ServerName
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.authenticationStateChanged", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthAuthenticationStateChangedResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // HandlePendingRequest resolves a pending MCP OAuth request with a host-provided token or
 // cancellation. The pending request is emitted as mcp.oauth_required with the data
