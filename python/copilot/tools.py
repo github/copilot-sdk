@@ -351,7 +351,7 @@ def _normalize_result(result: Any) -> ToolResult:
     # Everything else gets JSON-serialized (with Pydantic model support)
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
-            return obj.model_dump()
+            return obj.model_dump(mode="json")
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:
