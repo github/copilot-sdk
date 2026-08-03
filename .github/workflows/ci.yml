@@ -15,7 +15,7 @@ jobs:
         run: exit 0
       - name: Keep job active
         if: always()
-        run: sleep 180
+        run: sleep 10
       - name: Final validation
         if: always()
         run: exit 0
