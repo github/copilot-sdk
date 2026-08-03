@@ -656,7 +656,9 @@ func (c *Client) ForceStop() {
 	// Kill the process without waiting for startStopMux, which Start may hold.
 	// This unblocks any I/O Start is doing (connect, version check).
 	if p := c.osProcess.Swap(nil); p != nil {
-		p.Kill()
+		if err := killProcessTreeByPid(p.Pid); err != nil {
+			p.Kill()
+		}
 	}
 
 	// Clear sessions immediately without trying to destroy them
@@ -2231,8 +2233,10 @@ func (c *Client) killProcess() error {
 		c.ffiHost = nil
 	}
 	if p := c.osProcess.Swap(nil); p != nil {
-		if err := p.Kill(); err != nil {
-			return fmt.Errorf("failed to kill CLI process: %w", err)
+		if err := killProcessTreeByPid(p.Pid); err != nil {
+			if killErr := p.Kill(); killErr != nil {
+				return fmt.Errorf("failed to kill CLI process: %w", killErr)
+			}
 		}
 	}
 	c.process = nil
