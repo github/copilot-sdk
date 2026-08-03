@@ -12,6 +12,7 @@ module com.github.copilot.java {
     requires com.fasterxml.jackson.datatype.jsr310;
     requires static com.github.spotbugs.annotations;
     requires static java.compiler;
+    requires static com.sun.jna;
     requires java.net.http;
     requires java.logging;
 
@@ -25,6 +26,7 @@ module com.github.copilot.java {
     opens com.github.copilot.generated to com.fasterxml.jackson.databind;
     opens com.github.copilot.generated.rpc to com.fasterxml.jackson.databind;
     opens com.github.copilot.rpc to com.fasterxml.jackson.databind;
+    opens com.github.copilot.ffi to com.sun.jna;
 
     provides javax.annotation.processing.Processor
             with com.github.copilot.CopilotExperimentalProcessor, com.github.copilot.tool.CopilotToolProcessor;
