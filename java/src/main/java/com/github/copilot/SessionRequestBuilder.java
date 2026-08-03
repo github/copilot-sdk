@@ -7,6 +7,7 @@ package com.github.copilot;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -130,6 +131,8 @@ final class SessionRequestBuilder {
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         request.setSessionLimits(config.getSessionLimits());
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -260,6 +263,8 @@ final class SessionRequestBuilder {
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         request.setSessionLimits(config.getSessionLimits());
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -337,6 +342,13 @@ final class SessionRequestBuilder {
             return customAgentsLocalOnly;
         }
         return mode == CopilotClientMode.EMPTY ? true : null;
+    }
+
+    private static Optional<Boolean> experimentalModeForMode(CopilotClientMode mode, Boolean supplied) {
+        if (mode == CopilotClientMode.EMPTY) {
+            return Optional.of(supplied != null ? supplied : false);
+        }
+        return Optional.ofNullable(supplied);
     }
 
     /**
