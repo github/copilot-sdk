@@ -37,7 +37,8 @@ import java.util.Properties;
 public final class NativeRuntimeLoader {
 
     static final String RUNTIME_FILENAME = "runtime.node";
-    static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
+    /** Environment variable that overrides where the runtime is loaded from. */
+    public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
 
     /**
@@ -113,7 +114,7 @@ public final class NativeRuntimeLoader {
         String classifier = PlatformDetector.detectClassifier();
         String version = readVersion(loader);
         Path cacheBase = defaultCacheBase();
-        return resolve(null, findCliOnPath(), cacheBase, loader, classifier, version);
+        return resolve(null, findRuntimeOnPath(), cacheBase, loader, classifier, version);
     }
 
     /**
@@ -314,7 +315,12 @@ public final class NativeRuntimeLoader {
         }
     }
 
-    private static String findCliOnPath() {
+    /**
+     * Finds the runtime executable on the {@code PATH}.
+     *
+     * @return the absolute path, or {@code null} if none was found
+     */
+    public static String findRuntimeOnPath() {
         String pathValue = System.getenv("PATH");
         if (pathValue == null || pathValue.isBlank()) {
             return null;
