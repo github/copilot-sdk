@@ -281,6 +281,9 @@ describe("CopilotClient", () => {
                 if (method === "session.create" || method === "session.resume") {
                     return { sessionId: params.sessionId, workspacePath: "/workspace" };
                 }
+                if (method === "session.permissions.paths.add") {
+                    return { success: true };
+                }
                 throw new Error(`Unexpected method: ${method}`);
             });
 
@@ -304,6 +307,10 @@ describe("CopilotClient", () => {
             "session.resume",
             expect.objectContaining({ additionalDirectories: ["/repo/resumed"] })
         );
+        expect(spy).toHaveBeenCalledWith("session.permissions.paths.add", {
+            sessionId: "resume-with-additional-directories",
+            path: "/repo/resumed",
+        });
     });
 
     it("registers MCP OAuth interest after cloud create only when an auth handler is configured", async () => {

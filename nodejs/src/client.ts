@@ -1862,6 +1862,9 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+            for (const path of config.additionalDirectories ?? []) {
+                await session.rpc.permissions.paths.add({ path });
+            }
             if (config.onMcpAuthRequest) {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
                     sessionId,
