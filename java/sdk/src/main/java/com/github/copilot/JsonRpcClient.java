@@ -46,6 +46,7 @@ class JsonRpcClient implements AutoCloseable {
     private final OutputStream outputStream;
     private final Socket socket;
     private final Process process;
+    private final boolean ownsStreams;
     private final AtomicLong requestIdCounter = new AtomicLong(0);
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
@@ -53,10 +54,16 @@ class JsonRpcClient implements AutoCloseable {
     private volatile boolean running = true;
 
     private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process) {
+        this(inputStream, outputStream, socket, process, false);
+    }
+
+    private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process,
+            boolean ownsStreams) {
         this.inputStream = inputStream;
         this.outputStream = outputStream;
         this.socket = socket;
         this.process = process;
+        this.ownsStreams = ownsStreams;
         this.readerExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "jsonrpc-reader");
             t.setDaemon(true);
@@ -94,10 +101,12 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     /**
-     * Creates a JSON-RPC client over arbitrary input/output streams.
+     * Creates a JSON-RPC client over arbitrary input/output streams. The client
+     * takes ownership of the streams and closes them when {@link #close()} is
+     * called.
      */
     public static JsonRpcClient fromStreams(InputStream inputStream, OutputStream outputStream) {
-        return new JsonRpcClient(inputStream, outputStream, null, null);
+        return new JsonRpcClient(inputStream, outputStream, null, null, true);
     }
 
     /**
@@ -350,6 +359,19 @@ class JsonRpcClient implements AutoCloseable {
 
         if (process != null) {
             process.destroy();
+        }
+
+        if (ownsStreams) {
+            try {
+                inputStream.close();
+            } catch (IOException e) {
+                LOG.log(Level.FINE, "Error closing input stream", e);
+            }
+            try {
+                outputStream.close();
+            } catch (IOException e) {
+                LOG.log(Level.FINE, "Error closing output stream", e);
+            }
         }
     }
 

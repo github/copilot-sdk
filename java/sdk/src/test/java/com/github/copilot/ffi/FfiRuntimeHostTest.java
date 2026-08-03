@@ -66,9 +66,16 @@ class FfiRuntimeHostTest {
         return Native.load(Path.of(SPIKE_LIB_PATH).toAbsolutePath().normalize().toString(), CallbackTestLib.class);
     }
 
+    /**
+     * Integration test that exercises the real JNA callback/lifecycle path against
+     * a native test library. Skipped in normal CI because the Rust test crate is
+     * not built as part of the Maven build. To run locally, build the Rust crate
+     * and set {@code -Dcopilot.test.nativelib.path=<path-to-libcallback_test.so>}.
+     */
     @Test
     void startWithSpikeLibrarySupportsLifecycleAndDataFlow() throws Exception {
-        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH);
+        assumeTrue(testLibExists(), "Native test library not found at " + SPIKE_LIB_PATH
+                + ". Build the Rust test crate or set -D" + TEST_LIB_PATH_PROP + " to run this test.");
         CallbackTestLib callbackTestLib = loadTestLib();
         AtomicInteger writes = new AtomicInteger();
 

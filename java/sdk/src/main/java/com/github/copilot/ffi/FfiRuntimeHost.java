@@ -114,24 +114,41 @@ public final class FfiRuntimeHost implements AutoCloseable {
             throw new IllegalStateException(
                     "copilot_runtime_host_start failed (library '" + lib + "', entrypoint '" + entrypointPath + "').");
         }
-        serverId.set(hostHandle);
 
-        OutboundCallback callback = createOutboundCallback();
-        callbackRef = callback;
-        int connHandle = nativeBinding.connectionOpen(hostHandle, callback, Pointer.NULL, null, 0, null, 0, null, 0);
-        if (connHandle == 0) {
-            try {
-                nativeBinding.hostShutdown(hostHandle);
-            } catch (Throwable ignored) {
-                // Best effort
+        // Hold operationLock while publishing handles to serialize with close().
+        // Recheck disposed in case close() ran while hostStart was blocking.
+        operationLock.lock();
+        try {
+            if (disposed.get()) {
+                try {
+                    nativeBinding.hostShutdown(hostHandle);
+                } catch (Throwable ignored) {
+                    // Best effort
+                }
+                throw new IllegalStateException("FfiRuntimeHost was closed during startup.");
             }
-            serverId.set(0);
-            callbackRef = null;
-            throw new IllegalStateException("copilot_runtime_connection_open failed.");
+            serverId.set(hostHandle);
+
+            OutboundCallback callback = createOutboundCallback();
+            callbackRef = callback;
+            int connHandle = nativeBinding.connectionOpen(hostHandle, callback, Pointer.NULL, null, 0, null, 0, null,
+                    0);
+            if (connHandle == 0) {
+                try {
+                    nativeBinding.hostShutdown(hostHandle);
+                } catch (Throwable ignored) {
+                    // Best effort
+                }
+                serverId.set(0);
+                callbackRef = null;
+                throw new IllegalStateException("copilot_runtime_connection_open failed.");
+            }
+            connectionId.set(connHandle);
+            LOG.fine(() -> "Started FFI runtime host. Library=" + libraryPath + ", serverId=" + hostHandle
+                    + ", connectionId=" + connHandle);
+        } finally {
+            operationLock.unlock();
         }
-        connectionId.set(connHandle);
-        LOG.fine(() -> "Started FFI runtime host. Library=" + libraryPath + ", serverId=" + hostHandle
-                + ", connectionId=" + connHandle);
     }
 
     public InputStream getReceiveStream() {
