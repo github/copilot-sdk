@@ -57,6 +57,7 @@ const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 #[derive(Clone)]
 pub(crate) struct SessionHandlers {
     pub permission: Option<Arc<dyn PermissionHandler>>,
+    pub managed_settings_enabled: bool,
     pub elicitation: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth: Option<Arc<dyn McpAuthHandler>>,
     pub user_input: Option<Arc<dyn UserInputHandler>>,
@@ -880,6 +881,8 @@ impl Client {
         if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
             config.embedding_cache_storage = Some("in-memory".into());
         }
+        config.custom_agents_local_only =
+            crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
@@ -894,6 +897,7 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
+            managed_settings_enabled: wire.enable_managed_settings == Some(true),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1145,6 +1149,8 @@ impl Client {
         if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
             config.embedding_cache_storage = Some("in-memory".into());
         }
+        config.custom_agents_local_only =
+            crate::mode::resolve_custom_agents_local_only(mode, config.custom_agents_local_only);
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
@@ -1159,6 +1165,7 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
+            managed_settings_enabled: wire.enable_managed_settings == Some(true),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1520,6 +1527,35 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
+fn permission_request_data(
+    event_data: &Value,
+    managed_settings_enabled: bool,
+) -> PermissionRequestData {
+    let request_data = event_data
+        .get("permissionRequest")
+        .cloned()
+        .unwrap_or_else(|| event_data.clone());
+    let managed_approval_required = match request_data.get("managedApprovalRequired") {
+        None => None,
+        Some(Value::Bool(value)) => Some(*value),
+        Some(_) => Some(true),
+    };
+    match serde_json::from_value::<PermissionRequestData>(request_data) {
+        Ok(mut data) => {
+            data.extra = event_data.clone();
+            data.managed_settings_enabled = managed_settings_enabled;
+            data
+        }
+        Err(_) => PermissionRequestData {
+            kind: None,
+            tool_call_id: None,
+            managed_approval_required,
+            managed_settings_enabled,
+            extra: event_data.clone(),
+        },
+    }
+}
+
 /// Map a [`PermissionResult`] to the `result` payload sent back to the
 /// server via `session.permissions.handlePendingPermissionRequest`.
 ///
@@ -1705,14 +1741,10 @@ async fn handle_notification(
             };
             let client = client.clone();
             let sid = session_id.clone();
-            let data: PermissionRequestData =
-                serde_json::from_value(notification.event.data.clone()).unwrap_or_else(|_| {
-                    PermissionRequestData {
-                        kind: None,
-                        tool_call_id: None,
-                        extra: notification.event.data.clone(),
-                    }
-                });
+            let data = permission_request_data(
+                &notification.event.data,
+                handlers.managed_settings_enabled,
+            );
             let span = tracing::error_span!(
                 "permission_request_handler",
                 session_id = %sid,
@@ -2514,7 +2546,7 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::notification_permission_payload;
+    use super::{notification_permission_payload, permission_request_data};
     use crate::handler::PermissionResult;
 
     #[test]
@@ -2540,5 +2572,78 @@ mod tests {
             notification_permission_payload(&PermissionResult::user_not_available()),
             Some(json!({ "kind": "user-not-available" }))
         );
+    }
+
+    #[test]
+    fn permission_request_data_reads_nested_managed_approval_metadata() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+        assert_eq!(
+            data.extra["permissionRequest"]["path"],
+            "/workspace/file.txt"
+        );
+    }
+
+    #[test]
+    fn permission_request_data_preserves_managed_flag_when_other_fields_are_malformed() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": true,
+                    "toolCallId": 42
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+        assert_eq!(data.extra["requestId"], "permission-1");
+    }
+
+    #[test]
+    fn permission_request_data_fails_closed_for_malformed_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": "yes",
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(true));
+    }
+
+    #[test]
+    fn permission_request_data_preserves_valid_false_managed_flag() {
+        let data = permission_request_data(
+            &json!({
+                "requestId": "permission-1",
+                "permissionRequest": {
+                    "kind": "read",
+                    "managedApprovalRequired": false,
+                    "path": "/workspace/file.txt"
+                }
+            }),
+            false,
+        );
+
+        assert_eq!(data.managed_approval_required, Some(false));
     }
 }

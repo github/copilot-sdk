@@ -276,6 +276,9 @@ func TestApplyConfigDefaultsForMode_emptyDefaultsGranularFlags(t *testing.T) {
 	if cfg.Memory == nil || cfg.Memory.Enabled != false {
 		t.Errorf("expected Memory.Enabled=false in empty mode, got %v", cfg.Memory)
 	}
+	if cfg.CustomAgentsLocalOnly == nil || !*cfg.CustomAgentsLocalOnly {
+		t.Errorf("expected CustomAgentsLocalOnly=true in empty mode, got %v", cfg.CustomAgentsLocalOnly)
+	}
 }
 
 func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T) {
@@ -291,6 +294,7 @@ func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T)
 		EnableSessionStore:                 &trueVal,
 		EnableSkills:                       &trueVal,
 		Memory:                             &MemoryConfiguration{Enabled: true},
+		CustomAgentsLocalOnly:              &falseVal,
 	}
 	c.applyConfigDefaultsForMode(cfg)
 	if *cfg.SkipEmbeddingRetrieval != false {
@@ -316,6 +320,9 @@ func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T)
 	}
 	if cfg.Memory == nil || cfg.Memory.Enabled != true {
 		t.Errorf("caller-supplied Memory must win")
+	}
+	if cfg.CustomAgentsLocalOnly == nil || *cfg.CustomAgentsLocalOnly {
+		t.Errorf("caller-supplied CustomAgentsLocalOnly must win")
 	}
 }
 
@@ -343,6 +350,25 @@ func TestApplyConfigDefaultsForMode_copilotCliLeavesGranularFlagsNil(t *testing.
 	}
 	if cfg.Memory != nil {
 		t.Errorf("non-empty mode must not default Memory")
+	}
+	if cfg.CustomAgentsLocalOnly != nil {
+		t.Errorf("non-empty mode must not default CustomAgentsLocalOnly")
+	}
+}
+
+func TestApplyResumeDefaultsForMode_customAgentsLocalOnly(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+
+	cfg := &ResumeSessionConfig{}
+	c.applyResumeDefaultsForMode(cfg)
+	if cfg.CustomAgentsLocalOnly == nil || !*cfg.CustomAgentsLocalOnly {
+		t.Errorf("expected CustomAgentsLocalOnly=true in empty mode, got %v", cfg.CustomAgentsLocalOnly)
+	}
+
+	cfg = &ResumeSessionConfig{CustomAgentsLocalOnly: Bool(false)}
+	c.applyResumeDefaultsForMode(cfg)
+	if cfg.CustomAgentsLocalOnly == nil || *cfg.CustomAgentsLocalOnly {
+		t.Errorf("caller-supplied CustomAgentsLocalOnly must win")
 	}
 }
 

@@ -783,7 +783,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _logger,
             this);
         session.RegisterTools(config.Tools ?? []);
-        session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterPermissionHandler(
+            config.OnPermissionRequest,
+            config.EnableManagedSettings is true);
         session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
@@ -916,6 +918,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.EnableSkills ??= false;
             config.Memory ??= new MemoryConfiguration { Enabled = false };
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
+            config.CustomAgentsLocalOnly ??= true;
         }
     }
 
@@ -1159,6 +1162,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Agent,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.CustomAgentsLocalOnly,
                 config.SkipEmbeddingRetrieval,
                 config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
@@ -1196,6 +1200,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
+                GitHubMcpToolConfig: config.GitHubMcpToolConfig,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 
@@ -1364,6 +1369,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.WorkingDirectory,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.CustomAgentsLocalOnly,
                 config.SkipEmbeddingRetrieval,
                 config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
@@ -1411,6 +1417,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
+                GitHubMcpToolConfig: config.GitHubMcpToolConfig,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 
@@ -2726,6 +2733,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Agent,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        [property: JsonPropertyName("customAgentsLocalOnly")] bool? CustomAgentsLocalOnly,
         bool? SkipEmbeddingRetrieval,
         EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
@@ -2765,6 +2773,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null;
         IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
@@ -2823,6 +2832,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        [property: JsonPropertyName("customAgentsLocalOnly")] bool? CustomAgentsLocalOnly,
         bool? SkipEmbeddingRetrieval,
         EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
@@ -2872,6 +2882,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 

@@ -25,9 +25,10 @@ use crate::generated::api_types::{
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
-    DefaultAgentConfig, ExtensionInfo, InfiniteSessionConfig, LargeToolOutputConfig,
-    McpServerConfig, MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
-    SessionId, SessionLimitsConfig, SystemMessageConfig, Tool, ToolSearchConfig,
+    DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig, InfiniteSessionConfig,
+    LargeToolOutputConfig, McpServerConfig, MemoryConfiguration, NamedProviderConfig,
+    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
+    ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -113,6 +114,8 @@ pub(crate) struct SessionCreateWire {
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -128,6 +131,8 @@ pub(crate) struct SessionCreateWire {
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents_local_only: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -251,6 +256,8 @@ pub(crate) struct SessionResumeWire {
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -266,6 +273,8 @@ pub(crate) struct SessionResumeWire {
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_agents_local_only: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]

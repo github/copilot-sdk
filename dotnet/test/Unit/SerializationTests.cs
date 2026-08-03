@@ -300,6 +300,51 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeGitHubMcpToolConfig_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var githubConfig = new GitHubMcpToolConfig
+        {
+            EnableAllTools = true,
+            AdditionalToolsets = ["repos"],
+            AdditionalTools = ["get_issue"],
+            EnableInsidersMode = true,
+            DisableFormDeferral = true,
+        };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("GitHubMcpToolConfig", githubConfig));
+        using var createDocument = JsonDocument.Parse(JsonSerializer.Serialize(createRequest, createRequestType, options));
+        var createConfig = createDocument.RootElement.GetProperty("githubMcpToolConfig");
+        Assert.True(createConfig.GetProperty("enableAllTools").GetBoolean());
+        Assert.Equal("repos", createConfig.GetProperty("additionalToolsets")[0].GetString());
+        Assert.True(createConfig.GetProperty("disableFormDeferral").GetBoolean());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("GitHubMcpToolConfig", githubConfig));
+        using var resumeDocument = JsonDocument.Parse(JsonSerializer.Serialize(resumeRequest, resumeRequestType, options));
+        Assert.True(resumeDocument.RootElement.TryGetProperty("githubMcpToolConfig", out _));
+    }
+
+    [Fact]
+    public void SessionRequests_OmitGitHubMcpToolConfig_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+        foreach (var requestName in new[] { "CreateSessionRequest", "ResumeSessionRequest" })
+        {
+            var requestType = GetNestedType(typeof(CopilotClient), requestName);
+            var request = CreateInternalRequest(requestType, ("SessionId", "session-id"));
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(request, requestType, options));
+            Assert.False(document.RootElement.TryGetProperty("githubMcpToolConfig", out _));
+        }
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializeReasoningSummary_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -591,6 +636,58 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.False(root.GetProperty("enableSessionTelemetry").GetBoolean());
+    }
+
+    [Fact]
+    public void CreateSessionRequest_CanSerializeCustomAgentsLocalOnly_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentsLocalOnly", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("customAgentsLocalOnly").GetBoolean());
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeCustomAgentsLocalOnly_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("CustomAgentsLocalOnly", true));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("customAgentsLocalOnly").GetBoolean());
+    }
+
+    [Fact]
+    public void SessionRequests_OmitCustomAgentsLocalOnly_WhenUnset()
+    {
+        var options = GetSerializerOptions();
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"));
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.False(createDocument.RootElement.TryGetProperty("customAgentsLocalOnly", out _));
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"));
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.False(resumeDocument.RootElement.TryGetProperty("customAgentsLocalOnly", out _));
     }
 
     [Fact]

@@ -39,7 +39,6 @@ export type SessionEvent =
   | UserMessageEvent
   | PendingMessagesModifiedEvent
   | AssistantTurnStartEvent
-  | AssistantTurnRetryEvent
   | AssistantIntentEvent
   | AssistantServerToolProgressEvent
   | AssistantReasoningEvent
@@ -53,7 +52,6 @@ export type SessionEvent =
   | AssistantIdleEvent
   | AssistantUsageEvent
   | ModelCallFailureEvent
-  | ModelCallStartEvent
   | AbortEvent
   | ToolUserRequestedEvent
   | ToolExecutionStartEvent
@@ -404,7 +402,9 @@ export type AbortReason =
   /** A remote command requested the abort. */
   | "remote_command"
   /** An MCP server delivered a user.abort notification. */
-  | "user_abort";
+  | "user_abort"
+  /** Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit. */
+  | "autopilot_credit_limit";
 /**
  * Allowed values for the `ToolExecutionStartToolDescriptionMetaUIVisibility` enumeration.
  */
@@ -509,6 +509,7 @@ export type SystemNotification =
   | SystemNotificationShellCompleted
   | SystemNotificationShellDetachedCompleted
   | SystemNotificationInstructionDiscovered
+  | SystemNotificationFactoryCompleted
   | SystemNotificationUnclassified;
 /**
  * Whether the agent completed successfully or failed
@@ -518,6 +519,18 @@ export type SystemNotificationAgentCompletedStatus =
   | "completed"
   /** The agent failed. */
   | "failed";
+/**
+ * Terminal status reached by a factory execution attempt.
+ */
+export type SystemNotificationFactoryCompletedStatus =
+  /** The factory completed successfully. */
+  | "completed"
+  /** The factory was halted. */
+  | "halted"
+  /** The factory was cancelled. */
+  | "cancelled"
+  /** The factory failed. */
+  | "error";
 /**
  * Details of the permission being requested
  */
@@ -531,6 +544,7 @@ export type PermissionRequest =
   | PermissionRequestCustomTool
   | PermissionRequestHook
   | PermissionRequestExtensionManagement
+  | PermissionRequestFactory
   | PermissionRequestExtensionPermissionAccess;
 /**
  * Whether this is a store or vote memory operation
@@ -549,6 +563,14 @@ export type PermissionRequestMemoryDirection =
   /** Vote that the memory is incorrect or outdated. */
   | "downvote";
 /**
+ * Operation gated by a factory permission request.
+ */
+export type FactoryPermissionOperation =
+  /** Running a registered factory, which spends subagents, active time, and AI credits under the approved limits. */
+  | "run"
+  /** Authoring a factory, which writes JavaScript into a session-scoped extension and loads it. */
+  | "author";
+/**
  * Derived user-facing permission prompt details for UI consumers
  */
 export type PermissionPromptRequest =
@@ -562,6 +584,7 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestPath
   | PermissionPromptRequestHook
   | PermissionPromptRequestExtensionManagement
+  | PermissionPromptRequestFactory
   | PermissionPromptRequestExtensionPermissionAccess;
 /**
  * Why the auto-approval judge produced no usable recommendation. Present only alongside an `error` recommendation, where the human-readable reason is a fixed string and therefore cannot distinguish these cases. Intended to make a judge failure reportable by a consumer that has no access to the host's logs.
@@ -625,6 +648,7 @@ export type UserToolSessionApproval =
   | UserToolSessionApprovalMemory
   | UserToolSessionApprovalCustomTool
   | UserToolSessionApprovalExtensionManagement
+  | UserToolSessionApprovalFactory
   | UserToolSessionApprovalExtensionPermissionAccess;
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
@@ -789,7 +813,7 @@ export type McpServerSource =
   /** Server bundled with the runtime. */
   | "builtin";
 /**
- * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ * Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
  */
 export type McpServerStatus =
   /** The server is connected and available. */
@@ -802,6 +826,8 @@ export type McpServerStatus =
   | "pending"
   /** The server is configured but disabled. */
   | "disabled"
+  /** The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it. */
+  | "stopped"
   /** The server is not configured for this session. */
   | "not_configured";
 /**
@@ -892,6 +918,7 @@ export interface StartData {
    * When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
    */
   detachedFromSpawningParentSessionId?: string;
+  githubMcpToolConfig?: GitHubMcpToolConfig;
   /**
    * Identifier of the software producing the events (e.g., "copilot-agent")
    */
@@ -961,6 +988,27 @@ export interface WorkingDirectoryContext {
    * Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
    */
   repositoryHost?: string;
+}
+/**
+ * Per-session configuration for the built-in GitHub MCP server
+ */
+export interface GitHubMcpToolConfig {
+  /**
+   * Additional GitHub MCP tools requested by the session
+   */
+  additionalTools?: string[];
+  /**
+   * Additional GitHub MCP toolsets requested by the session
+   */
+  additionalToolsets?: string[];
+  /**
+   * Whether to use the read-write endpoint and request all toolsets
+   */
+  enableAllTools?: boolean;
+  /**
+   * Whether to request the GitHub MCP insiders build
+   */
+  enableInsidersMode?: boolean;
 }
 /**
  * Optional session limits.
@@ -3267,54 +3315,6 @@ export interface AssistantTurnStartData {
   turnId: string;
 }
 /**
- * Session event "assistant.turn_retry". Metadata for an additional model inference attempt within an existing assistant turn
- */
-/** @internal */
-export interface AssistantTurnRetryEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: AssistantTurnRetryData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "assistant.turn_retry".
-   */
-  type: "assistant.turn_retry";
-}
-/**
- * Metadata for an additional model inference attempt within an existing assistant turn
- */
-export interface AssistantTurnRetryData {
-  /**
-   * Model identifier used for this retry, when known
-   */
-  model?: string;
-  /**
-   * Provider or runtime classification that caused the retry, when known
-   */
-  reason?: string;
-  /**
-   * Identifier of the turn whose model inference is being retried
-   */
-  turnId: string;
-}
-/**
  * Session event "assistant.intent". Agent intent description for current activity or plan
  */
 export interface AssistantIntentEvent {
@@ -3612,6 +3612,14 @@ export interface AssistantMessageData {
    * Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
    */
   apiCallId?: string;
+  /**
+   * Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1.
+   */
+  chunkCount?: number;
+  /**
+   * Zero-based position of this message within its model call's response. Absent when the response was not split into chunks.
+   */
+  chunkIndex?: number;
   /**
    * Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
    *
@@ -4078,6 +4086,12 @@ export interface AssistantUsageData {
   apiCallId?: string;
   apiEndpoint?: AssistantUsageApiEndpoint;
   /**
+   * Number of tools available to the model for this call
+   *
+   * @internal
+   */
+  availableToolCount?: number;
+  /**
    * Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
    */
   cacheExpiresAt?: string;
@@ -4129,6 +4143,12 @@ export interface AssistantUsageData {
    */
   model: string;
   /**
+   * Number of tool calls returned by the model
+   *
+   * @internal
+   */
+  numToolCalls?: number;
+  /**
    * Number of output tokens produced
    */
   outputTokens?: number;
@@ -4166,6 +4186,20 @@ export interface AssistantUsageData {
    * Time to first token in milliseconds. Only available for streaming requests
    */
   timeToFirstTokenMs?: number;
+  /**
+   * Tool-call counts keyed by tool name
+   *
+   * @internal
+   */
+  toolCounts?: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * Number of tokens used by tool definitions for this call
+   *
+   * @internal
+   */
+  toolTokenCount?: number;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
@@ -4419,56 +4453,6 @@ export interface ModelCallFailureRequestFingerprint {
   toolResultMessageCount: number;
 }
 /**
- * Session event "model.call_start". Model API dispatch metadata for internal telemetry
- */
-/** @internal */
-export interface ModelCallStartEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  data: ModelCallStartData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "model.call_start".
-   */
-  type: "model.call_start";
-}
-/**
- * Model API dispatch metadata for internal telemetry
- */
-export interface ModelCallStartData {
-  /**
-   * Model identifier used for this API call, when known
-   */
-  model?: string;
-  /**
-   * Previous response or interaction identifier included in the model request, when present
-   *
-   * @internal
-   */
-  previousResponseId?: string;
-  /**
-   * Identifier of the assistant turn that initiated the model call
-   */
-  turnId: string;
-}
-/**
  * Session event "abort". Turn abort information including the reason for termination
  */
 export interface AbortEvent {
@@ -4634,6 +4618,12 @@ export interface ToolExecutionStartData {
  * Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
  */
 export interface ToolExecutionStartShellToolInfo {
+  /**
+   * The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
+   *
+   * @experimental
+   */
+  displayCommand?: string;
   /**
    * Whether the command includes a file write redirection (e.g., > or >>).
    */
@@ -6158,6 +6148,54 @@ export interface SystemNotificationInstructionDiscovered {
   type: "instruction_discovered";
 }
 /**
+ * System notification metadata for a factory execution attempt that reached a terminal state.
+ */
+export interface SystemNotificationFactoryCompleted {
+  /**
+   * Execution attempt that reached this terminal state.
+   */
+  attempt: number;
+  /**
+   * Consumed AI usage in nano-AIU.
+   */
+  consumedNanoAiu: number;
+  /**
+   * Subagents consumed by the run across all attempts.
+   */
+  consumedSubagents: number;
+  /**
+   * Accumulated active execution time in milliseconds.
+   */
+  elapsedMs: number;
+  /**
+   * Persisted factory name.
+   */
+  factoryName: string;
+  /**
+   * Machine-readable terminal failure details, when present.
+   */
+  failure?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Bounded prompt-safe preview of the completed result.
+   */
+  resultPreview?: string;
+  /**
+   * Actionable run_factory resume guidance for a resource-limit failure.
+   */
+  retryGuidance?: string;
+  /**
+   * Factory run identifier.
+   */
+  runId: string;
+  status: SystemNotificationFactoryCompletedStatus;
+  /**
+   * Type discriminator. Always "factory_completed".
+   */
+  type: "factory_completed";
+}
+/**
  * System notification metadata from an external host that does not match a runtime-owned notification kind.
  */
 export interface SystemNotificationUnclassified {
@@ -6576,6 +6614,73 @@ export interface PermissionRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
+ * Factory run or authoring permission request
+ */
+export interface PermissionRequestFactory {
+  /**
+   * Canonical key used for scoped factory approvals
+   */
+  approvalKey: string;
+  /**
+   * Whether this factory is eligible for persistent approval
+   */
+  canPersistApproval: boolean;
+  declaredMaxAiCredits?: number;
+  declaredMaxConcurrentSubagents?: number;
+  declaredMaxTotalSubagents?: number;
+  declaredTimeoutSeconds?: number;
+  /**
+   * Factory description
+   */
+  description: string;
+  /**
+   * Permission kind discriminator
+   */
+  kind: "factory";
+  /**
+   * Effective AI-credit limit; omitted means unlimited
+   */
+  maxAiCredits?: number;
+  /**
+   * Effective concurrent-subagent limit; omitted means unlimited
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Effective total-subagent limit; omitted means unlimited
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Factory name
+   */
+  name: string;
+  operation: FactoryPermissionOperation;
+  /**
+   * Declared factory phases
+   */
+  phases: FactoryPermissionPhase[];
+  /**
+   * Effective active-time limit in seconds; omitted means unlimited
+   */
+  timeoutSeconds?: number;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
+ * A declared phase shown in a factory permission prompt.
+ */
+export interface FactoryPermissionPhase {
+  /**
+   * Optional phase detail
+   */
+  detail?: string;
+  /**
+   * Phase title
+   */
+  title: string;
+}
+/**
  * Extension permission access request
  */
 export interface PermissionRequestExtensionPermissionAccess {
@@ -6964,6 +7069,70 @@ export interface PermissionPromptRequestExtensionManagement {
   toolCallId?: string;
 }
 /**
+ * Factory run or authoring permission prompt
+ */
+export interface PermissionPromptRequestFactory {
+  /**
+   * Canonical key used for scoped factory approvals
+   */
+  approvalKey: string;
+  /**
+   * Auto-approval judge information for this request; present only when auto mode is enabled.
+   *
+   * @experimental
+   */
+  autoApproval?: PermissionAutoApproval;
+  /**
+   * Whether this factory is eligible for persistent approval
+   */
+  canPersistApproval: boolean;
+  declaredMaxAiCredits?: number;
+  declaredMaxConcurrentSubagents?: number;
+  declaredMaxTotalSubagents?: number;
+  declaredTimeoutSeconds?: number;
+  /**
+   * Factory description
+   */
+  description: string;
+  /**
+   * Prompt kind discriminator
+   */
+  kind: "factory";
+  /**
+   * Whether managed policy requires a human response and forbids host auto-approval
+   */
+  managedApprovalRequired?: boolean;
+  /**
+   * Effective AI-credit limit; omitted means unlimited
+   */
+  maxAiCredits?: number;
+  /**
+   * Effective concurrent-subagent limit; omitted means unlimited
+   */
+  maxConcurrentSubagents?: number;
+  /**
+   * Effective total-subagent limit; omitted means unlimited
+   */
+  maxTotalSubagents?: number;
+  /**
+   * Factory name
+   */
+  name: string;
+  operation: FactoryPermissionOperation;
+  /**
+   * Declared factory phases
+   */
+  phases: FactoryPermissionPhase[];
+  /**
+   * Effective active-time limit in seconds; omitted means unlimited
+   */
+  timeoutSeconds?: number;
+  /**
+   * Tool call ID that triggered this permission request
+   */
+  toolCallId?: string;
+}
+/**
  * Extension permission access prompt
  */
 export interface PermissionPromptRequestExtensionPermissionAccess {
@@ -7135,6 +7304,19 @@ export interface UserToolSessionApprovalExtensionManagement {
    * Optional operation identifier
    */
   operation?: string;
+}
+/**
+ * Session-scoped factory approval, optionally narrowed by approval key.
+ */
+export interface UserToolSessionApprovalFactory {
+  /**
+   * Optional factory operation name or canonical approval key
+   */
+  approvalKey?: string;
+  /**
+   * Factory approval kind
+   */
+  kind: "factory";
 }
 /**
  * Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.

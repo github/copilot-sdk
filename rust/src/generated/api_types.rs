@@ -56,6 +56,12 @@ pub mod rpc_methods {
     pub const MCP_CONFIG_RELOAD: &str = "mcp.config.reload";
     /// `mcp.discover`
     pub const MCP_DISCOVER: &str = "mcp.discover";
+    /// `extensions.discover`
+    pub const EXTENSIONS_DISCOVER: &str = "extensions.discover";
+    /// `extensions.enable`
+    pub const EXTENSIONS_ENABLE: &str = "extensions.enable";
+    /// `extensions.disable`
+    pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
     /// `plugins.list`
     pub const PLUGINS_LIST: &str = "plugins.list";
     /// `plugins.install`
@@ -307,6 +313,8 @@ pub mod rpc_methods {
     pub const SESSION_FLEET_START: &str = "session.fleet.start";
     /// `session.agent.list`
     pub const SESSION_AGENT_LIST: &str = "session.agent.list";
+    /// `session.agent.setPrompt`
+    pub const SESSION_AGENT_SETPROMPT: &str = "session.agent.setPrompt";
     /// `session.agent.getCurrent`
     pub const SESSION_AGENT_GETCURRENT: &str = "session.agent.getCurrent";
     /// `session.agent.select`
@@ -387,6 +395,9 @@ pub mod rpc_methods {
     /// `session.mcp.oauth.handlePendingRequest`
     pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
         "session.mcp.oauth.handlePendingRequest";
+    /// `session.mcp.oauth.authenticationStateChanged`
+    pub const SESSION_MCP_OAUTH_AUTHENTICATIONSTATECHANGED: &str =
+        "session.mcp.oauth.authenticationStateChanged";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
     /// `session.mcp.oauth.respond`
@@ -1306,6 +1317,23 @@ pub struct AgentSelectResult {
     pub agent: AgentInfo,
 }
 
+/// An in-memory authored prompt override for an available agent.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSetPromptRequest {
+    /// Stable effective agent id. Plugin namespace separators are normalized.
+    pub id: String,
+    /// Replacement authored prompt. Empty text is valid.
+    pub prompt: String,
+}
+
 /// Optional project paths to include when enumerating agent discovery directories.
 ///
 /// <div class="warning">
@@ -1376,6 +1404,8 @@ pub struct AllowAllPermissionState {
 pub struct CopilotUserResponseEndpoints {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp: Option<String>,
     #[serde(rename = "origin-tracker", skip_serializing_if = "Option::is_none")]
     pub origin_tracker: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3337,6 +3367,94 @@ pub struct DebugCollectLogsResult {
     pub skipped_entries: Option<Vec<DebugCollectLogsSkippedEntry>>,
 }
 
+/// Installed plugin that contributes a discovered extension.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredExtensionPlugin {
+    /// Installed plugin name
+    pub name: String,
+}
+
+/// Discovered extension metadata and persistent enablement state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredExtension {
+    /// Whether this extension's persistent per-ID preference is enabled
+    pub enabled: bool,
+    /// Source-qualified ID accepted by both server and session extension enablement methods
+    pub id: String,
+    /// Human-readable extension name
+    pub name: String,
+    /// Absolute path to the extension entry module, suitable for revealing it in a file manager
+    pub path: String,
+    /// Containing plugin metadata for plugin-contributed extensions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<DiscoveredExtensionPlugin>,
+    /// Discovery source
+    pub source: DiscoveredExtensionSource,
+}
+
+/// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredExtensions {
+    /// Discovered user and enabled installed-plugin extensions from persisted Copilot home state
+    pub extensions: Vec<DiscoveredExtension>,
+    /// Effective extension loading mode. Defaults to load_and_augment when unset.
+    pub mode: DiscoveredExtensionMode,
+}
+
+/// Source-qualified extension identifiers to persistently disable for future sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredExtensionsDisableRequest {
+    /// Source-qualified user or plugin extension IDs to disable
+    pub ids: Vec<String>,
+}
+
+/// Source-qualified extension identifiers to persistently enable for future sessions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredExtensionsEnableRequest {
+    /// Source-qualified user or plugin extension IDs to enable
+    pub ids: Vec<String>,
+}
+
 /// MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
 ///
 /// <div class="warning">
@@ -3433,13 +3551,19 @@ pub struct EnvAuthInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventLogReadRequest {
+    /// Optional non-empty list of subagent identifiers. When provided, only events owned by one of these agents are returned; ownership recognizes the event envelope's agentId plus legacy data.agentId and data.parentToolCallId markers. This filter takes precedence over agentScope.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_ids: Option<Vec<String>>,
     /// Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_scope: Option<EventsAgentScope>,
     /// Opaque cursor returned by a previous read. Omit on the first call to start from the beginning of the session's persisted history.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
-    /// When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order).
+    /// Direction to page through the session's persisted event history. 'forward' (default) pages from the cursor toward newer events (or from the start of history when no cursor is given). 'backward' enables tail-first reads: with no cursor it returns the NEWEST `max` events, and the returned cursor pages toward OLDER events on subsequent backward reads. Events within a returned batch are always in chronological (oldest-to-newest) order, even for a backward read. Backward reads cover PERSISTED history only; ephemeral events are never returned by a backward read. `direction` selects the INITIAL read only: the returned cursor is self-describing, so a continuation read pages in the cursor's own direction regardless of the `direction` passed alongside it — a forward cursor always pages forward and a backward cursor always pages backward. Pass the direction that matches the cursor to avoid confusion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<EventsReadDirection>,
+    /// When false, skip ephemeral events entirely and return only durable (persisted) events. History-backfill callers that discard ephemerals anyway should set this so the read is bounded by the durable log length instead of racing the ephemeral ring on a busy session. Defaults to true (ephemerals are interleaved with durable events in creation order). Ignored by backward reads, which always cover persisted history only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_ephemeral: Option<bool>,
     /// Maximum number of events to return in this batch (1–1000, default 200).
@@ -3448,7 +3572,7 @@ pub struct EventLogReadRequest {
     /// Either '*' to receive all event types, or a non-empty list of event types to receive
     #[serde(skip_serializing_if = "Option::is_none")]
     pub types: Option<serde_json::Value>,
-    /// Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).
+    /// Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen). This applies to forward reads only: a backward read always returns immediately and ignores `waitMs`, because backward paging covers persisted history only while new events append at the tail (the opposite end from a backward page), so no blocking or ephemeral delivery can occur.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_ms: Option<i32>,
 }
@@ -3494,13 +3618,13 @@ pub struct EventLogTailResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventsReadResult {
-    /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned.
+    /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.
+    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
     pub cursor_status: EventsCursorStatus,
-    /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`.
+    /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when the read returned `max` events and more events are available immediately. When false, the next read with a non-zero `waitMs` will block until a new event arrives or the wait expires.
+    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
     pub has_more: bool,
 }
 
@@ -6661,6 +6785,25 @@ pub struct McpListToolsResult {
     pub tools: Vec<McpTools>,
 }
 
+/// Identifies the MCP server whose persisted OAuth credentials were updated.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthAuthenticationStateChangedRequest {
+    /// Whether the target session must mint a session-scoped access token instead of reusing a shared access token persisted by another session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_session_token: Option<bool>,
+    /// Name of the MCP server whose OAuth credentials were updated. Omit only when the host cannot identify the server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpOauthPendingRequestResponseToken {
@@ -7176,7 +7319,7 @@ pub struct McpServer {
     /// Plugin version that provided this server, when source is plugin.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_plugin_version: Option<String>,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
     pub status: McpServerStatus,
 }
 
@@ -8017,9 +8160,6 @@ pub struct Model {
     pub billing: Option<ModelBilling>,
     /// Model capabilities and limits
     pub capabilities: ModelCapabilities,
-    /// Default reasoning effort level (only present if model supports reasoning effort)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_reasoning_effort: Option<String>,
     /// Model identifier (e.g., "claude-sonnet-4.5")
     pub id: String,
     /// Model capability category for grouping in the model picker
@@ -8234,7 +8374,7 @@ pub struct ModelSwitchToRequest {
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
     /// Model selection id to switch to, as returned by `list`. A bare id (e.g. `claude-sonnet-4.6`) names a Copilot (CAPI) model; a provider-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a registry BYOK model.
     pub model_id: String,
-    /// Reasoning effort level to use for the model. "none" disables reasoning.
+    /// Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode to request for supported model clients
@@ -8632,6 +8772,24 @@ pub struct PermissionDecisionApproveForSessionApprovalExtensionManagement {
     pub operation: Option<String>,
 }
 
+/// Session-scoped factory approval, optionally narrowed by approval key.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForSessionApprovalFactory {
+    /// Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval_key: Option<String>,
+    /// Approval covering factory operations.
+    pub kind: PermissionDecisionApproveForSessionApprovalFactoryKind,
+}
+
 /// Session-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
 ///
 /// <div class="warning">
@@ -8801,6 +8959,24 @@ pub struct PermissionDecisionApproveForLocationApprovalExtensionManagement {
     /// Optional operation identifier; when omitted, the approval covers all extension management operations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<String>,
+}
+
+/// Location-scoped factory approval, optionally narrowed by approval key.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionApproveForLocationApprovalFactory {
+    /// Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval_key: Option<String>,
+    /// Approval covering factory operations.
+    pub kind: PermissionDecisionApproveForLocationApprovalFactoryKind,
 }
 
 /// Location-scoped approval details for an extension's permission-gated capability access, keyed by extension name.
@@ -9199,6 +9375,24 @@ pub struct PermissionsLocationsAddToolApprovalDetailsExtensionManagement {
     /// Optional operation identifier; when omitted, the approval covers all extension management operations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<String>,
+}
+
+/// Location-persisted factory approval, optionally narrowed by approval key.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsLocationsAddToolApprovalDetailsFactory {
+    /// Optional factory operation name or canonical approval key; when omitted, the approval covers all factory operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval_key: Option<String>,
+    /// Approval covering factory operations.
+    pub kind: PermissionsLocationsAddToolApprovalDetailsFactoryKind,
 }
 
 /// Location-persisted tool approval details for an extension's permission-gated capability access, keyed by extension name.
@@ -9803,7 +9997,7 @@ pub struct PermissionsSetAllowAllRequest {
     /// Allow-all mode to apply. `on` enables full allow-all; `auto` enables advisory LLM auto-approval; `off` disables both.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<PermissionsAllowAllMode>,
-    /// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used.
+    /// Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
@@ -12108,6 +12302,9 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
+    /// Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_dev_tool_caches: Option<bool>,
     /// Whether sandboxing is enabled for the session.
     pub enabled: bool,
     /// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
@@ -13958,7 +14155,7 @@ pub struct SessionOpenOptions {
     /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub providers: Option<Vec<NamedProviderConfig>>,
-    /// Initial reasoning effort level.
+    /// Initial reasoning effort level. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Initial reasoning summary mode for supported model clients.
@@ -15309,7 +15506,7 @@ pub struct SessionUpdateOptionsParams {
     /// Custom model-provider configuration (BYOK).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
-    /// Reasoning effort for the selected model (model-defined enum).
+    /// Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode for supported model clients.
@@ -17990,6 +18187,23 @@ pub struct ToolsListResult {
 pub struct McpConfigListResult {
     /// All MCP servers from user config, keyed by name
     pub servers: HashMap<String, serde_json::Value>,
+}
+
+/// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverResult {
+    /// Discovered user and enabled installed-plugin extensions from persisted Copilot home state
+    pub extensions: Vec<DiscoveredExtension>,
+    /// Effective extension loading mode. Defaults to load_and_augment when unset.
+    pub mode: DiscoveredExtensionMode,
 }
 
 /// Plugins installed in user/global state.
@@ -22617,13 +22831,13 @@ pub struct SessionQueueProcessParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionEventLogReadResult {
-    /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned.
+    /// Opaque cursor for the next read. Pass back unchanged in the next read.cursor to continue from where this read left off. Always present, even when no events were returned. For a backward read this cursor pages toward OLDER events; keep passing `direction: backward` with it (the cursor is also self-describing, so backward paging continues correctly).
     pub cursor: String,
-    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.
+    /// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history. For a forward read the fallback starts from the beginning of the remaining history; for a backward read it falls back to the tail (the newest window). Because the fallback page is a fresh boundary snapshot rather than a continuation of the requested cursor, it may overlap events the consumer has already rendered — a backward fallback to the tail in particular can repeat the newest window. On 'expired', consumers should reset or rebase their local pagination state (or deduplicate by event id) before continuing from the returned cursor rather than blindly appending/prepending the fallback page.
     pub cursor_status: EventsCursorStatus,
-    /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`.
+    /// Session events for this batch, merged into a single stream in creation order: durable (persisted) events and ephemeral events interleave exactly as they were emitted. Set `includeEphemeral: false` to receive only durable events. Ephemeral events are never replayable once pruned from the in-memory ring, so a consumer that needs them should keep reading with a non-zero `waitMs`. For a backward (tail-first) read, the returned window contains persisted events only, still in chronological (oldest-to-newest) append order.
     pub events: Vec<SessionEvent>,
-    /// True when the read returned `max` events and more events are available immediately. When false, the next read with a non-zero `waitMs` will block until a new event arrives or the wait expires.
+    /// True when more events are available in the read's direction. For a forward read, true means the batch returned `max` events and more are available immediately. For a backward read, true means older persisted events remain before the returned window.
     pub has_more: bool,
 }
 
@@ -23956,6 +24170,53 @@ pub enum DebugCollectLogsResultKind {
     Unknown,
 }
 
+/// Persisted extension discovery source
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiscoveredExtensionSource {
+    /// Extension discovered from the user's extensions directory.
+    #[serde(rename = "user")]
+    User,
+    /// Extension contributed by an installed plugin.
+    #[serde(rename = "plugin")]
+    Plugin,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Effective extension loading and agent-management mode
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiscoveredExtensionMode {
+    /// Extensions are not loaded.
+    #[serde(rename = "disabled")]
+    Disabled,
+    /// Extensions are loaded, but the agent cannot create, reload, or manage them.
+    #[serde(rename = "load_only")]
+    LoadOnly,
+    /// Extensions are loaded and the agent can create, reload, and manage them.
+    #[serde(rename = "load_and_augment")]
+    LoadAndAugment,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Server transport type: stdio, http, sse (deprecated), or memory
 ///
 /// <div class="warning">
@@ -24014,7 +24275,29 @@ pub enum EventsAgentScope {
     Unknown,
 }
 
-/// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.
+/// Direction to page through the session's persisted event history. 'forward' pages from the cursor toward newer events; 'backward' returns the newest window first (tail-first) and pages toward older events. Events within a returned batch are always chronological (oldest-to-newest), even for a backward read.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EventsReadDirection {
+    /// Page from the cursor toward newer events (default).
+    #[serde(rename = "forward")]
+    Forward,
+    /// Tail-first: return the newest events and page toward older events.
+    #[serde(rename = "backward")]
+    Backward,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read fell back to a boundary of the remaining history (the beginning for a forward read, the tail for a backward read). The fallback page is a fresh boundary snapshot, not a continuation of the requested cursor, so it may overlap already-rendered events; on 'expired' a consumer should reset/rebase its pagination state (or deduplicate by event id) before continuing from the returned cursor.
 ///
 /// <div class="warning">
 ///
@@ -25602,6 +25885,14 @@ pub enum PermissionDecisionApproveForSessionApprovalExtensionManagementKind {
     ExtensionManagement,
 }
 
+/// Approval covering factory operations.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForSessionApprovalFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
 /// Approval covering an extension's request to access a permission-gated capability.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionDecisionApproveForSessionApprovalExtensionPermissionAccessKind {
@@ -25629,6 +25920,7 @@ pub enum PermissionDecisionApproveForSessionApproval {
     Memory(PermissionDecisionApproveForSessionApprovalMemory),
     CustomTool(PermissionDecisionApproveForSessionApprovalCustomTool),
     ExtensionManagement(PermissionDecisionApproveForSessionApprovalExtensionManagement),
+    Factory(PermissionDecisionApproveForSessionApprovalFactory),
     ExtensionPermissionAccess(PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess),
 }
 
@@ -25704,6 +25996,14 @@ pub enum PermissionDecisionApproveForLocationApprovalExtensionManagementKind {
     ExtensionManagement,
 }
 
+/// Approval covering factory operations.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionApproveForLocationApprovalFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
 /// Approval covering an extension's request to access a permission-gated capability.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind {
@@ -25731,6 +26031,7 @@ pub enum PermissionDecisionApproveForLocationApproval {
     Memory(PermissionDecisionApproveForLocationApprovalMemory),
     CustomTool(PermissionDecisionApproveForLocationApprovalCustomTool),
     ExtensionManagement(PermissionDecisionApproveForLocationApprovalExtensionManagement),
+    Factory(PermissionDecisionApproveForLocationApprovalFactory),
     ExtensionPermissionAccess(
         PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess,
     ),
@@ -25934,6 +26235,14 @@ pub enum PermissionsLocationsAddToolApprovalDetailsExtensionManagementKind {
     ExtensionManagement,
 }
 
+/// Approval covering factory operations.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionsLocationsAddToolApprovalDetailsFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
 /// Approval covering an extension's request to access a permission-gated capability.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccessKind {
@@ -25961,6 +26270,7 @@ pub enum PermissionsLocationsAddToolApprovalDetails {
     Memory(PermissionsLocationsAddToolApprovalDetailsMemory),
     CustomTool(PermissionsLocationsAddToolApprovalDetailsCustomTool),
     ExtensionManagement(PermissionsLocationsAddToolApprovalDetailsExtensionManagement),
+    Factory(PermissionsLocationsAddToolApprovalDetailsFactory),
     ExtensionPermissionAccess(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess),
 }
 

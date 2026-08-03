@@ -162,6 +162,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("customAgentsLocalOnly")
+    private Boolean customAgentsLocalOnly;
+
     @JsonProperty("defaultAgent")
     private DefaultAgentConfig defaultAgent;
 
@@ -200,6 +203,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("requestMcpApps")
     private Boolean requestMcpApps;
+
+    @JsonProperty("githubMcpToolConfig")
+    private GitHubMcpToolConfig githubMcpToolConfig;
 
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
@@ -796,6 +802,19 @@ public final class ResumeSessionRequest {
         this.customAgents = customAgents;
     }
 
+    /** Gets whether custom agents are local only. @return the flag */
+    public Boolean getCustomAgentsLocalOnly() {
+        return customAgentsLocalOnly;
+    }
+
+    /**
+     * Sets whether custom agents are local only. @param customAgentsLocalOnly the
+     * flag
+     */
+    public void setCustomAgentsLocalOnly(Boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+    }
+
     /** Gets the default agent config. @return the default agent config */
     public DefaultAgentConfig getDefaultAgent() {
         return defaultAgent;
@@ -943,6 +962,16 @@ public final class ResumeSessionRequest {
     /** Clears the requestMcpApps setting, reverting to the default behavior. */
     public void clearRequestMcpApps() {
         this.requestMcpApps = null;
+    }
+
+    /** Gets the GitHub MCP tool configuration. @return the configuration */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /** Sets the GitHub MCP tool configuration. @param config the value */
+    public void setGitHubMcpToolConfig(GitHubMcpToolConfig config) {
+        this.githubMcpToolConfig = config;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

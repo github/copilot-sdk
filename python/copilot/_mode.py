@@ -251,6 +251,14 @@ def _enable_skills_default(
     return _empty_mode_bool_default(mode, supplied, False)
 
 
+def _custom_agents_local_only_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults custom agents to local-only; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, True)
+
+
 def _mcp_oauth_token_storage_default(
     mode: CopilotClientMode | None,
     supplied: Literal["persistent", "in-memory"] | None,
@@ -294,8 +302,8 @@ def _post_create_options_patch(
             "skipCustomInstructions": (
                 skip_custom_instructions if skip_custom_instructions is not None else True
             ),
-            "customAgentsLocalOnly": (
-                custom_agents_local_only if custom_agents_local_only is not None else True
+            "customAgentsLocalOnly": _custom_agents_local_only_default(
+                mode, custom_agents_local_only
             ),
             "coauthorEnabled": coauthor_enabled if coauthor_enabled is not None else False,
             "manageScheduleEnabled": (

@@ -831,11 +831,6 @@ export class CopilotClient {
 
     private setupClientGlobalHandlers(): void {
         const handlers: import("./generated/rpc.js").ClientGlobalApiHandlers = {};
-        // `hooks.invoke` is a client-global RPC method whose payload carries a
-        // `sessionId`; route each invocation to the matching session's dispatcher.
-        handlers.hooks = {
-            invoke: async (params) => await this.handleHooksInvoke(params),
-        };
         if (this.requestHandler) {
             handlers.llmInference = createCopilotRequestAdapter(this.requestHandler, () => {
                 if (!this.connection) {
@@ -1324,6 +1319,7 @@ export class CopilotClient {
                 enableSessionStore: false,
                 enableSkills: false,
                 memory: { enabled: false },
+                customAgentsLocalOnly: true,
             };
         }
         return {};
@@ -1426,7 +1422,9 @@ export class CopilotClient {
             await this.start();
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         // For cloud sessions, let the CLI/server assign the session id and
@@ -1462,7 +1460,10 @@ export class CopilotClient {
                 this.connection!,
                 undefined,
                 this.onGetTraceContext,
-                { mcpAuthHandler: config.onMcpAuthRequest }
+                {
+                    mcpAuthHandler: config.onMcpAuthRequest,
+                    managedSettingsEnabled: config.enableManagedSettings,
+                }
             );
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
@@ -1558,6 +1559,9 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
@@ -1572,6 +1576,7 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDirectory,
@@ -1693,7 +1698,10 @@ export class CopilotClient {
             this.connection!,
             undefined,
             this.onGetTraceContext,
-            { mcpAuthHandler: config.onMcpAuthRequest }
+            {
+                mcpAuthHandler: config.onMcpAuthRequest,
+                managedSettingsEnabled: config.enableManagedSettings,
+            }
         );
         session.registerTools(config.tools);
         session.registerCanvases(config.canvases);
@@ -1724,7 +1732,9 @@ export class CopilotClient {
             session.registerHooks(config.hooks);
         }
 
-        config = { ...this.configDefaultsForMode(), ...config };
+        const modeDefaults = this.configDefaultsForMode();
+        config = { ...modeDefaults, ...config };
+        config.customAgentsLocalOnly ??= modeDefaults.customAgentsLocalOnly;
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
@@ -1791,6 +1801,9 @@ export class CopilotClient {
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
+                ...(config.githubMcpToolConfig != null
+                    ? { githubMcpToolConfig: config.githubMcpToolConfig }
+                    : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
@@ -1815,6 +1828,7 @@ export class CopilotClient {
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
+                customAgentsLocalOnly: config.customAgentsLocalOnly,
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
@@ -2844,6 +2858,17 @@ export class CopilotClient {
         // same connection. These methods carry no implicit sessionId dispatch
         // — the runtime calls into a single handler for the whole connection.
         registerClientGlobalApiHandlers(this.connection, this.clientGlobalHandlers);
+
+        // `hooks.invoke` is an internal RPC method: the runtime calls it to
+        // invoke a hook callback on the client. Route each call to the matching
+        // session's dispatcher. Not part of the public ClientGlobalApiHandlers
+        // interface because HookInvokeRequest/HookType are internal types.
+        this.connection.onRequest(
+            "hooks.invoke",
+            async (params: { sessionId: string; hookType: string; input: unknown }) => {
+                return await this.handleHooksInvoke(params);
+            }
+        );
 
         this.connection.onClose(() => {
             this.state = "disconnected";

@@ -39,7 +39,7 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.9-preview.1-01'
+implementation 'com.github:copilot-sdk-java:1.0.9-preview.2-01'
 ```
 
 #### Snapshot Builds
@@ -58,7 +58,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.10-preview.1-SNAPSHOT</version>
+    <version>1.0.10-preview.2-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.9-preview.1-01-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.10-preview.2-SNAPSHOT'
 ```
 
 ## Quick Start
@@ -126,6 +126,29 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `mcp:<server-key>-<tool-name>`. For `CustomAgentConfig.setTools(...)` and
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
+
+## Permission Handling
+
+`PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.
+
+When handling `PermissionRequestedEvent` directly, convert its generated event value with `PermissionRequest.fromJsonValue(event.getData().permissionRequest())` to access the typed metadata.
+
+Custom handlers must check managed approval before applying kind-specific automatic decisions:
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionRequestResult;
+
+PermissionHandler handler = (request, invocation) -> {
+    if (Boolean.TRUE.equals(request.getManagedApprovalRequired())) {
+        return CompletableFuture.completedFuture(PermissionRequestResult.noResult());
+    }
+
+    return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
+};
+```
 
 ## Try it with JBang
 
@@ -238,6 +261,10 @@ Chain fluent modifiers to set tool options:
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
 For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+
+## Session Store
+
+`enableSessionStore` on `SessionConfig` enables the cross-session store for search and retrieval across sessions. When unset in the default `CopilotClientMode.COPILOT_CLI` mode, the runtime default applies (enabled). In `CopilotClientMode.EMPTY` mode, defaults to disabled.
 
 ## Memory
 

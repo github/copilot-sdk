@@ -222,6 +222,23 @@ describe("Session Configuration", async () => {
         return (exchange.request.tools ?? []).map((t) => t.function.name);
     }
 
+    async function expectGitHubMcpConfigApplied(session: CopilotSession): Promise<void> {
+        await session.rpc.mcp.list();
+        await retry("capture configured GitHub MCP request", async () => {
+            const requests = await openAiEndpoint.getRequests();
+            const request = requests.find(
+                (entry) => entry.method === "POST" && entry.url === "/mcp"
+            );
+            expect(
+                request,
+                `captured requests: ${requests.map((entry) => `${entry.method} ${entry.url}`).join(", ")}`
+            ).toBeDefined();
+            expect(request?.headers["x-mcp-toolsets"]).toBe("all");
+            expect(request?.headers["x-mcp-insiders"]).toBe("true");
+            expect(requests.some((entry) => entry.url === "/mcp/readonly")).toBe(false);
+        });
+    }
+
     async function sendAndGetNextExchange(
         session: { sendAndWait(options: { prompt: string }): Promise<unknown> },
         prompt: string
@@ -846,6 +863,27 @@ describe("Session Configuration", async () => {
             expect(toolNames).toEqual(["view"]);
         } finally {
             await session2.disconnect();
+        }
+    });
+
+    it("should apply GitHub MCP tool config on create", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableConfigDiscovery: true,
+            enableMcpApps: true,
+            githubMcpToolConfig: {
+                enableAllTools: true,
+                additionalToolsets: ["actions"],
+                additionalTools: ["get_me"],
+                enableInsidersMode: true,
+                disableFormDeferral: true,
+            },
+        });
+
+        try {
+            await expectGitHubMcpConfigApplied(session);
+        } finally {
+            await session.disconnect();
         }
     });
 });

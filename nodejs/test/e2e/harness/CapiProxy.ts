@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import { resolve } from "path";
 import { createInterface } from "readline";
 import { expect } from "vitest";
+import type { CapturedRequest } from "../../../../test/harness/replayingCapiProxy";
 import {
     CopilotUserResponse,
     ParsedHttpExchange,
@@ -118,6 +119,11 @@ export class CapiProxy {
 
     async getExchanges(): Promise<ParsedHttpExchange[]> {
         const response = await fetch(`${this.proxyUrl}/exchanges`, { method: "GET" });
+        return await response.json();
+    }
+
+    async getRequests(): Promise<CapturedRequest[]> {
+        const response = await fetch(`${this.proxyUrl}/requests`, { method: "GET" });
         return await response.json();
     }
 

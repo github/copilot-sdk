@@ -19,6 +19,40 @@ async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
 
+describe("approveAll", () => {
+    const request = {
+        kind: "url" as const,
+        url: "https://api.example.com/data",
+        intention: "Fetch domain data",
+    };
+    const invocation = { sessionId: "session-1", managedSettingsEnabled: false };
+
+    it("approves ordinary permission requests", () => {
+        expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
+    });
+
+    it("rejects managed settings sessions", () => {
+        expect(() => approveAll(request, { ...invocation, managedSettingsEnabled: true })).toThrow(
+            "approveAll cannot be used when managed settings are enabled"
+        );
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
+            kind: "no-result",
+        });
+    });
+
+    it("fails closed when managed approval metadata is malformed", () => {
+        const malformedRequest = {
+            ...request,
+            managedApprovalRequired: "yes",
+        } as unknown as Parameters<typeof approveAll>[0];
+
+        expect(approveAll(malformedRequest, invocation)).toEqual({ kind: "no-result" });
+    });
+});
+
 describe("CopilotClient", () => {
     it("disposes the stdio connection when child stdin emits an error", async () => {
         const client = new CopilotClient();
@@ -100,6 +134,55 @@ describe("CopilotClient", () => {
                 expiresIn: 3600,
             },
         });
+    });
+
+    it("forwards GitHub MCP tool config on create and resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const githubMcpToolConfig = {
+            enableAllTools: true,
+            additionalToolsets: ["repos"],
+            additionalTools: ["get_issue"],
+            enableInsidersMode: true,
+            disableFormDeferral: true,
+        };
+
+        const session = await client.createSession({ githubMcpToolConfig });
+        await client.resumeSession(session.sessionId, { githubMcpToolConfig });
+
+        expect(spy.mock.calls.find(([method]) => method === "session.create")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+        expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+    });
+
+    it("omits GitHub MCP tool config when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({});
+
+        expect(
+            spy.mock.calls.find(([method]) => method === "session.create")![1]
+        ).not.toHaveProperty("githubMcpToolConfig");
     });
 
     it("passes MCP OAuth requests through when optional metadata is absent", async () => {
@@ -3175,16 +3258,47 @@ describe("CopilotClient", () => {
             expect(failureCalls).toEqual(["fail-tool"]);
         });
 
+        it("registers hooks.invoke on the JSON-RPC connection and routes it to handleHooksInvoke", async () => {
+            const client = new CopilotClient();
+            const handleHooksInvoke = vi
+                .spyOn(client as any, "handleHooksInvoke")
+                .mockResolvedValue({ output: { additionalContext: "ok" } });
+
+            const fakeConnection = {
+                onNotification: vi.fn(),
+                onRequest: vi.fn(),
+                onClose: vi.fn(),
+                onError: vi.fn(),
+            };
+
+            (client as any).connection = fakeConnection;
+            (client as any).attachConnectionHandlers();
+
+            const hooksRegistration = fakeConnection.onRequest.mock.calls.find(
+                ([method]: [string, unknown]) => method === "hooks.invoke"
+            );
+            expect(hooksRegistration).toBeDefined();
+
+            const handler = hooksRegistration![1] as (params: {
+                sessionId: string;
+                hookType: string;
+                input: unknown;
+            }) => Promise<{ output?: unknown }>;
+            const payload = {
+                sessionId: "session-1",
+                hookType: "postToolUseFailure",
+                input: { toolName: "shell" },
+            };
+
+            await expect(handler(payload)).resolves.toEqual({
+                output: { additionalContext: "ok" },
+            });
+            expect(handleHooksInvoke).toHaveBeenCalledWith(payload);
+        });
+
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
-            // Validates the full JSON-RPC entry point used by the CLI:
-            // clientGlobalHandlers.hooks.invoke({sessionId, hookType, input})
-            // → CopilotSession._handleHooksInvoke(hookType, input)
-            // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
-            //
-            // This guards the wire-format contract that the bundled Copilot
-            // CLI relies on: the hookType string "postToolUseFailure" and the
-            // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
-            // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
+            // Validates the dispatch behavior for the internal `hooks.invoke`
+            // payload after the JSON-RPC connection hands it to the SDK.
             const client = new CopilotClient();
             await client.start();
             onTestFinished(() => stopClient(client));
@@ -3208,7 +3322,7 @@ describe("CopilotClient", () => {
                 cwd: "/tmp",
             };
 
-            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+            const response = await (client as any).handleHooksInvoke({
                 sessionId: session.sessionId,
                 hookType: "postToolUseFailure",
                 input: failureInput,
@@ -3285,7 +3399,7 @@ describe("CopilotClient", () => {
                 },
             });
 
-            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+            const response = await (client as any).handleHooksInvoke({
                 sessionId: session.sessionId,
                 hookType: "agentStop",
                 input: {

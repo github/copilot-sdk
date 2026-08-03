@@ -687,6 +687,24 @@ pub struct WorkingDirectoryContext {
     pub repository_host: Option<String>,
 }
 
+/// Per-session configuration for the built-in GitHub MCP server
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubMcpToolConfig {
+    /// Additional GitHub MCP tools requested by the session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_tools: Option<Vec<String>>,
+    /// Additional GitHub MCP toolsets requested by the session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_toolsets: Option<Vec<String>>,
+    /// Whether to use the read-write endpoint and request all toolsets
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_all_tools: Option<bool>,
+    /// Whether to request the GitHub MCP insiders build
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_insiders_mode: Option<bool>,
+}
+
 /// Optional session limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -714,6 +732,9 @@ pub struct SessionStartData {
     /// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detached_from_spawning_parent_session_id: Option<String>,
+    /// Per-session GitHub MCP override persisted for cold resume
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Identifier of the software producing the events (e.g., "copilot-agent")
     pub producer: String,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
@@ -1796,6 +1817,12 @@ pub struct AssistantMessageData {
     /// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
+    /// Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_count: Option<i64>,
+    /// Zero-based position of this message within its model call's response. Absent when the response was not split into chunks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_index: Option<i64>,
     /// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
     ///
     /// <div class="warning">
@@ -1986,6 +2013,10 @@ pub struct AssistantUsageData {
     /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_endpoint: Option<AssistantUsageApiEndpoint>,
+    /// Number of tools available to the model for this call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) available_tool_count: Option<i64>,
     /// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_expires_at: Option<String>,
@@ -2031,6 +2062,10 @@ pub struct AssistantUsageData {
     pub inter_token_latency_ms: Option<f64>,
     /// Model identifier used for this API call
     pub model: String,
+    /// Number of tool calls returned by the model
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) num_tool_calls: Option<i64>,
     /// Number of output tokens produced
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
@@ -2060,6 +2095,14 @@ pub struct AssistantUsageData {
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_to_first_token_ms: Option<f64>,
+    /// Tool-call counts keyed by tool name
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_counts: Option<HashMap<String, i64>>,
+    /// Number of tokens used by tool definitions for this call
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_token_count: Option<i64>,
 }
 
 /// Content-free structural summary of the failing request for diagnosing malformed 4xx calls
@@ -2197,6 +2240,16 @@ pub struct ToolUserRequestedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionStartShellToolInfo {
+    /// The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_command: Option<String>,
     /// Whether the command includes a file write redirection (e.g., > or >>).
     pub has_write_file_redirection: bool,
     /// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
@@ -3102,6 +3155,9 @@ pub struct PermissionRequestMcp {
     pub args: Option<serde_json::Value>,
     /// Permission kind discriminator
     pub kind: PermissionRequestMcpKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Whether this MCP tool is read-only (no side effects)
     pub read_only: bool,
     /// Name of the MCP server providing the tool
@@ -3159,6 +3215,9 @@ pub struct PermissionRequestMemory {
     pub fact: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestMemoryKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Reason for the vote (vote only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -3179,6 +3238,9 @@ pub struct PermissionRequestCustomTool {
     pub args: Option<serde_json::Value>,
     /// Permission kind discriminator
     pub kind: PermissionRequestCustomToolKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3197,6 +3259,9 @@ pub struct PermissionRequestHook {
     pub hook_message: Option<String>,
     /// Permission kind discriminator
     pub kind: PermissionRequestHookKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Arguments of the tool call being gated
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_args: Option<serde_json::Value>,
@@ -3216,8 +3281,68 @@ pub struct PermissionRequestExtensionManagement {
     pub extension_name: Option<String>,
     /// Permission kind discriminator
     pub kind: PermissionRequestExtensionManagementKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// The extension management operation (scaffold, reload)
     pub operation: String,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// A declared phase shown in a factory permission prompt.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryPermissionPhase {
+    /// Optional phase detail
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Phase title
+    pub title: String,
+}
+
+/// Factory run or authoring permission request
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRequestFactory {
+    /// Canonical key used for scoped factory approvals
+    pub approval_key: String,
+    /// Whether this factory is eligible for persistent approval
+    pub can_persist_approval: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_ai_credits: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_concurrent_subagents: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_total_subagents: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_timeout_seconds: Option<f64>,
+    /// Factory description
+    pub description: String,
+    /// Permission kind discriminator
+    pub kind: PermissionRequestFactoryKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
+    /// Effective AI-credit limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+    /// Effective concurrent-subagent limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_subagents: Option<i64>,
+    /// Effective total-subagent limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_total_subagents: Option<i64>,
+    /// Factory name
+    pub name: String,
+    /// Factory operation, either run or author
+    pub operation: FactoryPermissionOperation,
+    /// Declared factory phases
+    pub phases: Vec<FactoryPermissionPhase>,
+    /// Effective active-time limit in seconds; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_seconds: Option<f64>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3233,6 +3358,9 @@ pub struct PermissionRequestExtensionPermissionAccess {
     pub extension_name: String,
     /// Permission kind discriminator
     pub kind: PermissionRequestExtensionPermissionAccessKind,
+    /// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
     /// Tool call ID that triggered this permission request
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -3573,6 +3701,62 @@ pub struct PermissionPromptRequestExtensionManagement {
     pub tool_call_id: Option<String>,
 }
 
+/// Factory run or authoring permission prompt
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionPromptRequestFactory {
+    /// Canonical key used for scoped factory approvals
+    pub approval_key: String,
+    /// Auto-approval judge information for this request; present only when auto mode is enabled.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approval: Option<PermissionAutoApproval>,
+    /// Whether this factory is eligible for persistent approval
+    pub can_persist_approval: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_ai_credits: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_concurrent_subagents: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_max_total_subagents: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_timeout_seconds: Option<f64>,
+    /// Factory description
+    pub description: String,
+    /// Prompt kind discriminator
+    pub kind: PermissionPromptRequestFactoryKind,
+    /// Whether managed policy requires a human response and forbids host auto-approval
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
+    /// Effective AI-credit limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ai_credits: Option<f64>,
+    /// Effective concurrent-subagent limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_subagents: Option<i64>,
+    /// Effective total-subagent limit; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_total_subagents: Option<i64>,
+    /// Factory name
+    pub name: String,
+    /// Factory operation, either run or author
+    pub operation: FactoryPermissionOperation,
+    /// Declared factory phases
+    pub phases: Vec<FactoryPermissionPhase>,
+    /// Effective active-time limit in seconds; omitted means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_seconds: Option<f64>,
+    /// Tool call ID that triggered this permission request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
 /// Extension permission access prompt
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3690,6 +3874,17 @@ pub struct UserToolSessionApprovalExtensionManagement {
     /// Optional operation identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<String>,
+}
+
+/// Session-scoped factory approval, optionally narrowed by approval key.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserToolSessionApprovalFactory {
+    /// Optional factory operation name or canonical approval key
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval_key: Option<String>,
+    /// Factory approval kind
+    pub kind: UserToolSessionApprovalFactoryKind,
 }
 
 /// Session-scoped tool-approval rule for an extension's permission-gated capability access, keyed by extension name.
@@ -4483,7 +4678,7 @@ pub struct McpServersLoadedServer {
     /// Configuration source: user, workspace, plugin, or builtin
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<McpServerSource>,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
     pub status: McpServerStatus,
     /// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4507,7 +4702,7 @@ pub struct SessionMcpServerStatusChangedData {
     pub error: Option<String>,
     /// Name of the MCP server whose status changed
     pub server_name: String,
-    /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+    /// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
     pub status: McpServerStatus,
 }
 
@@ -5251,6 +5446,9 @@ pub enum AbortReason {
     /// An MCP server delivered a user.abort notification.
     #[serde(rename = "user_abort")]
     UserAbort,
+    /// Autopilot stopped the run because the active objective reached its user-set --max-ai-credits limit.
+    #[serde(rename = "autopilot_credit_limit")]
+    AutopilotCreditLimit,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -5531,6 +5729,29 @@ pub enum PermissionRequestExtensionManagementKind {
 
 /// Permission kind discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionRequestFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
+/// Operation gated by a factory permission request.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FactoryPermissionOperation {
+    /// Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.
+    #[serde(rename = "run")]
+    Run,
+    /// Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.
+    #[serde(rename = "author")]
+    Author,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Permission kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRequestExtensionPermissionAccessKind {
     #[serde(rename = "extension-permission-access")]
     #[default]
@@ -5550,6 +5771,7 @@ pub enum PermissionRequest {
     CustomTool(PermissionRequestCustomTool),
     Hook(PermissionRequestHook),
     ExtensionManagement(PermissionRequestExtensionManagement),
+    Factory(PermissionRequestFactory),
     ExtensionPermissionAccess(PermissionRequestExtensionPermissionAccess),
 }
 
@@ -5712,6 +5934,14 @@ pub enum PermissionPromptRequestExtensionManagementKind {
 
 /// Prompt kind discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionPromptRequestFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
+/// Prompt kind discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionPromptRequestExtensionPermissionAccessKind {
     #[serde(rename = "extension-permission-access")]
     #[default]
@@ -5732,6 +5962,7 @@ pub enum PermissionPromptRequest {
     Path(PermissionPromptRequestPath),
     Hook(PermissionPromptRequestHook),
     ExtensionManagement(PermissionPromptRequestExtensionManagement),
+    Factory(PermissionPromptRequestFactory),
     ExtensionPermissionAccess(PermissionPromptRequestExtensionPermissionAccess),
 }
 
@@ -5799,6 +6030,14 @@ pub enum UserToolSessionApprovalExtensionManagementKind {
     ExtensionManagement,
 }
 
+/// Factory approval kind
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserToolSessionApprovalFactoryKind {
+    #[serde(rename = "factory")]
+    #[default]
+    Factory,
+}
+
 /// Extension permission access approval kind
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserToolSessionApprovalExtensionPermissionAccessKind {
@@ -5818,6 +6057,7 @@ pub enum UserToolSessionApproval {
     Memory(UserToolSessionApprovalMemory),
     CustomTool(UserToolSessionApprovalCustomTool),
     ExtensionManagement(UserToolSessionApprovalExtensionManagement),
+    Factory(UserToolSessionApprovalFactory),
     ExtensionPermissionAccess(UserToolSessionApprovalExtensionPermissionAccess),
 }
 
@@ -6206,7 +6446,7 @@ pub enum McpServerSource {
     Unknown,
 }
 
-/// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+/// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerStatus {
     /// The server is connected and available.
@@ -6224,6 +6464,9 @@ pub enum McpServerStatus {
     /// The server is configured but disabled.
     #[serde(rename = "disabled")]
     Disabled,
+    /// The server was intentionally stopped and can be restarted on demand when policy permits; a server quarantined by restrictive managed policy stays stopped and cannot be restarted until the policy allows it.
+    #[serde(rename = "stopped")]
+    Stopped,
     /// The server is not configured for this session.
     #[serde(rename = "not_configured")]
     NotConfigured,

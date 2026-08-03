@@ -63,6 +63,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly CopilotClient _parentClient;
 
     private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? _permissionHandler;
+    private bool _managedSettingsEnabled;
     private volatile Func<McpAuthContext, Task<McpAuthResult?>>? _mcpAuthHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
@@ -557,13 +558,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers a handler for permission requests.
     /// </summary>
     /// <param name="handler">The permission handler function.</param>
+    /// <param name="managedSettingsEnabled">Whether managed settings are enabled for the session.</param>
     /// <remarks>
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler)
+    internal void RegisterPermissionHandler(
+        Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler,
+        bool managedSettingsEnabled)
     {
         _permissionHandler = handler;
+        _managedSettingsEnabled = managedSettingsEnabled;
     }
 
     internal void RegisterMcpAuthHandler(Func<McpAuthContext, Task<McpAuthResult?>>? handler)
@@ -590,7 +595,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var invocation = new PermissionInvocation
         {
-            SessionId = SessionId
+            SessionId = SessionId,
+            ManagedSettingsEnabled = _managedSettingsEnabled
         };
 
         var permissionTimestamp = Stopwatch.GetTimestamp();
@@ -932,7 +938,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             var invocation = new PermissionInvocation
             {
-                SessionId = SessionId
+                SessionId = SessionId,
+                ManagedSettingsEnabled = _managedSettingsEnabled
             };
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
@@ -954,8 +961,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 requestId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}", SessionId, requestId);
             try
             {
                 await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());

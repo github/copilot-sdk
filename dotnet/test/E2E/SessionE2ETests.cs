@@ -611,14 +611,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Set_Model_With_ReasoningEffort()
     {
-        var session = await CreateSessionAsync();
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("session", nameof(Should_Set_Model_With_ReasoningEffort));
+        var isolatedClient = isolatedCtx.CreateClient();
+        await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient);
 
         var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
 
-        await session.SetModelAsync("gpt-4.1", "high");
+        await session.SetModelAsync("gpt-5.4", "high");
 
         var modelChanged = await modelChangedTask;
-        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+        Assert.Equal("gpt-5.4", modelChanged.Data.NewModel);
         Assert.Equal("high", modelChanged.Data.ReasoningEffort);
     }
 

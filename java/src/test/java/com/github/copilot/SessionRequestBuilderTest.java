@@ -16,6 +16,7 @@ import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.CloudSessionRepository;
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotExpAssignmentResponse;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.DefaultAgentConfig;
@@ -24,6 +25,7 @@ import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.ExpConfigEntry;
+import com.github.copilot.rpc.GitHubMcpToolConfig;
 import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -86,6 +88,36 @@ public class SessionRequestBuilderTest {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
         assertTrue(request.getRequestPermission(),
                 "requestPermission should always be true to enable deny-by-default behavior");
+    }
+
+    @Test
+    void testBuildRequestsResolveAndSerializeCustomAgentsLocalOnly() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+
+        var explicitCreate = SessionRequestBuilder
+                .buildCreateRequest(new SessionConfig().setCustomAgentsLocalOnly(false), "create-explicit");
+        var explicitResume = SessionRequestBuilder.buildResumeRequest("resume-explicit",
+                new ResumeSessionConfig().setCustomAgentsLocalOnly(false));
+        assertFalse(explicitCreate.getCustomAgentsLocalOnly());
+        assertFalse(explicitResume.getCustomAgentsLocalOnly());
+        assertTrue(mapper.writeValueAsString(explicitCreate).contains("\"customAgentsLocalOnly\":false"));
+        assertTrue(mapper.writeValueAsString(explicitResume).contains("\"customAgentsLocalOnly\":false"));
+
+        var emptyCreate = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-empty",
+                CopilotClientMode.EMPTY);
+        var emptyResume = SessionRequestBuilder.buildResumeRequest("resume-empty", new ResumeSessionConfig(),
+                CopilotClientMode.EMPTY);
+        assertTrue(emptyCreate.getCustomAgentsLocalOnly());
+        assertTrue(emptyResume.getCustomAgentsLocalOnly());
+        assertTrue(mapper.writeValueAsString(emptyCreate).contains("\"customAgentsLocalOnly\":true"));
+        assertTrue(mapper.writeValueAsString(emptyResume).contains("\"customAgentsLocalOnly\":true"));
+
+        var cliCreate = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "create-cli");
+        var cliResume = SessionRequestBuilder.buildResumeRequest("resume-cli", new ResumeSessionConfig());
+        assertNull(cliCreate.getCustomAgentsLocalOnly());
+        assertNull(cliResume.getCustomAgentsLocalOnly());
+        assertFalse(mapper.writeValueAsString(cliCreate).contains("\"customAgentsLocalOnly\""));
+        assertFalse(mapper.writeValueAsString(cliResume).contains("\"customAgentsLocalOnly\""));
     }
 
     @Test
@@ -971,5 +1003,24 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1", resumeClone);
         assertEquals(resumeAssignments, resumeRequest.getExpAssignments());
         assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"Id\":\"exp-resume\""));
+    }
+
+    @Test
+    void githubMcpToolConfigIsMappedAndSerializedForCreateAndResume() throws Exception {
+        var config = new GitHubMcpToolConfig().setEnableAllTools(true).setAdditionalToolsets(List.of("repos"))
+                .setAdditionalTools(List.of("get_issue")).setEnableInsidersMode(true).setDisableFormDeferral(true);
+        var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setGitHubMcpToolConfig(config),
+                "session-1");
+        var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig().setGitHubMcpToolConfig(config));
+
+        assertSame(config, createRequest.getGitHubMcpToolConfig());
+        assertSame(config, resumeRequest.getGitHubMcpToolConfig());
+        var mapper = JsonRpcClient.getObjectMapper();
+        assertTrue(mapper.writeValueAsString(createRequest).contains("\"githubMcpToolConfig\""));
+        assertTrue(mapper.writeValueAsString(resumeRequest).contains("\"githubMcpToolConfig\""));
+        assertFalse(
+                mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
+                        .contains("\"githubMcpToolConfig\""));
     }
 }

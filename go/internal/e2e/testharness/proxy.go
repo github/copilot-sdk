@@ -188,6 +188,38 @@ func (p *CapiProxy) GetExchanges() ([]ParsedHttpExchange, error) {
 	return exchanges, nil
 }
 
+// GetRequests retrieves all captured outbound HTTP requests from the proxy.
+func (p *CapiProxy) GetRequests() ([]CapturedRequest, error) {
+	p.mu.Lock()
+	url := p.proxyURL
+	p.mu.Unlock()
+
+	if url == "" {
+		return nil, fmt.Errorf("proxy not started")
+	}
+
+	resp, err := http.Get(url + "/requests")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get requests: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var requests []CapturedRequest
+	if err := json.NewDecoder(resp.Body).Decode(&requests); err != nil {
+		return nil, fmt.Errorf("failed to decode requests: %w", err)
+	}
+
+	return requests, nil
+}
+
+// CapturedRequest represents an outbound HTTP request captured by the proxy.
+type CapturedRequest struct {
+	Method  string                     `json:"method"`
+	URL     string                     `json:"url"`
+	Headers map[string]json.RawMessage `json:"headers"`
+	Body    string                     `json:"body"`
+}
+
 // ParsedHttpExchange represents a captured HTTP exchange.
 type ParsedHttpExchange struct {
 	Request        ChatCompletionRequest      `json:"request"`

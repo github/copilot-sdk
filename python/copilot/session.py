@@ -36,7 +36,6 @@ from .generated.rpc import (
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    ExternalToolTextResultForLlm,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
@@ -83,7 +82,13 @@ from .generated.session_events import (
 from .generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import (
+    Tool,
+    ToolHandler,
+    ToolInvocation,
+    ToolResult,
+    tool_result_to_external_tool_text_result_for_llm,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -342,12 +347,11 @@ SystemMessageConfig = (
 
 @dataclass
 class PermissionNoResult:
-    """Sentinel returned by a permission handler to leave the request unanswered.
+    """Sentinel that leaves an event-dispatched permission request unanswered.
 
-    Only meaningful against protocol-v1 servers. v2 servers reject ``no-result``
-    responses; the SDK raises :class:`ValueError` if a v2 server receives one.
-    Mirrors the ``{kind: "no-result"}`` extension TS adds to its ``PermissionDecision``
-    union (see ``nodejs/src/types.ts:883``).
+    During event-based permission dispatch, the SDK suppresses its response so
+    another connected client, such as a human-facing host, can answer the pending
+    request. Legacy direct callbacks require a concrete decision and cannot abstain.
     """
 
     kind: Literal["no-result"] = "no-result"
@@ -355,15 +359,21 @@ class PermissionNoResult:
 
 # The decision returned by a permission handler. Identical shape to the wire
 # ``PermissionDecision`` discriminated union, plus a :class:`PermissionNoResult`
-# sentinel for v1 servers. Construct via the generated variant classes:
+# sentinel that suppresses this SDK client's response. Construct via the
+# generated variant classes:
 # ``PermissionDecisionApproveOnce()``, ``PermissionDecisionReject(feedback=...)``,
 # etc. The ``kind`` discriminator is baked in as a ``ClassVar`` default by
 # codegen, so callers must not pass it.
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
+class PermissionInvocation(TypedDict, total=False):
+    session_id: Required[str]
+    managed_settings_enabled: NotRequired[bool]
+
+
 _PermissionHandlerFn = Callable[
-    [PermissionRequest, dict[str, str]],
+    [PermissionRequest, PermissionInvocation],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
 ]
 
@@ -371,8 +381,12 @@ _PermissionHandlerFn = Callable[
 class PermissionHandler:
     @staticmethod
     def approve_all(
-        request: PermissionRequest, invocation: dict[str, str]
+        request: PermissionRequest, invocation: PermissionInvocation
     ) -> PermissionRequestResult:
+        if invocation.get("managed_settings_enabled", False):
+            raise RuntimeError("approve_all cannot be used when managed settings are enabled")
+        if getattr(request, "managed_approval_required", False) is True:
+            return PermissionNoResult()
         return PermissionDecisionApproveOnce()
 
 
@@ -1084,6 +1098,22 @@ class MCPHTTPServerConfig(TypedDict, total=False):
 
 MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
+
+class GitHubMcpToolConfig(TypedDict, total=False):
+    """Configuration for the built-in GitHub MCP server.
+
+    ``disable_form_deferral`` only applies to the built-in GitHub MCP server
+    and only has an effect when MCP Apps and form-backed GitHub tools are
+    enabled.
+    """
+
+    enable_all_tools: bool
+    additional_toolsets: list[str]
+    additional_tools: list[str]
+    enable_insiders_mode: bool
+    disable_form_deferral: bool
+
+
 # ============================================================================
 # Custom Agent Configuration Types
 # ============================================================================
@@ -1449,7 +1479,11 @@ class CopilotSession:
     """
 
     def __init__(
-        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+        self,
+        session_id: str,
+        client: Any,
+        workspace_path: os.PathLike[str] | str | None = None,
+        managed_settings_enabled: bool = False,
     ):
         """
         Initialize a new CopilotSession.
@@ -1463,8 +1497,11 @@ class CopilotSession:
             client: The internal client connection to the Copilot CLI.
             workspace_path: Path to the session workspace directory
                 (when infinite sessions enabled).
+            managed_settings_enabled: Whether managed settings were enabled when
+                creating or resuming the session.
         """
         self.session_id = session_id
+        self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
@@ -2063,13 +2100,7 @@ class CopilotSession:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ExternalToolTextResultForLlm(
-                            text_result_for_llm=tool_result.text_result_for_llm,
-                            error=tool_result.error,
-                            result_type=tool_result.result_type,
-                            tool_references=tool_result.tool_references,
-                            tool_telemetry=tool_result.tool_telemetry,
-                        ),
+                        result=tool_result_to_external_tool_text_result_for_llm(tool_result),
                     )
                 )
                 log_timing(
@@ -2102,7 +2133,13 @@ class CopilotSession:
         """Execute a permission handler and respond via RPC."""
         try:
             handler_start = time.perf_counter()
-            result = handler(permission_request, {"session_id": self.session_id})
+            result = handler(
+                permission_request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2134,6 +2171,10 @@ class CopilotSession:
                 request_id=request_id,
             )
         except Exception:
+            logger.exception(
+                "Permission handler or response delivery failed",
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             try:
                 await self.rpc.permissions.handle_pending_permission_request(
                     PermissionDecisionRequest(
@@ -2528,7 +2569,13 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            result = handler(request, {"session_id": self.session_id})
+            result = handler(
+                request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2538,11 +2585,14 @@ class CopilotSession:
                 handler_start,
                 session_id=self.session_id,
             )
-            return cast(PermissionRequestResult, result)
+            result = cast(PermissionRequestResult, result)
+            if isinstance(result, PermissionNoResult):
+                return PermissionDecisionUserNotAvailable()
+            return result
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission.
-            logger.debug(
-                "Error handling permission request",
+            logger.error(
+                "Permission handler failed",
                 extra={"session_id": self.session_id},
                 exc_info=True,
             )

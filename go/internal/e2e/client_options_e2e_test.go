@@ -165,12 +165,12 @@ func TestClientOptionsE2E(t *testing.T) {
 			EnableConfigDiscovery:              copilot.Bool(true),
 			EnableOnDemandInstructionDiscovery: copilot.Bool(true),
 			IncludeSubAgentStreamingEvents:     copilot.Bool(false),
+			CustomAgentsLocalOnly:              copilot.Bool(false),
 			OnPermissionRequest:                copilot.PermissionHandler.ApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
-		t.Cleanup(func() { session.Disconnect() })
 
 		updated := readCapture(t, capturePath)
 		var createReq *capturedRequest
@@ -196,6 +196,107 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 		if v, ok := params["includeSubAgentStreamingEvents"].(bool); !ok || v != false {
 			t.Errorf("Expected session.create.params.includeSubAgentStreamingEvents=false, got %v", params["includeSubAgentStreamingEvents"])
+		}
+		if v, ok := params["customAgentsLocalOnly"].(bool); !ok || v != false {
+			t.Errorf("Expected session.create.params.customAgentsLocalOnly=false, got %v", params["customAgentsLocalOnly"])
+		}
+
+		sessionID := session.SessionID
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Disconnect failed: %v", err)
+		}
+		resumed, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			CustomAgentsLocalOnly: copilot.Bool(false),
+			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = resumed.Disconnect() })
+
+		resumedCapture := readCapture(t, capturePath)
+		for _, req := range resumedCapture.Requests {
+			if req.Method != "session.resume" {
+				continue
+			}
+			resumeParams, ok := req.Params.(map[string]any)
+			if !ok {
+				t.Fatalf("Expected session.resume params to be an object, got %T", req.Params)
+			}
+			if v, ok := resumeParams["customAgentsLocalOnly"].(bool); !ok || v != false {
+				t.Errorf("Expected session.resume.params.customAgentsLocalOnly=false, got %v",
+					resumeParams["customAgentsLocalOnly"])
+			}
+			return
+		}
+		t.Fatalf("session.resume request was not captured. Captured requests: %+v", resumedCapture.Requests)
+	})
+
+	t.Run("should send empty-mode custom agent locality defaults in initial requests", func(t *testing.T) {
+		ctx := testharness.NewTestContext(t)
+		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-empty-"+randomHex(t)+".js")
+		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-empty-capture-"+randomHex(t)+".json")
+		if err := os.WriteFile(cliPath, []byte(fakeStdioCliScript), 0644); err != nil {
+			t.Fatalf("Failed to write fake CLI script: %v", err)
+		}
+
+		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.Connection = copilot.StdioConnection{
+				Path: cliPath,
+				Args: []string{"--capture-file", capturePath},
+			}
+			opts.Mode = copilot.ModeEmpty
+			opts.BaseDirectory = ctx.WorkDir
+			opts.UseLoggedInUser = copilot.Bool(false)
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			AvailableTools:      []string{"builtin:ask_user"},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+		sessionID := session.SessionID
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Disconnect failed: %v", err)
+		}
+
+		resumed, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			AvailableTools:      []string{"builtin:ask_user"},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("ResumeSession failed: %v", err)
+		}
+		t.Cleanup(func() { _ = resumed.Disconnect() })
+
+		capture := readCapture(t, capturePath)
+		foundCreate := false
+		foundResume := false
+		for _, req := range capture.Requests {
+			params, ok := req.Params.(map[string]any)
+			if !ok {
+				continue
+			}
+			switch req.Method {
+			case "session.create":
+				foundCreate = true
+				if v, ok := params["customAgentsLocalOnly"].(bool); !ok || !v {
+					t.Errorf("Expected session.create.params.customAgentsLocalOnly=true, got %v",
+						params["customAgentsLocalOnly"])
+				}
+			case "session.resume":
+				foundResume = true
+				if v, ok := params["customAgentsLocalOnly"].(bool); !ok || !v {
+					t.Errorf("Expected session.resume.params.customAgentsLocalOnly=true, got %v",
+						params["customAgentsLocalOnly"])
+				}
+			}
+		}
+		if !foundCreate || !foundResume {
+			t.Fatalf("Expected create and resume requests, got %+v", capture.Requests)
 		}
 	})
 
@@ -763,7 +864,7 @@ function handleMessage(message) {
     writeResponse(message.id, { message: "pong", protocolVersion: 3, timestamp: Date.now() });
     return;
   }
-  if (message.method === "session.create") {
+  if (message.method === "session.create" || message.method === "session.resume") {
     const sessionId = (message.params && message.params.sessionId) || "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;

@@ -15,9 +15,13 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { approveAll } from "../src/index.js";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
+    PermissionRequest,
+    PermissionRequestedData,
+    PermissionRequestedEvent,
 
     // *Data payload types from the v0.3.0 generated session-event schema.
     AssistantMessageData,
@@ -94,6 +98,11 @@ const _defaultFactoryResultCheck: _DefaultFactoryResultIsJsonValueOrVoid = true;
 type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
 // @ts-expect-error Factory results must be JSON values or top-level void.
 type _FactoryResultRejectsFunction = FactoryDefinition<JsonValue, () => void>;
+type _PermissionRequestedEventStaysAlignedWithSessionEventUnion = _AssertEqual<
+    PermissionRequestedEvent,
+    Extract<SessionEvent, { type: "permission.requested" }>
+>;
+const _permissionRequestedEventAlignmentCheck: _PermissionRequestedEventStaysAlignedWithSessionEventUnion = true;
 
 describe("Session event type exports (#1156)", () => {
     it("exposes the headline ToolExecutionStartData type with a usable shape", () => {
@@ -115,6 +124,82 @@ describe("Session event type exports (#1156)", () => {
         expect(data.mcpServerName).toBe("filesystem");
         expect(data.mcpToolName).toBe("list_dir");
         expect(data.turnId).toBe("turn-1");
+    });
+
+    it("exposes explicit user approval metadata for managed Domain requests", () => {
+        const request: PermissionRequest = {
+            kind: "url",
+            url: "https://api.example.com/data",
+            intention: "Fetch domain data",
+            managedApprovalRequired: true,
+        };
+
+        expect(request.managedApprovalRequired).toBe(true);
+    });
+
+    it("exposes managed approval metadata through permission event types", () => {
+        const data: PermissionRequestedData = {
+            permissionRequest: {
+                kind: "url",
+                url: "https://api.example.com/data",
+                intention: "Fetch domain data",
+                managedApprovalRequired: true,
+            },
+            requestId: "permission-1",
+        };
+        const event: SessionEvent = {
+            id: "evt-permission-1",
+            parentId: null,
+            timestamp: "2026-01-01T00:00:00.000Z",
+            type: "permission.requested",
+            data,
+        };
+
+        if (event.type !== "permission.requested") {
+            throw new Error("expected permission.requested narrowing");
+        }
+
+        const permissionEvent: PermissionRequestedEvent = event;
+        expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
+    });
+
+    it("rejects approveAll in managed settings sessions", () => {
+        expect(() =>
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch ordinary data",
+                },
+                { sessionId: "session-1", managedSettingsEnabled: true }
+            )
+        ).toThrow("approveAll cannot be used when managed settings are enabled");
+
+        expect(() =>
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch managed data",
+                    managedApprovalRequired: true,
+                },
+                { sessionId: "session-1", managedSettingsEnabled: true }
+            )
+        ).toThrow("approveAll cannot be used when managed settings are enabled");
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(
+            approveAll(
+                {
+                    kind: "url",
+                    url: "https://api.example.com/data",
+                    intention: "Fetch managed data",
+                    managedApprovalRequired: true,
+                },
+                { sessionId: "session-1", managedSettingsEnabled: false }
+            )
+        ).toEqual({ kind: "no-result" });
     });
 
     it("wraps ToolExecutionStartData inside the exported ToolExecutionStartEvent", () => {
@@ -174,6 +259,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionProgressData>();
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
+        assertImportable<PermissionRequestedData>();
 
         assertImportable<AssistantMessageEvent>();
         assertImportable<ErrorEvent>();
@@ -183,6 +269,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionCompleteEvent>();
         assertImportable<ToolExecutionStartEvent>();
         assertImportable<UserMessageEvent>();
+        assertImportable<PermissionRequestedEvent>();
 
         // Supporting auxiliary types referenced by the *Data shapes — these
         // must round-trip through the package root too, otherwise consumers

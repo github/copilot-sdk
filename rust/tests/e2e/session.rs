@@ -967,7 +967,7 @@ async fn should_set_model_with_reasoningeffort() {
 
             session
                 .set_model(
-                    "gpt-4.1",
+                    "gpt-5.4",
                     Some(SetModelOptions::default().with_reasoning_effort("high")),
                 )
                 .await
@@ -976,7 +976,7 @@ async fn should_set_model_with_reasoningeffort() {
             let data = event
                 .typed_data::<SessionModelChangeData>()
                 .expect("session.model_change data");
-            assert_eq!(data.new_model, "gpt-4.1");
+            assert_eq!(data.new_model, "gpt-5.4");
             assert_eq!(data.reasoning_effort.as_deref(), Some("high"));
 
             session.disconnect().await.expect("disconnect session");

@@ -100,6 +100,7 @@ public class ResumeSessionConfig {
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
     private boolean enableMcpApps;
+    private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
@@ -527,11 +528,11 @@ public class ResumeSessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory.
      * <p>
-     * This option is sent to the server via a {@code session.options.update}
-     * JSON-RPC call immediately after session resume. In
-     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
-     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
-     * forwarded only when explicitly set.
+     * This option is sent with the initial resume request and maintained via
+     * {@code session.options.update}. In {@link CopilotClientMode#EMPTY EMPTY} mode
+     * the default is {@code true} (local only); in
+     * {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is forwarded
+     * only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -1653,6 +1654,27 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the configuration for the built-in GitHub MCP server.
+     *
+     * @return the GitHub MCP configuration, or {@code null}
+     */
+    public GitHubMcpToolConfig getGitHubMcpToolConfig() {
+        return githubMcpToolConfig;
+    }
+
+    /**
+     * Sets the configuration for the built-in GitHub MCP server.
+     *
+     * @param githubMcpToolConfig
+     *            the GitHub MCP configuration
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setGitHubMcpToolConfig(GitHubMcpToolConfig githubMcpToolConfig) {
+        this.githubMcpToolConfig = githubMcpToolConfig;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1891,6 +1913,7 @@ public class ResumeSessionConfig {
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
         copy.enableMcpApps = this.enableMcpApps;
+        copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;

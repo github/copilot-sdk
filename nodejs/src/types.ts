@@ -11,6 +11,9 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    PermissionRequest as GeneratedPermissionRequest,
+    PermissionRequestedData as GeneratedPermissionRequestedData,
+    PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
     ReasoningSummary,
     SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
@@ -35,7 +38,9 @@ export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
 } from "./generated/rpc.js";
-export type SessionEvent = GeneratedSessionEvent;
+export type SessionEvent =
+    | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
+    | PermissionRequestedEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -1095,16 +1100,33 @@ export type SystemMessageConfig =
     | SystemMessageReplaceConfig
     | SystemMessageCustomizeConfig;
 
+import type { PermissionDecisionRequest } from "./generated/rpc.js";
+
 /**
  * Permission request types from the server. This is the generated
  * discriminated union from the runtime schema — switch on `kind` to
  * access the variant-specific fields (e.g. shell `commands`, write
  * `fileName`/`diff`, mcp `toolName`/`args`).
+ *
+ * `managedApprovalRequired` indicates that managed policy requires an explicit
+ * user decision. Hosts should bypass automatic approval and present their
+ * normal confirmation UI. The runtime currently emits it for managed Shell,
+ * Read, Edit, and Domain selector asks.
  */
-export type { PermissionRequest } from "./generated/session-events.js";
-import type { PermissionRequest } from "./generated/session-events.js";
+export type PermissionRequest = GeneratedPermissionRequest & {
+    readonly managedApprovalRequired?: boolean;
+};
 
-import type { PermissionDecisionRequest } from "./generated/rpc.js";
+export type PermissionRequestedData = Omit<
+    GeneratedPermissionRequestedData,
+    "permissionRequest"
+> & {
+    permissionRequest: PermissionRequest;
+};
+
+export type PermissionRequestedEvent = Omit<GeneratedPermissionRequestedEvent, "data"> & {
+    data: PermissionRequestedData;
+};
 
 /**
  * Permission decision result returned from a {@link PermissionHandler}.
@@ -1116,10 +1138,24 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 export type PermissionHandler = (
     request: PermissionRequest,
-    invocation: { sessionId: string }
+    invocation: { sessionId: string; managedSettingsEnabled?: boolean }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
-export const approveAll: PermissionHandler = () => ({ kind: "approve-once" });
+/**
+ * Approves permission requests when managed settings are disabled.
+ */
+export const approveAll: PermissionHandler = (request, invocation) => {
+    if (invocation.managedSettingsEnabled) {
+        throw new Error("approveAll cannot be used when managed settings are enabled");
+    }
+    if ("managedApprovalRequired" in request) {
+        const managedApprovalRequired = request.managedApprovalRequired;
+        if (managedApprovalRequired !== undefined && managedApprovalRequired !== false) {
+            return { kind: "no-result" };
+        }
+    }
+    return { kind: "approve-once" };
+};
 
 export const defaultJoinSessionPermissionHandler: PermissionHandler =
     (): PermissionRequestResult => ({
@@ -1995,6 +2031,20 @@ export interface CopilotExpAssignmentResponse {
 }
 
 /**
+ * Configuration for the built-in GitHub MCP server.
+ *
+ * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+ * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+ */
+export interface GitHubMcpToolConfig {
+    enableAllTools?: boolean;
+    additionalToolsets?: string[];
+    additionalTools?: string[];
+    enableInsidersMode?: boolean;
+    disableFormDeferral?: boolean;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -2322,6 +2372,14 @@ export interface SessionConfigBase {
      * @default false
      */
     enableMcpApps?: boolean;
+
+    /**
+     * Configuration for the built-in GitHub MCP server.
+     *
+     * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+     * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+     */
+    githubMcpToolConfig?: GitHubMcpToolConfig;
 
     /**
      * Handler for exit-plan-mode requests from the agent.

@@ -150,8 +150,12 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     {
         // Verifies that setting ReasoningEffort alongside Streaming=true does not break
         // the streaming pipeline — deltas still arrive and complete successfully.
-        var session = await CreateSessionAsync(new SessionConfig
+        await using var isolatedCtx = await E2ETestContext.CreateAsync();
+        await isolatedCtx.ConfigureForTestAsync("streaming_fidelity", nameof(Should_Emit_Streaming_Deltas_With_Reasoning_Effort_Configured));
+        var isolatedClient = isolatedCtx.CreateClient();
+        await using var session = await isolatedCtx.CreateSessionAsync(isolatedClient, new SessionConfig
         {
+            Model = "gpt-5.4",
             Streaming = true,
             ReasoningEffort = "high",
         });
@@ -177,8 +181,6 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var messages = await session.GetEventsAsync();
         var startEvent = Assert.Single(messages.OfType<SessionStartEvent>());
         Assert.Equal("high", startEvent.Data.ReasoningEffort);
-
-        await session.DisposeAsync();
     }
 
     [Fact]

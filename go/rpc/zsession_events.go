@@ -227,6 +227,10 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 type AssistantMessageData struct {
 	// Provider's completion / response identifier; shared across all chunks of a single API call. Used to group multi-chunk assistant utterances.
 	APICallID *string `json:"apiCallId,omitempty"`
+	// Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1.
+	ChunkCount *int64 `json:"chunkCount,omitempty"`
+	// Zero-based position of this message within its model call's response. Absent when the response was not split into chunks.
+	ChunkIndex *int64 `json:"chunkIndex,omitempty"`
 	// Provider-agnostic citations linking spans of this message's content to the sources that support them. Experimental; only populated when citation emission is enabled.
 	// Experimental: Citations is part of an experimental API and may change or be removed.
 	Citations *Citations `json:"citations,omitempty"`
@@ -844,6 +848,9 @@ type AssistantUsageData struct {
 	APICallID *string `json:"apiCallId,omitempty"`
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
+	// Number of tools available to the model for this call
+	// Internal: AvailableToolCount is part of the SDK's internal API surface and is not intended for external use.
+	AvailableToolCount *int64 `json:"availableToolCount,omitempty"`
 	// Updated prompt-cache expiration for this model call. Present only when the call establishes or refreshes known cache state.
 	CacheExpiresAt *time.Time `json:"cacheExpiresAt,omitempty"`
 	// Number of tokens read from prompt cache
@@ -871,6 +878,9 @@ type AssistantUsageData struct {
 	InterTokenLatencyMs *float64 `json:"interTokenLatencyMs,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
+	// Number of tool calls returned by the model
+	// Internal: NumToolCalls is part of the SDK's internal API surface and is not intended for external use.
+	NumToolCalls *int64 `json:"numToolCalls,omitempty"`
 	// Number of output tokens produced
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Parent tool call ID when this usage originates from a sub-agent
@@ -890,6 +900,12 @@ type AssistantUsageData struct {
 	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
 	TimeToFirstTokenMs *float64 `json:"timeToFirstTokenMs,omitempty"`
+	// Tool-call counts keyed by tool name
+	// Internal: ToolCounts is part of the SDK's internal API surface and is not intended for external use.
+	ToolCounts map[string]int64 `json:"toolCounts,omitzero"`
+	// Number of tokens used by tool definitions for this call
+	// Internal: ToolTokenCount is part of the SDK's internal API surface and is not intended for external use.
+	ToolTokenCount *int64 `json:"toolTokenCount,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
@@ -1210,7 +1226,7 @@ type SessionMCPServerStatusChangedData struct {
 	Error *string `json:"error,omitempty"`
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 	Status MCPServerStatus `json:"status"`
 }
 
@@ -1565,6 +1581,8 @@ type SessionStartData struct {
 	CopilotVersion string `json:"copilotVersion"`
 	// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
 	DetachedFromSpawningParentSessionID *string `json:"detachedFromSpawningParentSessionId,omitempty"`
+	// Per-session GitHub MCP override persisted for cold resume
+	GitHubMCPToolConfig *GitHubMCPToolConfig `json:"githubMcpToolConfig,omitempty"`
 	// Identifier of the software producing the events (e.g., "copilot-agent")
 	Producer string `json:"producer"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
@@ -2516,6 +2534,26 @@ type ExtensionsLoadedExtension struct {
 	Status ExtensionsLoadedExtensionStatus `json:"status"`
 }
 
+// A declared phase shown in a factory permission prompt.
+type FactoryPermissionPhase struct {
+	// Optional phase detail
+	Detail *string `json:"detail,omitempty"`
+	// Phase title
+	Title string `json:"title"`
+}
+
+// Per-session configuration for the built-in GitHub MCP server
+type GitHubMCPToolConfig struct {
+	// Additional GitHub MCP tools requested by the session
+	AdditionalTools []string `json:"additionalTools,omitzero"`
+	// Additional GitHub MCP toolsets requested by the session
+	AdditionalToolsets []string `json:"additionalToolsets,omitzero"`
+	// Whether to use the read-write endpoint and request all toolsets
+	EnableAllTools *bool `json:"enableAllTools,omitempty"`
+	// Whether to request the GitHub MCP insiders build
+	EnableInsidersMode *bool `json:"enableInsidersMode,omitempty"`
+}
+
 // Repository context for the handed-off session
 type HandoffRepository struct {
 	// Git branch name, if applicable
@@ -2608,7 +2646,7 @@ type MCPServersLoadedServer struct {
 	PluginVersion *string `json:"pluginVersion,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *MCPServerSource `json:"source,omitempty"`
-	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured
 	Status MCPServerStatus `json:"status"`
 	// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
 	Transport *MCPServerTransport `json:"transport,omitempty"`
@@ -2741,6 +2779,46 @@ type PermissionPromptRequestExtensionPermissionAccess struct {
 func (PermissionPromptRequestExtensionPermissionAccess) permissionPromptRequest() {}
 func (PermissionPromptRequestExtensionPermissionAccess) Kind() PermissionPromptRequestKind {
 	return PermissionPromptRequestKindExtensionPermissionAccess
+}
+
+// Factory run or authoring permission prompt
+type PermissionPromptRequestFactory struct {
+	// Canonical key used for scoped factory approvals
+	ApprovalKey string `json:"approvalKey"`
+	// Auto-approval judge information for this request; present only when auto mode is enabled.
+	// Experimental: AutoApproval is part of an experimental API and may change or be removed.
+	AutoApproval *PermissionAutoApproval `json:"autoApproval,omitempty"`
+	// Whether this factory is eligible for persistent approval
+	CanPersistApproval             bool     `json:"canPersistApproval"`
+	DeclaredMaxAiCredits           *float64 `json:"declaredMaxAiCredits,omitempty"`
+	DeclaredMaxConcurrentSubagents *int64   `json:"declaredMaxConcurrentSubagents,omitempty"`
+	DeclaredMaxTotalSubagents      *int64   `json:"declaredMaxTotalSubagents,omitempty"`
+	DeclaredTimeoutSeconds         *float64 `json:"declaredTimeoutSeconds,omitempty"`
+	// Factory description
+	Description string `json:"description"`
+	// Whether managed policy requires a human response and forbids host auto-approval
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
+	// Effective AI-credit limit; omitted means unlimited
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Effective concurrent-subagent limit; omitted means unlimited
+	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
+	// Effective total-subagent limit; omitted means unlimited
+	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
+	// Factory name
+	Name string `json:"name"`
+	// Factory operation, either run or author
+	Operation FactoryPermissionOperation `json:"operation"`
+	// Declared factory phases
+	Phases []FactoryPermissionPhase `json:"phases"`
+	// Effective active-time limit in seconds; omitted means unlimited
+	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionPromptRequestFactory) permissionPromptRequest() {}
+func (PermissionPromptRequestFactory) Kind() PermissionPromptRequestKind {
+	return PermissionPromptRequestKindFactory
 }
 
 // Hook confirmation permission prompt
@@ -2905,6 +2983,7 @@ func (PermissionPromptRequestWrite) Kind() PermissionPromptRequestKind {
 type PermissionRequest interface {
 	permissionRequest()
 	Kind() PermissionRequestKind
+	RequiresManagedApproval() bool
 }
 
 type RawPermissionRequest struct {
@@ -2921,6 +3000,8 @@ func (r RawPermissionRequest) Kind() PermissionRequestKind {
 type PermissionRequestCustomTool struct {
 	// Arguments to pass to the custom tool
 	Args any `json:"args,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Description of what the custom tool does
@@ -2938,6 +3019,8 @@ func (PermissionRequestCustomTool) Kind() PermissionRequestKind {
 type PermissionRequestExtensionManagement struct {
 	// Name of the extension being managed
 	ExtensionName *string `json:"extensionName,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// The extension management operation (scaffold, reload)
 	Operation string `json:"operation"`
 	// Tool call ID that triggered this permission request
@@ -2955,6 +3038,8 @@ type PermissionRequestExtensionPermissionAccess struct {
 	Capabilities []string `json:"capabilities"`
 	// Name of the extension requesting permission access
 	ExtensionName string `json:"extensionName"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Tool call ID that triggered this permission request
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -2964,10 +3049,49 @@ func (PermissionRequestExtensionPermissionAccess) Kind() PermissionRequestKind {
 	return PermissionRequestKindExtensionPermissionAccess
 }
 
+// Factory run or authoring permission request
+type PermissionRequestFactory struct {
+	// Canonical key used for scoped factory approvals
+	ApprovalKey string `json:"approvalKey"`
+	// Whether this factory is eligible for persistent approval
+	CanPersistApproval             bool     `json:"canPersistApproval"`
+	DeclaredMaxAiCredits           *float64 `json:"declaredMaxAiCredits,omitempty"`
+	DeclaredMaxConcurrentSubagents *int64   `json:"declaredMaxConcurrentSubagents,omitempty"`
+	DeclaredMaxTotalSubagents      *int64   `json:"declaredMaxTotalSubagents,omitempty"`
+	DeclaredTimeoutSeconds         *float64 `json:"declaredTimeoutSeconds,omitempty"`
+	// Factory description
+	Description string `json:"description"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
+	// Effective AI-credit limit; omitted means unlimited
+	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
+	// Effective concurrent-subagent limit; omitted means unlimited
+	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
+	// Effective total-subagent limit; omitted means unlimited
+	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
+	// Factory name
+	Name string `json:"name"`
+	// Factory operation, either run or author
+	Operation FactoryPermissionOperation `json:"operation"`
+	// Declared factory phases
+	Phases []FactoryPermissionPhase `json:"phases"`
+	// Effective active-time limit in seconds; omitted means unlimited
+	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+}
+
+func (PermissionRequestFactory) permissionRequest() {}
+func (PermissionRequestFactory) Kind() PermissionRequestKind {
+	return PermissionRequestKindFactory
+}
+
 // Hook confirmation permission request
 type PermissionRequestHook struct {
 	// Optional message from the hook explaining why confirmation is needed
 	HookMessage *string `json:"hookMessage,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Arguments of the tool call being gated
 	ToolArgs any `json:"toolArgs,omitempty"`
 	// Tool call ID that triggered this permission request
@@ -2985,6 +3109,8 @@ func (PermissionRequestHook) Kind() PermissionRequestKind {
 type PermissionRequestMCP struct {
 	// Arguments to pass to the MCP tool
 	Args any `json:"args,omitempty"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Whether this MCP tool is read-only (no side effects)
 	ReadOnly bool `json:"readOnly"`
 	// Name of the MCP server providing the tool
@@ -3012,6 +3138,8 @@ type PermissionRequestMemory struct {
 	Direction *PermissionRequestMemoryDirection `json:"direction,omitempty"`
 	// The fact being stored or voted on
 	Fact string `json:"fact"`
+	// When true, managed policy requires an explicit user decision and automatic approval must be bypassed.
+	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
 	// Reason for the vote (vote only)
 	Reason *string `json:"reason,omitempty"`
 	// Topic or subject of the memory (store only)
@@ -3501,6 +3629,35 @@ func (SystemNotificationAgentIdle) Type() SystemNotificationType {
 	return SystemNotificationTypeAgentIdle
 }
 
+// System notification metadata for a factory execution attempt that reached a terminal state.
+type SystemNotificationFactoryCompleted struct {
+	// Execution attempt that reached this terminal state.
+	Attempt int64 `json:"attempt"`
+	// Consumed AI usage in nano-AIU.
+	ConsumedNanoAiu int64 `json:"consumedNanoAiu"`
+	// Subagents consumed by the run across all attempts.
+	ConsumedSubagents int64 `json:"consumedSubagents"`
+	// Accumulated active execution time in milliseconds.
+	ElapsedMs int64 `json:"elapsedMs"`
+	// Persisted factory name.
+	FactoryName string `json:"factoryName"`
+	// Machine-readable terminal failure details, when present.
+	Failure any `json:"failure,omitempty"`
+	// Bounded prompt-safe preview of the completed result.
+	ResultPreview *string `json:"resultPreview,omitempty"`
+	// Actionable run_factory resume guidance for a resource-limit failure.
+	RetryGuidance *string `json:"retryGuidance,omitempty"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+	// Terminal status reached by this execution attempt.
+	Status SystemNotificationFactoryCompletedStatus `json:"status"`
+}
+
+func (SystemNotificationFactoryCompleted) systemNotification() {}
+func (SystemNotificationFactoryCompleted) Type() SystemNotificationType {
+	return SystemNotificationTypeFactoryCompleted
+}
+
 // System notification metadata for an instruction file discovered during tool access, including source, trigger file, and tool.
 type SystemNotificationInstructionDiscovered struct {
 	// Human-readable label for the timeline (e.g., 'AGENTS.md from packages/billing/')
@@ -3836,6 +3993,9 @@ type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 
 // Shell-aware path hints for a shell tool's command, captured at start time so consumers can snapshot a file's pre-image before the tool runs.
 type ToolExecutionStartShellToolInfo struct {
+	// The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand.
+	// Experimental: DisplayCommand is part of an experimental API and may change or be removed.
+	DisplayCommand *string `json:"displayCommand,omitempty"`
 	// Whether the command includes a file write redirection (e.g., > or >>).
 	HasWriteFileRedirection bool `json:"hasWriteFileRedirection"`
 	// File paths the command may read or write, derived from the command at start time. Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires.
@@ -4136,6 +4296,16 @@ const (
 	ExtensionsLoadedExtensionStatusStarting ExtensionsLoadedExtensionStatus = "starting"
 )
 
+// Operation gated by a factory permission request.
+type FactoryPermissionOperation string
+
+const (
+	// Authoring a factory, which writes JavaScript into a session-scoped extension and loads it.
+	FactoryPermissionOperationAuthor FactoryPermissionOperation = "author"
+	// Running a registered factory, which spends subagents, active time, and AI credits under the approved limits.
+	FactoryPermissionOperationRun FactoryPermissionOperation = "run"
+)
+
 // Origin type of the session being handed off
 type HandoffSourceType string
 
@@ -4324,6 +4494,7 @@ const (
 	PermissionPromptRequestKindCustomTool                PermissionPromptRequestKind = "custom-tool"
 	PermissionPromptRequestKindExtensionManagement       PermissionPromptRequestKind = "extension-management"
 	PermissionPromptRequestKindExtensionPermissionAccess PermissionPromptRequestKind = "extension-permission-access"
+	PermissionPromptRequestKindFactory                   PermissionPromptRequestKind = "factory"
 	PermissionPromptRequestKindHook                      PermissionPromptRequestKind = "hook"
 	PermissionPromptRequestKindMCP                       PermissionPromptRequestKind = "mcp"
 	PermissionPromptRequestKindMemory                    PermissionPromptRequestKind = "memory"
@@ -4352,6 +4523,7 @@ const (
 	PermissionRequestKindCustomTool                PermissionRequestKind = "custom-tool"
 	PermissionRequestKindExtensionManagement       PermissionRequestKind = "extension-management"
 	PermissionRequestKindExtensionPermissionAccess PermissionRequestKind = "extension-permission-access"
+	PermissionRequestKindFactory                   PermissionRequestKind = "factory"
 	PermissionRequestKindHook                      PermissionRequestKind = "hook"
 	PermissionRequestKindMCP                       PermissionRequestKind = "mcp"
 	PermissionRequestKindMemory                    PermissionRequestKind = "memory"
@@ -4483,12 +4655,27 @@ const (
 	SystemNotificationAgentCompletedStatusFailed SystemNotificationAgentCompletedStatus = "failed"
 )
 
+// Terminal status reached by a factory execution attempt.
+type SystemNotificationFactoryCompletedStatus string
+
+const (
+	// The factory was cancelled.
+	SystemNotificationFactoryCompletedStatusCancelled SystemNotificationFactoryCompletedStatus = "cancelled"
+	// The factory completed successfully.
+	SystemNotificationFactoryCompletedStatusCompleted SystemNotificationFactoryCompletedStatus = "completed"
+	// The factory failed.
+	SystemNotificationFactoryCompletedStatusError SystemNotificationFactoryCompletedStatus = "error"
+	// The factory was halted.
+	SystemNotificationFactoryCompletedStatusHalted SystemNotificationFactoryCompletedStatus = "halted"
+)
+
 // Type discriminator for SystemNotification.
 type SystemNotificationType string
 
 const (
 	SystemNotificationTypeAgentCompleted         SystemNotificationType = "agent_completed"
 	SystemNotificationTypeAgentIdle              SystemNotificationType = "agent_idle"
+	SystemNotificationTypeFactoryCompleted       SystemNotificationType = "factory_completed"
 	SystemNotificationTypeInstructionDiscovered  SystemNotificationType = "instruction_discovered"
 	SystemNotificationTypeNewInboxMessage        SystemNotificationType = "new_inbox_message"
 	SystemNotificationTypeShellCompleted         SystemNotificationType = "shell_completed"

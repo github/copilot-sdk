@@ -285,12 +285,16 @@ func TestStreamingFidelityE2E(t *testing.T) {
 	})
 
 	t.Run("should emit streaming deltas with reasoning effort configured", func(t *testing.T) {
-		ctx.ConfigureForTest(t)
+		reasoningCtx := testharness.NewTestContext(t)
+		reasoningCtx.ConfigureForTest(t)
+		reasoningClient := reasoningCtx.NewClient()
+		t.Cleanup(func() { reasoningClient.ForceStop() })
 
 		// Verifies that setting ReasoningEffort alongside Streaming=true does not break
 		// the streaming pipeline — deltas still arrive and complete successfully.
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		session, err := reasoningClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "gpt-5.4",
 			Streaming:           copilot.Bool(true),
 			ReasoningEffort:     "high",
 		})

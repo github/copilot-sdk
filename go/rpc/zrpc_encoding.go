@@ -1906,6 +1906,12 @@ func unmarshalUserToolSessionApproval(data []byte) (UserToolSessionApproval, err
 			return nil, err
 		}
 		return &d, nil
+	case UserToolSessionApprovalKindFactory:
+		var d UserToolSessionApprovalFactory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case UserToolSessionApprovalKindMCP:
 		var d UserToolSessionApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1981,6 +1987,17 @@ func (r UserToolSessionApprovalExtensionManagement) MarshalJSON() ([]byte, error
 
 func (r UserToolSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
 	type alias UserToolSessionApprovalExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind UserToolSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r UserToolSessionApprovalFactory) MarshalJSON() ([]byte, error) {
+	type alias UserToolSessionApprovalFactory
 	return json.Marshal(struct {
 		Kind UserToolSessionApprovalKind `json:"kind"`
 		alias
@@ -2131,6 +2148,12 @@ func unmarshalPermissionDecisionApproveForLocationApproval(data []byte) (Permiss
 			return nil, err
 		}
 		return &d, nil
+	case PermissionDecisionApproveForLocationApprovalKindFactory:
+		var d PermissionDecisionApproveForLocationApprovalFactory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionDecisionApproveForLocationApprovalKindMCP:
 		var d PermissionDecisionApproveForLocationApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2212,6 +2235,17 @@ func (r PermissionDecisionApproveForLocationApprovalExtensionManagement) Marshal
 
 func (r PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForLocationApprovalFactory) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForLocationApprovalFactory
 	return json.Marshal(struct {
 		Kind PermissionDecisionApproveForLocationApprovalKind `json:"kind"`
 		alias
@@ -2344,6 +2378,12 @@ func unmarshalPermissionDecisionApproveForSessionApproval(data []byte) (Permissi
 			return nil, err
 		}
 		return &d, nil
+	case PermissionDecisionApproveForSessionApprovalKindFactory:
+		var d PermissionDecisionApproveForSessionApprovalFactory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionDecisionApproveForSessionApprovalKindMCP:
 		var d PermissionDecisionApproveForSessionApprovalMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2425,6 +2465,17 @@ func (r PermissionDecisionApproveForSessionApprovalExtensionManagement) MarshalJ
 
 func (r PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
 	type alias PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionDecisionApproveForSessionApprovalFactory) MarshalJSON() ([]byte, error) {
+	type alias PermissionDecisionApproveForSessionApprovalFactory
 	return json.Marshal(struct {
 		Kind PermissionDecisionApproveForSessionApprovalKind `json:"kind"`
 		alias
@@ -2687,6 +2738,12 @@ func unmarshalPermissionsLocationsAddToolApprovalDetails(data []byte) (Permissio
 			return nil, err
 		}
 		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindFactory:
+		var d PermissionsLocationsAddToolApprovalDetailsFactory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionsLocationsAddToolApprovalDetailsKindMCP:
 		var d PermissionsLocationsAddToolApprovalDetailsMCP
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -2768,6 +2825,17 @@ func (r PermissionsLocationsAddToolApprovalDetailsExtensionManagement) MarshalJS
 
 func (r PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
 	type alias PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsFactory) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsFactory
 	return json.Marshal(struct {
 		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
 		alias

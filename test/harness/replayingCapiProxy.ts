@@ -19,6 +19,7 @@ import {
   CapturingHttpProxy,
   PerformRequestOptions,
 } from "./capturingHttpProxy";
+export type { CapturedRequest } from "./capturingHttpProxy";
 import {
   anthropicMessagesEndpoint,
   anthropicMessagesRequestToChatCompletion,
@@ -323,6 +324,20 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           );
           options.onResponseStart(200, {});
           options.onData(Buffer.from(JSON.stringify(parsedExchanges)));
+          options.onResponseEnd();
+          return;
+        }
+
+        // Handle /requests endpoint for retrieving all captured outbound requests.
+        if (
+          options.requestOptions.path === "/requests" &&
+          options.requestOptions.method === "GET"
+        ) {
+          const requests = this.exchanges
+            .map((exchange) => exchange.request)
+            .filter((request) => request.url !== "/requests");
+          options.onResponseStart(200, { "content-type": "application/json" });
+          options.onData(Buffer.from(JSON.stringify(requests)));
           options.onResponseEnd();
           return;
         }
