@@ -43,6 +43,16 @@
               mvn verify -Dcopilot.cli.path=/some/other/copilot/npm-loader.js
         -->
         <copilot.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot/npm-loader.js</copilot.cli.path>
+        <!--
+            Path to the platform-specific Copilot CLI binary (not the
+            npm-loader.js dispatcher) used by the -Pinprocess profile: the
+            in-process FFI host loads runtime.node directly, so it needs the
+            real per-platform binary/prebuilds layout, not the thin loader
+            script. Override with -Dcopilot.inprocess.cli.path=... for other
+            platforms/architectures; Linux-x64 is the only supported platform
+            for InProcess E2E tests in this phase.
+        -->
+        <copilot.inprocess.cli.path>${copilot.sdk.root}/nodejs/node_modules/@github/copilot-linux-x64/copilot</copilot.inprocess.cli.path>
         <!-- Set to true (via -Pskip-test-harness) to skip npm install of test harness -->
         <skip.test.harness>false</skip.test.harness>
         <!--
@@ -570,6 +580,64 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             <properties>
                 <skip.test.harness>true</skip.test.harness>
             </properties>
+        </profile>
+        <!--
+            Runs the E2E suite over the in-process (FFI) transport instead of
+            the default child-process transport. COPILOT_SDK_DEFAULT_CONNECTION
+            makes CopilotClient host the runtime in-process (see
+            CopilotClient.resolveDefaultConnection). forkCount=1 and
+            parallel=none are required because InProcessEnvGuard and the FFI
+            host mutate process-global state (the native process environment
+            block and JNA callback registration).
+        -->
+        <profile>
+            <id>inprocess</id>
+            <properties>
+                <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+            </properties>
+            <dependencies>
+                <!--
+                    Classpath resource native/linux-x64/runtime.node, resolved by
+                    NativeRuntimeLoader when no runtime.node is found next to
+                    COPILOT_CLI_PATH. Test-scoped: production consumers add the
+                    classifier they need themselves.
+                -->
+                <dependency>
+                    <groupId>com.github</groupId>
+                    <artifactId>copilot-sdk-java-runtime</artifactId>
+                    <version>${project.version}</version>
+                    <classifier>linux-x64</classifier>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <forkCount>1</forkCount>
+                            <parallel>none</parallel>
+                            <environmentVariables>
+                                <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
+                                <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+                            </environmentVariables>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <forkCount>1</forkCount>
+                            <parallel>none</parallel>
+                            <environmentVariables>
+                                <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
+                                <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+                            </environmentVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <!--
             Skip the install-nodejs-cli-dependencies (npm ci) execution when
