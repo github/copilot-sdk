@@ -107,12 +107,19 @@ pub struct SessionLifecycleEvent {
     pub metadata: Option<SessionLifecycleEventMetadata>,
 }
 
-/// Runtime-owned managed settings payload returned by
+/// Result returned by
 /// [`Client::read_managed_settings`](crate::Client::read_managed_settings).
-///
-/// The SDK treats the payload as opaque JSON and does not reinterpret policy
-/// decisions made by the runtime.
-pub type ManagedSettings = Value;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ManagedSettingsReadResult {
+    /// Validated, canonical managed settings JSON, when settings are available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings_json: Option<String>,
+    /// Runtime-provided error message, when settings could not be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+}
 
 /// Opaque session identifier assigned by the CLI.
 ///
