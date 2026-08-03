@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Initial validation
-        run: exit 0
+        run: exit 1
       - name: Keep job active
         if: always()
-        run: sleep 10
+        run: sleep 60
       - name: Final validation
         if: always()
-        run: exit 0
+        run: exit 1
 
   python-required:
     name: Python required
