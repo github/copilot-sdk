@@ -193,6 +193,50 @@ public sealed class GitHubTelemetryTests
         Assert.Equal(false, clientInfo.IsStaff);
     }
 
+    [Fact]
+    public async Task CreateSession_EmptyMode_Sends_IsExperimentalMode_False_By_Default()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+        await client.StartAsync();
+
+        await client.CreateSessionAsync(new SessionConfig
+        {
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated).ToList(),
+        });
+
+        var createParams = server.LastCreateParams ?? throw new InvalidOperationException("session.create was not captured.");
+        Assert.True(createParams.TryGetProperty("isExperimentalMode", out var flag));
+        Assert.False(flag.GetBoolean());
+    }
+
+    [Fact]
+    public async Task ResumeSession_EmptyMode_Sends_IsExperimentalMode_False_By_Default()
+    {
+        await using var server = await FakeTelemetryServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Path.GetTempPath(),
+        });
+        await client.StartAsync();
+
+        await client.ResumeSessionAsync("session-1", new ResumeSessionConfig
+        {
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated).ToList(),
+        });
+
+        var resumeParams = server.LastResumeParams ?? throw new InvalidOperationException("session.resume was not captured.");
+        Assert.True(resumeParams.TryGetProperty("isExperimentalMode", out var flag));
+        Assert.False(flag.GetBoolean());
+    }
+
     private sealed class FakeTelemetryServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
@@ -307,6 +351,7 @@ public sealed class GitHubTelemetryTests
                 "session.resume" => CaptureResume(request),
                 "session.send" => new Dictionary<string, object?> { ["messageId"] = "message-1" },
                 "session.destroy" => new Dictionary<string, object?>(),
+                "session.options.update" => new Dictionary<string, object?> { ["success"] = true },
                 "runtime.shutdown" => new Dictionary<string, object?>(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method '{method}'."),
             };

@@ -207,6 +207,10 @@ public final class ResumeSessionRequest {
     @JsonProperty("githubMcpToolConfig")
     private GitHubMcpToolConfig githubMcpToolConfig;
 
+    @JsonProperty("isExperimentalMode")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean isExperimentalMode;
+
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
 
@@ -972,6 +976,30 @@ public final class ResumeSessionRequest {
     /** Sets the GitHub MCP tool configuration. @param config the value */
     public void setGitHubMcpToolConfig(GitHubMcpToolConfig config) {
         this.githubMcpToolConfig = config;
+    }
+
+    /**
+     * Gets the isExperimentalMode flag.
+     *
+     * @return the flag
+     */
+    public Boolean getIsExperimentalMode() {
+        return isExperimentalMode;
+    }
+
+    /**
+     * Sets the isExperimentalMode flag.
+     *
+     * @param isExperimentalMode
+     *            the flag
+     */
+    public void setIsExperimentalMode(boolean isExperimentalMode) {
+        this.isExperimentalMode = isExperimentalMode;
+    }
+
+    /** Clears the isExperimentalMode setting, reverting to the default behavior. */
+    public void clearIsExperimentalMode() {
+        this.isExperimentalMode = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

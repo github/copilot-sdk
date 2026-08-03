@@ -142,6 +142,26 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestSetsEnableExperimentalMode() {
+        var config = new SessionConfig().setEnableExperimentalMode(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertFalse(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsEnableExperimentalModeWhenNotSet() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildCreateRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "sid-empty",
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
+    }
+
+    @Test
     void testBuildCreateRequestSetsContextTier() {
         var config = new SessionConfig().setContextTier("long_context");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
@@ -245,6 +265,27 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
         assertNull(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsEnableExperimentalMode() {
+        var config = new ResumeSessionConfig().setEnableExperimentalMode(true);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertTrue(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsEnableExperimentalModeWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertNull(request.getIsExperimentalMode());
+    }
+
+    @Test
+    void testBuildResumeRequestDefaultsEnableExperimentalModeFalseInEmptyMode() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-empty", new ResumeSessionConfig(),
+                CopilotClientMode.EMPTY);
+        assertFalse(request.getIsExperimentalMode());
     }
 
     @Test
