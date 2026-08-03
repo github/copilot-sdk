@@ -610,9 +610,9 @@ public class CopilotClientTest {
     private static void setConnectionFuture(CopilotClient client, JsonRpcClient rpc, Process process) throws Exception {
         var connectionClass = Class.forName("com.github.copilot.CopilotClient$Connection");
         var constructor = connectionClass.getDeclaredConstructor(JsonRpcClient.class, Process.class,
-                com.github.copilot.generated.rpc.ServerRpc.class);
+                com.github.copilot.generated.rpc.ServerRpc.class, AutoCloseable.class);
         constructor.setAccessible(true);
-        var connection = constructor.newInstance(rpc, process, null);
+        var connection = constructor.newInstance(rpc, process, null, null);
 
         Field field = CopilotClient.class.getDeclaredField("connectionFuture");
         field.setAccessible(true);

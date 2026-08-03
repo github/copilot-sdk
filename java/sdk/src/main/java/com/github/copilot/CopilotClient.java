@@ -5,8 +5,11 @@
 package com.github.copilot;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +24,15 @@ import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.copilot.ffi.FfiRuntimeHost;
+import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.InProcessRuntimeConnection;
+import com.github.copilot.rpc.RuntimeConnection;
+import com.github.copilot.rpc.StdioRuntimeConnection;
+import com.github.copilot.rpc.TcpRuntimeConnection;
+import com.github.copilot.rpc.UriRuntimeConnection;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
@@ -111,6 +121,7 @@ public final class CopilotClient implements AutoCloseable {
     private volatile boolean disposed = false;
     private final String optionsHost;
     private final Integer optionsPort;
+    private final RuntimeConnection runtimeConnection;
     private final String effectiveConnectionToken;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
@@ -132,6 +143,19 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CopilotClient(CopilotClientOptions options) {
         this.options = options != null ? options : new CopilotClientOptions();
+
+        // Resolve the transport: an explicit RuntimeConnection wins; otherwise the
+        // COPILOT_SDK_DEFAULT_CONNECTION env var, or the individual transport options.
+        RuntimeConnection requestedConnection = this.options.getConnection();
+        if (requestedConnection != null) {
+            validateEnvironmentOptions(this.options, requestedConnection);
+            validateConnectionConflicts(this.options, requestedConnection);
+            applyConnection(this.options, requestedConnection);
+        } else {
+            requestedConnection = resolveDefaultConnection(this.options);
+            validateEnvironmentOptions(this.options, requestedConnection);
+        }
+        this.runtimeConnection = requestedConnection;
 
         // When cliUrl is set, auto-correct useStdio since we're connecting via TCP
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
@@ -200,6 +224,266 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
+     * Environment variable that overrides the transport used when the caller does
+     * not set {@link CopilotClientOptions#setConnection(RuntimeConnection)}.
+     * Accepts {@code "inprocess"} or {@code "stdio"} (case-insensitive); unset
+     * keeps the transport selected by the individual transport options. Any other
+     * value is an error. Ignored when a connection is set explicitly.
+     */
+    static final String DEFAULT_CONNECTION_ENV_VAR = "COPILOT_SDK_DEFAULT_CONNECTION";
+
+    /**
+     * Resolves the connection to use when the caller did not set one, honoring
+     * {@link #DEFAULT_CONNECTION_ENV_VAR} and otherwise inferring the transport
+     * from the individual transport options.
+     */
+    private static RuntimeConnection resolveDefaultConnection(CopilotClientOptions options) {
+        return resolveDefaultConnection(options, System.getenv(DEFAULT_CONNECTION_ENV_VAR));
+    }
+
+    /**
+     * Resolves the default connection from an explicit environment-variable value.
+     * Package-private so tests can supply the value directly.
+     */
+    static RuntimeConnection resolveDefaultConnection(CopilotClientOptions options, String envValue) {
+        if (envValue != null && !envValue.isEmpty()) {
+            if ("inprocess".equalsIgnoreCase(envValue)) {
+                return RuntimeConnection.forInProcess();
+            }
+            if (!"stdio".equalsIgnoreCase(envValue)) {
+                throw new IllegalArgumentException("Invalid " + DEFAULT_CONNECTION_ENV_VAR + " value '" + envValue
+                        + "'. Expected 'inprocess', 'stdio', or unset.");
+            }
+        }
+
+        return inferConnectionFromOptions(options);
+    }
+
+    /**
+     * Maps the individual transport options onto the equivalent
+     * {@link RuntimeConnection}, preserving the behavior of clients written before
+     * connections existed.
+     */
+    private static RuntimeConnection inferConnectionFromOptions(CopilotClientOptions options) {
+        String cliUrl = options.getCliUrl();
+        if (cliUrl != null && !cliUrl.isEmpty()) {
+            return RuntimeConnection.forUri(cliUrl).setConnectionToken(options.getTcpConnectionToken());
+        }
+        if (options.isUseStdio()) {
+            return RuntimeConnection.forStdio(options.getCliPath());
+        }
+        return RuntimeConnection.forTcp().setPath(options.getCliPath()).setPort(options.getPort())
+                .setConnectionToken(options.getTcpConnectionToken());
+    }
+
+    /**
+     * Rejects transport options that contradict the configured connection. Values
+     * that match what the connection implies are accepted so that constructing
+     * several clients from the same options instance stays valid.
+     */
+    private static void validateConnectionConflicts(CopilotClientOptions options, RuntimeConnection connection) {
+        String impliedPath = null;
+        String impliedUrl = null;
+        String impliedToken = null;
+        int impliedPort = 0;
+        boolean impliedUseStdio = true;
+        List<String> impliedArgs = null;
+
+        if (connection instanceof StdioRuntimeConnection stdio) {
+            impliedPath = stdio.getPath();
+            impliedArgs = stdio.getArgs();
+        } else if (connection instanceof TcpRuntimeConnection tcp) {
+            impliedPath = tcp.getPath();
+            impliedPort = tcp.getPort();
+            impliedToken = tcp.getConnectionToken();
+            impliedArgs = tcp.getArgs();
+            impliedUseStdio = false;
+        } else if (connection instanceof UriRuntimeConnection uri) {
+            impliedUrl = uri.getUrl();
+            impliedToken = uri.getConnectionToken();
+            impliedUseStdio = false;
+        }
+
+        rejectConflict("CliPath", options.getCliPath() != null && !options.getCliPath().equals(impliedPath));
+        rejectConflict("CliUrl", options.getCliUrl() != null && !options.getCliUrl().isEmpty()
+                && !options.getCliUrl().equals(impliedUrl));
+        rejectConflict("Port", options.getPort() != 0 && options.getPort() != impliedPort);
+        rejectConflict("TcpConnectionToken",
+                options.getTcpConnectionToken() != null && !options.getTcpConnectionToken().equals(impliedToken));
+        rejectConflict("UseStdio", !options.isUseStdio() && impliedUseStdio);
+        rejectConflict("CliArgs", options.getCliArgs() != null
+                && !Arrays.asList(options.getCliArgs()).equals(impliedArgs == null ? List.of() : impliedArgs));
+    }
+
+    private static void rejectConflict(String optionName, boolean conflicting) {
+        if (conflicting) {
+            throw new IllegalArgumentException("CopilotClientOptions." + optionName
+                    + " cannot be combined with CopilotClientOptions.setConnection(); configure the transport on the"
+                    + " RuntimeConnection instead.");
+        }
+    }
+
+    /**
+     * Projects the configured connection onto the individual transport options so
+     * that the rest of the client sees a single, consistent view of the transport.
+     */
+    private static void applyConnection(CopilotClientOptions options, RuntimeConnection connection) {
+        if (connection instanceof StdioRuntimeConnection stdio) {
+            options.setUseStdio(true);
+            if (stdio.getPath() != null) {
+                options.setCliPath(stdio.getPath());
+            }
+            applyConnectionArgs(options, stdio.getArgs());
+        } else if (connection instanceof TcpRuntimeConnection tcp) {
+            options.setUseStdio(false);
+            if (tcp.getPath() != null) {
+                options.setCliPath(tcp.getPath());
+            }
+            options.setPort(tcp.getPort());
+            if (tcp.getConnectionToken() != null) {
+                options.setTcpConnectionToken(tcp.getConnectionToken());
+            }
+            applyConnectionArgs(options, tcp.getArgs());
+        } else if (connection instanceof UriRuntimeConnection uri) {
+            options.setUseStdio(false);
+            options.setCliUrl(uri.getUrl());
+            if (uri.getConnectionToken() != null) {
+                options.setTcpConnectionToken(uri.getConnectionToken());
+            }
+        }
+    }
+
+    private static void applyConnectionArgs(CopilotClientOptions options, List<String> args) {
+        if (args != null) {
+            options.setCliArgs(args.toArray(new String[0]));
+        }
+    }
+
+    /**
+     * Rejects per-process options that the in-process transport cannot honor. These
+     * options are lowered onto a child process, but the in-process runtime runs
+     * inside the shared host process, whose single environment and working
+     * directory cannot carry per-client values.
+     */
+    private static void validateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection) {
+        if (!(connection instanceof InProcessRuntimeConnection)) {
+            return;
+        }
+
+        rejectInProcessOption("Environment", options.getEnvironment() != null,
+                "set the variables on the host process environment instead");
+        rejectInProcessOption("Telemetry", options.getTelemetry() != null,
+                "configure telemetry through the host process environment instead");
+        rejectInProcessOption("Cwd", options.getCwd() != null,
+                "set the process working directory before creating the client instead");
+        rejectInProcessOption("CliArgs", options.getCliArgs() != null && options.getCliArgs().length > 0,
+                "use the typed client options instead");
+    }
+
+    private static void rejectInProcessOption(String optionName, boolean present, String remedy) {
+        if (present) {
+            throw new IllegalArgumentException("CopilotClientOptions." + optionName
+                    + " is not supported with RuntimeConnection.forInProcess(): the in-process runtime shares the host"
+                    + " process, so per-client values cannot be honored; " + remedy + ".");
+        }
+    }
+
+    /**
+     * Duplex streams of an in-process runtime, together with the resource that owns
+     * its lifetime.
+     *
+     * @param receiveStream
+     *            stream carrying messages from the runtime
+     * @param sendStream
+     *            stream carrying messages to the runtime
+     * @param host
+     *            resource closed when the client stops
+     */
+    record InProcessTransport(InputStream receiveStream, OutputStream sendStream, AutoCloseable host) {
+    }
+
+    /**
+     * Opens the transport for the in-process runtime. Package-private so tests can
+     * substitute a fake for the native runtime.
+     */
+    @FunctionalInterface
+    interface InProcessTransportFactory {
+        /**
+         * Opens the in-process transport.
+         *
+         * @param options
+         *            client options used to configure the runtime
+         * @return the opened transport
+         * @throws IOException
+         *             if the runtime cannot be started
+         */
+        InProcessTransport open(CopilotClientOptions options) throws IOException;
+    }
+
+    private volatile InProcessTransportFactory inProcessTransportFactory = CopilotClient::openInProcessTransport;
+
+    /**
+     * Returns the resolved connection describing how this client reaches the
+     * runtime. Package-private test seam.
+     *
+     * @return the resolved connection
+     */
+    RuntimeConnection getRuntimeConnection() {
+        return runtimeConnection;
+    }
+
+    /**
+     * Replaces the in-process transport factory. Package-private test seam.
+     *
+     * @param factory
+     *            the factory to use
+     */
+    void setInProcessTransportFactory(InProcessTransportFactory factory) {
+        this.inProcessTransportFactory = java.util.Objects.requireNonNull(factory, "factory must not be null");
+    }
+
+    private static InProcessTransport openInProcessTransport(CopilotClientOptions options) throws IOException {
+        FfiRuntimeHost host = new FfiRuntimeHost();
+        try {
+            host.start(resolveInProcessEntrypoint(options), options);
+        } catch (RuntimeException | Error e) {
+            host.close();
+            throw e;
+        }
+        return new InProcessTransport(host.getReceiveStream(), host.getSendStream(), host);
+    }
+
+    /**
+     * Resolves the runtime entrypoint handed to the in-process host. Callers do not
+     * configure this: the bundled runtime is used unless an explicit override is
+     * present in the environment.
+     */
+    private static String resolveInProcessEntrypoint(CopilotClientOptions options) throws IOException {
+        String envPath = System.getenv(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV);
+        if (envPath != null && !envPath.isBlank()) {
+            return envPath;
+        }
+        String cliPath = options.getCliPath();
+        if (cliPath != null && !cliPath.isBlank()) {
+            return cliPath;
+        }
+        String discovered = NativeRuntimeLoader.findRuntimeOnPath();
+        if (discovered != null) {
+            return discovered;
+        }
+        throw new IOException("The in-process runtime could not be located. Add the runtime artifact for this"
+                + " platform to the classpath, or use a child-process connection.");
+    }
+
+    private static void closeRuntimeHost(AutoCloseable host) {
+        try {
+            host.close();
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Error closing in-process runtime host", e);
+        }
+    }
+
+    /**
      * Starts the Copilot client and connects to the server.
      *
      * @return A future that completes when the connection is established
@@ -227,11 +511,16 @@ public final class CopilotClient implements AutoCloseable {
 
     private Connection startCoreBody() {
         Process process = null;
+        InProcessTransport inProcessTransport = null;
         long startNanos = System.nanoTime();
         try {
             JsonRpcClient rpc;
 
-            if (optionsHost != null && optionsPort != null) {
+            if (runtimeConnection instanceof InProcessRuntimeConnection) {
+                // In-process runtime hosted in this process (no child process)
+                inProcessTransport = inProcessTransportFactory.open(options);
+                rpc = JsonRpcClient.fromStreams(inProcessTransport.receiveStream(), inProcessTransport.sendStream());
+            } else if (optionsHost != null && optionsPort != null) {
                 // External server (TCP)
                 rpc = serverManager.connectToServer(null, optionsHost, optionsPort);
             } else {
@@ -245,7 +534,8 @@ public final class CopilotClient implements AutoCloseable {
             LoggingHelpers.logTiming(LOG, Level.FINE, "CopilotClient.start transport setup complete. Elapsed={Elapsed}",
                     startNanos);
 
-            Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke));
+            Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke),
+                    inProcessTransport == null ? null : inProcessTransport.host());
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
@@ -288,6 +578,9 @@ public final class CopilotClient implements AutoCloseable {
             // Clean up the spawned process if connection setup failed
             if (process != null) {
                 cleanupCliProcess(process, true);
+            }
+            if (inProcessTransport != null) {
+                closeRuntimeHost(inProcessTransport.host());
             }
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
@@ -438,7 +731,7 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             CompletableFuture<Void> shutdownFuture = CompletableFuture.completedFuture(null);
-            if (gracefulRuntimeShutdown && connection.process != null) {
+            if (gracefulRuntimeShutdown && (connection.process != null || connection.runtimeHost != null)) {
                 long runtimeShutdownStartNanos = System.nanoTime();
                 shutdownFuture = connection.rpc.invoke("runtime.shutdown", Map.of(), Void.class)
                         .orTimeout(RUNTIME_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -464,6 +757,9 @@ public final class CopilotClient implements AutoCloseable {
 
                 if (connection.process != null) {
                     cleanupCliProcess(connection.process, !gracefulRuntimeShutdown || error != null);
+                }
+                if (connection.runtimeHost != null) {
+                    closeRuntimeHost(connection.runtimeHost);
                 }
                 return (Void) null;
             });
@@ -1392,7 +1688,8 @@ public final class CopilotClient implements AutoCloseable {
         }
     }
 
-    private static record Connection(JsonRpcClient rpc, Process process, ServerRpc serverRpc) {
+    private static record Connection(JsonRpcClient rpc, Process process, ServerRpc serverRpc,
+            AutoCloseable runtimeHost) {
     };
 
 }
