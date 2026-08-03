@@ -33,6 +33,7 @@ export type SessionEvent =
   | UsageCheckpointEvent
   | ContextChangedEvent
   | UsageInfoEvent
+  | ContextClearedEvent
   | CompactionStartEvent
   | CompactionCompleteEvent
   | TaskCompleteEvent
@@ -1617,7 +1618,7 @@ export interface ModelChangeEvent {
  */
 export interface ModelChangeData {
   /**
-   * Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
   /**
@@ -2426,6 +2427,49 @@ export interface UsageInfoData {
    * Token count from tool definitions
    */
   toolDefinitionsTokens?: number;
+}
+/**
+ * Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ */
+export interface ContextClearedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: ContextClearedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.context_cleared".
+   */
+  type: "session.context_cleared";
+}
+/**
+ * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ */
+export interface ContextClearedData {
+  /**
+   * Optional initial message set after clearing
+   */
+  initialMessage?: string;
+  /**
+   * Number of conversation messages that were cleared
+   */
+  messagesCleared: number;
 }
 /**
  * Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction

@@ -600,6 +600,8 @@ pub mod rpc_methods {
     pub const SESSION_HISTORY_ABORTMANUALCOMPACTION: &str = "session.history.abortManualCompaction";
     /// `session.history.summarizeForHandoff`
     pub const SESSION_HISTORY_SUMMARIZEFORHANDOFF: &str = "session.history.summarizeForHandoff";
+    /// `session.history.clearContext`
+    pub const SESSION_HISTORY_CLEARCONTEXT: &str = "session.history.clearContext";
     /// `session.queue.pendingItems`
     pub const SESSION_QUEUE_PENDINGITEMS: &str = "session.queue.pendingItems";
     /// `session.queue.snapshot`
@@ -4948,6 +4950,36 @@ pub struct HistoryCancelBackgroundCompactionResult {
     pub cancelled: bool,
 }
 
+/// Parameters for clearing the conversation and seeding the window that replaces it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryClearContextRequest {
+    /// First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.
+    pub prompt: String,
+}
+
+/// What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryClearContextResult {
+    /// Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.
+    pub messages_cleared: i64,
+}
+
 /// Post-compaction context window usage breakdown
 ///
 /// <div class="warning">
@@ -5308,6 +5340,9 @@ pub struct InstalledPlugin {
     /// Source for direct repo installs (when marketplace is empty)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<serde_json::Value>,
+    /// Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+    #[serde(rename = "source_sha", skip_serializing_if = "Option::is_none")]
+    pub source_sha: Option<String>,
     /// Version installed (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -13531,6 +13566,9 @@ pub struct SessionInstalledPlugin {
     /// Source descriptor for direct repo installs (when marketplace is empty)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<serde_json::Value>,
+    /// Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+    #[serde(rename = "source_sha", skip_serializing_if = "Option::is_none")]
+    pub source_sha: Option<String>,
     /// Installed version, if known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -22491,6 +22529,21 @@ pub struct SessionHistorySummarizeForHandoffParams {
 pub struct SessionHistorySummarizeForHandoffResult {
     /// Markdown summary of the conversation context produced by an LLM. Empty string when there are no messages or when the session does not support local summarization.
     pub summary: String,
+}
+
+/// What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionHistoryClearContextResult {
+    /// Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.
+    pub messages_cleared: i64,
 }
 
 /// Identifies the target session.

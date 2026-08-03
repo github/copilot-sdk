@@ -6399,6 +6399,32 @@ export interface HistoryCancelBackgroundCompactionResult {
   cancelled: boolean;
 }
 /**
+ * Parameters for clearing the conversation and seeding the window that replaces it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryClearContextRequest".
+ */
+/** @experimental */
+export interface HistoryClearContextRequest {
+  /**
+   * First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.
+   */
+  prompt: string;
+}
+/**
+ * What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryClearContextResult".
+ */
+/** @experimental */
+export interface HistoryClearContextResult {
+  /**
+   * Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.
+   */
+  messagesCleared: number;
+}
+/**
  * Post-compaction context window usage breakdown
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6735,6 +6761,10 @@ export interface InstalledPlugin {
    */
   cache_path?: string;
   source?: InstalledPluginSource;
+  /**
+   * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+   */
+  source_sha?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -14269,6 +14299,10 @@ export interface SessionInstalledPlugin {
    */
   cache_path?: string;
   source?: SessionInstalledPluginSource;
+  /**
+   * Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.
+   */
+  source_sha?: string;
 }
 /**
  * Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -20912,6 +20946,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             summarizeForHandoff: async (): Promise<HistorySummarizeForHandoffResult> =>
                 connection.sendRequest("session.history.summarizeForHandoff", { sessionId }),
+            /**
+             * Clears the session's conversation history, keeping only system and developer messages, and seeds the fresh context window with a first user message. Must be called from inside a tool handler: the clear has to drop the results of the tool calls its wipe orphans, and it rejects when no tool call is in flight.
+             *
+             * @param params Parameters for clearing the conversation and seeding the window that replaces it.
+             *
+             * @returns What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.
+             */
+            clearContext: async (params: HistoryClearContextRequest): Promise<HistoryClearContextResult> =>
+                connection.sendRequest("session.history.clearContext", { sessionId, ...params }),
         },
         /** @experimental */
         queue: {
