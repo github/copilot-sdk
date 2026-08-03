@@ -2412,6 +2412,13 @@ export interface SessionConfigBase {
     workingDirectory?: string;
 
     /**
+     * Additional directories the agent may access beyond the working directory.
+     * Relative paths are resolved against the session's working directory.
+     * Re-supply these directories when resuming a session.
+     */
+    additionalDirectories?: string[];
+
+    /**
      * Enable streaming of assistant message and reasoning chunks.
      * When true, ephemeral assistant.message_delta and assistant.reasoning_delta
      * events are sent as the response is generated. Clients should accumulate

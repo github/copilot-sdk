@@ -140,6 +140,7 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
+        request.setAdditionalDirectories(config.getAdditionalDirectories());
         if (config.isStreaming()) {
             request.setStreaming(true);
         }
@@ -272,6 +273,7 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
+        request.setAdditionalDirectories(config.getAdditionalDirectories());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);

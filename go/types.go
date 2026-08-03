@@ -1242,6 +1242,9 @@ type SessionConfig struct {
 	// WorkingDirectory is the working directory for the session.
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
+	// AdditionalDirectories are directories the agent may access beyond WorkingDirectory.
+	// Relative paths are resolved against WorkingDirectory. Re-supply them when resuming.
+	AdditionalDirectories []string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
 	// events with deltaContent are sent as the response is generated.
@@ -1740,6 +1743,9 @@ type ResumeSessionConfig struct {
 	// WorkingDirectory is the working directory for the session.
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
+	// AdditionalDirectories are directories the agent may access beyond WorkingDirectory.
+	// Relative paths are resolved against WorkingDirectory. Re-supply them when resuming.
+	AdditionalDirectories []string
 	// ConfigDirectory overrides the default configuration directory location.
 	ConfigDirectory string
 	// EnableConfigDiscovery enables runtime discovery of supported configuration.
@@ -2319,6 +2325,7 @@ type createSessionRequest struct {
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
+	AdditionalDirectories              []string                               `json:"additionalDirectories,omitempty"`
 	Streaming                          *bool                                  `json:"streaming,omitempty"`
 	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
 	EnableGitHubTelemetryForwarding    *bool                                  `json:"enableGitHubTelemetryForwarding,omitempty"`
@@ -2411,6 +2418,7 @@ type resumeSessionRequest struct {
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
+	AdditionalDirectories              []string                               `json:"additionalDirectories,omitempty"`
 	ConfigDir                          string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery              *bool                                  `json:"enableConfigDiscovery,omitempty"`
 	SkipEmbeddingRetrieval             *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`

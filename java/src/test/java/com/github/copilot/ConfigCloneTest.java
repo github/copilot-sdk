@@ -440,12 +440,15 @@ class ConfigCloneTest {
     void sessionConfigNewFieldsCloned() {
         SessionConfig original = new SessionConfig();
         original.setGitHubToken("ghp_per_session_token");
+        original.setAdditionalDirectories(new java.util.ArrayList<>(List.of("/repo/shared")));
         DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
         original.setDefaultAgent(defaultAgent);
 
         SessionConfig cloned = original.clone();
 
         assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertEquals(List.of("/repo/shared"), cloned.getAdditionalDirectories());
+        assertNotSame(original.getAdditionalDirectories(), cloned.getAdditionalDirectories());
         assertSame(defaultAgent, cloned.getDefaultAgent());
     }
 
@@ -453,12 +456,15 @@ class ConfigCloneTest {
     void resumeSessionConfigNewFieldsCloned() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setGitHubToken("ghp_per_session_token");
+        original.setAdditionalDirectories(new java.util.ArrayList<>(List.of("/repo/resumed")));
         DefaultAgentConfig defaultAgent = new DefaultAgentConfig().setExcludedTools(List.of("secret_tool"));
         original.setDefaultAgent(defaultAgent);
 
         ResumeSessionConfig cloned = original.clone();
 
         assertEquals("ghp_per_session_token", cloned.getGitHubToken());
+        assertEquals(List.of("/repo/resumed"), cloned.getAdditionalDirectories());
+        assertNotSame(original.getAdditionalDirectories(), cloned.getAdditionalDirectories());
         assertSame(defaultAgent, cloned.getDefaultAgent());
     }
 

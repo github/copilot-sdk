@@ -1203,7 +1203,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1420,7 +1421,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
-                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null);
+                EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
+                AdditionalDirectories: config.AdditionalDirectories);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -2775,7 +2777,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null);
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -2884,7 +2887,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
-        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null);
+        [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
+        IList<string>? AdditionalDirectories = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(

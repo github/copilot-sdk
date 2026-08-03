@@ -68,6 +68,7 @@ public class ResumeSessionConfig {
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
+    private List<String> additionalDirectories;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
@@ -856,6 +857,27 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+        return this;
+    }
+
+    /**
+     * Gets the directories the agent may access beyond the working directory.
+     *
+     * @return the additional directory paths
+     */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets directories the agent may access beyond the working directory.
+     *
+     * @param additionalDirectories
+     *            the additional directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
         return this;
     }
 
@@ -1902,6 +1924,9 @@ public class ResumeSessionConfig {
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
+        copy.additionalDirectories = this.additionalDirectories != null
+                ? new ArrayList<>(this.additionalDirectories)
+                : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
