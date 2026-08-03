@@ -62,6 +62,8 @@
         <surefire.jvm.args />
         <!-- Override parent: the sdk module IS published to Maven Central. -->
         <maven.deploy.skip>false</maven.deploy.skip>
+        <!-- JNA version — pin deliberately; a JNA upgrade must rerun the callback spike. -->
+        <jna.version>5.19.1</jna.version>
     </properties>
 
     <dependencies>
@@ -88,6 +90,18 @@
             <artifactId>spotbugs-annotations</artifactId>
             <version>4.10.2</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!--
+            JNA — required only when using InProcess transport. Optional so that
+            subprocess-only consumers do not receive JNA transitively.
+            Pin the version; a JNA upgrade must rerun the callback spike.
+        -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>${jna.version}</version>
+            <optional>true</optional>
         </dependency>
 
         <!-- Test dependencies -->
