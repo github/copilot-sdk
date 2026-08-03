@@ -270,7 +270,7 @@ const unsub = session.on("tool.execution_complete", (event) => {
 | `tool.execution_start`    | `toolCallId`, `toolName`, `arguments`                  |
 | `tool.execution_complete` | `toolCallId`, `toolName`, `success`, `result`, `error` |
 | `user.message`            | `content`, `attachments`, `source`                     |
-| `session.idle`            | `backgroundTasks`                                      |
+| `session.idle`            | `aborted`                                              |
 | `session.error`           | `errorType`, `message`, `stack`                        |
 | `permission.requested`    | `requestId`, `permissionRequest.kind`                  |
 | `session.shutdown`        | `shutdownType`, `totalPremiumRequests`                 |

@@ -419,7 +419,7 @@ session.on("assistant.message", (event) => {
 | `tool.execution_start`      | A tool is about to run                           | `toolCallId`, `toolName`, `arguments`                  |
 | `tool.execution_complete`   | A tool finished running                          | `toolCallId`, `toolName`, `success`, `result`, `error` |
 | `user.message`              | User sent a message                              | `content`, `attachments`, `source`                     |
-| `session.idle`              | Session finished processing a turn               | `backgroundTasks`                                      |
+| `session.idle`              | Session finished processing a turn               | `aborted`                                              |
 | `session.error`             | An error occurred                                | `errorType`, `message`, `stack`                        |
 | `permission.requested`      | Agent needs permission (shell, file write, etc.) | `requestId`, `permissionRequest.kind`                  |
 | `session.shutdown`          | Session is ending                                | `shutdownType`, `totalPremiumRequests`, `codeChanges`  |

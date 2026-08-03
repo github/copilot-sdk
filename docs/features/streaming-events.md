@@ -548,7 +548,7 @@ Ephemeral. The agent has finished all processing and is ready for the next messa
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `backgroundTasks` | `BackgroundTasks` | | Background agents/shells still running when the agent became idle |
+| `aborted` | `boolean` | | True when the preceding turn was cancelled via abort signal |
 
 ### `session.error`
 
@@ -958,7 +958,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |
 | `tool.execution_progress` | ✅ | Tool | `toolCallId`, `progressMessage` |
 | `tool.execution_complete` | | Tool | `toolCallId`, `success`, `result?`, `error?` |
-| `session.idle` | ✅ | Session | `backgroundTasks?` |
+| `session.idle` | ✅ | Session | `aborted?` |
 | `session.error` | | Session | `errorType`, `message`, `statusCode?` |
 | `session.compaction_start` | | Session | *(empty)* |
 | `session.compaction_complete` | | Session | `success`, `preCompactionTokens?`, `summaryContent?` |
