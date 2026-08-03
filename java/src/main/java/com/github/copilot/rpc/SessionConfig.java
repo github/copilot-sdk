@@ -178,7 +178,8 @@ public class SessionConfig {
     /**
      * Gets the reasoning effort level.
      *
-     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or "max")
+     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or
+     *         "max")
      */
     public String getReasoningEffort() {
         return reasoningEffort;
@@ -187,8 +188,8 @@ public class SessionConfig {
     /**
      * Sets the reasoning effort level for models that support it.
      * <p>
-     * Valid values: "low", "medium", "high", "xhigh", "max". Only applies to models where
-     * {@code capabilities.supports.reasoningEffort} is true.
+     * Valid values: "low", "medium", "high", "xhigh", "max". Only applies to models
+     * where {@code capabilities.supports.reasoningEffort} is true.
      *
      * @param reasoningEffort
      *            the reasoning effort level

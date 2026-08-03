@@ -637,7 +637,8 @@ public class ResumeSessionConfig {
     /**
      * Gets the reasoning effort level.
      *
-     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or "max")
+     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or
+     *         "max")
      */
     public String getReasoningEffort() {
         return reasoningEffort;
