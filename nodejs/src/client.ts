@@ -11,7 +11,7 @@
  * @module client
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -151,6 +151,40 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
             onExit();
         }
     });
+}
+
+/**
+ * Terminate the runtime's process tree.
+ *
+ * - Windows: `taskkill /T /F` kills the entire tree rooted at `pid`.
+ * - POSIX: the runtime is spawned in its own process group (`detached: true`),
+ *   so `kill(-pid)` signals every process in that group.
+ *
+ * Falls back to `child.kill(signal)` if the tree-wide signal fails (e.g. the
+ * process already exited).
+ *
+ * @see https://github.com/github/copilot-sdk/issues/1804
+ */
+function killProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): boolean {
+    const pid = child.pid;
+    if (pid == null) {
+        return false;
+    }
+    if (process.platform === "win32") {
+        try {
+            execSync(`taskkill /T /F /PID ${pid}`, { stdio: "ignore", timeout: 5000 });
+            return true;
+        } catch {
+            return child.kill(signal);
+        }
+    }
+    // POSIX: signal the process group (negative PID).
+    try {
+        process.kill(-pid, signal);
+        return true;
+    } catch {
+        return child.kill(signal);
+    }
 }
 
 /**
@@ -1082,13 +1116,17 @@ export class CopilotClient {
             this.cliProcess = null;
             try {
                 if (child.exitCode == null && child.signalCode == null) {
-                    child.kill();
+                    killProcessTree(child, "SIGTERM");
                     if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
-                        errors.push(
-                            new Error(
-                                `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
-                            )
-                        );
+                        // SIGTERM-resistant descendants may survive; escalate to SIGKILL.
+                        killProcessTree(child, "SIGKILL");
+                        if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                            errors.push(
+                                new Error(
+                                    `Timed out waiting for CLI process to exit after kill: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                                )
+                            );
+                        }
                     }
                 }
             } catch (error) {
@@ -1209,7 +1247,7 @@ export class CopilotClient {
         // Force kill CLI process (only if we spawned it)
         if (this.cliProcess && !this.isExternalServer) {
             try {
-                this.cliProcess.kill("SIGKILL");
+                killProcessTree(this.cliProcess, "SIGKILL");
             } catch {
                 // Ignore errors
             }
@@ -2468,6 +2506,10 @@ export class CopilotClient {
                     : ["ignore", "pipe", "pipe"];
 
             // For .js files, spawn node explicitly; for executables, spawn directly
+            // Place the runtime in its own process group so killProcessTree()
+            // can signal all descendants atomically. On Windows detached has
+            // no effect — taskkill /T handles tree termination instead.
+            const detached = process.platform !== "win32";
             const isJsFile = this.resolvedCliPath.endsWith(".js");
             if (isJsFile) {
                 this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
@@ -2475,6 +2517,7 @@ export class CopilotClient {
                     cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
+                    detached,
                 });
             } else {
                 this.cliProcess = spawn(this.resolvedCliPath, args, {
@@ -2482,7 +2525,13 @@ export class CopilotClient {
                     cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
+                    detached,
                 });
+            }
+            // Prevent the detached child from keeping the parent's event loop
+            // alive when the embedder exits without calling stop().
+            if (detached) {
+                this.cliProcess.unref();
             }
 
             let stdout = "";

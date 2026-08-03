@@ -1624,6 +1624,15 @@ impl Client {
 
     fn build_command(program: &Path, options: &ClientOptions, working_directory: &Path) -> Command {
         let mut command = Command::new(program);
+
+        // Place the runtime in its own process group so kill_process_tree()
+        // can signal all descendants atomically on POSIX.
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+
         for arg in &options.prefix_args {
             command.arg(arg);
         }
@@ -2397,7 +2406,7 @@ impl Client {
                     // response and never self-exits. Waiting for a self-exit
                     // that will never come just wastes time, so terminate the
                     // child immediately.
-                    if let Err(e) = child.kill().await {
+                    if let Err(e) = kill_process_tree(&mut child).await {
                         errors.push(e.into());
                     }
                 }
@@ -2455,10 +2464,8 @@ impl Client {
     pub fn force_stop(&self) {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
-        if let Some(mut child) = self.inner.child.lock().take()
-            && let Err(e) = child.start_kill()
-        {
-            error!(pid = ?pid, error = %e, "failed to send kill signal");
+        if let Some(mut child) = self.inner.child.lock().take() {
+            force_kill_process_tree(&mut child);
         }
         self.inner.rpc.force_close();
         #[cfg(feature = "bundled-in-process")]
@@ -2513,15 +2520,70 @@ impl Client {
     }
 }
 
+/// Terminate the runtime's process tree (async version for `stop()`).
+///
+/// POSIX: signals the runtime's process group (negative PID) via the `kill` command.
+/// Windows: uses `taskkill /T /F`.
+/// Falls back to `child.kill()` on failure.
+async fn kill_process_tree(child: &mut Child) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        if let Some(pid) = child.id() {
+            // Signal the entire process group via the kill command.
+            // The runtime was spawned with process_group(0), so its PID == PGID.
+            let _ = std::process::Command::new("kill")
+                .args(["-9", &format!("-{}", pid)])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return Ok(());
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Some(pid) = child.id() {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/T", "/F", "/PID", &pid.to_string()])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return Ok(());
+        }
+    }
+    child.kill().await
+}
+
+/// Synchronous tree kill for `force_stop()` and `Drop`.
+fn force_kill_process_tree(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        if let Some(pid) = child.id() {
+            let _ = std::process::Command::new("kill")
+                .args(["-9", &format!("-{}", pid)])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return;
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Some(pid) = child.id() {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/T", "/F", "/PID", &pid.to_string()])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return;
+        }
+    }
+    let _ = child.start_kill();
+}
+
 impl Drop for ClientInner {
     fn drop(&mut self) {
         if let Some(ref mut child) = *self.child.lock() {
-            let pid = child.id();
-            if let Err(e) = child.start_kill() {
-                error!(pid = ?pid, error = %e, "failed to kill CLI process on drop");
-            } else {
-                info!(pid = ?pid, "kill signal sent for CLI process on drop");
-            }
+            force_kill_process_tree(child);
         }
         #[cfg(feature = "bundled-in-process")]
         {

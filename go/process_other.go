@@ -2,10 +2,18 @@
 
 package copilot
 
-import "os/exec"
+import (
+	"os/exec"
+	"syscall"
+)
 
-// configureProcAttr configures platform-specific process attributes.
-// On non-Windows platforms, this is a no-op.
+// configureProcAttr places the runtime in its own process group so
+// killProcessTreeByPid can signal all descendants atomically.
 func configureProcAttr(cmd *exec.Cmd) {
-	// No special configuration needed on non-Windows platforms
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+}
+
+// killProcessTreeByPid signals the process group (negative PID) with SIGKILL.
+func killProcessTreeByPid(pid int) {
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
 }
