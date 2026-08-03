@@ -1,0 +1,50 @@
+name: SDK
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  node-required:
+    name: Node.js required
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initial validation
+        continue-on-error: true
+        run: exit 1
+      - name: Keep job active
+        run: sleep 180
+      - name: Final validation
+        run: exit 1
+
+  python-required:
+    name: Python required
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Python validation passed"
+
+  go-required:
+    name: Go required
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Go validation passed"
+
+  dotnet-required:
+    name: .NET required
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ".NET validation passed"
+
+  java-required:
+    name: Java required
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Java validation passed"
+
+  rust-required:
+    name: Rust required
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Rust validation passed"
