@@ -19,6 +19,31 @@ import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestH
 describe("Permission callbacks", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
 
+    it("should apply additional directories when resuming an active session", async () => {
+        const additionalDirectory = realpathSync(join(import.meta.dirname, "../../examples"));
+        const pathToCheck = join(additionalDirectory, "basic-example.ts");
+
+        const created = await client.createSession({ onPermissionRequest: approveAll });
+        expect(
+            await created.rpc.permissions.paths.isPathWithinAllowedDirectories({
+                path: pathToCheck,
+            })
+        ).toEqual({ allowed: false });
+
+        const resumed = await client.resumeSession(created.sessionId, {
+            additionalDirectories: [additionalDirectory],
+            onPermissionRequest: approveAll,
+        });
+
+        expect(
+            await resumed.rpc.permissions.paths.isPathWithinAllowedDirectories({
+                path: pathToCheck,
+            })
+        ).toEqual({ allowed: true });
+
+        await resumed.disconnect();
+    });
+
     it("should invoke permission handler for write operations", async () => {
         const permissionRequests: PermissionRequest[] = [];
 

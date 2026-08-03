@@ -280,6 +280,11 @@ func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {
 		resumeParams <- append(json.RawMessage(nil), params...)
 		return []byte(`{"sessionId":"resumed-additional-directories","workspacePath":"/workspace"}`), nil
 	})
+	addPathParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.permissions.paths.add", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		addPathParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"success":true}`), nil
+	})
 
 	_, err = client.ResumeSessionWithOptions(
 		t.Context(),
@@ -290,6 +295,16 @@ func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
 	assertAdditionalDirectories(t, <-resumeParams, []string{"/repo/resumed"})
+	var addPathPayload struct {
+		SessionID string `json:"sessionId"`
+		Path      string `json:"path"`
+	}
+	if err := json.Unmarshal(<-addPathParams, &addPathPayload); err != nil {
+		t.Fatalf("failed to decode permissions path add params: %v", err)
+	}
+	if addPathPayload.SessionID != "resumed-additional-directories" || addPathPayload.Path != "/repo/resumed" {
+		t.Fatalf("permissions path add params = %+v", addPathPayload)
+	}
 }
 
 func assertAdditionalDirectories(t *testing.T, params json.RawMessage, want []string) {

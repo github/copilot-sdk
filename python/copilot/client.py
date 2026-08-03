@@ -72,6 +72,7 @@ from .generated.rpc import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     OpenCanvasInstance,
+    PermissionPathsAddParams,
     RemoteSessionMode,
     ServerRpc,
     _ConnectResult,
@@ -3289,6 +3290,8 @@ class CopilotClient:
                 session._set_open_canvases(
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
                 )
+            for path in additional_directories or []:
+                await session.rpc.permissions.paths.add(PermissionPathsAddParams(path))
             if on_mcp_auth_request is not None:
                 await self._client.request(
                     "session.eventLog.registerInterest",

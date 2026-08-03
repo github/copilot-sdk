@@ -180,6 +180,8 @@ class TestCreateSessionConfig:
                     return result
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"], "workspacePath": None}
+                if method == "session.permissions.paths.add":
+                    return {"success": True}
                 return {}
 
             client._client.request = mock_request
@@ -200,6 +202,13 @@ class TestCreateSessionConfig:
             )
             assert create_payload["additionalDirectories"] == ["/repo/shared", "/repo/generated"]
             assert resume_payload["additionalDirectories"] == ["/repo/resumed"]
+            assert (
+                "session.permissions.paths.add",
+                {
+                    "sessionId": "resume-with-additional-directories",
+                    "path": "/repo/resumed",
+                },
+            ) in captured
         finally:
             await client.force_stop()
 

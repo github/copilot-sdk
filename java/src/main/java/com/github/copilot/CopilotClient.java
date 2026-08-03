@@ -30,6 +30,7 @@ import com.github.copilot.generated.rpc.ConnectResult;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
+import com.github.copilot.generated.rpc.SessionPermissionsPathsAddParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
 import com.github.copilot.rpc.GetAuthStatusResponse;
 import com.github.copilot.rpc.GetLastSessionIdResponse;
@@ -835,10 +836,21 @@ public final class CopilotClient implements AutoCloseable {
                             sessions.put(returnedId, session);
                         }
 
-                        return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
+                        CompletableFuture<Void> additionalDirectories = CompletableFuture.completedFuture(null);
+                        if (config.getAdditionalDirectories() != null) {
+                            for (String path : config.getAdditionalDirectories()) {
+                                additionalDirectories = additionalDirectories
+                                        .thenCompose(v -> session.getRpc().permissions.paths
+                                                .add(new SessionPermissionsPathsAddParams(session.getSessionId(), path))
+                                                .thenApply(ignored -> null));
+                            }
+                        }
+
+                        return additionalDirectories.thenCompose(v -> updateSessionOptionsForMode(session,
+                                config.getSkipCustomInstructions().orElse(null),
                                 config.getCustomAgentsLocalOnly().orElse(null),
                                 config.getCoauthorEnabled().orElse(null),
-                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
+                                config.getManageScheduleEnabled().orElse(null))).thenApply(v -> {
                                     LoggingHelpers.logTiming(LOG, Level.FINE,
                                             "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
                                                     + sessionId,

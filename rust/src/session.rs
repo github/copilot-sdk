@@ -1159,6 +1159,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let additional_directories = config.additional_directories.clone().unwrap_or_default();
         let (mut wire, mut runtime) = config.into_wire()?;
         wire.enable_github_telemetry_forwarding =
             self.inner.on_github_telemetry.is_some().then_some(true);
@@ -1275,6 +1276,16 @@ impl Client {
         }
         if has_mcp_auth_handler {
             register_mcp_auth_interest(self, &session_id).await?;
+        }
+        for path in additional_directories {
+            self.call(
+                rpc_methods::SESSION_PERMISSIONS_PATHS_ADD,
+                Some(serde_json::json!({
+                    "sessionId": session_id,
+                    "path": path,
+                })),
+            )
+            .await?;
         }
 
         // Reload skills after resume (best-effort).

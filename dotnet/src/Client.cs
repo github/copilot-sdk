@@ -1435,6 +1435,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
             session.SetOpenCanvases(response.OpenCanvases);
+            foreach (var path in config.AdditionalDirectories ?? [])
+            {
+                await session.Rpc.Permissions.Paths.AddAsync(path, cancellationToken).ConfigureAwait(false);
+            }
 
             if (config.OnMcpAuthRequest is not null)
             {

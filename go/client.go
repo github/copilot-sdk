@@ -1333,6 +1333,14 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
 	session.setOpenCanvases(response.OpenCanvases)
+	for _, path := range config.AdditionalDirectories {
+		if _, err := session.RPC.Permissions.Paths().Add(ctx, &rpc.PermissionPathsAddParams{Path: path}); err != nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, fmt.Errorf("failed to add additional directory after resume: %w", err)
+		}
+	}
 
 	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
 		SkipCustomInstructions: config.SkipCustomInstructions,

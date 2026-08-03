@@ -285,6 +285,11 @@ public sealed class ClientSessionLifetimeTests
         Assert.Collection(
             resumeRequest.Params.GetProperty("additionalDirectories").EnumerateArray(),
             value => Assert.Equal("/repo/resumed", value.GetString()));
+        var addPathRequest = Assert.Single(
+            server.Requests,
+            request => request.Method == "session.permissions.paths.add");
+        Assert.Equal("resume-with-additional-directories", addPathRequest.Params.GetProperty("sessionId").GetString());
+        Assert.Equal("/repo/resumed", addPathRequest.Params.GetProperty("path").GetString());
     }
 
     [Fact]
@@ -688,6 +693,10 @@ public sealed class ClientSessionLifetimeTests
                 },
                 "session.create" => CreateSessionResult(request),
                 "session.resume" => CreateSessionResult(request),
+                "session.permissions.paths.add" => new Dictionary<string, object?>
+                {
+                    ["success"] = true
+                },
                 "session.eventLog.registerInterest" => new Dictionary<string, object?>
                 {
                     ["id"] = "interest-1"
