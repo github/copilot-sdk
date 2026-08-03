@@ -494,6 +494,74 @@ async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
 }
 
+#[tokio::test]
+async fn resume_session_adds_additional_directories_to_permissions() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let additional_directories = [
+        temp_dir.path().join("first"),
+        temp_dir.path().join("second"),
+    ];
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        let additional_directories = additional_directories.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from(
+                        "session-with-additional-directories",
+                    ))
+                    .with_permission_handler(Arc::new(ApproveAllHandler))
+                    .with_additional_directories(additional_directories),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let resume_req = timeout(TIMEOUT, read_framed(&mut server_read))
+        .await
+        .unwrap();
+    assert_eq!(resume_req["method"], "session.resume");
+    server_respond_create(
+        &mut server_write,
+        &resume_req,
+        "session-with-additional-directories",
+    )
+    .await;
+
+    for expected_path in additional_directories {
+        let add_req = timeout(TIMEOUT, read_framed(&mut server_read))
+            .await
+            .unwrap();
+        assert_eq!(add_req["method"], "session.permissions.paths.add");
+        assert_eq!(
+            add_req["params"]["sessionId"],
+            "session-with-additional-directories"
+        );
+        assert_eq!(
+            add_req["params"]["path"],
+            serde_json::to_value(expected_path).unwrap()
+        );
+        let id = add_req["id"].as_u64().unwrap();
+        write_framed(
+            &mut server_write,
+            &serde_json::to_vec(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": { "success": true },
+            }))
+            .unwrap(),
+        )
+        .await;
+    }
+
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
 async fn server_respond_create(
     writer: &mut (impl AsyncWrite + Unpin),
     request: &Value,
