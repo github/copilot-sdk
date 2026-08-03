@@ -16,6 +16,7 @@ docs/.validation/
 # Java
 java/target
 java/sdk/target
+java/copilot-native/target
 java/smoke-test
 java/.classpath
 java/.project
