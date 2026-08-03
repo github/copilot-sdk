@@ -52,9 +52,18 @@ const runtimePath = path.join(resourceDir, 'runtime.node');
 const stampPath = path.join(outDir, '.version');
 
 // Idempotence: skip the download when the staged binary already matches.
-if (fs.existsSync(runtimePath) && fs.existsSync(stampPath) && fs.readFileSync(stampPath, 'utf8').trim() === version) {
-  console.log(`${packageName}@${version} already staged at ${runtimePath}`);
-  process.exit(0);
+// The stamp stores version + integrity + binary digest to ensure a corrupted
+// binary or lockfile integrity change is detected.
+if (fs.existsSync(runtimePath) && fs.existsSync(stampPath)) {
+  const stampLines = fs.readFileSync(stampPath, 'utf8').trim().split('\n');
+  const stampVersion = stampLines[0] || '';
+  const stampIntegrity = stampLines[1] || '';
+  const stampBinaryDigest = stampLines[2] || '';
+  const currentBinaryDigest = `sha512-${createHash('sha512').update(fs.readFileSync(runtimePath)).digest('base64')}`;
+  if (stampVersion === version && stampIntegrity === integrity && stampBinaryDigest === currentBinaryDigest) {
+    console.log(`${packageName}@${version} already staged at ${runtimePath}`);
+    process.exit(0);
+  }
 }
 
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -84,6 +93,7 @@ fs.rmSync(path.join(outDir, 'package'), { recursive: true, force: true });
 fs.rmSync(tarballPath, { force: true });
 
 fs.writeFileSync(path.join(resourceDir, 'platform.properties'), `classifier=${classifier}\nversion=${version}\n`);
-fs.writeFileSync(stampPath, `${version}\n`);
+const binaryDigest = `sha512-${createHash('sha512').update(fs.readFileSync(runtimePath)).digest('base64')}`;
+fs.writeFileSync(stampPath, `${version}\n${integrity}\n${binaryDigest}\n`);
 
 console.log(`Staged ${runtimePath}`);

@@ -132,6 +132,12 @@
                                     </resourceexists>
                                 </condition>
                                 <fail unless="native.binary.present" message="Classifier JAR is missing native/${copilot.native.classifier}/runtime.node" />
+                                <condition property="native.properties.present">
+                                    <resourceexists>
+                                        <zipentry zipfile="${project.build.directory}/${project.build.finalName}-${copilot.native.classifier}.jar" name="native/${copilot.native.classifier}/platform.properties" />
+                                    </resourceexists>
+                                </condition>
+                                <fail unless="native.properties.present" message="Classifier JAR is missing native/${copilot.native.classifier}/platform.properties" />
                                 <condition property="placeholder.jar.polluted">
                                     <resourceexists>
                                         <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="native/${copilot.native.classifier}/runtime.node" />
