@@ -170,8 +170,9 @@ class CreateSessionReKeyEntryTest {
 
         var ctor = connClass.getDeclaredConstructors()[0];
         ctor.setAccessible(true);
-        // Connection(JsonRpcClient rpc, Process process, ServerRpc serverRpc)
-        Object connection = ctor.newInstance(rpc, null, null);
+        // Connection(JsonRpcClient rpc, Process process, ServerRpc serverRpc,
+        // AutoCloseable runtimeHost)
+        Object connection = ctor.newInstance(rpc, null, null, null);
 
         Field f = CopilotClient.class.getDeclaredField("connectionFuture");
         f.setAccessible(true);
