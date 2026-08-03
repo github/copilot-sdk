@@ -131,7 +131,7 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `reasoningEffort?: "low" | "medium" | "high" | "xhigh"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
+- `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)

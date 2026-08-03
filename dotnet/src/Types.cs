@@ -3108,7 +3108,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Reasoning effort level for models that support it.
-    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Valid values: "low", "medium", "high", "xhigh", "max".
     /// Only applies to models where capabilities.supports.reasoningEffort is true.
     /// </summary>
     public string? ReasoningEffort { get; set; }

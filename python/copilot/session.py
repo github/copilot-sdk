@@ -169,7 +169,7 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     return result
 
 
-ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 SessionFsConventions = Literal["posix", "windows"]
@@ -2976,7 +2976,7 @@ class CopilotSession:
         Args:
             model: Model ID to switch to (e.g., "gpt-5.4", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
-                (e.g., "low", "medium", "high", "xhigh").
+                (e.g., "low", "medium", "high", "xhigh", "max").
             reasoning_summary: Optional reasoning summary mode for supported
                 models. Use "none" to suppress summary output regardless of
                 whether reasoning is enabled.

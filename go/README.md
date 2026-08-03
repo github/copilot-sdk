@@ -210,7 +210,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **SessionConfig:**
 
 - `Model` (string): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
+- `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
