@@ -38,11 +38,11 @@
 
     <modules>
         <module>sdk</module>
+        <module>copilot-native</module>
         <!--
-            copilot-native and copilot-native-all are added in later tasks (4.7+).
-            Uncomment when the module directories and POMs are created.
+            copilot-native-all (the monolithic uber-JAR) is added in a later task.
+            Uncomment when the module directory and POM are created.
         -->
-        <!-- <module>copilot-native</module> -->
         <!-- <module>copilot-native-all</module> -->
     </modules>
 
