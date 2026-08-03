@@ -258,7 +258,7 @@ Subscribe to session events. Returns an unsubscribe function.
 
 ```js
 const unsub = session.on("tool.execution_complete", (event) => {
-    // event.data.toolName, event.data.success, event.data.result
+    // event.data.success, event.data.result
 });
 ```
 
@@ -268,7 +268,7 @@ const unsub = session.on("tool.execution_complete", (event) => {
 | ------------------------- | ------------------------------------------------------ |
 | `assistant.message`       | `content`, `messageId`                                 |
 | `tool.execution_start`    | `toolCallId`, `toolName`, `arguments`                  |
-| `tool.execution_complete` | `toolCallId`, `toolName`, `success`, `result`, `error` |
+| `tool.execution_complete` | `toolCallId`, `success`, `result`, `error`             |
 | `user.message`            | `content`, `attachments`, `source`                     |
 | `session.idle`            | `backgroundTasks`                                      |
 | `session.error`           | `errorType`, `message`, `stack`                        |
