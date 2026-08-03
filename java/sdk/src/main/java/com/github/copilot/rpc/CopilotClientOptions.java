@@ -51,6 +51,7 @@ public class CopilotClientOptions {
     private String[] cliArgs;
     private String cliPath;
     private String cliUrl;
+    private RuntimeConnection connection;
     private String copilotHome;
     private String cwd;
     private Map<String, String> environment;
@@ -201,6 +202,39 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setCliUrl(String cliUrl) {
         this.cliUrl = Objects.requireNonNull(cliUrl, "cliUrl must not be null");
+        return this;
+    }
+
+    /**
+     * Gets the connection that selects how the client reaches the Copilot runtime.
+     *
+     * @return the connection, or {@code null} to infer the transport from
+     *         {@link #isUseStdio()}, {@link #getCliUrl()} and {@link #getCliPath()}
+     */
+    @JsonIgnore
+    public RuntimeConnection getConnection() {
+        return connection;
+    }
+
+    /**
+     * Sets the connection that selects how the client reaches the Copilot runtime.
+     * <p>
+     * When set, the connection takes precedence over the transport-selecting
+     * options {@link #setUseStdio(boolean)}, {@link #setCliUrl(String)},
+     * {@link #setCliPath(String)}, {@link #setPort(int)} and
+     * {@link #setTcpConnectionToken(String)}; combining a connection with
+     * conflicting values for any of those options makes the client constructor
+     * throw {@link IllegalArgumentException}. Values that match what the connection
+     * implies are accepted, so the same options instance can be reused across
+     * multiple client constructions.
+     *
+     * @param connection
+     *            the connection, or {@code null} to infer the transport from the
+     *            individual transport options
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setConnection(RuntimeConnection connection) {
+        this.connection = connection;
         return this;
     }
 
@@ -754,6 +788,7 @@ public class CopilotClientOptions {
         copy.cliArgs = this.cliArgs != null ? this.cliArgs.clone() : null;
         copy.cliPath = this.cliPath;
         copy.cliUrl = this.cliUrl;
+        copy.connection = this.connection;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
