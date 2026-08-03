@@ -12,15 +12,15 @@ import java.lang.annotation.Target;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Enables an annotated test class or method only when the E2E suite runs
- * under the in-process (FFI) transport, i.e. when
+ * Enables an annotated test class or method only when the E2E suite runs under
+ * the in-process (FFI) transport, i.e. when
  * {@code COPILOT_SDK_DEFAULT_CONNECTION} is set to {@code inprocess}.
  *
  * <p>
- * Use this for tests that require the real {@code runtime.node} native
- * library to be present on the classpath, which only the {@code -Pinprocess}
- * Maven profile guarantees (see {@link InProcessTransportIT}). Without this
- * profile, standard {@code mvn verify} runs would fail with a
+ * Use this for tests that require the real {@code runtime.node} native library
+ * to be present on the classpath, which only the {@code -Pinprocess} Maven
+ * profile guarantees (see {@link InProcessTransportIT}). Without this profile,
+ * standard {@code mvn verify} runs would fail with a
  * {@code FileNotFoundException} because the classifier JAR providing
  * {@code runtime.node} is not on the classpath.
  * </p>

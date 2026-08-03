@@ -51,8 +51,8 @@ import com.github.copilot.rpc.RuntimeConnection;
  * <p>
  * {@link RequireInProcess} disables this test unless the {@code -Pinprocess}
  * profile is active: without it, the {@code copilot-sdk-java-runtime}
- * classifier JAR providing {@code runtime.node} is not on the classpath, so
- * the test would fail with a {@code FileNotFoundException} rather than being
+ * classifier JAR providing {@code runtime.node} is not on the classpath, so the
+ * test would fail with a {@code FileNotFoundException} rather than being
  * skipped.
  */
 @AllowCopilotExperimental
