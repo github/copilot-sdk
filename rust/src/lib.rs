@@ -2221,10 +2221,9 @@ impl Client {
                     Some(serde_json::json!({ "sessionId": session_id })),
                 )
                 .await
+                && first_error.is_none()
             {
-                if first_error.is_none() {
-                    first_error = Some(error);
-                }
+                first_error = Some(error);
             }
             self.inner.router.unregister(&session_id);
         }

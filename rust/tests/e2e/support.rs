@@ -2,15 +2,14 @@ use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::ops::Deref;
+use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::process::{Child, Command, Stdio};
-use std::sync::{
-    LazyLock,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use std::{ops::Deref, panic::AssertUnwindSafe};
 
 use futures_util::FutureExt;
 use github_copilot_sdk::handler::ApproveAllHandler;
@@ -312,6 +311,17 @@ where
         "timed out after {:?} running E2E test {category}/{snapshot_name}",
         default_test_timeout()
     );
+}
+
+pub async fn with_dedicated_group_e2e_context<F>(
+    _group: &'static SharedE2eGroup,
+    category: &str,
+    snapshot_name: &str,
+    test: F,
+) where
+    F: for<'a> FnOnce(&'a mut E2eContext) -> TestFuture<'a>,
+{
+    with_dedicated_e2e_context(category, snapshot_name, test).await;
 }
 
 /// Run a dedicated one-client E2E test.

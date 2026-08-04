@@ -227,7 +227,7 @@ async fn should_not_produce_deltas_after_session_resume_with_streaming_disabled(
 
 #[tokio::test]
 async fn should_emit_streaming_deltas_with_reasoning_effort_configured() {
-    super::support::with_shared_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
         &E2E,
         "streaming_fidelity",
         "should_emit_streaming_deltas_with_reasoning_effort_configured",
@@ -365,4 +365,4 @@ fn assert_has_content_deltas(events: &[github_copilot_sdk::SessionEvent]) {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("streaming_fidelity", 4);
+    super::support::SharedE2eGroup::standard("streaming_fidelity", 3);
