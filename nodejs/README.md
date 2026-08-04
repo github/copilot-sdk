@@ -1109,6 +1109,21 @@ try {
 }
 ```
 
+## Development
+
+From the repository root:
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd nodejs
+npm ci
+npm test
+```
+
 ## License
 
 MIT
