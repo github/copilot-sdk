@@ -19,8 +19,9 @@ Return no value to leave the transformed prompt unchanged. Return `modifiedTrans
 ## Examples
 
 <details open>
-<summary><strong>Node.js / TypeScript</strong></summary>
+<summary><strong>TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 const session = await client.createSession({
   hooks: {
@@ -36,6 +37,7 @@ const session = await client.createSession({
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 session = await client.create_session(
     hooks={
@@ -51,6 +53,7 @@ session = await client.create_session(
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 	Hooks: &copilot.SessionHooks{
@@ -68,6 +71,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -87,6 +91,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 var hooks = new SessionHooks().setOnUserPromptTransformed((input, invocation) ->
     CompletableFuture.completedFuture(

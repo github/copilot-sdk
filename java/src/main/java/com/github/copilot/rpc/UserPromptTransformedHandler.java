@@ -8,6 +8,8 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Handler for user-prompt-transformed hooks.
+ *
+ * @since 1.0.11
  */
 @FunctionalInterface
 public interface UserPromptTransformedHandler {

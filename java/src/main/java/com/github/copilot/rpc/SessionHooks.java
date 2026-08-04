@@ -166,6 +166,7 @@ public class SessionHooks {
      * Gets the user-prompt-transformed handler.
      *
      * @return the handler, or {@code null} if not set
+     * @since 1.0.11
      */
     public UserPromptTransformedHandler getOnUserPromptTransformed() {
         return onUserPromptTransformed;
@@ -177,6 +178,7 @@ public class SessionHooks {
      * @param onUserPromptTransformed
      *            the handler
      * @return this instance for method chaining
+     * @since 1.0.11
      */
     public SessionHooks setOnUserPromptTransformed(UserPromptTransformedHandler onUserPromptTransformed) {
         this.onUserPromptTransformed = onUserPromptTransformed;

@@ -320,7 +320,7 @@ let session = client
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `UserPromptTransformed`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
 
 ### System Message Transforms
 

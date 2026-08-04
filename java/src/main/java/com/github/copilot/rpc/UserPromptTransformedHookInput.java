@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *            the prompt after user-prompt-submitted hooks
  * @param transformedPrompt
  *            the model-facing prompt after runtime transformations
+ * @since 1.0.11
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UserPromptTransformedHookInput(@JsonProperty("sessionId") String sessionId,
