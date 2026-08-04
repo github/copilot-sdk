@@ -60,6 +60,8 @@ public final class InProcessEnvGuard implements AutoCloseable {
      */
     private interface Kernel32Env extends Library {
         boolean SetEnvironmentVariableW(WString lpName, WString lpValue);
+
+        int GetEnvironmentVariableW(WString lpName, char[] lpBuffer, int nSize);
     }
 
     /** POSIX libc: sets or deletes a variable in the process environment block. */
@@ -67,7 +69,15 @@ public final class InProcessEnvGuard implements AutoCloseable {
         int setenv(String name, String value, int overwrite);
 
         int unsetenv(String name);
+
+        /** Returns null if the variable is not set. */
+        String getenv(String name);
     }
+
+    /**
+     * Sentinel indicating the variable was not set (distinct from empty string).
+     */
+    private static final String ABSENT_SENTINEL = new String("\0ABSENT\0");
 
     /**
      * name -> previous value ({@code null} means the variable was not set before).
@@ -88,7 +98,7 @@ public final class InProcessEnvGuard implements AutoCloseable {
             apply(entry.getKey(), entry.getValue());
         }
         for (String key : SUPPRESSED_KEYS) {
-            String previous = System.getenv(key);
+            String previous = nativeGetEnv(key);
             if (previous != null && !previous.isEmpty()) {
                 apply(key, null);
             }
@@ -96,8 +106,8 @@ public final class InProcessEnvGuard implements AutoCloseable {
     }
 
     private void apply(String name, String value) {
-        String previous = System.getenv(name);
-        saved.add(Map.entry(name, previous == null ? "" : previous));
+        String previous = nativeGetEnv(name);
+        saved.add(Map.entry(name, previous == null ? ABSENT_SENTINEL : previous));
         nativeSetEnv(name, value);
     }
 
@@ -110,8 +120,33 @@ public final class InProcessEnvGuard implements AutoCloseable {
         List<Map.Entry<String, String>> reversed = new ArrayList<>(saved);
         Collections.reverse(reversed);
         for (Map.Entry<String, String> entry : reversed) {
-            nativeSetEnv(entry.getKey(), entry.getValue().isEmpty() ? null : entry.getValue());
+            String restoreValue = entry.getValue() == ABSENT_SENTINEL ? null : entry.getValue();
+            nativeSetEnv(entry.getKey(), restoreValue);
         }
+    }
+
+    private static String nativeGetEnv(String name) {
+        if (isWindows()) {
+            return nativeGetEnvWindows(name);
+        } else {
+            return nativeGetEnvUnix(name);
+        }
+    }
+
+    private static String nativeGetEnvWindows(String name) {
+        Kernel32Env kernel32 = Native.load("kernel32", Kernel32Env.class);
+        char[] buffer = new char[32767];
+        int len = kernel32.GetEnvironmentVariableW(new WString(name), buffer, buffer.length);
+        if (len == 0) {
+            // Variable not set (or error — treat as absent)
+            return null;
+        }
+        return new String(buffer, 0, len);
+    }
+
+    private static String nativeGetEnvUnix(String name) {
+        LibcEnv libc = Native.load("c", LibcEnv.class);
+        return libc.getenv(name);
     }
 
     private static void nativeSetEnv(String name, String value) {

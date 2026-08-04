@@ -616,12 +616,8 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                            <forkCount>1</forkCount>
-                            <parallel>none</parallel>
-                            <environmentVariables>
-                                <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
-                                <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
-                            </environmentVariables>
+                            <!-- Leave Surefire on its standard transport; only Failsafe ITs use InProcess -->
+                            <skipTests>false</skipTests>
                         </configuration>
                     </plugin>
                     <plugin>

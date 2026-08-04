@@ -43,7 +43,8 @@ import com.github.copilot.rpc.RuntimeConnection;
  * in-process.
  *
  * <p>
- * Run with {@code mvn verify -Pinprocess} from {@code java/sdk}, which sets
+ * Run with {@code mvn verify -Pinprocess} from the {@code java} reactor root,
+ * which builds the {@code copilot-sdk-java-runtime} artifact and sets
  * {@code COPILOT_CLI_PATH} to the pinned CLI whose sibling {@code runtime.node}
  * this test loads, and forces {@code forkCount=1} because the FFI host and env
  * guard mutate process-global state.
