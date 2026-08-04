@@ -10,8 +10,6 @@ use github_copilot_sdk::types::ExtensionInfo;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
-use super::support::with_e2e_context;
-
 struct TestCanvasHandler {
     open_calls: Mutex<Vec<CanvasProviderOpenRequest>>,
     close_calls: Mutex<Vec<CanvasProviderCloseRequest>>,
@@ -74,33 +72,38 @@ fn canvas_session_config(
 
 #[tokio::test]
 async fn canvas_list_discovers_declared_canvases() {
-    with_e2e_context("canvas", "canvas_list_discovers_declared_canvases", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let handler = Arc::new(TestCanvasHandler::new());
-            let session = client
-                .create_session(canvas_session_config(ctx, handler))
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "canvas",
+        "canvas_list_discovers_declared_canvases",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let handler = Arc::new(TestCanvasHandler::new());
+                let session = client
+                    .create_session(canvas_session_config(ctx, handler))
+                    .await
+                    .expect("create session");
 
-            let result = session.rpc().canvas().list().await.expect("list canvases");
+                let result = session.rpc().canvas().list().await.expect("list canvases");
 
-            assert_eq!(result.canvases.len(), 1);
-            assert_eq!(result.canvases[0].canvas_id, "counter");
-            assert_eq!(result.canvases[0].display_name, "Counter");
-            assert_eq!(result.canvases[0].description, "Tracks a counter value.");
+                assert_eq!(result.canvases.len(), 1);
+                assert_eq!(result.canvases[0].canvas_id, "counter");
+                assert_eq!(result.canvases[0].display_name, "Counter");
+                assert_eq!(result.canvases[0].description, "Tracks a counter value.");
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn canvas_open_round_trip() {
-    with_e2e_context("canvas", "canvas_open_round_trip", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "canvas", "canvas_open_round_trip", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -158,64 +161,69 @@ async fn canvas_open_round_trip() {
 
 #[tokio::test]
 async fn canvas_invoke_action_round_trip() {
-    with_e2e_context("canvas", "canvas_invoke_action_round_trip", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let handler = Arc::new(TestCanvasHandler::new());
-            let session = client
-                .create_session(canvas_session_config(ctx, handler.clone()))
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "canvas",
+        "canvas_invoke_action_round_trip",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let handler = Arc::new(TestCanvasHandler::new());
+                let session = client
+                    .create_session(canvas_session_config(ctx, handler.clone()))
+                    .await
+                    .expect("create session");
 
-            let canvas_list = session.rpc().canvas().list().await.expect("list canvases");
-            let canvas = &canvas_list.canvases[0];
+                let canvas_list = session.rpc().canvas().list().await.expect("list canvases");
+                let canvas = &canvas_list.canvases[0];
 
-            session
-                .rpc()
-                .canvas()
-                .open(github_copilot_sdk::rpc::CanvasOpenRequest {
-                    canvas_id: "counter".to_string(),
-                    instance_id: "counter-2".to_string(),
-                    extension_id: Some(canvas.extension_id.clone()),
-                    input: Some(json!({})),
-                })
-                .await
-                .expect("open canvas");
+                session
+                    .rpc()
+                    .canvas()
+                    .open(github_copilot_sdk::rpc::CanvasOpenRequest {
+                        canvas_id: "counter".to_string(),
+                        instance_id: "counter-2".to_string(),
+                        extension_id: Some(canvas.extension_id.clone()),
+                        input: Some(json!({})),
+                    })
+                    .await
+                    .expect("open canvas");
 
-            let result = session
-                .rpc()
-                .canvas()
-                .action()
-                .invoke(github_copilot_sdk::rpc::CanvasActionInvokeRequest {
-                    instance_id: "counter-2".to_string(),
-                    action_name: "increment".to_string(),
-                    input: Some(json!({ "delta": 1 })),
-                })
-                .await
-                .expect("invoke action");
+                let result = session
+                    .rpc()
+                    .canvas()
+                    .action()
+                    .invoke(github_copilot_sdk::rpc::CanvasActionInvokeRequest {
+                        instance_id: "counter-2".to_string(),
+                        action_name: "increment".to_string(),
+                        input: Some(json!({ "delta": 1 })),
+                    })
+                    .await
+                    .expect("invoke action");
 
-            assert_eq!(result.result, Some(json!({ "newValue": 42 })));
+                assert_eq!(result.result, Some(json!({ "newValue": 42 })));
 
-            {
-                let actions = handler.action_calls.lock();
-                assert_eq!(actions.len(), 1);
-                assert_eq!(actions[0].canvas_id, "counter");
-                assert_eq!(actions[0].instance_id, "counter-2");
-                assert_eq!(actions[0].action_name, "increment");
-                assert_eq!(actions[0].input, Some(json!({ "delta": 1 })));
-            }
+                {
+                    let actions = handler.action_calls.lock();
+                    assert_eq!(actions.len(), 1);
+                    assert_eq!(actions[0].canvas_id, "counter");
+                    assert_eq!(actions[0].instance_id, "counter-2");
+                    assert_eq!(actions[0].action_name, "increment");
+                    assert_eq!(actions[0].input, Some(json!({ "delta": 1 })));
+                }
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn canvas_close_round_trip() {
-    with_e2e_context("canvas", "canvas_close_round_trip", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "canvas", "canvas_close_round_trip", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -272,3 +280,4 @@ async fn canvas_close_round_trip() {
     })
     .await;
 }
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("canvas", 4);

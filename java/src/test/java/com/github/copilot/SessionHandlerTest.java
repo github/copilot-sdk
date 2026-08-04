@@ -26,6 +26,7 @@ import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.rpc.UserPromptSubmittedHookOutput;
+import com.github.copilot.rpc.UserPromptTransformedHookOutput;
 
 /**
  * Unit tests for CopilotSession internal handler methods.
@@ -223,6 +224,26 @@ public class SessionHandlerTest {
         assertInstanceOf(UserPromptSubmittedHookOutput.class, result);
         var output = (UserPromptSubmittedHookOutput) result;
         assertEquals("modified prompt", output.modifiedPrompt());
+    }
+
+    @Test
+    void testHandleHooksInvokeUserPromptTransformed() throws Exception {
+        var hooks = new SessionHooks().setOnUserPromptTransformed((hookInput, invocation) -> {
+            assertEquals("handler-test-session", invocation.getSessionId());
+            assertEquals("original prompt", hookInput.prompt());
+            assertEquals("transformed prompt", hookInput.transformedPrompt());
+            return CompletableFuture.completedFuture(new UserPromptTransformedHookOutput("replacement prompt"));
+        });
+        session.registerHooks(hooks);
+
+        JsonNode input = MAPPER.valueToTree(Map.of("sessionId", "runtime-session", "timestamp", 1735689600L, "cwd",
+                "/tmp", "prompt", "original prompt", "transformedPrompt", "transformed prompt"));
+
+        Object result = session.handleHooksInvoke("userPromptTransformed", input).get();
+
+        assertInstanceOf(UserPromptTransformedHookOutput.class, result);
+        var output = (UserPromptTransformedHookOutput) result;
+        assertEquals("replacement prompt", output.modifiedTransformedPrompt());
     }
 
     // ===== handleHooksInvoke: sessionStart =====

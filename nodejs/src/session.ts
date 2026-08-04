@@ -734,11 +734,10 @@ export class CopilotSession {
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
 
-        let resolveIdle: () => void;
-        let rejectWithError: (error: Error) => void;
-        const idlePromise = new Promise<void>((resolve, reject) => {
-            resolveIdle = resolve;
-            rejectWithError = reject;
+        type SessionOutcome = { kind: "idle" } | { kind: "error"; error: Error };
+        let resolveOutcome: (outcome: SessionOutcome) => void;
+        const outcomePromise = new Promise<SessionOutcome>((resolve) => {
+            resolveOutcome = resolve;
         });
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
@@ -749,11 +748,11 @@ export class CopilotSession {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle") {
-                resolveIdle();
+                resolveOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
-                rejectWithError(error);
+                resolveOutcome({ kind: "error", error });
             }
         });
 
@@ -772,7 +771,10 @@ export class CopilotSession {
                     effectiveTimeout
                 );
             });
-            await Promise.race([idlePromise, timeoutPromise]);
+            const outcome = await Promise.race([outcomePromise, timeoutPromise]);
+            if (outcome.kind === "error") {
+                throw outcome.error;
+            }
 
             return lastAssistantMessage;
         } finally {
@@ -1879,6 +1881,7 @@ export class CopilotSession {
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
             postToolUseFailure: this.hooks.onPostToolUseFailure as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
+            userPromptTransformed: this.hooks.onUserPromptTransformed as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,

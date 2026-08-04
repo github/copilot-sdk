@@ -3,11 +3,12 @@ use github_copilot_sdk::session_events::{
     ToolExecutionCompleteData, ToolExecutionStartData, UserMessageData,
 };
 
-use super::support::{collect_until_idle, event_types, with_e2e_context};
+use super::support::{collect_until_idle, event_types};
 
 #[tokio::test]
 async fn should_include_valid_fields_on_all_events() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_include_valid_fields_on_all_events",
         |ctx| {
@@ -54,7 +55,8 @@ async fn should_include_valid_fields_on_all_events() {
 
 #[tokio::test]
 async fn should_emit_tool_execution_events_with_correct_fields() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_tool_execution_events_with_correct_fields",
         |ctx| {
@@ -99,7 +101,8 @@ async fn should_emit_tool_execution_events_with_correct_fields() {
 
 #[tokio::test]
 async fn should_emit_assistant_usage_event_after_model_call() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_assistant_usage_event_after_model_call",
         |ctx| {
@@ -136,7 +139,8 @@ async fn should_emit_assistant_usage_event_after_model_call() {
 
 #[tokio::test]
 async fn should_emit_session_usage_info_event_after_model_call() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_session_usage_info_event_after_model_call",
         |ctx| {
@@ -175,7 +179,8 @@ async fn should_emit_session_usage_info_event_after_model_call() {
 
 #[tokio::test]
 async fn should_emit_pending_messages_modified_event_when_message_queue_changes() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_pending_messages_modified_event_when_message_queue_changes",
         |ctx| {
@@ -218,7 +223,8 @@ async fn should_emit_pending_messages_modified_event_when_message_queue_changes(
 
 #[tokio::test]
 async fn should_emit_events_in_correct_order_for_tool_using_conversation() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_events_in_correct_order_for_tool_using_conversation",
         |ctx| {
@@ -265,7 +271,8 @@ async fn should_emit_events_in_correct_order_for_tool_using_conversation() {
 
 #[tokio::test]
 async fn should_emit_assistant_message_with_messageid() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_emit_assistant_message_with_messageid",
         |ctx| {
@@ -299,7 +306,8 @@ async fn should_emit_assistant_message_with_messageid() {
 
 #[tokio::test]
 async fn should_preserve_message_order_in_getmessages_after_tool_use() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "event_fidelity",
         "should_preserve_message_order_in_getmessages_after_tool_use",
         |ctx| {
@@ -366,3 +374,5 @@ async fn should_preserve_message_order_in_getmessages_after_tool_use() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("event_fidelity", 8);

@@ -10,11 +10,12 @@ use github_copilot_sdk::{Error, IndexMap, McpServerConfig, McpStdioServerConfig}
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn should_list_tools_and_report_running_status_for_connected_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_list_tools_and_report_running_status_for_connected_server",
         |ctx| {
@@ -61,7 +62,8 @@ async fn should_list_tools_and_report_running_status_for_connected_server() {
 
 #[tokio::test]
 async fn should_throw_when_listing_tools_for_unconnected_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_throw_when_listing_tools_for_unconnected_server",
         |ctx| {
@@ -98,7 +100,8 @@ async fn should_throw_when_listing_tools_for_unconnected_server() {
 
 #[tokio::test]
 async fn should_stop_running_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_stop_running_mcp_server",
         |ctx| {
@@ -137,7 +140,8 @@ async fn should_stop_running_mcp_server() {
 
 #[tokio::test]
 async fn should_start_and_restart_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_start_and_restart_mcp_server",
         |ctx| {
@@ -202,7 +206,8 @@ async fn should_start_and_restart_mcp_server() {
 
 #[tokio::test]
 async fn should_reload_mcp_servers_with_config() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_reload_mcp_servers_with_config",
         |ctx| {
@@ -244,7 +249,8 @@ async fn should_reload_mcp_servers_with_config() {
 
 #[tokio::test]
 async fn should_configure_github_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_configure_github_mcp_server",
         |ctx| {
@@ -374,3 +380,5 @@ fn assert_error_contains(err: &Error, expected: &str) {
         "expected error to contain {expected:?}, got {message}"
     );
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_mcp_lifecycle", 6);

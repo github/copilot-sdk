@@ -679,6 +679,46 @@ type UserPromptSubmittedHookOutput struct {
 // UserPromptSubmittedHandler handles user-prompt-submitted hook invocations
 type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocation HookInvocation) (*UserPromptSubmittedHookOutput, error)
 
+// UserPromptTransformedHookInput is the input for a user-prompt-transformed hook.
+type UserPromptTransformedHookInput struct {
+	SessionID         string    `json:"sessionId"`
+	Timestamp         time.Time `json:"-"`
+	WorkingDirectory  string    `json:"cwd"`
+	Prompt            string    `json:"prompt"`
+	TransformedPrompt string    `json:"transformedPrompt"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h UserPromptTransformedHookInput) MarshalJSON() ([]byte, error) {
+	type alias UserPromptTransformedHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *UserPromptTransformedHookInput) UnmarshalJSON(data []byte) error {
+	type alias UserPromptTransformedHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// UserPromptTransformedHookOutput is the output for a user-prompt-transformed hook.
+type UserPromptTransformedHookOutput struct {
+	ModifiedTransformedPrompt *string `json:"modifiedTransformedPrompt,omitempty"`
+}
+
+// UserPromptTransformedHandler handles user-prompt-transformed hook invocations.
+type UserPromptTransformedHandler func(input UserPromptTransformedHookInput, invocation HookInvocation) (*UserPromptTransformedHookOutput, error)
+
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
 	SessionID        string    `json:"sessionId"`
@@ -899,15 +939,16 @@ type HookInvocation struct {
 
 // SessionHooks configures hook handlers for a session
 type SessionHooks struct {
-	OnPreToolUse          PreToolUseHandler
-	OnPostToolUse         PostToolUseHandler
-	OnPostToolUseFailure  PostToolUseFailureHandler
-	OnUserPromptSubmitted UserPromptSubmittedHandler
-	OnSessionStart        SessionStartHandler
-	OnSessionEnd          SessionEndHandler
-	OnErrorOccurred       ErrorOccurredHandler
-	OnAgentStop           AgentStopHandler
-	OnPreMCPToolCall      PreMCPToolCallHandler
+	OnPreToolUse            PreToolUseHandler
+	OnPostToolUse           PostToolUseHandler
+	OnPostToolUseFailure    PostToolUseFailureHandler
+	OnUserPromptSubmitted   UserPromptSubmittedHandler
+	OnUserPromptTransformed UserPromptTransformedHandler
+	OnSessionStart          SessionStartHandler
+	OnSessionEnd            SessionEndHandler
+	OnErrorOccurred         ErrorOccurredHandler
+	OnAgentStop             AgentStopHandler
+	OnPreMCPToolCall        PreMCPToolCallHandler
 }
 
 // MCPServerConfig is implemented by MCP server configuration types.
@@ -1163,7 +1204,7 @@ type SessionConfig struct {
 	// Model to use for this session
 	Model string
 	// ReasoningEffort level for models that support it.
-	// Valid values: "low", "medium", "high", "xhigh"
+	// Valid values: "low", "medium", "high", "xhigh", "max"
 	// Only applies to models where capabilities.supports.reasoningEffort is true.
 	ReasoningEffort string
 	// ReasoningSummary mode for models that support configurable reasoning summaries.
@@ -1721,7 +1762,7 @@ type ResumeSessionConfig struct {
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// ReasoningEffort level for models that support it.
-	// Valid values: "low", "medium", "high", "xhigh"
+	// Valid values: "low", "medium", "high", "xhigh", "max"
 	ReasoningEffort string
 	// ReasoningSummary mode for models that support configurable reasoning summaries.
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.

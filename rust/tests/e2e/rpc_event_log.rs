@@ -7,11 +7,10 @@ use github_copilot_sdk::session_events::{
 };
 use serde_json::json;
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_read_persisted_events_from_beginning() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_read_persisted_events_from_beginning",
         |ctx| {
@@ -73,7 +72,8 @@ async fn should_read_persisted_events_from_beginning() {
 
 #[tokio::test]
 async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_return_tail_cursor_and_read_empty_when_no_new_events",
         |ctx| {
@@ -116,7 +116,8 @@ async fn should_return_tail_cursor_and_read_empty_when_no_new_events() {
 
 #[tokio::test]
 async fn should_register_and_release_event_interest_idempotently() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_register_and_release_event_interest_idempotently",
         |ctx| {
@@ -162,7 +163,8 @@ async fn should_register_and_release_event_interest_idempotently() {
 
 #[tokio::test]
 async fn should_longpoll_with_types_filter_for_titlechanged_event() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_event_log",
         "should_longpoll_with_types_filter_for_titlechanged_event",
         |ctx| {
@@ -213,3 +215,5 @@ async fn should_longpoll_with_types_filter_for_titlechanged_event() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_event_log", 4);

@@ -3,7 +3,8 @@ Extended hook lifecycle tests that mirror dotnet/test/HookLifecycleAndOutputTest
 
 E2E coverage for every handler exposed on ``SessionHooks``:
 ``on_pre_tool_use``, ``on_post_tool_use``, ``on_post_tool_use_failure``,
-``on_user_prompt_submitted``, ``on_session_start``, ``on_session_end``,
+``on_user_prompt_submitted``, ``on_user_prompt_transformed``, ``on_session_start``,
+``on_session_end``,
 ``on_error_occurred``, ``on_agent_stop``. Output-shape behavior (modifiedPrompt /
 additionalContext / errorHandling / modifiedArgs / modifiedResult /
 sessionSummary) is asserted alongside hook invocation.
@@ -45,6 +46,32 @@ class TestHooksExtended:
             assert all(session_id == session.session_id for session_id in invocation_session_ids)
             assert "Say something else" in inputs[0].get("prompt", "")
             assert "HOOKED_PROMPT" in (response.data.content or "")
+        finally:
+            await session.disconnect()
+
+    async def test_should_invoke_userprompttransformed_hook_and_modify_transformed_prompt(
+        self, ctx: E2ETestContext
+    ):
+        inputs: list[dict] = []
+
+        async def on_user_prompt_transformed(input_data, invocation):
+            assert invocation["session_id"]
+            inputs.append(input_data)
+            return {"modifiedTransformedPrompt": "Reply with exactly: HOOKED_TRANSFORMED_PROMPT"}
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            hooks={"on_user_prompt_transformed": on_user_prompt_transformed},
+        )
+        try:
+            response = await session.send_and_wait("Answer the request above.")
+            assert inputs
+            assert "Answer the request above." in inputs[0]["prompt"]
+            assert "Answer the request above." in inputs[0]["transformedPrompt"]
+            assert "<current_datetime>" in inputs[0]["transformedPrompt"]
+            assert inputs[0]["timestamp"].timestamp() > 0
+            assert inputs[0]["workingDirectory"]
+            assert "HOOKED_TRANSFORMED_PROMPT" in (response.data.content or "")
         finally:
             await session.disconnect()
 

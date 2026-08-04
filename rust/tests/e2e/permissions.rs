@@ -11,12 +11,13 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::support::{
     DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, wait_for_condition,
-    wait_for_event, with_e2e_context,
+    wait_for_event,
 };
 
 #[tokio::test]
 async fn should_work_with_approve_all_permission_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_work_with_approve_all_permission_handler",
         |ctx| {
@@ -68,7 +69,8 @@ async fn should_handle_concurrent_permission_requests_from_parallel_tools() {
 
 #[tokio::test]
 async fn should_deny_permission_when_handler_returns_denied() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_deny_permission_when_handler_returns_denied",
         |ctx| {
@@ -120,7 +122,8 @@ async fn should_deny_permission_when_handler_returns_denied() {
 
 #[tokio::test]
 async fn should_deny_tool_operations_when_handler_explicitly_denies() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_deny_tool_operations_when_handler_explicitly_denies",
         |ctx| {
@@ -159,7 +162,8 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies() {
 
 #[tokio::test]
 async fn should_handle_async_permission_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_handle_async_permission_handler",
         |ctx| {
@@ -195,7 +199,7 @@ async fn should_handle_async_permission_handler() {
 
 #[tokio::test]
 async fn should_resume_session_with_permission_handler() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "permissions",
         "should_resume_session_with_permission_handler",
         |ctx| {
@@ -250,7 +254,7 @@ async fn should_resume_session_with_permission_handler() {
 
 #[tokio::test]
 async fn should_deny_tool_operations_when_handler_explicitly_denies_after_resume() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "permissions",
         "should_deny_tool_operations_when_handler_explicitly_denies_after_resume",
         |ctx| {
@@ -310,7 +314,8 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies_after_resume
 
 #[tokio::test]
 async fn should_receive_toolcallid_in_permission_requests() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_receive_toolcallid_in_permission_requests",
         |ctx| {
@@ -350,7 +355,8 @@ async fn should_receive_toolcallid_in_permission_requests() {
 
 #[tokio::test]
 async fn should_deny_permission_with_noresult_kind() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_deny_permission_with_noresult_kind",
         |ctx| {
@@ -385,7 +391,8 @@ async fn should_deny_permission_with_noresult_kind() {
 
 #[tokio::test]
 async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_short_circuit_permission_handler_when_set_approve_all_enabled",
         |ctx| {
@@ -454,7 +461,8 @@ async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() 
 
 #[tokio::test]
 async fn should_wait_for_slow_permission_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_wait_for_slow_permission_handler",
         |ctx| {
@@ -520,7 +528,8 @@ async fn should_wait_for_slow_permission_handler() {
 
 #[tokio::test]
 async fn should_invoke_permission_handler_for_write_operations() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "permissions",
         "should_invoke_permission_handler_for_write_operations",
         |ctx| {
@@ -720,3 +729,5 @@ impl PermissionHandler for SlowPermissionHandler {
         PermissionResult::approve_once()
     }
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("permissions", 9);

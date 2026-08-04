@@ -4,14 +4,14 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use github_copilot_sdk::session_fs::{FsError, FsErrorKind};
 use github_copilot_sdk::{
-    Client, DirEntry, DirEntryKind, FileInfo, SessionConfig, SessionFsCapabilities,
-    SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider,
-    SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
-    SessionFsSqliteTransactionStatement,
+    DirEntry, DirEntryKind, FileInfo, SessionConfig, SessionFsCapabilities, SessionFsConfig,
+    SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError, SessionFsSqliteTransactionStatement,
 };
 use rusqlite::Connection;
 
-use super::support::with_e2e_context;
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::new("session_fs_sqlite", sqlite_client_options, 2);
 
 #[derive(Debug)]
 struct SqliteCall {
@@ -391,13 +391,12 @@ fn sqlite_session_fs_config() -> SessionFsConfig {
     .with_capabilities(SessionFsCapabilities::new().with_sqlite(true))
 }
 
-async fn start_sqlite_client(ctx: &super::support::E2eContext) -> Client {
-    Client::start(
-        ctx.client_options()
-            .with_session_fs(sqlite_session_fs_config()),
-    )
-    .await
-    .expect("start sqlite client")
+fn sqlite_client_options(
+    context: &super::support::E2eContext,
+) -> github_copilot_sdk::ClientOptions {
+    context
+        .client_options()
+        .with_session_fs(sqlite_session_fs_config())
 }
 
 fn sqlite_session_config(
@@ -410,7 +409,8 @@ fn sqlite_session_config(
 
 #[tokio::test]
 async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_fs_sqlite",
         "should_route_sql_queries_through_the_sessionfs_sqlite_handler",
         |ctx| {
@@ -422,7 +422,7 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
                     session_id,
                     sqlite_calls.clone(),
                 ));
-                let client = start_sqlite_client(ctx).await;
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         sqlite_session_config(ctx, provider).with_session_id(session_id),
@@ -480,7 +480,8 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
 
 #[tokio::test]
 async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_fs_sqlite",
         "should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs",
         |ctx| {
@@ -490,7 +491,7 @@ async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
                 let sqlite_calls = Arc::new(Mutex::new(Vec::new()));
                 let provider = Arc::new(InMemorySqliteProvider::new(session_id, sqlite_calls.clone()));
                 let provider_ref = provider.clone();
-                let client = start_sqlite_client(ctx).await;
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         sqlite_session_config(ctx, provider).with_session_id(session_id),

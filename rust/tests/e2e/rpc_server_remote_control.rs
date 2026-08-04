@@ -6,11 +6,10 @@ use github_copilot_sdk::rpc::{
 };
 use serde_json::Value;
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_report_remote_control_status_as_off() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_remote_control",
         "should_report_remote_control_status_as_off",
         |ctx| {
@@ -34,7 +33,8 @@ async fn should_report_remote_control_status_as_off() {
 
 #[tokio::test]
 async fn should_treat_set_steering_as_no_op_when_off() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_remote_control",
         "should_treat_set_steering_as_no_op_when_off",
         |ctx| {
@@ -60,7 +60,8 @@ async fn should_treat_set_steering_as_no_op_when_off() {
 
 #[tokio::test]
 async fn should_report_not_stopped_when_remote_control_is_off() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_remote_control",
         "should_report_not_stopped_when_remote_control_is_off",
         |ctx| {
@@ -85,7 +86,8 @@ async fn should_report_not_stopped_when_remote_control_is_off() {
 
 #[tokio::test]
 async fn should_reject_transfer_when_off_with_compare_and_swap() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_remote_control",
         "should_reject_transfer_when_off_with_compare_and_swap",
         |ctx| {
@@ -116,7 +118,8 @@ async fn should_reject_transfer_when_off_with_compare_and_swap() {
 
 #[tokio::test]
 async fn should_reach_runtime_when_starting_remote_control_for_unknown_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_server_remote_control",
         "should_reach_runtime_when_starting_remote_control_for_unknown_session",
         |ctx| {
@@ -177,3 +180,5 @@ fn assert_not_unhandled(message: &str) {
         "{message}"
     );
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_server_remote_control", 5);

@@ -1657,6 +1657,55 @@ public sealed class UserPromptSubmittedHookOutput
 }
 
 /// <summary>
+/// Input for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the prompt was transformed.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The user prompt after any user-prompt-submitted hooks have run.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The model-facing prompt after runtime transformations.
+    /// </summary>
+    [JsonPropertyName("transformedPrompt")]
+    public string TransformedPrompt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Output for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookOutput
+{
+    /// <summary>
+    /// Replacement model-facing prompt to persist and send to the model.
+    /// </summary>
+    [JsonPropertyName("modifiedTransformedPrompt")]
+    public string? ModifiedTransformedPrompt { get; set; }
+}
+
+/// <summary>
 /// Input for a session-start hook.
 /// </summary>
 public sealed class SessionStartHookInput
@@ -1966,6 +2015,11 @@ public sealed class SessionHooks
     /// Handler called when the user submits a prompt.
     /// </summary>
     public Func<UserPromptSubmittedHookInput, HookInvocation, Task<UserPromptSubmittedHookOutput?>>? OnUserPromptSubmitted { get; set; }
+
+    /// <summary>
+    /// Handler called after the runtime transforms a submitted prompt and before it is stored.
+    /// </summary>
+    public Func<UserPromptTransformedHookInput, HookInvocation, Task<UserPromptTransformedHookOutput?>>? OnUserPromptTransformed { get; set; }
 
     /// <summary>
     /// Handler called when a session starts.
@@ -3110,7 +3164,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Reasoning effort level for models that support it.
-    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Valid values: "low", "medium", "high", "xhigh", "max".
     /// Only applies to models where capabilities.supports.reasoningEffort is true.
     /// </summary>
     public string? ReasoningEffort { get; set; }

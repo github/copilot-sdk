@@ -173,6 +173,9 @@ from .session import (
     UserPromptSubmittedHandler,
     UserPromptSubmittedHookInput,
     UserPromptSubmittedHookOutput,
+    UserPromptTransformedHandler,
+    UserPromptTransformedHookInput,
+    UserPromptTransformedHookOutput,
 )
 from .session_fs_provider import (
     SessionFsFileInfo,
@@ -362,6 +365,9 @@ __all__ = [
     "UserPromptSubmittedHandler",
     "UserPromptSubmittedHookInput",
     "UserPromptSubmittedHookOutput",
+    "UserPromptTransformedHandler",
+    "UserPromptTransformedHookInput",
+    "UserPromptTransformedHookOutput",
     "convert_mcp_call_tool_result",
     "create_session_fs_adapter",
     "define_tool",

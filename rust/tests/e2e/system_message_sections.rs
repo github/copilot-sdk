@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use github_copilot_sdk::{SectionOverride, SystemMessageConfig};
 
-use super::support::{assistant_message_content, with_e2e_context};
+use super::support::assistant_message_content;
 
 #[tokio::test]
 async fn should_use_replaced_identity_section_in_response() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "system_message_sections",
         "should_use_replaced_identity_section_in_response",
         |ctx| {
@@ -60,7 +61,8 @@ async fn should_use_replaced_identity_section_in_response() {
 
 #[tokio::test]
 async fn should_use_replaced_preamble_section_in_response() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "system_message_sections",
         "should_use_replaced_preamble_section_in_response",
         |ctx| {
@@ -111,3 +113,5 @@ async fn should_use_replaced_preamble_section_in_response() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("system_message_sections", 2);

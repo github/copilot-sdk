@@ -1,10 +1,9 @@
 use github_copilot_sdk::rpc::UIEphemeralQueryRequest;
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_answer_ephemeral_query() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_ui_ephemeral_query",
         "should_answer_ephemeral_query",
         |ctx| {
@@ -36,3 +35,5 @@ async fn should_answer_ephemeral_query() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_ui_ephemeral_query", 1);

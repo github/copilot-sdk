@@ -110,6 +110,7 @@ import com.github.copilot.rpc.UserInputInvocation;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.rpc.UserPromptSubmittedHookInput;
+import com.github.copilot.rpc.UserPromptTransformedHookInput;
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -1869,6 +1870,17 @@ public final class CopilotSession implements AutoCloseable {
                         return promptResult.thenApply(output -> (Object) output);
                     }
                     break;
+                case "userPromptTransformed" :
+                    if (hooks.getOnUserPromptTransformed() != null) {
+                        UserPromptTransformedHookInput transformedInput = MAPPER.treeToValue(input,
+                                UserPromptTransformedHookInput.class);
+                        var transformedResult = hooks.getOnUserPromptTransformed().handle(transformedInput, invocation);
+                        if (transformedResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return transformedResult.thenApply(output -> (Object) output);
+                    }
+                    break;
                 case "sessionStart" :
                     if (hooks.getOnSessionStart() != null) {
                         SessionStartHookInput startInput = MAPPER.treeToValue(input, SessionStartHookInput.class);
@@ -1972,7 +1984,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated
@@ -2003,7 +2016,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @param modelCapabilities
      *            per-property overrides for model capabilities; {@code null} to use
      *            runtime defaults

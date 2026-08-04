@@ -4391,7 +4391,7 @@ impl LogOptions {
 #[derive(Debug, Clone, Default)]
 pub struct SetModelOptions {
     /// Reasoning effort for the new model (e.g. `"low"`, `"medium"`,
-    /// `"high"`, `"xhigh"`).
+    /// `"high"`, `"xhigh"`, `"max"`).
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode for the new model. Use
     /// [`ReasoningSummary::None`] to suppress summary output regardless of

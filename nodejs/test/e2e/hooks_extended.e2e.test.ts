@@ -14,6 +14,7 @@ import type {
     SessionEndHookInput,
     SessionStartHookInput,
     UserPromptSubmittedHookInput,
+    UserPromptTransformedHookInput,
 } from "../../src/types.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -165,6 +166,36 @@ describe("Extended session hooks", async () => {
         );
         expect(inputs[0].prompt).toContain("Say something else");
         expect(response?.data.content ?? "").toContain("HOOKED_PROMPT");
+
+        await session.disconnect();
+    });
+
+    it("should invoke userPromptTransformed hook and modify transformed prompt", async () => {
+        const inputs: UserPromptTransformedHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onUserPromptTransformed: async (input, invocation) => {
+                    inputs.push(input);
+                    expect(invocation.sessionId).toBeTruthy();
+                    return {
+                        modifiedTransformedPrompt: "Reply with exactly: HOOKED_TRANSFORMED_PROMPT",
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Answer the request above.",
+        });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(inputs[0].prompt).toContain("Answer the request above.");
+        expect(inputs[0].transformedPrompt).toContain("Answer the request above.");
+        expect(inputs[0].transformedPrompt).toContain("<current_datetime>");
+        expect(inputs[0].timestamp).toBeInstanceOf(Date);
+        expect(inputs[0].workingDirectory).toBeDefined();
+        expect(response?.data.content ?? "").toContain("HOOKED_TRANSFORMED_PROMPT");
 
         await session.disconnect();
     });
