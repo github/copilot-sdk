@@ -162,7 +162,10 @@ final class FakeUpstreamServer implements AutoCloseable {
 
     private void serveWebSocket(InputStream in, OutputStream out, Map<String, String> headers) throws Exception {
         String key = headers.get("sec-websocket-key");
-        MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
+        // SHA-1 is mandated by the WebSocket protocol (RFC 6455 §4.2.2) for the
+        // Sec-WebSocket-Accept handshake hash. This is NOT used for security purposes.
+        @SuppressWarnings("codeql[java/weak-cryptographic-algorithm]")
+        MessageDigest sha1 = MessageDigest.getInstance("SHA-1"); // lgtm[java/weak-cryptographic-algorithm]
         byte[] digest = sha1.digest((key + WS_MAGIC).getBytes(StandardCharsets.US_ASCII));
         String accept = Base64.getEncoder().encodeToString(digest);
         String response = "HTTP/1.1 101 Switching Protocols\r\n" + "Upgrade: websocket\r\n" + "Connection: Upgrade\r\n"
