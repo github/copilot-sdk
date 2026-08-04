@@ -163,15 +163,24 @@ pub async fn with_shared_e2e_context<F>(
             .unwrap_or_else(|err| panic!("create shared E2E context: {err}"));
         let _env_guard = InProcessEnvGuard::activate(&context);
         let options = (group.client_options)(&context);
-        let client = SHARED_E2E_RUNTIME
-            .spawn(async move {
-                let client = Client::start(options).await?;
-                client.start_router_for_test();
-                Ok::<_, github_copilot_sdk::Error>(client)
-            })
-            .await
-            .expect("join shared E2E client startup")
-            .expect("start shared E2E client");
+        let mut startup = SHARED_E2E_RUNTIME.spawn(async move {
+            let client = Client::start(options).await?;
+            client.start_router_for_test();
+            Ok::<_, github_copilot_sdk::Error>(client)
+        });
+        let client = match tokio::time::timeout(default_test_timeout(), &mut startup).await {
+            Ok(result) => result
+                .expect("join shared E2E client startup")
+                .expect("start shared E2E client"),
+            Err(_) => {
+                startup.abort();
+                let _ = tokio::time::timeout(SHARED_E2E_CLEANUP_TIMEOUT, startup).await;
+                panic!(
+                    "timed out after {:?} starting shared E2E client",
+                    default_test_timeout()
+                );
+            }
+        };
         *state = Some(SharedE2eState { context, client });
     }
 
@@ -331,6 +340,10 @@ pub async fn skip_shared_e2e_inprocess(group: &'static SharedE2eGroup, reason: &
         return false;
     }
 
+    let _permit = E2E_CONCURRENCY
+        .acquire()
+        .await
+        .expect("E2E concurrency semaphore should stay open");
     let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
     if completed == group.expected_invocations
         && let Some(state) = group.state.lock().await.take()
@@ -501,6 +514,7 @@ impl E2eContext {
     /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
     /// runtime cdylib), so a `.js` entrypoint is not split into node +
     /// prefix_args here.
+    #[cfg_attr(not(feature = "bundled-in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)
@@ -1276,21 +1290,44 @@ impl CapiProxy {
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
             };
             if let Some(captures) = re.captures(&line) {
-                let metadata: serde_json::Value =
-                    serde_json::from_str(captures.get(2).unwrap().as_str())?;
-                let connect_proxy_url = metadata
-                    .get("connectProxyUrl")
-                    .and_then(|value| value.as_str())
-                    .expect("connectProxyUrl")
-                    .to_string();
-                let ca_file_path = metadata
-                    .get("caFilePath")
-                    .and_then(|value| value.as_str())
-                    .expect("caFilePath")
-                    .to_string();
+                let parsed = (|| {
+                    let proxy_url = captures
+                        .get(1)
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup line missing URL capture")
+                        })?
+                        .as_str()
+                        .to_string();
+                    let metadata_text = captures.get(2).ok_or_else(|| {
+                        std::io::Error::other("proxy startup line missing metadata capture")
+                    })?;
+                    let metadata: serde_json::Value = serde_json::from_str(metadata_text.as_str())?;
+                    let connect_proxy_url = metadata
+                        .get("connectProxyUrl")
+                        .and_then(|value| value.as_str())
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup metadata missing connectProxyUrl")
+                        })?
+                        .to_string();
+                    let ca_file_path = metadata
+                        .get("caFilePath")
+                        .and_then(|value| value.as_str())
+                        .ok_or_else(|| {
+                            std::io::Error::other("proxy startup metadata missing caFilePath")
+                        })?
+                        .to_string();
+                    Ok::<_, std::io::Error>((proxy_url, connect_proxy_url, ca_file_path))
+                })();
+                let (proxy_url, connect_proxy_url, ca_file_path) = match parsed {
+                    Ok(metadata) => metadata,
+                    Err(error) => {
+                        kill_and_wait_child(&mut child);
+                        return Err(error);
+                    }
+                };
                 return Ok(Self {
                     child: Some(child),
-                    proxy_url: captures.get(1).unwrap().as_str().to_string(),
+                    proxy_url,
                     connect_proxy_url,
                     ca_file_path,
                 });
