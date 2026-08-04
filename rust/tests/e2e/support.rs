@@ -501,7 +501,6 @@ impl E2eContext {
     /// `node <entrypoint> --embedded-host` argv itself and loads the sibling
     /// runtime cdylib), so a `.js` entrypoint is not split into node +
     /// prefix_args here.
-    #[expect(dead_code, reason = "used by the bundled in-process E2E target")]
     pub async fn start_inprocess_client(&self) -> Client {
         let options = ClientOptions::new().with_transport(Transport::InProcess);
         Client::start(options)
