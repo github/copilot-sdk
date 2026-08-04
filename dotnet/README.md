@@ -1043,9 +1043,18 @@ catch (Exception ex)
 Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download). From the repository root:
 
 ```bash
-(cd nodejs && npm ci)
-(cd test/harness && npm ci)
-cd dotnet && dotnet test
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd dotnet
+GITHUB_ACTIONS=true dotnet test
 ```
 
 ## License

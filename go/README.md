@@ -983,9 +983,18 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 From the repository root:
 
 ```bash
-(cd nodejs && npm ci)
-(cd test/harness && npm ci)
-cd go && ./test.sh
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd go
+GITHUB_ACTIONS=true ./test.sh
 ```
 
 ## License

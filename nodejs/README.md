@@ -1114,8 +1114,14 @@ try {
 From the repository root:
 
 ```bash
-(cd test/harness && npm ci)
-cd nodejs && npm ci && npm test
+cd test/harness
+npm ci
+```
+
+```bash
+cd nodejs
+npm ci
+GITHUB_ACTIONS=true npm test
 ```
 
 ## License

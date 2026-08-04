@@ -42,7 +42,7 @@ Setup, build, and test instructions are maintained with each SDK:
 - [Go](go/README.md#development)
 - [.NET](dotnet/README.md#development)
 - [Rust](rust/README.md#development)
-- [Java](java/README.md#development)
+- [Java](java/README.md#development-setup)
 
 ## Submitting a Pull Request
 

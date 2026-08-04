@@ -971,6 +971,16 @@ github-copilot-sdk = { version = "0.1", features = ["derive"] }
 From the repository root:
 
 ```bash
-(cd test/harness && npm ci)
-cd rust && cargo test
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd rust
+cargo test --features test-support
 ```

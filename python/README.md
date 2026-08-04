@@ -1148,7 +1148,17 @@ When `on_elicitation_request` is provided, the SDK automatically:
 Install [uv](https://docs.astral.sh/uv/), then from the repository root:
 
 ```bash
-(cd nodejs && npm ci)
-(cd test/harness && npm ci)
-cd python && uv sync && uv run pytest
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd python
+uv sync
+GITHUB_ACTIONS=true uv run pytest
 ```
