@@ -713,10 +713,8 @@ fn wait_for_child_exit(child: &mut Child) -> std::io::Result<()> {
         if child.try_wait()?.is_some() {
             return Ok(());
         }
-
         if Instant::now() >= deadline {
-            child.kill()?;
-            let _ = child.wait();
+            kill_and_wait_child(child);
             return Err(std::io::Error::other(format!(
                 "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for child process"
             )));
@@ -726,8 +724,27 @@ fn wait_for_child_exit(child: &mut Child) -> std::io::Result<()> {
 }
 
 fn kill_and_wait_child(child: &mut Child) {
-    let _ = child.kill();
-    let _ = child.wait();
+    if let Err(error) = child.kill() {
+        eprintln!("failed to kill E2E child process: {error}");
+    }
+    let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) => {}
+            Err(error) => {
+                eprintln!("failed to inspect E2E child process after kill: {error}");
+                return;
+            }
+        }
+        if Instant::now() >= deadline {
+            eprintln!(
+                "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for killed E2E child process"
+            );
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
 }
 
 fn connect_with_timeout(host: &str, port: u16) -> std::io::Result<TcpStream> {
