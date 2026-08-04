@@ -76,12 +76,17 @@ func TestHooksExtendedE2E(t *testing.T) {
 	t.Run("should invoke userPromptTransformed hook and modify transformed prompt", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		var inputs []copilot.UserPromptTransformedHookInput
+		var (
+			mu     sync.Mutex
+			inputs []copilot.UserPromptTransformedHookInput
+		)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnUserPromptTransformed: func(input copilot.UserPromptTransformedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptTransformedHookOutput, error) {
+					mu.Lock()
 					inputs = append(inputs, input)
+					mu.Unlock()
 					if invocation.SessionID == "" {
 						t.Error("Expected non-empty session ID in invocation")
 					}
@@ -99,6 +104,9 @@ func TestHooksExtendedE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
 		if len(inputs) == 0 {
 			t.Fatal("Expected at least one userPromptTransformed hook invocation")
 		}
