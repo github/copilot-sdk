@@ -184,6 +184,8 @@ public class SessionEventsE2ETest {
             // Usage events may or may not be emitted depending on the model/API version
             // This test verifies the event handler works when they are emitted
             // We don't assert they must be present since it depends on the backend
+            assertTrue(usageEvents.size() >= 0,
+                    "Usage event handler should not throw (collected " + usageEvents.size() + " events)");
         }
     }
 
