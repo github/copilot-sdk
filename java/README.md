@@ -420,24 +420,21 @@ The gate also applies to individual methods annotated with `@CopilotExperimental
 
 > Want to add your project? Open a PR!
 
-### Development Setup
+## Development
 
-Requires JDK 25 or later for development. The following steps validate the artifact built with JDK 25 runs on both 25 and 17, preserving the MR-JAR behavior.
+Development requires JDK 25+, [Maven](https://maven.apache.org/download.cgi), and a supported [Node.js version](../nodejs/README.md#prerequisites). Testing the multi-release JAR also requires JDK 17.
 
 ```bash
-# Clone the repository
-git clone https://github.com/github/copilot-sdk.git
-cd copilot-sdk/java
-
-# Enable git hooks for code formatting
+# From the repository root
+cd java
 git config core.hooksPath .githooks
 
 # Build and test with JDK 25
 mvn test-compile jar:jar
+mvn spotless:check
 mvn verify -Dskip.test.harness=true
 
-# Set your paths for JDK 17
-# Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
+# Switch JAVA_HOME and PATH to JDK 17, then test without recompiling
 mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
 

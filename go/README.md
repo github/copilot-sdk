@@ -978,6 +978,23 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
 
+## Development
+
+Development requires Go 1.24+, [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation), and a supported [Node.js version](../nodejs/README.md#prerequisites) for the runtime and shared test harness. From the repository root:
+
+```bash
+cd go
+go mod download
+go fmt ./...
+golangci-lint run --timeout=5m
+cd ../nodejs
+npm ci --ignore-scripts
+cd ../test/harness
+npm ci --ignore-scripts
+cd ../../go
+./test.sh
+```
+
 ## License
 
 MIT

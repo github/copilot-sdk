@@ -1109,6 +1109,23 @@ try {
 }
 ```
 
+## Development
+
+Development requires a supported Node.js version listed in [Prerequisites](#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci --ignore-scripts
+npm run format:check
+npm run lint
+npm run typecheck
+npm run build
+cd ../test/harness
+npm ci --ignore-scripts
+cd ../../nodejs
+npm test
+```
+
 ## License
 
 MIT

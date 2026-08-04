@@ -1142,3 +1142,21 @@ When `on_elicitation_request` is provided, the SDK automatically:
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler
 - Auto-cancels if your handler throws an error (so the server doesn't hang)
+
+## Development
+
+Development requires Python 3.11+, [uv](https://docs.astral.sh/uv/), and a supported [Node.js version](../nodejs/README.md#prerequisites) for the runtime and shared test harness. From the repository root:
+
+```bash
+cd python
+uv sync --all-extras --dev
+uv run ruff format --check .
+uv run ruff check
+uv run ty check copilot
+cd ../nodejs
+npm ci --ignore-scripts
+cd ../test/harness
+npm ci --ignore-scripts
+cd ../../python
+uv run pytest -v -s
+```
