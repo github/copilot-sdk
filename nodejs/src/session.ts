@@ -720,19 +720,11 @@ export class CopilotSession {
             typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
 
-        let resolveIdle: () => void;
-        let rejectWithError: (error: Error) => void;
-        const idlePromise = new Promise<void>((resolve, reject) => {
-            resolveIdle = resolve;
-            rejectWithError = reject;
+        type SessionOutcome = { kind: "idle" } | { kind: "error"; error: Error };
+        let resolveOutcome: (outcome: SessionOutcome) => void;
+        const outcomePromise = new Promise<SessionOutcome>((resolve) => {
+            resolveOutcome = resolve;
         });
-        // A `session.error` can arrive while `send()`'s RPC is still in flight —
-        // that is, before the `Promise.race` below attaches the first consumer to
-        // `idlePromise`. Mark the promise handled now so such a rejection can never
-        // surface as an unhandled rejection, which terminates the process under
-        // Node's default `--unhandled-rejections=throw`. This extra `catch` does
-        // not consume the rejection: the `race` below still sees and rethrows it.
-        void idlePromise.catch(() => {});
 
         let lastAssistantMessage: AssistantMessageEvent | undefined;
 
@@ -742,11 +734,11 @@ export class CopilotSession {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle") {
-                resolveIdle();
+                resolveOutcome({ kind: "idle" });
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
-                rejectWithError(error);
+                resolveOutcome({ kind: "error", error });
             }
         });
 
@@ -765,7 +757,10 @@ export class CopilotSession {
                     effectiveTimeout
                 );
             });
-            await Promise.race([idlePromise, timeoutPromise]);
+            const outcome = await Promise.race([outcomePromise, timeoutPromise]);
+            if (outcome.kind === "error") {
+                throw outcome.error;
+            }
 
             return lastAssistantMessage;
         } finally {
