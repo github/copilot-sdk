@@ -223,8 +223,10 @@ pub async fn with_shared_e2e_context<F>(
         (result, cleanup_result)
     };
 
+    let test_succeeded = matches!(&result, Ok(Ok(Ok(()))));
     let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
-    let teardown_result = if cleanup_result.is_err()
+    let teardown_result = if !test_succeeded
+        || cleanup_result.is_err()
         || is_filtered_test_run()
         || completed == group.expected_invocations
     {

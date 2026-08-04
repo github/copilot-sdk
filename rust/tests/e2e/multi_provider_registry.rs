@@ -240,4 +240,4 @@ async fn should_route_delta_turbo_turn_to_its_provider_and_wire_model() {
     )
     .await;
 }
-static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard(CATEGORY, 2);
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard(CATEGORY, 4);

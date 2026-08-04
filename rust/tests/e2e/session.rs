@@ -1002,7 +1002,7 @@ async fn should_set_model_on_existing_session() {
 
 #[tokio::test]
 async fn should_set_model_with_reasoningeffort() {
-    super::support::with_shared_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
         &E2E,
         "session",
         "should_set_model_with_reasoningeffort",
@@ -1752,4 +1752,4 @@ fn secret_number_tool() -> Tool {
         .with_handler(Arc::new(SecretNumberTool))
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("session", 31);
+    super::support::SharedE2eGroup::standard("session", 30);

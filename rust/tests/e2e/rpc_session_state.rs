@@ -54,7 +54,7 @@ async fn should_call_session_rpc_model_getcurrent() {
 
 #[tokio::test]
 async fn should_call_session_rpc_model_switchto() {
-    super::support::with_shared_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
         &E2E,
         "rpc_session_state",
         "should_call_session_rpc_model_switchto",
@@ -1207,4 +1207,4 @@ fn assistant_message_content_if_present(
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("rpc_session_state", 23);
+    super::support::SharedE2eGroup::standard("rpc_session_state", 22);
