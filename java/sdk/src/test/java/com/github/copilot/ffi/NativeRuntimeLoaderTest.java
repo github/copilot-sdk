@@ -108,6 +108,35 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveFromCliPathReturnsPrebuildsPathWhenFlatRuntimeNodeIsMissing(@TempDir Path tempDir) throws Exception {
+        Path fakeCliPath = tempDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
+        Path prebuiltDir = tempDir.resolve("prebuilds").resolve(PlatformDetector.detectClassifier());
+        Files.createDirectories(prebuiltDir);
+        Path runtimeNode = prebuiltDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.write(runtimeNode, FAKE_BINARY_CONTENT);
+
+        Path result = NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString());
+
+        assertEquals(runtimeNode, result);
+    }
+
+    @Test
+    void resolveFromCliPathPrefersFlatRuntimeNodeOverPrebuildsPath(@TempDir Path tempDir) throws Exception {
+        Path fakeCliPath = tempDir.resolve("copilot");
+        Files.createFile(fakeCliPath);
+        Path flatRuntimeNode = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+        Files.write(flatRuntimeNode, FAKE_BINARY_CONTENT);
+        Path prebuiltDir = tempDir.resolve("prebuilds").resolve(PlatformDetector.detectClassifier());
+        Files.createDirectories(prebuiltDir);
+        Files.write(prebuiltDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), OTHER_BINARY_CONTENT);
+
+        Path result = NativeRuntimeLoader.resolveFromCliPath(fakeCliPath.toString());
+
+        assertEquals(flatRuntimeNode, result);
+    }
+
+    @Test
     void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath(@TempDir Path tempDir) throws Exception {
         Path workingDirectory = Path.of("").toAbsolutePath();
         Path fakeCliDir = tempDir.resolve("cli-dir");
