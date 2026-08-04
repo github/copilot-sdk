@@ -36,6 +36,6 @@ server.tool(
 
 const transport = new StdioServerTransport();
 if (startupMarkerPath) {
-  await appendFile(startupMarkerPath, `${serverName}\n`);
+    await appendFile(startupMarkerPath, `${serverName}\n`);
 }
 await server.connect(transport);
