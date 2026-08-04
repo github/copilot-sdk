@@ -11,7 +11,7 @@ import type {
 } from "openai/resources/chat/completions";
 import os from "os";
 import path from "path";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import yaml from "yaml";
 import {
   NormalizedData,
@@ -693,7 +693,7 @@ Always include PINEAPPLE_COCONUT_42.
     async function makeRequest(
       proxyUrl: string,
       requestPath: string,
-      options?: { method?: string; body?: object },
+      options?: { method?: string; body?: object; signal?: AbortSignal },
     ): Promise<{ status: number; body: string }> {
       return new Promise((resolve, reject) => {
         const url = new URL(proxyUrl);
@@ -704,6 +704,7 @@ Always include PINEAPPLE_COCONUT_42.
             path: requestPath,
             method: options?.method ?? "POST",
             headers: { "content-type": "application/json" },
+            signal: options?.signal,
           },
           (res) => {
             const chunks: Buffer[] = [];
@@ -728,17 +729,19 @@ Always include PINEAPPLE_COCONUT_42.
       toolCallId: string,
       content: string,
       toolArguments: string,
+      toolName = "view",
+      userContent = "Read the file",
     ) {
       return [
         { role: "system", content: "${system}" },
-        { role: "user", content: "Read the file" },
+        { role: "user", content: userContent },
         {
           role: "assistant",
           tool_calls: [
             {
               id: toolCallId,
               type: "function",
-              function: { name: "view", arguments: toolArguments },
+              function: { name: toolName, arguments: toolArguments },
             },
           ],
         },
@@ -750,27 +753,34 @@ Always include PINEAPPLE_COCONUT_42.
       savedContent: string,
       requestContent: string,
       toolArguments: string,
-      errorStatus?: number,
+      options?: {
+        errorStatus?: number;
+        savedToolName?: string;
+        requestToolName?: string;
+        requestUserContent?: string;
+        strict?: boolean;
+      },
     ) {
       const cachePath = path.join(tempDir, "cache.yaml");
       const savedMessages = viewMessages(
         "toolcall_0",
         savedContent,
         toolArguments,
+        options?.savedToolName,
       );
       const cacheContent = yaml.stringify({
         models: ["test-model"],
-        errors: errorStatus
+        errors: options?.errorStatus
           ? [
               {
                 model: "test-model",
-                status: errorStatus,
+                status: options.errorStatus,
                 message: "Expected error",
                 messages: savedMessages,
               },
             ]
           : undefined,
-        conversations: errorStatus
+        conversations: options?.errorStatus
           ? []
           : [{ messages: [...savedMessages, { role: "assistant", content: "Done" }] }],
       } satisfies NormalizedData);
@@ -782,6 +792,9 @@ Always include PINEAPPLE_COCONUT_42.
         workDir,
       );
       const proxyUrl = await proxy.start();
+      if (options?.strict) {
+        vi.stubEnv("GITHUB_ACTIONS", "true");
+      }
       try {
         return await makeRequest(proxyUrl, "/chat/completions", {
           body: {
@@ -790,6 +803,8 @@ Always include PINEAPPLE_COCONUT_42.
               "runtime-call-id",
               requestContent,
               toolArguments,
+              options?.requestToolName,
+              options?.requestUserContent,
             ).map((message) =>
               message.role === "system"
                 ? { ...message, content: "System prompt" }
@@ -798,6 +813,7 @@ Always include PINEAPPLE_COCONUT_42.
           },
         });
       } finally {
+        vi.unstubAllEnvs();
         await proxy.stop();
       }
     }
@@ -940,9 +956,92 @@ Always include PINEAPPLE_COCONUT_42.
         "1. Hello",
         "Hello",
         '{"path":"file"}',
-        429,
+        { errorStatus: 429 },
       );
       expect(response.status).toBe(429);
+    });
+
+    test.each([
+      {
+        name: "non-view tool",
+        savedContent: "1. Hello",
+        requestContent: "Hello",
+        arguments: '{"path":"file"}',
+        options: { savedToolName: "grep", requestToolName: "grep" },
+      },
+      {
+        name: "wrong starting line",
+        savedContent: "2. Hello",
+        requestContent: "Hello",
+        arguments: '{"path":"file"}',
+        options: {},
+      },
+      {
+        name: "changed user message",
+        savedContent: "1. Hello",
+        requestContent: "Hello",
+        arguments: '{"path":"file"}',
+        options: { requestUserContent: "Read a different file" },
+      },
+    ])(
+      "rejects legacy view compatibility for $name",
+      async ({ savedContent, requestContent, arguments: toolArguments, options }) => {
+        const response = await replayViewResult(
+          savedContent,
+          requestContent,
+          toolArguments,
+          { ...options, strict: true },
+        );
+        expect(response.status).toBe(500);
+      },
+    );
+
+    test("matches request-only snapshots with legacy numbered view results", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const toolArguments = '{"path":"file"}';
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: viewMessages(
+              "toolcall_0",
+              "1. Hello",
+              toolArguments,
+            ),
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+      try {
+        const result = await makeRequest(proxyUrl, "/chat/completions", {
+          signal: AbortSignal.timeout(50),
+          body: {
+            model: "test-model",
+            messages: viewMessages(
+              "runtime-call-id",
+              "Hello",
+              toolArguments,
+            ).map((message) =>
+              message.role === "system"
+                ? { ...message, content: "System prompt" }
+                : message,
+            ),
+          },
+        }).then(
+          (response) => `response:${response.status}`,
+          (error: Error) => error.name,
+        );
+        expect(result).toBe("AbortError");
+      } finally {
+        await proxy.stop();
+      }
     });
 
     test("matches shell tool results with shell ID completion markers", async () => {
