@@ -96,6 +96,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 var hooks = new SessionHooks().setOnUserPromptTransformed((input, invocation) ->
     CompletableFuture.completedFuture(
         new UserPromptTransformedHookOutput(redact(input.transformedPrompt()))));
+
+var session = client.createSession(new SessionConfig().setHooks(hooks)).get();
 ```
 
 </details>
@@ -116,6 +118,10 @@ impl SessionHooks for MyHooks {
         })
     }
 }
+
+let session = client
+    .create_session(SessionConfig::default().with_hooks(Arc::new(MyHooks)))
+    .await?;
 ```
 
 </details>
