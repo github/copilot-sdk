@@ -39,18 +39,20 @@ async fn should_list_no_checkpoints_for_fresh_session() {
 
 #[tokio::test]
 async fn should_return_null_or_empty_content_for_unknown_checkpoint() {
+    if super::support::skip_shared_e2e_inprocess(
+        &E2E,
+        "readCheckpoint decodes the id as u32 in-process",
+    )
+    .await
+    {
+        return;
+    }
     super::support::with_shared_e2e_context(
         &E2E,
         "rpc_workspace_checkpoints",
         "should_return_null_or_empty_content_for_unknown_checkpoint",
         |ctx| {
             Box::pin(async move {
-                // Count this invocation for shared-group teardown even when the
-                // native runtime cannot represent the checkpoint sentinel.
-                if super::support::skip_inprocess("readCheckpoint decodes the id as u32 in-process")
-                {
-                    return;
-                }
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client

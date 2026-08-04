@@ -257,7 +257,7 @@ async fn skippermission_sent_in_tool_definition() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let (permission_tx, mut permission_rx) = mpsc::unbounded_channel();
+                let (permission_tx, mut permission_requests) = mpsc::unbounded_channel();
                 let handler = Arc::new(RecordingPermissionHandler {
                     permission_tx,
                     decision: PermissionResult::reject(None),
@@ -283,7 +283,7 @@ async fn skippermission_sent_in_tool_definition() {
                 assert!(
                     tokio::time::timeout(
                         std::time::Duration::from_millis(100),
-                        permission_rx.recv()
+                        permission_requests.recv()
                     )
                     .await
                     .is_err(),

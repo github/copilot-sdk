@@ -420,7 +420,7 @@ async fn should_add_secret_filter_values() {
                     })
                     .await;
                 match result {
-                    Ok(result) => assert!(result.ok),
+                    Ok(response) => assert!(response.ok),
                     Err(err) => {
                         let message = err.to_string();
                         assert!(message.contains("COPILOT_ENABLE_SECRET_FILTERING"));

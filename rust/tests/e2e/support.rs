@@ -324,6 +324,23 @@ pub async fn with_dedicated_group_e2e_context<F>(
     with_dedicated_e2e_context(category, snapshot_name, test).await;
 }
 
+pub async fn skip_shared_e2e_inprocess(group: &'static SharedE2eGroup, reason: &str) -> bool {
+    if !skip_inprocess(reason) {
+        return false;
+    }
+
+    let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
+    if completed == group.expected_invocations
+        && let Some(state) = group.state.lock().await.take()
+    {
+        state
+            .shutdown_bounded()
+            .await
+            .unwrap_or_else(|error| panic!("tear down shared E2E group after skip: {error}"));
+    }
+    true
+}
+
 /// Run a dedicated one-client E2E test.
 ///
 /// New tests should call [`with_dedicated_e2e_context`] to make the lifecycle
@@ -691,6 +708,7 @@ fn wait_for_child_exit(child: &mut Child) -> std::io::Result<()> {
         if child.try_wait()?.is_some() {
             return Ok(());
         }
+
         if Instant::now() >= deadline {
             child.kill()?;
             let _ = child.wait();
@@ -700,6 +718,11 @@ fn wait_for_child_exit(child: &mut Child) -> std::io::Result<()> {
         }
         std::thread::sleep(Duration::from_millis(25));
     }
+}
+
+fn kill_and_wait_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn connect_with_timeout(host: &str, port: u16) -> std::io::Result<TcpStream> {
@@ -1206,8 +1229,13 @@ impl CapiProxy {
         let deadline = Instant::now() + SHARED_E2E_CLEANUP_TIMEOUT;
         while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
             let line = match line_rx.recv_timeout(remaining) {
-                Ok(line) => line?,
+                Ok(Ok(line)) => line,
+                Ok(Err(error)) => {
+                    kill_and_wait_child(&mut child);
+                    return Err(error);
+                }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    kill_and_wait_child(&mut child);
                     return Err(std::io::Error::other("proxy exited before startup"));
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
@@ -1233,14 +1261,14 @@ impl CapiProxy {
                 });
             }
             if line.contains("Listening: ") {
+                kill_and_wait_child(&mut child);
                 return Err(std::io::Error::other(format!(
                     "proxy startup line missing metadata: {line}"
                 )));
             }
         }
 
-        let _ = child.kill();
-        let _ = child.wait();
+        kill_and_wait_child(&mut child);
         Err(std::io::Error::other(format!(
             "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} waiting for proxy startup"
         )))

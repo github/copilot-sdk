@@ -2196,8 +2196,8 @@ impl Client {
         Ok(())
     }
 
-    /// Disconnect and delete every session owned by this test client's isolated
-    /// runtime. This is test-harness plumbing, not part of the supported SDK API.
+    /// Start this client's notification and request router on the current runtime.
+    /// This is test-harness plumbing, not part of the supported SDK API.
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn start_router_for_test(&self) {
@@ -2211,6 +2211,8 @@ impl Client {
 
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
+    /// Disconnect and delete every session owned by this test client's isolated
+    /// runtime. This is test-harness plumbing, not part of the supported SDK API.
     pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
         let mut first_error = None;
 
