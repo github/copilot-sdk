@@ -1972,7 +1972,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalStateException
      *             if this session has been terminated
@@ -2003,7 +2004,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the model ID to switch to (e.g., {@code "gpt-5.4"})
      * @param reasoningEffort
      *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
-     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     *            {@code "high"}, {@code "xhigh"}, {@code "max"}); {@code null} to
+     *            use default
      * @param modelCapabilities
      *            per-property overrides for model capabilities; {@code null} to use
      *            runtime defaults

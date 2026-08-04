@@ -1163,7 +1163,7 @@ type SessionConfig struct {
 	// Model to use for this session
 	Model string
 	// ReasoningEffort level for models that support it.
-	// Valid values: "low", "medium", "high", "xhigh"
+	// Valid values: "low", "medium", "high", "xhigh", "max"
 	// Only applies to models where capabilities.supports.reasoningEffort is true.
 	ReasoningEffort string
 	// ReasoningSummary mode for models that support configurable reasoning summaries.
@@ -1721,7 +1721,7 @@ type ResumeSessionConfig struct {
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// ReasoningEffort level for models that support it.
-	// Valid values: "low", "medium", "high", "xhigh"
+	// Valid values: "low", "medium", "high", "xhigh", "max"
 	ReasoningEffort string
 	// ReasoningSummary mode for models that support configurable reasoning summaries.
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
