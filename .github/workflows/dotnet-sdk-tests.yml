@@ -34,7 +34,9 @@ jobs:
             shard: full
         include:
           # Keep xUnit serial within each process, but split the slow Windows
-          # default-transport suite across two isolated test hosts.
+          # default-transport suite across two isolated test hosts. Keep both
+          # target frameworks in each shard: separate framework jobs did not
+          # shorten the critical path and doubled the Windows job count.
           - os: windows-latest
             transport: default
             backend: capi
