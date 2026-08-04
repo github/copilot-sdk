@@ -157,6 +157,7 @@ pub async fn with_shared_e2e_context<F>(
         .acquire()
         .await
         .expect("E2E concurrency semaphore should stay open");
+    let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
     if state.is_none() {
         let context = E2eContext::new(group.category, snapshot_name)
             .await
@@ -233,7 +234,6 @@ pub async fn with_shared_e2e_context<F>(
     };
 
     let test_succeeded = matches!(&result, Ok(Ok(Ok(()))));
-    let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
     let teardown_result = if !test_succeeded
         || cleanup_result.is_err()
         || is_filtered_test_run()
