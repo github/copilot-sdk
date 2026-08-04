@@ -341,13 +341,14 @@ pub async fn skip_shared_e2e_inprocess(group: &'static SharedE2eGroup, reason: &
         return false;
     }
 
+    let mut state = group.state.lock().await;
     let _permit = E2E_CONCURRENCY
         .acquire()
         .await
         .expect("E2E concurrency semaphore should stay open");
     let completed = group.completed_invocations.fetch_add(1, Ordering::Relaxed) + 1;
     if completed == group.expected_invocations
-        && let Some(state) = group.state.lock().await.take()
+        && let Some(state) = state.take()
     {
         state
             .shutdown_bounded(false)
