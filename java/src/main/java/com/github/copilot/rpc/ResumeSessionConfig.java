@@ -68,6 +68,7 @@ public class ResumeSessionConfig {
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
+    private List<String> additionalDirectories;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
@@ -684,7 +685,8 @@ public class ResumeSessionConfig {
     /**
      * Gets the reasoning effort level.
      *
-     * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
+     * @return the reasoning effort level ("low", "medium", "high", "xhigh", or
+     *         "max")
      */
     public String getReasoningEffort() {
         return reasoningEffort;
@@ -693,7 +695,7 @@ public class ResumeSessionConfig {
     /**
      * Sets the reasoning effort level for models that support it.
      * <p>
-     * Valid values: "low", "medium", "high", "xhigh".
+     * Valid values: "low", "medium", "high", "xhigh", "max".
      *
      * @param reasoningEffort
      *            the reasoning effort level
@@ -856,6 +858,27 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+        return this;
+    }
+
+    /**
+     * Gets the directories the agent may access beyond the working directory.
+     *
+     * @return the additional directory paths
+     */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets directories the agent may access beyond the working directory.
+     *
+     * @param additionalDirectories
+     *            the additional directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
         return this;
     }
 
@@ -1902,6 +1925,9 @@ public class ResumeSessionConfig {
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
+        copy.additionalDirectories = this.additionalDirectories != null
+                ? new ArrayList<>(this.additionalDirectories)
+                : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;

@@ -164,6 +164,46 @@ class TestPermissionHandlerOptional:
 
 class TestCreateSessionConfig:
     @pytest.mark.asyncio
+    async def test_additional_directories_forwarded_on_create_and_resume(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured: list[tuple[str, dict]] = []
+
+            async def mock_request(method, params, **kwargs):
+                captured.append((method, params))
+                if method == "session.create":
+                    result = {"sessionId": params["sessionId"], "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                if method == "session.resume":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            client._client.request = mock_request
+            await client.create_session(
+                session_id="create-with-additional-directories",
+                additional_directories=["/repo/shared", "/repo/generated"],
+            )
+            await client.resume_session(
+                "resume-with-additional-directories",
+                additional_directories=["/repo/resumed"],
+            )
+
+            create_payload = next(
+                params for method, params in captured if method == "session.create"
+            )
+            resume_payload = next(
+                params for method, params in captured if method == "session.resume"
+            )
+            assert create_payload["additionalDirectories"] == ["/repo/shared", "/repo/generated"]
+            assert resume_payload["additionalDirectories"] == ["/repo/resumed"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_mcp_auth_handler_registers_interest_in_create_session(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()

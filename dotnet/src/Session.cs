@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -263,7 +263,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     ///     Prompt = "Explain this code",
     ///     Attachments = new List&lt;Attachment&gt;
     ///     {
-    ///         new() { Type = "file", Path = "./Program.cs" }
+    ///         new AttachmentFile { Path = "./Program.cs", DisplayName = "Program.cs" }
     ///     }
     /// });
     /// </code>
@@ -1790,7 +1790,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
     /// <param name="model">Model ID to switch to (e.g., "gpt-5.4").</param>
-    /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
+    /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh", "max").</param>
     /// <param name="modelCapabilities">Per-property overrides for model capabilities, deep-merged over runtime defaults.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>

@@ -1769,7 +1769,7 @@ func (s *Session) Abort(ctx context.Context) error {
 
 // SetModelOptions configures optional parameters for SetModel.
 type SetModelOptions struct {
-	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh").
+	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh", "max").
 	ReasoningEffort *string
 	// ReasoningSummary sets the reasoning summary mode for the new model.
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.

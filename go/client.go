@@ -803,6 +803,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.EnvValueMode = "direct"
@@ -1165,6 +1166,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.ConfigDir = config.ConfigDirectory
 	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval

@@ -161,6 +161,8 @@ pub(crate) struct SessionCreateWire {
     pub config_dir: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -303,6 +305,8 @@ pub(crate) struct SessionResumeWire {
     pub config_dir: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_directories: Option<Vec<PathBuf>>,
     #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

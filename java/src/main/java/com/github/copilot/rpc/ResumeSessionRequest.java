@@ -97,6 +97,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("workingDirectory")
     private String workingDirectory;
 
+    @JsonProperty("additionalDirectories")
+    private List<String> additionalDirectories;
+
     @JsonProperty("configDir")
     private String configDirectory;
 
@@ -505,6 +508,21 @@ public final class ResumeSessionRequest {
     /** Sets working directory. @param workingDirectory the working directory */
     public void setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+    }
+
+    /** Gets additional directories. @return the additional directories */
+    public List<String> getAdditionalDirectories() {
+        return additionalDirectories;
+    }
+
+    /**
+     * Sets additional directories.
+     *
+     * @param additionalDirectories
+     *            the additional directories
+     */
+    public void setAdditionalDirectories(List<String> additionalDirectories) {
+        this.additionalDirectories = additionalDirectories;
     }
 
     /** Gets config directory. @return the config directory */

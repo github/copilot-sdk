@@ -1823,7 +1823,7 @@ export interface LargeToolOutputConfig {
 /**
  * Valid reasoning effort levels for models that support it.
  */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /**
  * Context window tier for the session. "long_context" pins the session to the
@@ -2410,6 +2410,13 @@ export interface SessionConfigBase {
      * Tool operations will be relative to this directory.
      */
     workingDirectory?: string;
+
+    /**
+     * Additional directories the agent may access beyond the working directory.
+     * Relative paths are resolved against the session's working directory.
+     * Re-supply these directories when resuming a session.
+     */
+    additionalDirectories?: string[];
 
     /**
      * Enable streaming of assistant message and reasoning chunks.

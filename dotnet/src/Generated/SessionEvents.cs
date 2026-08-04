@@ -86,6 +86,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
+[JsonDerivedType(typeof(SessionContextClearedEvent), "session.context_cleared")]
 [JsonDerivedType(typeof(SessionCustomAgentsUpdatedEvent), "session.custom_agents_updated")]
 [JsonDerivedType(typeof(SessionCustomNotificationEvent), "session.custom_notification")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
@@ -516,6 +517,19 @@ public sealed partial class SessionUsageInfoEvent : SessionEvent
     /// <summary>The <c>session.usage_info</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionUsageInfoData Data { get; set; }
+}
+
+/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
+/// <remarks>Represents the <c>session.context_cleared</c> event.</remarks>
+public sealed partial class SessionContextClearedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.context_cleared";
+
+    /// <summary>The <c>session.context_cleared</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionContextClearedData Data { get; set; }
 }
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
@@ -2029,7 +2043,7 @@ public sealed partial class SessionWarningData
 /// <summary>Model change details including previous and new model identifiers.</summary>
 public sealed partial class SessionModelChangeData
 {
-    /// <summary>Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.</summary>
+    /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
     public string? Cause { get; set; }
@@ -2412,6 +2426,19 @@ public sealed partial class SessionUsageInfoData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public long? ToolDefinitionsTokens { get; set; }
+}
+
+/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
+public sealed partial class SessionContextClearedData
+{
+    /// <summary>Optional initial message set after clearing.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("initialMessage")]
+    public string? InitialMessage { get; set; }
+
+    /// <summary>Number of conversation messages that were cleared.</summary>
+    [JsonPropertyName("messagesCleared")]
+    public required long MessagesCleared { get; set; }
 }
 
 /// <summary>Context window breakdown at the start of LLM-powered conversation compaction.</summary>
@@ -13025,6 +13052,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]
 [JsonSerializable(typeof(SessionContextChangedEvent))]
+[JsonSerializable(typeof(SessionContextClearedData))]
+[JsonSerializable(typeof(SessionContextClearedEvent))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedData))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedEvent))]
 [JsonSerializable(typeof(SessionCustomNotificationData))]

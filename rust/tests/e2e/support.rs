@@ -637,6 +637,9 @@ impl E2eContext {
                     .as_os_str()
                     .to_owned(),
             ),
+        ]);
+        env.extend(isolated_cache_environment(self.home_dir.path()));
+        env.extend([
             ("COPILOT_MCP_APPS".into(), "true".into()),
             ("MCP_APPS".into(), "true".into()),
             ("GH_TOKEN".into(), DEFAULT_TEST_TOKEN.into()),
@@ -1197,6 +1200,20 @@ fn canonical_temp_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+fn isolated_cache_environment(path: &Path) -> [(OsString, OsString); 2] {
+    let home_dir = canonical_temp_path(path);
+    let cache_dir = home_dir.join(".cache");
+    // COPILOT_HOME does not redirect platform cache paths, so isolate the cache
+    // to prevent concurrent CLI processes from sharing mutable startup state.
+    [
+        (
+            "COPILOT_CACHE_HOME".into(),
+            cache_dir.join("copilot").into_os_string(),
+        ),
+        ("XDG_CACHE_HOME".into(), cache_dir.into_os_string()),
+    ]
+}
+
 struct CapiProxy {
     child: Option<Child>,
     proxy_url: String,
@@ -1440,4 +1457,26 @@ fn node_program() -> &'static str {
 
 fn npx_program() -> &'static str {
     if cfg!(windows) { "npx.cmd" } else { "npx" }
+}
+
+#[test]
+fn e2e_context_isolates_copilot_cache() {
+    let home_dir = tempfile::tempdir().expect("create test home");
+    let home_dir = canonical_temp_path(home_dir.path());
+    let cache_dir = home_dir.join(".cache");
+    let expected = [
+        ("COPILOT_CACHE_HOME", cache_dir.join("copilot")),
+        ("XDG_CACHE_HOME", cache_dir),
+    ];
+
+    let environment = isolated_cache_environment(&home_dir);
+
+    for (key, value) in expected {
+        assert!(
+            environment.iter().any(|(actual_key, actual_value)| {
+                actual_key == key && actual_value == value.as_os_str()
+            }),
+            "{key} should use the isolated test home"
+        );
+    }
 }
