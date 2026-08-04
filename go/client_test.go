@@ -1049,9 +1049,11 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		"outputDir":    "/tmp/large-output",
 	}
 	expectedPluginDirs := []any{"/tmp/plugins/a", "/tmp/plugins/b"}
+	expectedDisabledMCPServers := []any{"local-files", "remote-github"}
+	disabledMCPServers := []string{"local-files", "remote-github"}
 
 	t.Run("create includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
-		req := createSessionRequest{PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		req := createSessionRequest{PluginDirectories: pluginDirs, DisabledMCPServers: &disabledMCPServers, LargeOutput: largeOutput}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -1062,6 +1064,9 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		}
 		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
 			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["disabledMcpServers"], expectedDisabledMCPServers) {
+			t.Errorf("Expected disabledMcpServers %v, got %v", expectedDisabledMCPServers, m["disabledMcpServers"])
 		}
 		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
 			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
@@ -1069,7 +1074,7 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 
 	t.Run("resume includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, DisabledMCPServers: &disabledMCPServers, LargeOutput: largeOutput}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -1081,8 +1086,33 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
 			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
 		}
+		if !reflect.DeepEqual(m["disabledMcpServers"], expectedDisabledMCPServers) {
+			t.Errorf("Expected disabledMcpServers %v, got %v", expectedDisabledMCPServers, m["disabledMcpServers"])
+		}
 		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
 			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("create and resume include explicit empty disabledMcpServers", func(t *testing.T) {
+		emptyDisabledMCPServers := []string{}
+		requests := []any{
+			createSessionRequest{DisabledMCPServers: &emptyDisabledMCPServers},
+			resumeSessionRequest{SessionID: "s1", DisabledMCPServers: &emptyDisabledMCPServers},
+		}
+
+		for _, request := range requests {
+			data, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var m map[string]any
+			if err := json.Unmarshal(data, &m); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			if value, ok := m["disabledMcpServers"]; !ok || !reflect.DeepEqual(value, []any{}) {
+				t.Errorf("Expected explicit empty disabledMcpServers, got %v", value)
+			}
 		}
 	})
 
@@ -1099,8 +1129,26 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		if _, ok := m["pluginDirectories"]; ok {
 			t.Errorf("Expected pluginDirectories to be omitted")
 		}
+		if _, ok := m["disabledMcpServers"]; ok {
+			t.Error("Expected disabledMcpServers to be omitted")
+		}
 		if _, ok := m["largeOutput"]; ok {
 			t.Errorf("Expected largeOutput to be omitted")
+		}
+	})
+
+	t.Run("resume omits disabledMcpServers when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["disabledMcpServers"]; ok {
+			t.Error("Expected disabledMcpServers to be omitted")
 		}
 	})
 }

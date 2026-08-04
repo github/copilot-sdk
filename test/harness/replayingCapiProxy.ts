@@ -416,6 +416,51 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
+        // Keep GitHub MCP tests hermetic while still capturing the request at
+        // the CAPI proxy. The tests only need a successful transport handshake;
+        // no fake tools are exposed.
+        if (options.requestOptions.path === "/mcp") {
+          if (options.requestOptions.method !== "POST") {
+            options.onResponseStart(200, commonResponseHeaders);
+            options.onResponseEnd();
+            return;
+          }
+
+          const request = JSON.parse(options.body ?? "{}") as {
+            id?: string | number;
+            method?: string;
+            params?: { protocolVersion?: string };
+          };
+          if (request.id === undefined) {
+            options.onResponseStart(202, commonResponseHeaders);
+            options.onResponseEnd();
+            return;
+          }
+
+          const result =
+            request.method === "initialize"
+              ? {
+                  protocolVersion:
+                    request.params?.protocolVersion ?? "2025-03-26",
+                  capabilities: { tools: {} },
+                  serverInfo: { name: "e2e-github-mcp", version: "1.0.0" },
+                }
+              : request.method === "tools/list"
+                ? { tools: [] }
+                : {};
+          options.onResponseStart(200, {
+            "content-type": "application/json",
+            ...commonResponseHeaders,
+          });
+          options.onData(
+            Buffer.from(
+              JSON.stringify({ jsonrpc: "2.0", id: request.id, result }),
+            ),
+          );
+          options.onResponseEnd();
+          return;
+        }
+
         // Handle memory endpoints - return stub responses in tests
         // Matches: /agents/*/memory/*/enabled, /agents/*/memory/*/recent, etc.
         if (options.requestOptions.path?.match(/\/agents\/.*\/memory\//)) {

@@ -897,6 +897,7 @@ describe("CopilotClient", () => {
             });
 
         const pluginDirs = ["/tmp/plugins/a", "/tmp/plugins/b"];
+        const disabledMcpServers = ["local-files", "remote-github"];
         const largeOutput = {
             enabled: true,
             maxSizeBytes: 1024,
@@ -911,11 +912,13 @@ describe("CopilotClient", () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             pluginDirectories: pluginDirs,
+            disabledMcpServers,
             largeOutput,
         });
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             pluginDirectories: pluginDirs,
+            disabledMcpServers,
             largeOutput,
         });
 
@@ -926,8 +929,10 @@ describe("CopilotClient", () => {
             ([method]) => method === "session.resume"
         )![1] as any;
         expect(createPayload.pluginDirectories).toEqual(pluginDirs);
+        expect(createPayload.disabledMcpServers).toEqual(disabledMcpServers);
         expect(createPayload.largeOutput).toEqual(expectedWireLargeOutput);
         expect(resumePayload.pluginDirectories).toEqual(pluginDirs);
+        expect(resumePayload.disabledMcpServers).toEqual(disabledMcpServers);
         expect(resumePayload.largeOutput).toEqual(expectedWireLargeOutput);
     });
 

@@ -2491,6 +2491,13 @@ export interface SessionConfigBase {
     disabledSkills?: string[];
 
     /**
+     * Exact MCP server names to disable for this session. Disabled servers are not
+     * started or authenticated when creating or cold-resuming a session. Supplying
+     * this on a resident resume cannot stop servers that are already running.
+     */
+    disabledMcpServers?: string[];
+
+    /**
      * Infinite session configuration for persistent workspaces and automatic compaction.
      * When enabled (default), sessions automatically manage context limits and persist state.
      * Set to `{ enabled: false }` to disable.

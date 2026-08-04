@@ -411,12 +411,14 @@ public class SerializationTests
             createRequestType,
             ("SessionId", "session-id"),
             ("PluginDirectories", pluginDirs),
+            ("DisabledMcpServers", new List<string> { "local-files", "remote-github" }),
             ("LargeOutput", largeOutput));
 
         var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
         using var createDocument = JsonDocument.Parse(createJson);
         var createRoot = createDocument.RootElement;
         Assert.Equal("/tmp/plugins/a", createRoot.GetProperty("pluginDirectories")[0].GetString());
+        Assert.Equal("local-files", createRoot.GetProperty("disabledMcpServers")[0].GetString());
         Assert.Equal("/tmp/plugins/b", createRoot.GetProperty("pluginDirectories")[1].GetString());
         var createLargeOutput = createRoot.GetProperty("largeOutput");
         Assert.True(createLargeOutput.GetProperty("enabled").GetBoolean());
@@ -428,12 +430,14 @@ public class SerializationTests
             resumeRequestType,
             ("SessionId", "session-id"),
             ("PluginDirectories", pluginDirs),
+            ("DisabledMcpServers", new List<string> { "local-files", "remote-github" }),
             ("LargeOutput", largeOutput));
 
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
         var resumeRoot = resumeDocument.RootElement;
         Assert.Equal("/tmp/plugins/a", resumeRoot.GetProperty("pluginDirectories")[0].GetString());
+        Assert.Equal("local-files", resumeRoot.GetProperty("disabledMcpServers")[0].GetString());
         var resumeLargeOutput = resumeRoot.GetProperty("largeOutput");
         Assert.True(resumeLargeOutput.GetProperty("enabled").GetBoolean());
         Assert.Equal(1024, resumeLargeOutput.GetProperty("maxSizeBytes").GetInt64());

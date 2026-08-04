@@ -2062,6 +2062,7 @@ class CopilotClient:
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
+        disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
         memory: MemoryConfiguration | None = None,
@@ -2187,6 +2188,10 @@ class CopilotClient:
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
+            disabled_mcp_servers: Exact MCP server names to disable only for this
+                session. Disabled servers are not started or authenticated on
+                create or cold resume; a resident resume cannot stop servers
+                already running. This does not change global MCP settings.
             infinite_sessions: Infinite session configuration.
             memory: Session memory configuration.
             cloud: Creates a remote session in the cloud instead of a local
@@ -2485,6 +2490,8 @@ class CopilotClient:
         # Add disabled skills configuration if provided
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+        if disabled_mcp_servers is not None:
+            payload["disabledMcpServers"] = disabled_mcp_servers
 
         # Add infinite sessions configuration if provided
         if infinite_sessions:
@@ -2751,6 +2758,7 @@ class CopilotClient:
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
+        disabled_mcp_servers: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         large_output: LargeToolOutputConfig | None = None,
         memory: MemoryConfiguration | None = None,
@@ -2877,6 +2885,10 @@ class CopilotClient:
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
+            disabled_mcp_servers: Exact MCP server names to disable only for this
+                session. Disabled servers are not started or authenticated on
+                create or cold resume; a resident resume cannot stop servers
+                already running. This does not change global MCP settings.
             infinite_sessions: Infinite session configuration.
             memory: Session memory configuration.
             on_event: Callback for session events.
@@ -3144,6 +3156,8 @@ class CopilotClient:
             payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+        if disabled_mcp_servers is not None:
+            payload["disabledMcpServers"] = disabled_mcp_servers
 
         if infinite_sessions:
             wire_config: dict[str, Any] = {}

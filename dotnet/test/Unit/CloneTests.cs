@@ -98,6 +98,7 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
             PluginDirectories = ["/plugins"],
             LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
             Memory = new MemoryConfiguration { Enabled = true },
@@ -136,6 +137,7 @@ public class CloneTests
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
+        Assert.Equal(original.DisabledMcpServers, clone.DisabledMcpServers);
         Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
         Assert.Same(original.LargeOutput, clone.LargeOutput);
         Assert.Same(original.Memory, clone.Memory);
@@ -157,6 +159,7 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
         };
 
         var clone = original.Clone();
@@ -170,6 +173,7 @@ public class CloneTests
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
+        clone.DisabledMcpServers!.Add("server99");
 
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
@@ -180,6 +184,7 @@ public class CloneTests
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
+        Assert.Single(original.DisabledMcpServers!);
     }
 
     [Fact]
@@ -206,6 +211,7 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            DisabledMcpServers = ["server1"],
         };
 
         var clone = original.Clone();
@@ -219,6 +225,7 @@ public class CloneTests
         clone.SkillDirectories!.Add("/more");
         clone.InstructionDirectories!.Add("/more-instructions");
         clone.DisabledSkills!.Add("skill99");
+        clone.DisabledMcpServers!.Add("server99");
 
         // Original is unaffected
         Assert.Single(original.AvailableTools!);
@@ -229,6 +236,7 @@ public class CloneTests
         Assert.Single(original.SkillDirectories!);
         Assert.Single(original.InstructionDirectories!);
         Assert.Single(original.DisabledSkills!);
+        Assert.Single(original.DisabledMcpServers!);
     }
 
     [Fact]
@@ -289,6 +297,7 @@ public class CloneTests
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.InstructionDirectories);
         Assert.Null(clone.DisabledSkills);
+        Assert.Null(clone.DisabledMcpServers);
         Assert.Null(clone.Tools);
         Assert.Null(clone.DefaultAgent);
         Assert.True(clone.IncludeSubAgentStreamingEvents);
