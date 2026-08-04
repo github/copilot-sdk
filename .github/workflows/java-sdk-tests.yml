@@ -44,7 +44,6 @@ jobs:
       - name: Run Java SDK tests (InProcess)
         env:
           CI: "true"
-          COPILOT_SDK_DEFAULT_CONNECTION: inprocess
         run: mvn clean verify -Pinprocess
 
       - name: Generate Test Report Summary
