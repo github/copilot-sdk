@@ -422,20 +422,10 @@ The gate also applies to individual methods annotated with `@CopilotExperimental
 
 ## Development
 
-Development requires JDK 25+, [Maven](https://maven.apache.org/download.cgi), and a supported [Node.js version](../nodejs/README.md#prerequisites). Testing the multi-release JAR also requires JDK 17.
+Development requires JDK 25+ and [Maven](https://maven.apache.org/download.cgi). From the repository root:
 
 ```bash
-# From the repository root
-cd java
-git config core.hooksPath .githooks
-
-# Build and test with JDK 25
-mvn test-compile jar:jar
-mvn spotless:check
-mvn verify -Dskip.test.harness=true
-
-# Switch JAVA_HOME and PATH to JDK 17, then test without recompiling
-mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
+cd java && mvn verify
 ```
 
 ## License

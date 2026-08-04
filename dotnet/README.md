@@ -1040,18 +1040,12 @@ catch (Exception ex)
 
 ## Development
 
-Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download) and a supported [Node.js version](../nodejs/README.md#prerequisites) for the runtime and shared test harness. From the repository root:
+Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download). From the repository root:
 
 ```bash
-cd nodejs
-npm ci --ignore-scripts
-cd ../test/harness
-npm ci --ignore-scripts
-cd ../../dotnet
-dotnet restore
-dotnet format --verify-no-changes
-dotnet build --no-restore
-dotnet test --no-build -v n
+(cd nodejs && npm ci)
+(cd test/harness && npm ci)
+cd dotnet && dotnet test
 ```
 
 ## License

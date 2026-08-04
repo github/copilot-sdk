@@ -1145,18 +1145,10 @@ When `on_elicitation_request` is provided, the SDK automatically:
 
 ## Development
 
-Development requires Python 3.11+, [uv](https://docs.astral.sh/uv/), and a supported [Node.js version](../nodejs/README.md#prerequisites) for the runtime and shared test harness. From the repository root:
+Install [uv](https://docs.astral.sh/uv/), then from the repository root:
 
 ```bash
-cd python
-uv sync --all-extras --dev
-uv run ruff format --check .
-uv run ruff check
-uv run ty check copilot
-cd ../nodejs
-npm ci --ignore-scripts
-cd ../test/harness
-npm ci --ignore-scripts
-cd ../../python
-uv run pytest -v -s
+(cd nodejs && npm ci)
+(cd test/harness && npm ci)
+cd python && uv sync && uv run pytest
 ```

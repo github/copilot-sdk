@@ -968,19 +968,9 @@ github-copilot-sdk = { version = "0.1", features = ["derive"] }
 
 ## Development
 
-The repository pins Rust 1.94.0 in `rust-toolchain.toml`. The tests also require a supported [Node.js version](../nodejs/README.md#prerequisites) for the shared test harness. Formatting requires the pinned nightly toolchain:
-
-```bash
-rustup toolchain install nightly-2026-04-14 --component rustfmt
-```
-
 From the repository root:
 
 ```bash
-cd test/harness
-npm ci --ignore-scripts
-cd ../../rust
-cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
-cargo clippy --all-targets --features test-support,bundled-in-process -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
-cargo test
+(cd test/harness && npm ci)
+cd rust && cargo test
 ```
