@@ -93,9 +93,10 @@ public class CapiProxy implements AutoCloseable {
         // Start the harness server using npx tsx
         // On Windows, npx is installed as npx.cmd which requires cmd /c to launch
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        String npxPath = resolveCommand(isWindows ? "npx.cmd" : "npx");
         var pb = isWindows
-                ? new ProcessBuilder("cmd", "/c", "npx", "tsx", "server.ts")
-                : new ProcessBuilder("npx", "tsx", "server.ts");
+                ? new ProcessBuilder(System.getenv("COMSPEC"), "/c", npxPath, "tsx", "server.ts")
+                : new ProcessBuilder(npxPath, "tsx", "server.ts");
         pb.directory(harnessDir.toFile());
         pb.redirectErrorStream(false);
         // Tell the replaying proxy to fail fast on unmatched requests rather than
@@ -514,6 +515,24 @@ public class CapiProxy implements AutoCloseable {
         }
 
         return null;
+    }
+
+    /**
+     * Resolves a command name to its absolute path by searching the system
+     * {@code PATH}. Falls back to the original name if not found.
+     */
+    private static String resolveCommand(String command) {
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv == null) {
+            return command;
+        }
+        for (String dir : pathEnv.split(java.io.File.pathSeparator)) {
+            Path candidate = Path.of(dir, command);
+            if (java.nio.file.Files.isExecutable(candidate)) {
+                return candidate.toAbsolutePath().toString();
+            }
+        }
+        return command;
     }
 
     /**
