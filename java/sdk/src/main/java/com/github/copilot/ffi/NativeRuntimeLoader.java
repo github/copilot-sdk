@@ -177,6 +177,12 @@ public final class NativeRuntimeLoader {
 
     /**
      * Checks for {@code runtime.node} alongside the configured CLI.
+     *
+     * <p>
+     * Checks, in order, the flat bundled layout ({@code runtime.node} directly next
+     * to the CLI) and the npm package layout
+     * ({@code prebuilds/<classifier>/runtime.node} next to the CLI), matching the
+     * two layouts the {@code @github/copilot-<platform>} packages may ship.
      */
     static Path resolveFromCliPath(String cliPathStr) throws IOException {
         if (cliPathStr == null || cliPathStr.isBlank()) {
@@ -184,10 +190,18 @@ public final class NativeRuntimeLoader {
         }
         Path cliPath = Path.of(cliPathStr).toAbsolutePath().normalize();
         Path parent = cliPath.getParent();
-        Path candidate = parent.resolve(RUNTIME_FILENAME);
-        if (Files.isRegularFile(candidate) && Files.size(candidate) > 0) {
-            return candidate;
+
+        Path flat = parent.resolve(RUNTIME_FILENAME);
+        if (Files.isRegularFile(flat) && Files.size(flat) > 0) {
+            return flat;
         }
+
+        Path prebuilt = parent.resolve("prebuilds").resolve(PlatformDetector.detectClassifier())
+                .resolve(RUNTIME_FILENAME);
+        if (Files.isRegularFile(prebuilt) && Files.size(prebuilt) > 0) {
+            return prebuilt;
+        }
+
         return null;
     }
 
