@@ -724,6 +724,84 @@ Always include PINEAPPLE_COCONUT_42.
       });
     }
 
+    function viewMessages(
+      toolCallId: string,
+      content: string,
+      toolArguments: string,
+    ) {
+      return [
+        { role: "system", content: "${system}" },
+        { role: "user", content: "Read the file" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: toolCallId,
+              type: "function",
+              function: { name: "view", arguments: toolArguments },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: toolCallId, content },
+      ];
+    }
+
+    async function replayViewResult(
+      savedContent: string,
+      requestContent: string,
+      toolArguments: string,
+      errorStatus?: number,
+    ) {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const savedMessages = viewMessages(
+        "toolcall_0",
+        savedContent,
+        toolArguments,
+      );
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        errors: errorStatus
+          ? [
+              {
+                model: "test-model",
+                status: errorStatus,
+                message: "Expected error",
+                messages: savedMessages,
+              },
+            ]
+          : undefined,
+        conversations: errorStatus
+          ? []
+          : [{ messages: [...savedMessages, { role: "assistant", content: "Done" }] }],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+      try {
+        return await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: viewMessages(
+              "runtime-call-id",
+              requestContent,
+              toolArguments,
+            ).map((message) =>
+              message.role === "system"
+                ? { ...message, content: "System prompt" }
+                : message,
+            ),
+          },
+        });
+      } finally {
+        await proxy.stop();
+      }
+    }
+
     test("returns cached response when request matches prefix", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
@@ -818,6 +896,53 @@ Always include PINEAPPLE_COCONUT_42.
       } finally {
         await proxy.stop();
       }
+    });
+
+    test.each([
+      {
+        savedContent: "1. Hello\n2. World\n3.",
+        requestContent: "Hello\nWorld",
+        arguments: '{"path":"file"}',
+      },
+      {
+        savedContent: "2. second\n3. third\n4. fourth",
+        requestContent: "second\nthird\nfourth",
+        arguments: '{"path":"file","view_range":[2,4]}',
+      },
+      {
+        savedContent: "1.",
+        requestContent: "",
+        arguments: '{"path":"empty"}',
+      },
+      {
+        savedContent: '1. {\n2.   "b": 2,\n3.   "a": 1\n4. }',
+        requestContent: '{"a":1,"b":2}',
+        arguments: '{"path":"data.json"}',
+      },
+    ])(
+      "matches view results across the line-number output transition",
+      async ({ savedContent, requestContent, arguments: toolArguments }) => {
+        const response = await replayViewResult(
+          savedContent,
+          requestContent,
+          toolArguments,
+        );
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      },
+    );
+
+    test("matches cached errors with legacy numbered view results", async () => {
+      const response = await replayViewResult(
+        "1. Hello",
+        "Hello",
+        '{"path":"file"}',
+        429,
+      );
+      expect(response.status).toBe(429);
     });
 
     test("matches shell tool results with shell ID completion markers", async () => {

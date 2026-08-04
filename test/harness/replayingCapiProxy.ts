@@ -687,7 +687,15 @@ function diagnoseMatchFailure(
     // Find the first message that doesn't match
     let mismatchIndex = -1;
     for (let i = 0; i < requestMessages.length; i++) {
-      if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
+      if (
+        !normalizedMessagesEqual(
+          requestMessages[i],
+          saved[i],
+          requestMessages,
+          saved,
+          i,
+        )
+      ) {
         mismatchIndex = i;
         break;
       }
@@ -830,7 +838,14 @@ async function findSavedChatCompletionError(
     if (
       requestMessages.length === error.messages.length &&
       requestMessages.every(
-        (msg, i) => JSON.stringify(msg) === JSON.stringify(error.messages[i]),
+        (msg, i) =>
+          normalizedMessagesEqual(
+            msg,
+            error.messages[i],
+            requestMessages,
+            error.messages,
+            i,
+          ),
       )
     ) {
       return error;
@@ -860,7 +875,13 @@ async function isRequestOnlySnapshot(
       requestMessages.length === conversation.messages.length &&
       requestMessages.every(
         (msg, i) =>
-          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+          normalizedMessagesEqual(
+            msg,
+            conversation.messages[i],
+            requestMessages,
+            conversation.messages,
+            i,
+          ),
       )
     ) {
       return true;
@@ -1201,27 +1222,7 @@ function transformOpenAIRequestMessage(
     }
     content = parts.join("\n") || undefined;
   } else if (m.role === "tool" && typeof m.content === "string") {
-    // If it's a JSON tool call result, normalize the whitespace and property ordering.
-    // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
-    // just the inner value so snapshots stay stable across envelope format changes.
-    try {
-      const parsed = JSON.parse(m.content);
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        parsed.resultType === "success" &&
-        "textResultForLlm" in parsed
-      ) {
-        content =
-          typeof parsed.textResultForLlm === "string"
-            ? parsed.textResultForLlm
-            : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
-      } else {
-        content = JSON.stringify(sortJsonKeys(parsed));
-      }
-    } catch {
-      content = m.content.trim();
-    }
+    content = normalizeToolMessageContent(m.content);
   } else if (typeof m.content === "string") {
     content = m.content;
   }
@@ -1552,7 +1553,15 @@ function findAssistantIndexAfterPrefix(
   for (let i = 0; i < requestMessages.length; i++) {
     const reqMsg = JSON.stringify(requestMessages[i]);
     const savedMsg = JSON.stringify(savedMessages[i]);
-    if (reqMsg !== savedMsg) {
+    if (
+      !normalizedMessagesEqual(
+        requestMessages[i],
+        savedMessages[i],
+        requestMessages,
+        savedMessages,
+        i,
+      )
+    ) {
       log(`mismatch at index ${i}:`);
       log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
       log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
@@ -1572,6 +1581,124 @@ function findAssistantIndexAfterPrefix(
 
   log(`no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`);
   return undefined;
+}
+
+function normalizedMessagesEqual(
+  requestMessage: NormalizedMessage,
+  savedMessage: NormalizedMessage,
+  requestMessages: NormalizedMessage[],
+  savedMessages: NormalizedMessage[],
+  index: number,
+): boolean {
+  if (JSON.stringify(requestMessage) === JSON.stringify(savedMessage)) {
+    return true;
+  }
+  if (
+    requestMessage.role !== "tool" ||
+    savedMessage.role !== "tool" ||
+    !requestMessage.tool_call_id ||
+    requestMessage.tool_call_id !== savedMessage.tool_call_id ||
+    typeof savedMessage.content !== "string"
+  ) {
+    return false;
+  }
+
+  const requestToolCall = findToolCall(
+    requestMessages,
+    index,
+    requestMessage.tool_call_id,
+  );
+  const savedToolCall = findToolCall(
+    savedMessages,
+    index,
+    requestMessage.tool_call_id,
+  );
+  if (
+    requestToolCall?.function?.name !== "view" ||
+    savedToolCall?.function?.name !== "view" ||
+    normalizeToolMessageContent(
+      stripLegacyViewLineNumbers(
+        savedMessage.content,
+        viewRangeStart(savedToolCall),
+      ) ?? "",
+    ) !== requestMessage.content
+  ) {
+    return false;
+  }
+
+  return (
+    JSON.stringify({ ...requestMessage, content: savedMessage.content }) ===
+    JSON.stringify(savedMessage)
+  );
+}
+
+function findToolCall(
+  messages: NormalizedMessage[],
+  beforeIndex: number,
+  toolCallId: string,
+): NormalizedToolCall | undefined {
+  for (let i = beforeIndex - 1; i >= 0; i--) {
+    const toolCall = messages[i].tool_calls?.find(
+      (candidate) => candidate.id === toolCallId,
+    );
+    if (toolCall) {
+      return toolCall;
+    }
+  }
+  return undefined;
+}
+
+function viewRangeStart(toolCall: NormalizedToolCall): number {
+  try {
+    const input = JSON.parse(toolCall.function?.arguments ?? "{}") as {
+      view_range?: unknown;
+    };
+    const start = Array.isArray(input.view_range) ? input.view_range[0] : 1;
+    return Number.isInteger(start) && start > 0 ? (start as number) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function stripLegacyViewLineNumbers(
+  content: string,
+  firstLineNumber: number,
+): string | undefined {
+  const stripped: string[] = [];
+  let expectedLineNumber = firstLineNumber;
+
+  for (const line of content.split("\n")) {
+    const match = /^(\d+)\.(?: (.*))?$/.exec(line);
+    if (!match || Number(match[1]) !== expectedLineNumber) {
+      return undefined;
+    }
+    expectedLineNumber++;
+    stripped.push(match[2] ?? "");
+  }
+
+  return stripped.join("\n").trim();
+}
+
+function normalizeToolMessageContent(content: string): string | undefined {
+  // If it's a JSON tool call result, normalize the whitespace and property ordering.
+  // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
+  // just the inner value so snapshots stay stable across envelope format changes.
+  try {
+    const parsed = JSON.parse(content);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.resultType === "success" &&
+      "textResultForLlm" in parsed
+    ) {
+      return typeof parsed.textResultForLlm === "string"
+        ? parsed.textResultForLlm
+        : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
+    }
+    return JSON.stringify(sortJsonKeys(parsed));
+  } catch {
+    return content.trim() || undefined;
+  }
 }
 
 function expandWorkDir(
