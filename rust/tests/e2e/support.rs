@@ -234,6 +234,7 @@ pub async fn with_shared_e2e_context<F>(
     };
 
     let test_succeeded = matches!(&result, Ok(Ok(Ok(()))));
+    let skip_writing_cache = !test_succeeded || cleanup_result.is_err();
     let teardown_result = if !test_succeeded
         || cleanup_result.is_err()
         || is_filtered_test_run()
@@ -242,7 +243,7 @@ pub async fn with_shared_e2e_context<F>(
         state
             .take()
             .expect("shared E2E state initialized")
-            .shutdown_bounded()
+            .shutdown_bounded(skip_writing_cache)
             .await
     } else {
         Ok(())
@@ -349,7 +350,7 @@ pub async fn skip_shared_e2e_inprocess(group: &'static SharedE2eGroup, reason: &
         && let Some(state) = group.state.lock().await.take()
     {
         state
-            .shutdown_bounded()
+            .shutdown_bounded(false)
             .await
             .unwrap_or_else(|error| panic!("tear down shared E2E group after skip: {error}"));
     }
@@ -695,7 +696,7 @@ impl SharedE2eState {
             })
     }
 
-    async fn shutdown_bounded(mut self) -> std::io::Result<()> {
+    async fn shutdown_bounded(mut self, skip_writing_cache: bool) -> std::io::Result<()> {
         let client_result =
             match tokio::time::timeout(SHARED_E2E_CLEANUP_TIMEOUT, self.client.stop()).await {
                 Ok(result) => result.map_err(|err| {
@@ -708,7 +709,7 @@ impl SharedE2eState {
                     )))
                 }
             };
-        let proxy_result = self.context.cleanup(false).await;
+        let proxy_result = self.context.cleanup(skip_writing_cache).await;
 
         match (client_result, proxy_result) {
             (Ok(()), Ok(())) => Ok(()),
