@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use github_copilot_sdk::MessageOptions;
 
-use super::support::{assistant_message_content, with_e2e_context};
+use super::support::assistant_message_content;
 
 /// Built-in tool tests spawn a real CLI subprocess and execute actual shell /
 /// file tools. Under concurrent Windows CI load (e2e runs 4-wide on a 4-vCPU
@@ -16,7 +16,8 @@ fn message(prompt: &str) -> MessageOptions {
 
 #[tokio::test]
 async fn should_capture_exit_code_in_output() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "builtin_tools",
         "should_capture_exit_code_in_output",
         |ctx| {
@@ -49,7 +50,7 @@ async fn should_capture_exit_code_in_output() {
 
 #[tokio::test]
 async fn should_capture_stderr_output() {
-    with_e2e_context("builtin_tools", "should_capture_stderr_output", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "builtin_tools", "should_capture_stderr_output", |ctx| {
         Box::pin(async move {
             if cfg!(windows) {
                 return;
@@ -77,7 +78,7 @@ async fn should_capture_stderr_output() {
 
 #[tokio::test]
 async fn should_read_file_with_line_range() {
-    with_e2e_context("builtin_tools", "should_read_file_with_line_range", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "builtin_tools", "should_read_file_with_line_range", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             std::fs::write(ctx.work_dir().join("lines.txt"), "line1\nline2\nline3\nline4\nline5\n")
@@ -106,7 +107,7 @@ async fn should_read_file_with_line_range() {
 
 #[tokio::test]
 async fn should_handle_nonexistent_file_gracefully() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "builtin_tools",
         "should_handle_nonexistent_file_gracefully",
         |ctx| {
@@ -144,7 +145,7 @@ async fn should_handle_nonexistent_file_gracefully() {
 
 #[tokio::test]
 async fn should_edit_a_file_successfully() {
-    with_e2e_context("builtin_tools", "should_edit_a_file_successfully", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "builtin_tools", "should_edit_a_file_successfully", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             std::fs::write(ctx.work_dir().join("edit_me.txt"), "Hello World\nGoodbye World\n")
@@ -171,7 +172,7 @@ async fn should_edit_a_file_successfully() {
 
 #[tokio::test]
 async fn should_create_a_new_file() {
-    with_e2e_context("builtin_tools", "should_create_a_new_file", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "builtin_tools", "should_create_a_new_file", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -196,7 +197,7 @@ async fn should_create_a_new_file() {
 
 #[tokio::test]
 async fn should_search_for_patterns_in_files() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "builtin_tools",
         "should_search_for_patterns_in_files",
         |ctx| {
@@ -229,7 +230,7 @@ async fn should_search_for_patterns_in_files() {
 
 #[tokio::test]
 async fn should_find_files_by_pattern() {
-    with_e2e_context("builtin_tools", "should_find_files_by_pattern", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "builtin_tools", "should_find_files_by_pattern", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let src = ctx.work_dir().join("src");
@@ -256,3 +257,5 @@ async fn should_find_files_by_pattern() {
     })
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("builtin_tools", 8);

@@ -1,11 +1,12 @@
 use github_copilot_sdk::rpc::{RemoteEnableRequest, RemoteSessionMode};
 use github_copilot_sdk::session_events::{SessionEventType, SessionRemoteSteerableChangedData};
 
-use super::support::{wait_for_event, with_e2e_context};
+use super::support::wait_for_event;
 
 #[tokio::test]
 async fn should_treat_remote_off_as_noop_or_implemented_error() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_remote",
         "should_treat_remote_off_as_noop_or_implemented_error",
         |ctx| {
@@ -45,7 +46,8 @@ async fn should_treat_remote_off_as_noop_or_implemented_error() {
 
 #[tokio::test]
 async fn should_treat_remote_disable_as_noop_or_implemented_error() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_remote",
         "should_treat_remote_disable_as_noop_or_implemented_error",
         |ctx| {
@@ -74,7 +76,8 @@ async fn should_treat_remote_disable_as_noop_or_implemented_error() {
 
 #[tokio::test]
 async fn should_notify_steerable_changed_event_and_persist_flag() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_remote",
         "should_notify_steerable_changed_event_and_persist_flag",
         |ctx| {
@@ -112,3 +115,5 @@ async fn should_notify_steerable_changed_event_and_persist_flag() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_remote", 3);

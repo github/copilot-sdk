@@ -2196,6 +2196,59 @@ impl Client {
         Ok(())
     }
 
+    /// Disconnect and delete every session owned by this test client's isolated
+    /// runtime. This is test-harness plumbing, not part of the supported SDK API.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn start_router_for_test(&self) {
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            self.inner.llm_inference.get().cloned(),
+            self.inner.on_github_telemetry.clone(),
+        );
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub async fn cleanup_sessions_for_test(&self) -> Result<()> {
+        let mut first_error = None;
+
+        for session_id in self.inner.router.session_ids() {
+            if let Err(error) = self
+                .call(
+                    "session.destroy",
+                    Some(serde_json::json!({ "sessionId": session_id })),
+                )
+                .await
+            {
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+            self.inner.router.unregister(&session_id);
+        }
+
+        match self.list_sessions(None).await {
+            Ok(sessions) => {
+                for session in sessions {
+                    if let Err(error) = self.delete_session(&session.session_id).await
+                        && first_error.is_none()
+                    {
+                        first_error = Some(error);
+                    }
+                }
+            }
+            Err(error) if first_error.is_none() => first_error = Some(error),
+            Err(_) => {}
+        }
+
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
+    }
+
     /// Return the ID of the most recently updated session, if any.
     ///
     /// Useful for resuming the last conversation when the session ID was

@@ -1,10 +1,9 @@
 use github_copilot_sdk::rpc::{LogRequest, SessionLogLevel};
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_return_empty_handoff_summary_for_fresh_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "compaction",
         "should_return_empty_handoff_summary_for_fresh_session",
         |ctx| {
@@ -34,7 +33,8 @@ async fn should_return_empty_handoff_summary_for_fresh_session() {
 
 #[tokio::test]
 async fn should_report_noop_when_cancelling_compaction_without_inflight_work() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "compaction",
         "should_report_noop_when_cancelling_compaction_without_inflight_work",
         |ctx| {
@@ -71,7 +71,8 @@ async fn should_report_noop_when_cancelling_compaction_without_inflight_work() {
 
 #[tokio::test]
 async fn should_summarize_for_handoff_after_non_ephemeral_log_event() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "compaction",
         "should_summarize_for_handoff_after_non_ephemeral_log_event",
         |ctx| {
@@ -111,3 +112,5 @@ async fn should_summarize_for_handoff_after_non_ephemeral_log_event() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("compaction", 3);

@@ -5,8 +5,6 @@ use github_copilot_sdk::{
 };
 use serde_json::Value;
 
-use super::support::with_e2e_context;
-
 const CATEGORY: &str = "multi_provider_registry";
 
 fn headers(provider: &str) -> HashMap<String, String> {
@@ -17,7 +15,8 @@ fn headers(provider: &str) -> HashMap<String, String> {
 
 #[tokio::test]
 async fn should_register_multiple_providers_with_custom_agents_bound_to_their_models() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         CATEGORY,
         "should_register_multiple_providers_with_custom_agents_bound_to_their_models",
         |ctx| {
@@ -124,7 +123,7 @@ async fn assert_routing(
     expected_wire_model: &'static str,
     expected_provider_header: &'static str,
 ) {
-    with_e2e_context(CATEGORY, snapshot_name, move |ctx| {
+    super::support::with_shared_e2e_context(&E2E, CATEGORY, snapshot_name, move |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -241,3 +240,4 @@ async fn should_route_delta_turbo_turn_to_its_provider_and_wire_model() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard(CATEGORY, 2);

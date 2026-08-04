@@ -1,13 +1,12 @@
 use github_copilot_sdk::SessionEvent;
 use github_copilot_sdk::session_events::SessionEventType;
 
-use super::support::{
-    assistant_message_content, collect_until_idle, event_types, with_e2e_context,
-};
+use super::support::{assistant_message_content, collect_until_idle, event_types};
 
 #[tokio::test]
 async fn should_use_tool_results_from_previous_turns() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "multi_turn",
         "should_use_tool_results_from_previous_turns",
         |ctx| {
@@ -52,7 +51,8 @@ async fn should_use_tool_results_from_previous_turns() {
 
 #[tokio::test]
 async fn should_handle_file_creation_then_reading_across_turns() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "multi_turn",
         "should_handle_file_creation_then_reading_across_turns",
         |ctx| {
@@ -154,3 +154,5 @@ fn index_of(
         .skip(start_index)
         .find_map(|(index, event)| (event.parsed_type() == event_type).then_some(index))
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("multi_turn", 2);
