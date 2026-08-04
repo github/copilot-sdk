@@ -63,6 +63,8 @@ pub enum SessionEventType {
     SessionContextChanged,
     #[serde(rename = "session.usage_info")]
     SessionUsageInfo,
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared,
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart,
     #[serde(rename = "session.compaction_complete")]
@@ -380,6 +382,8 @@ pub enum SessionEventData {
     SessionContextChanged(SessionContextChangedData),
     #[serde(rename = "session.usage_info")]
     SessionUsageInfo(SessionUsageInfoData),
+    #[serde(rename = "session.context_cleared")]
+    SessionContextCleared(SessionContextClearedData),
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart(SessionCompactionStartData),
     #[serde(rename = "session.compaction_complete")]
@@ -964,7 +968,7 @@ pub struct SessionWarningData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelChangeData {
-    /// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     /// Context tier after the model change; null explicitly clears a previously selected tier
@@ -1367,6 +1371,17 @@ pub struct SessionUsageInfoData {
     /// Token count from tool definitions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_definitions_tokens: Option<i64>,
+}
+
+/// Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextClearedData {
+    /// Optional initial message set after clearing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_message: Option<String>,
+    /// Number of conversation messages that were cleared
+    pub messages_cleared: i64,
 }
 
 /// Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction

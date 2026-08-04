@@ -131,6 +131,7 @@ const (
 	SessionEventTypeSessionCompactionComplete          SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart             SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged              SessionEventType = "session.context_changed"
+	SessionEventTypeSessionContextCleared              SessionEventType = "session.context_cleared"
 	SessionEventTypeSessionCustomAgentsUpdated         SessionEventType = "session.custom_agents_updated"
 	SessionEventTypeSessionCustomNotification          SessionEventType = "session.custom_notification"
 	SessionEventTypeSessionError                       SessionEventType = "session.error"
@@ -400,6 +401,19 @@ type SessionCompactionStartData struct {
 func (*SessionCompactionStartData) sessionEventData() {}
 func (*SessionCompactionStartData) Type() SessionEventType {
 	return SessionEventTypeSessionCompactionStart
+}
+
+// Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+type SessionContextClearedData struct {
+	// Optional initial message set after clearing
+	InitialMessage *string `json:"initialMessage,omitempty"`
+	// Number of conversation messages that were cleared
+	MessagesCleared int64 `json:"messagesCleared"`
+}
+
+func (*SessionContextClearedData) sessionEventData() {}
+func (*SessionContextClearedData) Type() SessionEventType {
+	return SessionEventTypeSessionContextCleared
 }
 
 // Conversation compaction results including success status, metrics, and optional error details
@@ -1004,7 +1018,7 @@ func (*ModelCallStartData) Type() SessionEventType { return SessionEventTypeMode
 
 // Model change details including previous and new model identifiers
 type SessionModelChangeData struct {
-	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
+	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`

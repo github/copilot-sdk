@@ -2988,6 +2988,10 @@ public sealed class InstalledPlugin
     [JsonPropertyName("source")]
     public JsonElement? Source { get; set; }
 
+    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
+    [JsonPropertyName("source_sha")]
+    public string? SourceSha { get; set; }
+
     /// <summary>Version installed (if available).</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
@@ -8554,6 +8558,10 @@ public sealed class SessionInstalledPlugin
     [JsonPropertyName("source")]
     public JsonElement? Source { get; set; }
 
+    /// <summary>Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs.</summary>
+    [JsonPropertyName("source_sha")]
+    public string? SourceSha { get; set; }
+
     /// <summary>Installed version, if known.</summary>
     [JsonPropertyName("version")]
     public string? Version { get; set; }
@@ -13085,6 +13093,28 @@ public sealed class HistorySummarizeForHandoffResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionHistorySummarizeForHandoffRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class HistoryClearContextResult
+{
+    /// <summary>Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation.</summary>
+    [JsonPropertyName("messagesCleared")]
+    public long MessagesCleared { get; set; }
+}
+
+/// <summary>Parameters for clearing the conversation and seeding the window that replaces it.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HistoryClearContextRequest
+{
+    /// <summary>First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -27662,6 +27692,19 @@ public sealed class HistoryApi
         var request = new SessionHistorySummarizeForHandoffRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<HistorySummarizeForHandoffResult>(_session.Rpc, "session.history.summarizeForHandoff", [request], cancellationToken);
     }
+
+    /// <summary>Clears the session's conversation history, keeping only system and developer messages, and seeds the fresh context window with a first user message. Must be called from inside a tool handler: the clear has to drop the results of the tool calls its wipe orphans, and it rejects when no tool call is in flight.</summary>
+    /// <param name="prompt">First user message of the fresh context window. Required: a cleared window holding only system and developer messages is not a conversation a model can answer, so every clear seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop exits, which is why the call must be made from inside a tool handler.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>What a successful clear removed. A clear that could not be applied rejects instead of reporting a count.</returns>
+    public async Task<HistoryClearContextResult> ClearContextAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        _session.ThrowIfDisposed();
+
+        var request = new HistoryClearContextRequest { SessionId = _session.SessionId, Prompt = prompt };
+        return await CopilotClient.InvokeRpcAsync<HistoryClearContextResult>(_session.Rpc, "session.history.clearContext", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Queue APIs.</summary>
@@ -29050,6 +29093,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
 [JsonSerializable(typeof(HistoryCancelBackgroundCompactionResult))]
+[JsonSerializable(typeof(HistoryClearContextRequest))]
+[JsonSerializable(typeof(HistoryClearContextResult))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistoryListRewindPointsResult))]

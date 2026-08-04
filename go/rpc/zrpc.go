@@ -3038,6 +3038,27 @@ type HistoryCancelBackgroundCompactionResult struct {
 	Cancelled bool `json:"cancelled"`
 }
 
+// Parameters for clearing the conversation and seeding the window that replaces it.
+// Experimental: HistoryClearContextRequest is part of an experimental API and may change or
+// be removed.
+type HistoryClearContextRequest struct {
+	// First user message of the fresh context window. Required: a cleared window holding only
+	// system and developer messages is not a conversation a model can answer, so every clear
+	// seeds the window it creates. Delivered by the enclosing turn driver once the agentic loop
+	// exits, which is why the call must be made from inside a tool handler.
+	Prompt string `json:"prompt"`
+}
+
+// What a successful clear removed. A clear that could not be applied rejects instead of
+// reporting a count.
+// Experimental: HistoryClearContextResult is part of an experimental API and may change or
+// be removed.
+type HistoryClearContextResult struct {
+	// Number of non-system, non-developer messages that were removed from the conversation.
+	// Zero only when the window already held no conversation.
+	MessagesCleared int64 `json:"messagesCleared"`
+}
+
 // Post-compaction context window usage breakdown
 // Experimental: HistoryCompactContextWindow is part of an experimental API and may change
 // or be removed.
@@ -3293,6 +3314,12 @@ type InstalledPlugin struct {
 	Name string `json:"name"`
 	// Source for direct repo installs (when marketplace is empty)
 	Source *InstalledPluginSource `json:"source,omitempty"`
+	// Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus
+	// its resolved source subtree — NOT a Git commit SHA) captured at marketplace
+	// install/update time. Auto-update compares it against the freshly recomputed fingerprint
+	// to detect a content change that does not bump the version. Absent for pre-existing
+	// installs and for direct (non-marketplace) installs.
+	SourceSha *string `json:"source_sha,omitempty"`
 	// Version installed (if available)
 	Version *string `json:"version,omitempty"`
 }
@@ -9143,6 +9170,12 @@ type SessionInstalledPlugin struct {
 	Name string `json:"name"`
 	// Source descriptor for direct repo installs (when marketplace is empty)
 	Source *SessionInstalledPluginSource `json:"source,omitempty"`
+	// Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus
+	// its resolved source subtree — NOT a Git commit SHA) captured at marketplace
+	// install/update time. Auto-update compares it against the freshly recomputed fingerprint
+	// to detect a content change that does not bump the version. Absent for pre-existing
+	// installs and for direct (non-marketplace) installs.
+	SourceSha *string `json:"source_sha,omitempty"`
 	// Installed version, if known
 	Version *string `json:"version,omitempty"`
 }
@@ -18195,6 +18228,34 @@ func (a *HistoryAPI) CancelBackgroundCompaction(ctx context.Context) (*HistoryCa
 		return nil, err
 	}
 	var result HistoryCancelBackgroundCompactionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ClearContext clears the session's conversation history, keeping only system and developer
+// messages, and seeds the fresh context window with a first user message. Must be called
+// from inside a tool handler: the clear has to drop the results of the tool calls its wipe
+// orphans, and it rejects when no tool call is in flight.
+//
+// RPC method: session.history.clearContext.
+//
+// Parameters: Parameters for clearing the conversation and seeding the window that replaces
+// it.
+//
+// Returns: What a successful clear removed. A clear that could not be applied rejects
+// instead of reporting a count.
+func (a *HistoryAPI) ClearContext(ctx context.Context, params *HistoryClearContextRequest) (*HistoryClearContextResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["prompt"] = params.Prompt
+	}
+	raw, err := a.client.Request(ctx, "session.history.clearContext", req)
+	if err != nil {
+		return nil, err
+	}
+	var result HistoryClearContextResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
