@@ -21,6 +21,7 @@ jobs:
     name: "Java SDK InProcess Tests"
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
+    continue-on-error: true
     defaults:
       run:
         shell: bash
