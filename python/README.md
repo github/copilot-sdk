@@ -1160,5 +1160,5 @@ npm ci
 ```bash
 cd python
 uv sync
-GITHUB_ACTIONS=true uv run pytest
+uv run pytest
 ```

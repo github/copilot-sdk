@@ -1121,7 +1121,7 @@ npm ci
 ```bash
 cd nodejs
 npm ci
-GITHUB_ACTIONS=true npm test
+npm test
 ```
 
 ## License

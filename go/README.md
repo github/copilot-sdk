@@ -994,7 +994,7 @@ npm ci
 
 ```bash
 cd go
-GITHUB_ACTIONS=true ./test.sh
+./test.sh
 ```
 
 ## License

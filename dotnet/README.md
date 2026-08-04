@@ -1054,7 +1054,7 @@ npm ci
 
 ```bash
 cd dotnet
-GITHUB_ACTIONS=true dotnet test
+dotnet test
 ```
 
 ## License
