@@ -17,15 +17,14 @@ use github_copilot_sdk::session_events::{
 };
 use serde_json::json;
 
-use super::support::{
-    assistant_message_content, wait_for_condition, wait_for_event, with_e2e_context,
-};
+use super::support::{assistant_message_content, wait_for_condition, wait_for_event};
 
 const MODEL_ID: &str = "claude-sonnet-4.5";
 
 #[tokio::test]
 async fn should_call_session_rpc_model_getcurrent() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_call_session_rpc_model_getcurrent",
         |ctx| {
@@ -55,7 +54,8 @@ async fn should_call_session_rpc_model_getcurrent() {
 
 #[tokio::test]
 async fn should_call_session_rpc_model_switchto() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_call_session_rpc_model_switchto",
         |ctx| {
@@ -107,7 +107,8 @@ async fn should_call_session_rpc_model_switchto() {
 
 #[tokio::test]
 async fn should_get_and_set_session_mode() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_get_and_set_session_mode",
         |ctx| {
@@ -146,7 +147,8 @@ async fn should_get_and_set_session_mode() {
 
 #[tokio::test]
 async fn should_shutdown_session_with_routine_type() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_shutdown_session_with_routine_type",
         |ctx| {
@@ -184,7 +186,8 @@ async fn should_shutdown_session_with_routine_type() {
 
 #[tokio::test]
 async fn should_set_and_get_each_session_mode_value() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_set_and_get_each_session_mode_value",
         |ctx| {
@@ -220,7 +223,8 @@ async fn should_set_and_get_each_session_mode_value() {
 
 #[tokio::test]
 async fn should_read_update_and_delete_plan() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_read_update_and_delete_plan",
         |ctx| {
@@ -285,7 +289,8 @@ async fn should_read_update_and_delete_plan() {
 
 #[tokio::test]
 async fn should_call_workspace_file_rpc_methods() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_call_workspace_file_rpc_methods",
         |ctx| {
@@ -342,7 +347,8 @@ async fn should_call_workspace_file_rpc_methods() {
 
 #[tokio::test]
 async fn should_reject_workspace_file_path_traversal() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_reject_workspace_file_path_traversal",
         |ctx| {
@@ -386,7 +392,8 @@ async fn should_reject_workspace_file_path_traversal() {
 
 #[tokio::test]
 async fn should_create_workspace_file_with_nested_path_auto_creating_dirs() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_create_workspace_file_with_nested_path_auto_creating_dirs",
         |ctx| {
@@ -428,7 +435,8 @@ async fn should_create_workspace_file_with_nested_path_auto_creating_dirs() {
 
 #[tokio::test]
 async fn should_report_error_reading_nonexistent_workspace_file() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_report_error_reading_nonexistent_workspace_file",
         |ctx| {
@@ -461,7 +469,8 @@ async fn should_report_error_reading_nonexistent_workspace_file() {
 
 #[tokio::test]
 async fn should_update_existing_workspace_file_with_update_operation() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_update_existing_workspace_file_with_update_operation",
         |ctx| {
@@ -516,7 +525,8 @@ async fn should_update_existing_workspace_file_with_update_operation() {
 
 #[tokio::test]
 async fn should_reject_empty_or_whitespace_session_name() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_reject_empty_or_whitespace_session_name",
         |ctx| {
@@ -551,7 +561,8 @@ async fn should_reject_empty_or_whitespace_session_name() {
 
 #[tokio::test]
 async fn should_emit_title_changed_event_each_time_name_set_is_called() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_emit_title_changed_event_each_time_name_set_is_called",
         |ctx| {
@@ -602,7 +613,8 @@ async fn should_emit_title_changed_event_each_time_name_set_is_called() {
 
 #[tokio::test]
 async fn should_get_and_set_session_metadata() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_call_metadata_snapshot_setworkingdirectory_and_recordcontextchange",
         |ctx| {
@@ -651,7 +663,8 @@ async fn should_get_and_set_session_metadata() {
 
 #[tokio::test]
 async fn should_call_metadata_snapshot_setworkingdirectory_and_recordcontextchange() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_get_and_set_session_metadata",
         |ctx| {
@@ -731,7 +744,8 @@ async fn should_call_metadata_snapshot_setworkingdirectory_and_recordcontextchan
 
 #[tokio::test]
 async fn should_update_options_and_initialize_session_services() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_update_options_and_initialize_session_services",
         |ctx| {
@@ -796,7 +810,8 @@ async fn should_update_options_and_initialize_session_services() {
 
 #[tokio::test]
 async fn should_set_reasoningeffort_and_auto_name() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_set_reasoningeffort_and_auto_name",
         |ctx| {
@@ -854,51 +869,57 @@ async fn should_set_reasoningeffort_and_auto_name() {
 
 #[tokio::test]
 async fn should_set_auth_credentials() {
-    with_e2e_context("rpc_session_state", "should_set_auth_credentials", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let token = "rpc-session-auth-token";
-            ctx.set_copilot_user_by_token_with_login(token, "rpc-session-user");
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "rpc_session_state",
+        "should_set_auth_credentials",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let token = "rpc-session-auth-token";
+                ctx.set_copilot_user_by_token_with_login(token, "rpc-session-user");
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let set = session
-                .rpc()
-                .git_hub_auth()
-                .set_credentials(SessionSetCredentialsParams {
-                    credentials: Some(json!({
-                        "type": "user",
-                        "host": "github.com",
-                        "login": "rpc-session-user"
-                    })),
-                })
-                .await
-                .expect("set credentials");
-            assert!(set.success);
-            let status = session
-                .rpc()
-                .git_hub_auth()
-                .get_status()
-                .await
-                .expect("auth status");
-            assert!(status.is_authenticated);
-            assert_eq!(status.auth_type, Some(AuthInfoType::User));
-            assert_eq!(status.host.as_deref(), Some("github.com"));
-            assert_eq!(status.login.as_deref(), Some("rpc-session-user"));
+                let set = session
+                    .rpc()
+                    .git_hub_auth()
+                    .set_credentials(SessionSetCredentialsParams {
+                        credentials: Some(json!({
+                            "type": "user",
+                            "host": "github.com",
+                            "login": "rpc-session-user"
+                        })),
+                    })
+                    .await
+                    .expect("set credentials");
+                assert!(set.success);
+                let status = session
+                    .rpc()
+                    .git_hub_auth()
+                    .get_status()
+                    .await
+                    .expect("auth status");
+                assert!(status.is_authenticated);
+                assert_eq!(status.auth_type, Some(AuthInfoType::User));
+                assert_eq!(status.host.as_deref(), Some("github.com"));
+                assert_eq!(status.login.as_deref(), Some("rpc-session-user"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_fork_session_with_persisted_messages() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_fork_session_with_persisted_messages",
         |ctx| {
@@ -956,7 +977,8 @@ async fn should_fork_session_with_persisted_messages() {
 
 #[tokio::test]
 async fn should_report_error_when_forking_session_to_unknown_event_id() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_report_error_when_forking_session_to_unknown_event_id",
         |ctx| {
@@ -992,7 +1014,8 @@ async fn should_report_error_when_forking_session_to_unknown_event_id() {
 
 #[tokio::test]
 async fn should_call_session_usage_and_permission_rpcs() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_call_session_usage_and_permission_rpcs",
         |ctx| {
@@ -1039,7 +1062,8 @@ async fn should_call_session_usage_and_permission_rpcs() {
 
 #[tokio::test]
 async fn should_report_implemented_errors_for_unsupported_session_rpc_paths() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_report_implemented_errors_for_unsupported_session_rpc_paths",
         |ctx| {
@@ -1075,7 +1099,8 @@ async fn should_report_implemented_errors_for_unsupported_session_rpc_paths() {
 
 #[tokio::test]
 async fn should_compact_session_history_after_messages() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state",
         "should_compact_session_history_after_messages",
         |ctx| {
@@ -1181,3 +1206,5 @@ fn assistant_message_content_if_present(
         None
     }
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_session_state", 22);

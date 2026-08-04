@@ -8,7 +8,7 @@ use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
-use super::support::{assistant_message_content, recv_with_timeout, with_e2e_context};
+use super::support::{assistant_message_content, recv_with_timeout};
 
 fn meta_echo_mcp_servers(repo_root: &std::path::Path) -> IndexMap<String, McpServerConfig> {
     let harness_dir = repo_root.join("test").join("harness");
@@ -88,7 +88,7 @@ impl SessionHooks for RemoveMetaHooks {
 
 #[tokio::test]
 async fn should_set_meta_via_premcptoolcall_hook() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "pre_mcp_tool_call_hook",
         "should_set_meta_via_premcptoolcall_hook",
         |ctx| {
@@ -138,7 +138,7 @@ async fn should_set_meta_via_premcptoolcall_hook() {
 
 #[tokio::test]
 async fn should_replace_meta_via_premcptoolcall_hook() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "pre_mcp_tool_call_hook",
         "should_replace_meta_via_premcptoolcall_hook",
         |ctx| {
@@ -186,7 +186,7 @@ async fn should_replace_meta_via_premcptoolcall_hook() {
 
 #[tokio::test]
 async fn should_remove_meta_via_premcptoolcall_hook() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "pre_mcp_tool_call_hook",
         "should_remove_meta_via_premcptoolcall_hook",
         |ctx| {
@@ -231,3 +231,5 @@ async fn should_remove_meta_via_premcptoolcall_hook() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("pre_mcp_tool_call_hook", 3);

@@ -1,10 +1,9 @@
 use github_copilot_sdk::rpc::ScheduleStopRequest;
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_list_no_schedules_for_fresh_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_schedule",
         "should_list_no_schedules_for_fresh_session",
         |ctx| {
@@ -34,7 +33,8 @@ async fn should_list_no_schedules_for_fresh_session() {
 
 #[tokio::test]
 async fn should_return_null_entry_when_stopping_unknown_schedule() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_schedule",
         "should_return_null_entry_when_stopping_unknown_schedule",
         |ctx| {
@@ -71,3 +71,5 @@ async fn should_return_null_entry_when_stopping_unknown_schedule() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_schedule", 2);

@@ -3,11 +3,12 @@ use std::time::Duration;
 
 use github_copilot_sdk::rpc::{ShellExecRequest, ShellKillRequest, ShellKillSignal};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn shell_exec_with_timeout_kills_long_running_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_timeout_kills_long_running_command",
         |ctx| {
@@ -58,7 +59,8 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
 
 #[tokio::test]
 async fn shell_exec_with_custom_cwd_honors_override() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_custom_cwd_honors_override",
         |ctx| {
@@ -97,7 +99,8 @@ async fn shell_exec_with_custom_cwd_honors_override() {
 
 #[tokio::test]
 async fn shell_exec_with_nonexistent_command_returns_processid_and_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_nonexistent_command_returns_processid_and_cleans_up",
         |ctx| {
@@ -133,7 +136,8 @@ async fn shell_exec_with_nonexistent_command_returns_processid_and_cleans_up() {
 
 #[tokio::test]
 async fn shell_kill_unknown_processid_returns_false() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_kill_unknown_processid_returns_false",
         |ctx| {
@@ -167,7 +171,8 @@ async fn shell_kill_unknown_processid_returns_false() {
 
 #[tokio::test]
 async fn shell_kill_cleans_up_after_terminating_signal() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_kill_cleans_up_after_terminating_signal",
         |ctx| {
@@ -212,7 +217,8 @@ async fn shell_kill_cleans_up_after_terminating_signal() {
 
 #[tokio::test]
 async fn shell_exec_with_stderr_output_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_stderr_output_cleans_up",
         |ctx| {
@@ -249,7 +255,8 @@ async fn shell_exec_with_stderr_output_cleans_up() {
 
 #[tokio::test]
 async fn shell_exec_with_large_stdout_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_large_stdout_cleans_up",
         |ctx| {
@@ -407,3 +414,5 @@ fn large_stdout_command(marker_path: &Path) -> String {
         marker_path.display()
     )
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_shell_edge_cases", 7);

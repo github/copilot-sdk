@@ -12,13 +12,11 @@ use github_copilot_sdk::{
 use serde_json::json;
 use tokio::sync::{Notify, mpsc};
 
-use super::support::{
-    DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, with_e2e_context,
-};
+use super::support::{DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout};
 
 #[tokio::test]
 async fn should_invoke_user_input_handler_when_model_uses_ask_user_tool() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "ask_user",
         "should_invoke_user_input_handler_when_model_uses_ask_user_tool",
         |ctx| {
@@ -62,7 +60,7 @@ async fn should_invoke_user_input_handler_when_model_uses_ask_user_tool() {
 
 #[tokio::test]
 async fn should_receive_choices_in_user_input_request() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "ask_user",
         "should_receive_choices_in_user_input_request",
         |ctx| {
@@ -107,7 +105,7 @@ async fn should_receive_choices_in_user_input_request() {
 
 #[tokio::test]
 async fn should_handle_freeform_user_input_response() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "ask_user",
         "should_handle_freeform_user_input_response",
         |ctx| {
@@ -164,7 +162,8 @@ async fn should_handle_freeform_user_input_response() {
 /// the handler observes the sibling tool while its own request is still pending.
 #[tokio::test]
 async fn ask_user_does_not_block_sibling_tool_call_in_same_turn() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "ask_user",
         "ask_user_does_not_block_sibling_tool_call_in_same_turn",
         |ctx| {
@@ -346,3 +345,5 @@ impl ToolHandler for SetMarkerTool {
         Ok(ToolResult::Text(format!("MARKER_{}", value.to_uppercase())))
     }
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("ask_user", 4);
