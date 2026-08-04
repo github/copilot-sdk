@@ -42,6 +42,7 @@ public class SessionHooks {
     private PostToolUseHandler onPostToolUse;
     private PostToolUseFailureHandler onPostToolUseFailure;
     private UserPromptSubmittedHandler onUserPromptSubmitted;
+    private UserPromptTransformedHandler onUserPromptTransformed;
     private SessionStartHandler onSessionStart;
     private SessionEndHandler onSessionEnd;
     private AgentStopHandler onAgentStop;
@@ -162,6 +163,27 @@ public class SessionHooks {
     }
 
     /**
+     * Gets the user-prompt-transformed handler.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    public UserPromptTransformedHandler getOnUserPromptTransformed() {
+        return onUserPromptTransformed;
+    }
+
+    /**
+     * Sets the handler called after the runtime transforms a submitted prompt.
+     *
+     * @param onUserPromptTransformed
+     *            the handler
+     * @return this instance for method chaining
+     */
+    public SessionHooks setOnUserPromptTransformed(UserPromptTransformedHandler onUserPromptTransformed) {
+        this.onUserPromptTransformed = onUserPromptTransformed;
+        return this;
+    }
+
+    /**
      * Gets the session-start handler.
      *
      * @return the handler, or {@code null} if not set
@@ -237,7 +259,7 @@ public class SessionHooks {
      */
     public boolean hasHooks() {
         return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null || onPostToolUseFailure != null
-                || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null
-                || onAgentStop != null;
+                || onUserPromptSubmitted != null || onUserPromptTransformed != null || onSessionStart != null
+                || onSessionEnd != null || onAgentStop != null;
     }
 }

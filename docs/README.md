@@ -63,6 +63,7 @@ Detailed API reference for each session hook.
 * [Pre-Tool Use](./hooks/pre-tool-use.md): approve, deny, or modify tool calls
 * [Post-Tool Use](./hooks/post-tool-use.md): transform tool results
 * [User Prompt Submitted](./hooks/user-prompt-submitted.md): modify or filter user messages
+* [User Prompt Transformed](./hooks/user-prompt-transformed.md): inspect or replace model-facing prompts
 * [Session Lifecycle](./hooks/session-lifecycle.md): session start and end
 * [Error Handling](./hooks/error-handling.md): custom error handling
 

@@ -1613,6 +1613,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
                         invocation)
                     : null,
+                "userPromptTransformed" => hooks.OnUserPromptTransformed != null
+                    ? await hooks.OnUserPromptTransformed(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptTransformedHookInput)!,
+                        invocation)
+                    : null,
                 "sessionStart" => hooks.OnSessionStart != null
                     ? await hooks.OnSessionStart(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
@@ -2033,5 +2038,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(Attachment))]
     [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
     [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
+    [JsonSerializable(typeof(UserPromptTransformedHookInput))]
+    [JsonSerializable(typeof(UserPromptTransformedHookOutput))]
     internal partial class SessionJsonContext : JsonSerializerContext;
 }

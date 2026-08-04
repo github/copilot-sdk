@@ -1097,6 +1097,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnPostToolUseFailure != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnUserPromptTransformed != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||
@@ -1327,6 +1328,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnPostToolUseFailure != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnUserPromptTransformed != null ||
             config.Hooks.OnSessionStart != null ||
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null ||

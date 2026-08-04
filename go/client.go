@@ -871,6 +871,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||
@@ -1159,6 +1160,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
 		config.Hooks.OnErrorOccurred != nil ||

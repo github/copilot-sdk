@@ -5,6 +5,18 @@ import (
 	"testing"
 )
 
+func TestUserPromptTransformedHookOutput_PreservesEmptyReplacement(t *testing.T) {
+	data, err := json.Marshal(UserPromptTransformedHookOutput{
+		ModifiedTransformedPrompt: String(""),
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal hook output: %v", err)
+	}
+	if string(data) != `{"modifiedTransformedPrompt":""}` {
+		t.Fatalf("expected empty replacement to be preserved, got %s", data)
+	}
+}
+
 func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
 	config := ProviderConfig{
 		BaseURL: "https://example.com/provider",

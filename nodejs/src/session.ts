@@ -1881,6 +1881,7 @@ export class CopilotSession {
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
             postToolUseFailure: this.hooks.onPostToolUseFailure as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
+            userPromptTransformed: this.hooks.onUserPromptTransformed as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
             errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
