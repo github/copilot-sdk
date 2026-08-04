@@ -1213,7 +1213,8 @@ public class SessionConfig {
      * not started or authenticated on create or cold resume; a resident resume
      * cannot stop servers already running.
      *
-     * @param disabledMcpServers the server names to disable
+     * @param disabledMcpServers
+     *            the server names to disable
      * @return this config for method chaining
      */
     public SessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {

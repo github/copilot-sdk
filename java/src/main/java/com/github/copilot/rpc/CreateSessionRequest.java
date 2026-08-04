@@ -683,7 +683,9 @@ public final class CreateSessionRequest {
         return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
     }
 
-    /** Sets disabled MCP server names. @param disabledMcpServers the server names */
+    /**
+     * Sets disabled MCP server names. @param disabledMcpServers the server names
+     */
     public void setDisabledMcpServers(List<String> disabledMcpServers) {
         this.disabledMcpServers = disabledMcpServers;
     }
