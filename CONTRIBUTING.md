@@ -33,62 +33,25 @@ We are generally **not** looking for:
 - Additional documentation
 - **SDKs for other languages** — if you want to create a Copilot SDK for another language, we'd love to hear from you and may offer to link to your SDK from our repo. However we do not plan to add further language-specific SDKs to this repo in the short term, since we need to retain our maintenance capacity for moving forwards quickly with the existing language set. For other languages, please consider running your own external project.
 
-## Prerequisites for Running and Testing Code
+## Developing an SDK
 
-This is a multi-language SDK repository. Install the tools for the SDK(s) you plan to work on:
+Setup, build, and test instructions are maintained with each SDK:
 
-### All SDKs
-
-1. The end-to-end tests across all languages use a shared test harness written in Node.js. Before running tests in any language, `cd test/harness && npm ci`.
-
-### Node.js/TypeScript SDK
-
-1. Install [Node.js](https://nodejs.org/) (v18+)
-1. Install dependencies: `cd nodejs && npm ci`
-
-### Python SDK
-
-1. Install [Python 3.8+](https://www.python.org/downloads/)
-1. Install [uv](https://github.com/astral-sh/uv)
-1. Install dependencies: `cd python && uv pip install -e . --group dev`
-
-### Go SDK
-
-1. Install [Go 1.24+](https://go.dev/doc/install)
-1. Install [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation)
-1. Install dependencies: `cd go && go mod download`
-
-### .NET SDK
-
-1. Install [.NET SDK 10+](https://dotnet.microsoft.com/download)
-1. Install .NET dependencies: `cd dotnet && dotnet restore`
+- [Node.js/TypeScript](nodejs/README.md#development)
+- [Python](python/README.md#development)
+- [Go](go/README.md#development)
+- [.NET](dotnet/README.md#development)
+- [Rust](rust/README.md#development)
+- [Java](java/README.md#development-setup)
 
 ## Submitting a Pull Request
 
 1. Fork and clone the repository
-1. Install dependencies for the SDK(s) you're modifying (see above)
-1. Make sure the tests pass on your machine (see commands below)
-1. Make sure linter passes on your machine (see commands below)
+1. Follow the development instructions for the SDK(s) you're modifying
 1. Create a new branch: `git checkout -b my-branch-name`
-1. Make your change, add tests, and make sure the tests and linter still pass
+1. Make your change, add tests, and run the documented checks
 1. Push to your fork and [submit a pull request][pr]
 1. Pat yourself on the back and wait for your pull request to be reviewed and merged.
-
-### Running Tests and Linters
-
-```bash
-# Node.js
-cd nodejs && npm test && npm run lint
-
-# Python
-cd python && uv run pytest && uv run ruff check .
-
-# Go
-cd go && go test ./... && golangci-lint run ./...
-
-# .NET
-cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
-```
 
 Here are a few things you can do that will increase the likelihood of your pull request being accepted:
 

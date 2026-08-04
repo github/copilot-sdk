@@ -965,3 +965,22 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 # Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
 ```
+
+## Development
+
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd rust
+cargo test --features test-support
+```

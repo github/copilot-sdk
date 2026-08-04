@@ -978,6 +978,25 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
 
+## Development
+
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd go
+./test.sh
+```
+
 ## License
 
 MIT
