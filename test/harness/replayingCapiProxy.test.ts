@@ -11,7 +11,7 @@ import type {
 } from "openai/resources/chat/completions";
 import os from "os";
 import path from "path";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import yaml from "yaml";
 import {
   NormalizedData,
@@ -724,6 +724,134 @@ Always include PINEAPPLE_COCONUT_42.
       });
     }
 
+    async function replayToolResult({
+      storedContent,
+      requestContent,
+      toolName = "view",
+      viewRange,
+    }: {
+      storedContent?: string;
+      requestContent?: string;
+      toolName?: string;
+      viewRange?: [number, number];
+    }): Promise<{ status: number; body: string }> {
+      const storedArguments = JSON.stringify({
+        path: `${workingDirPlaceholder}/test.txt`,
+        ...(viewRange ? { view_range: viewRange } : {}),
+      });
+      const requestArguments = JSON.stringify({
+        path: `${workDir}/test.txt`,
+        ...(viewRange ? { view_range: viewRange } : {}),
+      });
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Read file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "toolcall_0",
+                    type: "function",
+                    function: {
+                      name: toolName,
+                      arguments: storedArguments,
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "toolcall_0",
+                ...(storedContent === undefined
+                  ? {}
+                  : { content: storedContent }),
+              },
+              { role: "assistant", content: "Done" },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        return await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "System prompt" },
+              { role: "user", content: "Read file" },
+              {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "runtime-call-id",
+                    type: "function",
+                    function: {
+                      name: toolName,
+                      arguments: requestArguments,
+                    },
+                  },
+                ],
+              },
+              {
+                role: "tool",
+                tool_call_id: "runtime-call-id",
+                ...(requestContent === undefined
+                  ? {}
+                  : { content: requestContent }),
+              },
+            ],
+          },
+        });
+      } finally {
+        await proxy.stop();
+      }
+    }
+
+    async function expectToolResultMismatch(
+      options: Parameters<typeof replayToolResult>[0],
+    ) {
+      const previousGitHubActions = process.env.GITHUB_ACTIONS;
+      const stderrWrite = vi
+        .spyOn(process.stderr, "write")
+        .mockImplementation(() => true);
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      process.env.GITHUB_ACTIONS = "true";
+      try {
+        expect((await replayToolResult(options)).status).toBe(500);
+        expect(stderrWrite).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "No cached response found for POST /chat/completions.",
+          ),
+        );
+        expect(stderrWrite).toHaveBeenCalledWith(
+          expect.stringContaining("mismatch at message 3"),
+        );
+      } finally {
+        stderrWrite.mockRestore();
+        consoleError.mockRestore();
+        if (previousGitHubActions === undefined) {
+          delete process.env.GITHUB_ACTIONS;
+        } else {
+          process.env.GITHUB_ACTIONS = previousGitHubActions;
+        }
+      }
+    }
+
     test("returns cached response when request matches prefix", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({
@@ -900,6 +1028,145 @@ Always include PINEAPPLE_COCONUT_42.
       } finally {
         await proxy.stop();
       }
+    });
+
+    const truncationNotice =
+      "[Output truncated. Use view_range=[4, ...] to continue reading.]";
+    const viewResultCases: Array<{
+      description: string;
+      numberedContent: string;
+      unnumberedContent?: string;
+      viewRange?: [number, number];
+    }> = [
+      {
+        description: "ordinary content",
+        numberedContent: "1. alpha\n2. beta",
+        unnumberedContent: "alpha\nbeta",
+      },
+      {
+        description: "intrinsically numbered file content",
+        numberedContent: "1. 1. first\n2. 2. second",
+        unnumberedContent: "1. first\n2. second",
+      },
+      {
+        description: "JSON content",
+        numberedContent: '1. {\n2.   "b": 2,\n3.   "a": 1\n4. }',
+        unnumberedContent: '{"a":1,"b":2}',
+      },
+      {
+        description: "view_range offset",
+        numberedContent: "2. line2\n3. line3\n4. line4",
+        unnumberedContent: "line2\nline3\nline4",
+        viewRange: [2, 4],
+      },
+      {
+        description: "trailing empty line",
+        numberedContent: "1. alpha\n2. beta\n3.",
+        unnumberedContent: "alpha\nbeta",
+      },
+      {
+        description: "blank and spaces before a truncation notice",
+        numberedContent: `1. alpha\n2.    \n3. \n \t\n${truncationNotice}`,
+        unnumberedContent: `alpha\n   \n\n \t\n${truncationNotice}`,
+      },
+      {
+        description: "empty result",
+        numberedContent: "1.",
+        unnumberedContent: undefined,
+      },
+    ];
+
+    test.each(
+      viewResultCases.flatMap(
+        ({ description, numberedContent, unnumberedContent, viewRange }) => [
+          {
+            description: `${description}, numbered snapshot`,
+            storedContent: numberedContent,
+            requestContent: unnumberedContent,
+            viewRange,
+          },
+          {
+            description: `${description}, numbered request`,
+            storedContent: unnumberedContent,
+            requestContent: numberedContent,
+            viewRange,
+          },
+        ],
+      ),
+    )(
+      "matches equivalent view results with $description",
+      async ({ storedContent, requestContent, viewRange }) => {
+        const response = await replayToolResult({
+          storedContent,
+          requestContent,
+          viewRange,
+        });
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Done");
+      },
+    );
+
+    test("preserves exact matches with multiple numbering layers", async () => {
+      const response = await replayToolResult({
+        storedContent: "1. 1. alpha",
+        requestContent: "1. 1. alpha",
+      });
+      expect(response.status).toBe(200);
+    });
+
+    test("does not remove multiple numbering layers to find a match", async () => {
+      await expectToolResultMismatch({
+        storedContent: "1. 1. alpha",
+        requestContent: "alpha",
+      });
+    });
+
+    test("preserves numbered results from non-view tools", async () => {
+      const requestBody = JSON.stringify({
+        messages: [
+          { role: "user", content: "List items" },
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "tc1",
+                type: "function",
+                function: { name: "list_items", arguments: "{}" },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            tool_call_id: "tc1",
+            content: "1. first\n2. second",
+          },
+        ],
+      });
+      const responseBody = JSON.stringify({
+        choices: [{ message: { role: "assistant", content: "Done" } }],
+      });
+
+      const outputPath = await createProxy([
+        { url: "/chat/completions", requestBody, responseBody },
+      ]);
+
+      const result = await readYamlOutput(outputPath);
+      expect(
+        result.conversations[0].messages.find(
+          (message) => message.role === "tool",
+        )?.content,
+      ).toBe("1. first\n2. second");
+    });
+
+    test("does not apply view compatibility to non-view tool results", async () => {
+      await expectToolResultMismatch({
+        toolName: "list_items",
+        storedContent: "1. first\n2. second",
+        requestContent: "first\nsecond",
+      });
     });
 
     test("matches available-tools results after the built-in tool set changes", async () => {

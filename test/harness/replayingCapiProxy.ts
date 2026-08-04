@@ -652,6 +652,154 @@ async function writeCapturesToDisk(
   }
 }
 
+function normalizedMessageSequencesEqual(
+  requestMessages: NormalizedMessage[],
+  savedMessages: NormalizedMessage[],
+): boolean {
+  return (
+    requestMessages.length === savedMessages.length &&
+    requestMessages.every((_, index) =>
+      normalizedMessagesEqual(requestMessages, savedMessages, index),
+    )
+  );
+}
+
+function normalizedMessagesEqual(
+  requestMessages: NormalizedMessage[],
+  savedMessages: NormalizedMessage[],
+  index: number,
+): boolean {
+  const requestMessage = requestMessages[index];
+  const savedMessage = savedMessages[index];
+  if (JSON.stringify(requestMessage) === JSON.stringify(savedMessage)) {
+    return true;
+  }
+
+  if (
+    requestMessage.role !== "tool" ||
+    savedMessage.role !== "tool" ||
+    !requestMessage.tool_call_id ||
+    requestMessage.tool_call_id !== savedMessage.tool_call_id
+  ) {
+    return false;
+  }
+
+  const { content: requestContent, ...requestRest } = requestMessage;
+  const { content: savedContent, ...savedRest } = savedMessage;
+  if (JSON.stringify(requestRest) !== JSON.stringify(savedRest)) {
+    return false;
+  }
+
+  const requestToolCall = findPrecedingToolCall(
+    requestMessages,
+    index,
+    requestMessage.tool_call_id,
+  );
+  const savedToolCall = findPrecedingToolCall(
+    savedMessages,
+    index,
+    savedMessage.tool_call_id,
+  );
+  if (
+    requestToolCall?.function?.name !== "view" ||
+    savedToolCall?.function?.name !== "view"
+  ) {
+    return false;
+  }
+
+  if (typeof requestContent === "string") {
+    const strippedRequest = stripLegacyViewNumbering(
+      requestContent,
+      requestToolCall.function.arguments,
+    );
+    if (strippedRequest !== null && strippedRequest === savedContent) {
+      return true;
+    }
+  }
+
+  if (typeof savedContent === "string") {
+    const strippedSaved = stripLegacyViewNumbering(
+      savedContent,
+      savedToolCall.function.arguments,
+    );
+    if (strippedSaved !== null && strippedSaved === requestContent) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function findPrecedingToolCall(
+  messages: NormalizedMessage[],
+  messageIndex: number,
+  toolCallId: string,
+): NormalizedToolCall | undefined {
+  for (let index = messageIndex - 1; index >= 0; index--) {
+    const toolCall = messages[index].tool_calls?.find(
+      (candidate) => candidate.id === toolCallId,
+    );
+    if (toolCall) {
+      return toolCall;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Legacy compatibility for CLI `view` results recorded before `N. ` prefixes
+ * were removed. Strips one layer only when every content line is consecutively numbered.
+ */
+function stripLegacyViewNumbering(
+  content: string,
+  argumentsJson: string,
+): string | undefined | null {
+  let firstLineNumber = 1;
+  try {
+    const args = JSON.parse(argumentsJson) as { view_range?: unknown };
+    const rangeStart = Array.isArray(args.view_range)
+      ? args.view_range[0]
+      : undefined;
+    if (typeof rangeStart === "number" && Number.isInteger(rangeStart)) {
+      firstLineNumber = rangeStart;
+    }
+  } catch {
+    return null;
+  }
+
+  const lines = content.split("\n");
+  const truncationNoticeIndex = lines.findIndex((line) =>
+    line.trimStart().startsWith("[Output truncated."),
+  );
+  let numberedLineCount =
+    truncationNoticeIndex >= 0 ? truncationNoticeIndex : lines.length;
+  while (
+    truncationNoticeIndex >= 0 &&
+    numberedLineCount > 0 &&
+    lines[numberedLineCount - 1].trim() === ""
+  ) {
+    numberedLineCount--;
+  }
+  if (numberedLineCount === 0) {
+    return null;
+  }
+
+  const strippedLines = [...lines];
+  for (let index = 0; index < numberedLineCount; index++) {
+    const prefix = `${firstLineNumber + index}.`;
+    const line = strippedLines[index];
+    if (line === prefix) {
+      strippedLines[index] = "";
+    } else if (line.startsWith(`${prefix} `)) {
+      strippedLines[index] = line.slice(prefix.length + 1);
+    } else {
+      return null;
+    }
+  }
+
+  return normalizeToolMessageContent(strippedLines.join("\n")) || undefined;
+}
+
 /**
  * Produces a human-readable explanation of why no stored conversation matched
  * a given request. For each stored conversation it reports the first reason
@@ -687,7 +835,7 @@ function diagnoseMatchFailure(
     // Find the first message that doesn't match
     let mismatchIndex = -1;
     for (let i = 0; i < requestMessages.length; i++) {
-      if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
+      if (!normalizedMessagesEqual(requestMessages, saved, i)) {
         mismatchIndex = i;
         break;
       }
@@ -827,12 +975,7 @@ async function findSavedChatCompletionError(
     if (error.model && error.model !== requestModel) {
       continue;
     }
-    if (
-      requestMessages.length === error.messages.length &&
-      requestMessages.every(
-        (msg, i) => JSON.stringify(msg) === JSON.stringify(error.messages[i]),
-      )
-    ) {
+    if (normalizedMessageSequencesEqual(requestMessages, error.messages)) {
       return error;
     }
   }
@@ -857,11 +1000,7 @@ async function isRequestOnlySnapshot(
 
   for (const conversation of storedData.conversations) {
     if (
-      requestMessages.length === conversation.messages.length &&
-      requestMessages.every(
-        (msg, i) =>
-          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
-      )
+      normalizedMessageSequencesEqual(requestMessages, conversation.messages)
     ) {
       return true;
     }
@@ -1201,27 +1340,7 @@ function transformOpenAIRequestMessage(
     }
     content = parts.join("\n") || undefined;
   } else if (m.role === "tool" && typeof m.content === "string") {
-    // If it's a JSON tool call result, normalize the whitespace and property ordering.
-    // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
-    // just the inner value so snapshots stay stable across envelope format changes.
-    try {
-      const parsed = JSON.parse(m.content);
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        parsed.resultType === "success" &&
-        "textResultForLlm" in parsed
-      ) {
-        content =
-          typeof parsed.textResultForLlm === "string"
-            ? parsed.textResultForLlm
-            : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
-      } else {
-        content = JSON.stringify(sortJsonKeys(parsed));
-      }
-    } catch {
-      content = m.content.trim();
-    }
+    content = normalizeToolMessageContent(m.content);
   } else if (typeof m.content === "string") {
     content = m.content;
   }
@@ -1235,6 +1354,28 @@ function transformOpenAIRequestMessage(
     msg.tool_calls = m.tool_calls.map(transformOpenAIToolCall);
   }
   return msg;
+}
+
+function normalizeToolMessageContent(content: string): string {
+  // If it's a JSON tool call result, normalize the whitespace and property ordering.
+  // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
+  // just the inner value so snapshots stay stable across envelope format changes.
+  try {
+    const parsed = JSON.parse(content);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.resultType === "success" &&
+      "textResultForLlm" in parsed
+    ) {
+      return typeof parsed.textResultForLlm === "string"
+        ? parsed.textResultForLlm
+        : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
+    }
+    return JSON.stringify(sortJsonKeys(parsed));
+  } catch {
+    return content.trim();
+  }
 }
 
 function normalizeUserMessage(content: string): string {
@@ -1550,9 +1691,9 @@ function findAssistantIndexAfterPrefix(
   }
 
   for (let i = 0; i < requestMessages.length; i++) {
-    const reqMsg = JSON.stringify(requestMessages[i]);
-    const savedMsg = JSON.stringify(savedMessages[i]);
-    if (reqMsg !== savedMsg) {
+    if (!normalizedMessagesEqual(requestMessages, savedMessages, i)) {
+      const reqMsg = JSON.stringify(requestMessages[i]);
+      const savedMsg = JSON.stringify(savedMessages[i]);
       log(`mismatch at index ${i}:`);
       log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
       log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
