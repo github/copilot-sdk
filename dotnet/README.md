@@ -1040,7 +1040,7 @@ catch (Exception ex)
 
 ## Development
 
-Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download). From the repository root:
+Development requires [.NET SDK 10+](https://dotnet.microsoft.com/download) and a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
 
 ```bash
 cd nodejs

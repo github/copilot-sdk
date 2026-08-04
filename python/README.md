@@ -1145,7 +1145,7 @@ When `on_elicitation_request` is provided, the SDK automatically:
 
 ## Development
 
-Install [uv](https://docs.astral.sh/uv/), then from the repository root:
+Install [uv](https://docs.astral.sh/uv/) and a supported [Node.js version](../nodejs/README.md#prerequisites), then from the repository root:
 
 ```bash
 cd nodejs
