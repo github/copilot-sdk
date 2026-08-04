@@ -127,6 +127,8 @@ and `setExcludedTools(...)`, prefer the source-qualified filter form
 `DefaultAgentConfig.setExcludedTools(...)`, use `<server-key>-<tool-name>`
 directly.
 
+`CopilotClientOptions.setCwd(...)` sets the runtime process working directory, which otherwise inherits the current process working directory. `SessionConfig.setWorkingDirectory(...)` sets the session working directory, which otherwise defaults to the runtime process working directory.
+
 ## Permission Handling
 
 `PermissionHandler.APPROVE_ALL` approves requests when managed settings are disabled. When `enableManagedSettings` is true, it completes exceptionally. Custom handlers can inspect `request.getManagedApprovalRequired()` for human-facing confirmation logic.

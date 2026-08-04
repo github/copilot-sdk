@@ -108,6 +108,8 @@ With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in th
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
 
+`SessionConfig::working_directory` sets the session working directory. When unset, the runtime uses its process working directory.
+
 ```rust,ignore
 use github_copilot_sdk::MessageOptions;
 
