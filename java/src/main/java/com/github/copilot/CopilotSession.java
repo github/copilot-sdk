@@ -110,6 +110,7 @@ import com.github.copilot.rpc.UserInputInvocation;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.rpc.UserPromptSubmittedHookInput;
+import com.github.copilot.rpc.UserPromptTransformedHookInput;
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -1867,6 +1868,17 @@ public final class CopilotSession implements AutoCloseable {
                             return CompletableFuture.completedFuture(null);
                         }
                         return promptResult.thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "userPromptTransformed" :
+                    if (hooks.getOnUserPromptTransformed() != null) {
+                        UserPromptTransformedHookInput transformedInput = MAPPER.treeToValue(input,
+                                UserPromptTransformedHookInput.class);
+                        var transformedResult = hooks.getOnUserPromptTransformed().handle(transformedInput, invocation);
+                        if (transformedResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return transformedResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "sessionStart" :

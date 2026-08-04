@@ -786,6 +786,16 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnUserPromptSubmitted(input, invocation)
 
+	case "userPromptTransformed":
+		if hooks.OnUserPromptTransformed == nil {
+			return nil, nil
+		}
+		var input UserPromptTransformedHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnUserPromptTransformed(input, invocation)
+
 	case "sessionStart":
 		if hooks.OnSessionStart == nil {
 			return nil, nil

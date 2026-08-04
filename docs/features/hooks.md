@@ -9,20 +9,22 @@ A hook is a callback you register once when creating a session. The SDK invokes 
 ```mermaid
 flowchart LR
     A[Session starts] -->|onSessionStart| B[User sends prompt]
-    B -->|onUserPromptSubmitted| C[Agent picks a tool]
-    C -->|onPreToolUse| D[Tool executes]
-    D -->|onPostToolUse| E{More work?}
-    E -->|yes| C
-    E -->|no| F[Session ends]
-    F -->|onSessionEnd| G((Done))
-    C -.->|error| H[onErrorOccurred]
-    D -.->|error| H
+    B -->|onUserPromptSubmitted| C[Runtime transforms prompt]
+    C -->|onUserPromptTransformed| D[Agent picks a tool]
+    D -->|onPreToolUse| E[Tool executes]
+    E -->|onPostToolUse| F{More work?}
+    F -->|yes| D
+    F -->|no| G[Session ends]
+    G -->|onSessionEnd| H((Done))
+    D -.->|error| I[onErrorOccurred]
+    E -.->|error| I
 ```
 
 | Hook                                                                | When it fires                       | What you can do                            |
 | ------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------ |
 | [`onSessionStart`](../hooks/session-lifecycle.md#session-start)     | Session begins (new or resumed)     | Inject context, load preferences           |
 | [`onUserPromptSubmitted`](../hooks/user-prompt-submitted.md)        | User sends a message                | Rewrite prompts, add context, filter input |
+| [`onUserPromptTransformed`](../hooks/user-prompt-transformed.md)    | Runtime builds the model prompt     | Inspect or replace model-facing content    |
 | [`onPreToolUse`](../hooks/pre-tool-use.md)                          | Before a tool executes              | Allow / deny / modify the call             |
 | [`onPostToolUse`](../hooks/post-tool-use.md)                        | After a tool returns (success only) | Transform results, redact secrets, audit   |
 | [`onPostToolUseFailure`](../hooks/post-tool-use.md#failure-variant) | After a tool returns a failure      | Inject retry guidance, log failures        |
@@ -1055,6 +1057,7 @@ For full type definitions, input/output field tables, and additional examples fo
 * [Pre-Tool Use](../hooks/pre-tool-use.md)
 * [Post-Tool Use](../hooks/post-tool-use.md)
 * [User Prompt Submitted](../hooks/user-prompt-submitted.md)
+* [User Prompt Transformed](../hooks/user-prompt-transformed.md)
 * [Session Lifecycle](../hooks/session-lifecycle.md)
 * [Error Handling](../hooks/error-handling.md)
 

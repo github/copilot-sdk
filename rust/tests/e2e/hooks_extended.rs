@@ -8,6 +8,7 @@ use github_copilot_sdk::hooks::{
     PostToolUseFailureInput, PostToolUseFailureOutput, PostToolUseInput, PostToolUseOutput,
     PreToolUseInput, PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks,
     SessionStartInput, SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
+    UserPromptTransformedInput, UserPromptTransformedOutput,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
@@ -180,6 +181,50 @@ async fn should_invoke_userpromptsubmitted_hook_and_modify_prompt() {
                 let input = recv_with_timeout(&mut rx, "userPromptSubmitted hook").await;
                 assert!(input.prompt.contains("Say something else"));
                 assert!(assistant_message_content(&answer).contains("HOOKED_PROMPT"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_invoke_userprompttransformed_hook_and_modify_transformed_prompt() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_userprompttransformed_hook_and_modify_transformed_prompt",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_hooks(Arc::new(UserPromptTransformedHooks { tx })),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("Answer the request above.")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                let input = recv_with_timeout(&mut rx, "userPromptTransformed hook").await;
+                assert!(input.prompt.contains("Answer the request above."));
+                assert!(
+                    input
+                        .transformed_prompt
+                        .contains("Answer the request above.")
+                );
+                assert!(input.transformed_prompt.contains("<current_datetime>"));
+                assert!(input.timestamp > 0.0);
+                assert!(!input.working_directory.as_os_str().is_empty());
+                assert!(assistant_message_content(&answer).contains("HOOKED_TRANSFORMED_PROMPT"));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -508,6 +553,27 @@ struct AgentStopHooks {
     call_count: AtomicUsize,
 }
 
+struct UserPromptTransformedHooks {
+    tx: mpsc::UnboundedSender<UserPromptTransformedInput>,
+}
+
+#[async_trait]
+impl SessionHooks for UserPromptTransformedHooks {
+    async fn on_user_prompt_transformed(
+        &self,
+        input: UserPromptTransformedInput,
+        ctx: HookContext,
+    ) -> Option<UserPromptTransformedOutput> {
+        assert!(!ctx.session_id.as_str().is_empty());
+        let _ = self.tx.send(input);
+        Some(UserPromptTransformedOutput {
+            modified_transformed_prompt: Some(
+                "Reply with exactly: HOOKED_TRANSFORMED_PROMPT".to_string(),
+            ),
+        })
+    }
+}
+
 #[async_trait]
 impl SessionHooks for AgentStopHooks {
     async fn on_agent_stop(
@@ -739,4 +805,4 @@ impl ToolHandler for EchoValueTool {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("hooks_extended", 11);
+    super::support::SharedE2eGroup::standard("hooks_extended", 12);

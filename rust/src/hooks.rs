@@ -199,6 +199,32 @@ pub struct UserPromptSubmittedOutput {
     pub suppress_output: Option<bool>,
 }
 
+/// Input for the `userPromptTransformed` hook.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPromptTransformedInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp in ms.
+    pub timestamp: f64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// The prompt after any `userPromptSubmitted` hooks have run.
+    pub prompt: String,
+    /// The model-facing prompt after runtime transformations.
+    pub transformed_prompt: String,
+}
+
+/// Output for the `userPromptTransformed` hook.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPromptTransformedOutput {
+    /// Replacement model-facing prompt to persist and send to the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_transformed_prompt: Option<String>,
+}
+
 /// Input for the `sessionStart` hook.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -381,6 +407,13 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired after the runtime transforms a submitted prompt.
+    UserPromptTransformed {
+        /// Typed input data.
+        input: UserPromptTransformedInput,
+        /// Session context.
+        ctx: HookContext,
+    },
     /// Fired at session creation or resume.
     SessionStart {
         /// Typed input data.
@@ -430,6 +463,8 @@ pub enum HookOutput {
     PostToolUseFailure(PostToolUseFailureOutput),
     /// Response for a user-prompt-submitted hook.
     UserPromptSubmitted(UserPromptSubmittedOutput),
+    /// Response for a user-prompt-transformed hook.
+    UserPromptTransformed(UserPromptTransformedOutput),
     /// Response for a session-start hook.
     SessionStart(SessionStartOutput),
     /// Response for a session-end hook.
@@ -449,6 +484,7 @@ impl HookOutput {
             Self::PostToolUse(_) => "PostToolUse",
             Self::PostToolUseFailure(_) => "PostToolUseFailure",
             Self::UserPromptSubmitted(_) => "UserPromptSubmitted",
+            Self::UserPromptTransformed(_) => "UserPromptTransformed",
             Self::SessionStart(_) => "SessionStart",
             Self::SessionEnd(_) => "SessionEnd",
             Self::ErrorOccurred(_) => "ErrorOccurred",
@@ -505,6 +541,11 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .on_user_prompt_submitted(input, ctx)
                 .await
                 .map(HookOutput::UserPromptSubmitted)
+                .unwrap_or(HookOutput::None),
+            HookEvent::UserPromptTransformed { input, ctx } => self
+                .on_user_prompt_transformed(input, ctx)
+                .await
+                .map(HookOutput::UserPromptTransformed)
                 .unwrap_or(HookOutput::None),
             HookEvent::SessionStart { input, ctx } => self
                 .on_session_start(input, ctx)
@@ -580,6 +621,16 @@ pub trait SessionHooks: Send + Sync + 'static {
         _input: UserPromptSubmittedInput,
         _ctx: HookContext,
     ) -> Option<UserPromptSubmittedOutput> {
+        None
+    }
+
+    /// Called after the runtime transforms a submitted prompt. Return
+    /// `Some(output)` to replace the model-facing content before it is stored.
+    async fn on_user_prompt_transformed(
+        &self,
+        _input: UserPromptTransformedInput,
+        _ctx: HookContext,
+    ) -> Option<UserPromptTransformedOutput> {
         None
     }
 
@@ -660,6 +711,10 @@ pub(crate) async fn dispatch_hook(
             let input: UserPromptSubmittedInput = serde_json::from_value(raw_input)?;
             HookEvent::UserPromptSubmitted { input, ctx }
         }
+        "userPromptTransformed" => {
+            let input: UserPromptTransformedInput = serde_json::from_value(raw_input)?;
+            HookEvent::UserPromptTransformed { input, ctx }
+        }
         "sessionStart" => {
             let input: SessionStartInput = serde_json::from_value(raw_input)?;
             HookEvent::SessionStart { input, ctx }
@@ -708,6 +763,9 @@ pub(crate) async fn dispatch_hook(
         ("userPromptSubmitted", HookOutput::UserPromptSubmitted(o)) => {
             Some(serde_json::to_value(o)?)
         }
+        ("userPromptTransformed", HookOutput::UserPromptTransformed(o)) => {
+            Some(serde_json::to_value(o)?)
+        }
         ("sessionStart", HookOutput::SessionStart(o)) => Some(serde_json::to_value(o)?),
         ("sessionEnd", HookOutput::SessionEnd(o)) => Some(serde_json::to_value(o)?),
         ("errorOccurred", HookOutput::ErrorOccurred(o)) => Some(serde_json::to_value(o)?),
@@ -751,6 +809,14 @@ mod tests {
                     HookOutput::UserPromptSubmitted(UserPromptSubmittedOutput {
                         modified_prompt: Some(format!("[prefixed] {}", input.prompt)),
                         ..Default::default()
+                    })
+                }
+                HookEvent::UserPromptTransformed { input, .. } => {
+                    HookOutput::UserPromptTransformed(UserPromptTransformedOutput {
+                        modified_transformed_prompt: Some(format!(
+                            "[transformed] {}",
+                            input.transformed_prompt
+                        )),
                     })
                 }
                 _ => HookOutput::None,
@@ -811,6 +877,30 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result["output"]["modifiedPrompt"], "[prefixed] hello world");
+    }
+
+    #[tokio::test]
+    async fn dispatch_user_prompt_transformed() {
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "prompt": "hello world",
+            "transformedPrompt": "<current_datetime>now</current_datetime>\nhello world"
+        });
+        let result = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "userPromptTransformed",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result["output"]["modifiedTransformedPrompt"],
+            "[transformed] <current_datetime>now</current_datetime>\nhello world"
+        );
     }
 
     #[tokio::test]

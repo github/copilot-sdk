@@ -11,8 +11,9 @@ namespace GitHub.Copilot.Test.E2E;
 /// <summary>
 /// E2E coverage for every handler exposed on <see cref="SessionHooks"/>:
 /// OnPreToolUse, OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
-/// OnSessionStart, OnSessionEnd, OnErrorOccurred, OnAgentStop. Output-shape behavior
-/// (modifiedPrompt / additionalContext / errorHandling / modifiedArgs /
+/// OnUserPromptTransformed, OnSessionStart, OnSessionEnd, OnErrorOccurred,
+/// OnAgentStop. Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
+/// additionalContext / errorHandling / modifiedArgs /
 /// modifiedResult / sessionSummary) is asserted alongside hook invocation. If a
 /// new handler is added to <c>SessionHooks</c>, add a corresponding test here.
 /// </summary>
@@ -161,6 +162,37 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.NotEmpty(inputs);
         Assert.Contains("Say something else", inputs[0].Prompt);
         Assert.Contains("HOOKED_PROMPT", response?.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_UserPromptTransformed_Hook_And_Modify_Transformed_Prompt()
+    {
+        var inputs = new List<UserPromptTransformedHookInput>();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnUserPromptTransformed = (input, invocation) =>
+                {
+                    inputs.Add(input);
+                    Assert.False(string.IsNullOrWhiteSpace(invocation.SessionId));
+                    return Task.FromResult<UserPromptTransformedHookOutput?>(new UserPromptTransformedHookOutput
+                    {
+                        ModifiedTransformedPrompt = "Reply with exactly: HOOKED_TRANSFORMED_PROMPT",
+                    });
+                },
+            },
+        });
+
+        var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Answer the request above." });
+
+        Assert.NotEmpty(inputs);
+        Assert.Contains("Answer the request above.", inputs[0].Prompt);
+        Assert.Contains("Answer the request above.", inputs[0].TransformedPrompt);
+        Assert.Contains("<current_datetime>", inputs[0].TransformedPrompt);
+        Assert.True(inputs[0].Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.False(string.IsNullOrEmpty(inputs[0].WorkingDirectory));
+        Assert.Contains("HOOKED_TRANSFORMED_PROMPT", response?.Data.Content ?? string.Empty);
     }
 
     [Fact]
