@@ -432,6 +432,45 @@ class TestNormalizeResult:
         with pytest.raises(TypeError, match="Failed to serialize"):
             _normalize_result(lambda x: x)
 
+    def test_dict_with_non_primitive_values_is_serialized(self):
+        """Plain dicts containing datetime/UUID/Decimal/Enum/set serialize correctly."""
+        from dataclasses import dataclass
+        from datetime import date, datetime, time
+        from decimal import Decimal
+        from enum import Enum
+        from uuid import UUID
+
+        class Color(Enum):
+            RED = "red"
+
+        @dataclass
+        class Point:
+            x: int
+            y: int
+
+        result = _normalize_result({
+            "id": UUID("12345678-1234-5678-1234-567812345678"),
+            "created": datetime(2026, 1, 15, 10, 30, 0),
+            "day": date(2026, 1, 15),
+            "meeting_time": time(14, 30),
+            "score": Decimal("99.5"),
+            "color": Color.RED,
+            "tags": {"a", "b"},
+            "frozen": frozenset([1, 2]),
+            "point": Point(x=1, y=2),
+        })
+        parsed = json.loads(result.text_result_for_llm)
+        assert parsed["id"] == "12345678-1234-5678-1234-567812345678"
+        assert parsed["created"] == "2026-01-15T10:30:00"
+        assert parsed["day"] == "2026-01-15"
+        assert parsed["meeting_time"] == "14:30:00"
+        assert parsed["score"] == "99.5"
+        assert parsed["color"] == "red"
+        assert set(parsed["tags"]) == {"a", "b"}
+        assert set(parsed["frozen"]) == {1, 2}
+        assert parsed["point"] == {"x": 1, "y": 2}
+        assert result.result_type == "success"
+
 
 class TestConvertMcpCallToolResult:
     def test_text_only_call_tool_result(self):

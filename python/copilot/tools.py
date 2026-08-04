@@ -7,8 +7,13 @@ generation from Pydantic models.
 
 from __future__ import annotations
 
+import dataclasses
+import datetime
+import decimal
+import enum
 import inspect
 import json
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_type_hints, overload
@@ -352,6 +357,16 @@ def _normalize_result(result: Any) -> ToolResult:
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
             return obj.model_dump(mode="json")
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
+        if isinstance(obj, (uuid.UUID, decimal.Decimal)):
+            return str(obj)
+        if isinstance(obj, enum.Enum):
+            return obj.value
+        if isinstance(obj, (set, frozenset)):
+            return list(obj)
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     try:
