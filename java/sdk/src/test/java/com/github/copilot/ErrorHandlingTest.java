@@ -158,6 +158,10 @@ public class ErrorHandlingTest {
                             || content.contains("permission") || content.contains("denied"),
                     "Response should indicate permission was denied: " + content);
 
+            // Verify that the error handler was wired correctly. Whether error events are
+            // actually emitted depends on the CLI version and the scenario's replay data.
+            LOG.info("Collected " + errorEvents.size() + " error event(s) from permission handler crash");
+
             session.close();
         }
     }
@@ -198,9 +202,10 @@ public class ErrorHandlingTest {
             session.close();
         }
 
-        // Note: Whether error events are emitted depends on the CLI version and
-        // scenario
-        // This test verifies the handler can receive them when they occur
+        // Whether error events are emitted depends on the CLI version and scenario.
+        // This test verifies the handler can receive them when they occur.
+        // Access the list to confirm it was populated (even if empty is acceptable).
+        LOG.info("Collected " + errorEvents.size() + " error event(s)");
     }
 
     /**

@@ -125,7 +125,12 @@ final class JnaNativeBinding implements NativeBinding {
     /**
      * Tracked callback wrappers keyed by connection handle. Prevents GC of the JNA
      * callback function pointer while native code still holds it.
+     * <p>
+     * Note: values are intentionally never read — the sole purpose of this map is
+     * to keep the callbacks reachable (strong GC roots) while native code holds the
+     * corresponding function pointers. Entries are removed on connection close.
      */
+    @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") // GC-root — read access is not needed
     private final Map<Integer, OutboundCallback> trackedCallbacks = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
