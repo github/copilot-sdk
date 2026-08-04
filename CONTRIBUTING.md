@@ -43,12 +43,12 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### Node.js/TypeScript SDK
 
-1. Install [Node.js](https://nodejs.org/) (v18+)
+1. Install [Node.js](https://nodejs.org/) (v20.19+ or v22.12+)
 1. Install dependencies: `cd nodejs && npm ci`
 
 ### Python SDK
 
-1. Install [Python 3.8+](https://www.python.org/downloads/)
+1. Install [Python 3.11+](https://www.python.org/downloads/)
 1. Install [uv](https://github.com/astral-sh/uv)
 1. Install dependencies: `cd python && uv pip install -e . --group dev`
 
@@ -62,6 +62,17 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 1. Install [.NET SDK 10+](https://dotnet.microsoft.com/download)
 1. Install .NET dependencies: `cd dotnet && dotnet restore`
+
+### Rust SDK
+
+1. Install [Rust](https://www.rust-lang.org/tools/install) (latest stable)
+1. Build: `cd rust && cargo build`
+
+### Java SDK
+
+1. Install [JDK 17+](https://adoptium.net/) (JDK 25+ for the full multi-release build)
+1. Install [Maven](https://maven.apache.org/download.cgi)
+1. Build: `cd java && mvn compile`
 
 ## Submitting a Pull Request
 
@@ -88,6 +99,12 @@ cd go && go test ./... && golangci-lint run ./...
 
 # .NET
 cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
+
+# Rust
+cd rust && cargo test
+
+# Java
+cd java && mvn test
 ```
 
 Here are a few things you can do that will increase the likelihood of your pull request being accepted:
