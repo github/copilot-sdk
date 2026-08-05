@@ -120,11 +120,8 @@ public final class InProcessEnvGuard implements AutoCloseable {
         List<Map.Entry<String, String>> reversed = new ArrayList<>(saved);
         Collections.reverse(reversed);
         for (Map.Entry<String, String> entry : reversed) {
-            // Identity comparison is intentional: ABSENT_SENTINEL is a unique instance
-            // used to distinguish "env var was absent" from "env var was empty string".
-            @SuppressWarnings("StringEquality")
-            boolean wasAbsent = entry.getValue() == ABSENT_SENTINEL; // lgtm[java/reference-equality-on-strings]
-            String restoreValue = wasAbsent ? null : entry.getValue();
+            // ABSENT_SENTINEL uses a value ("\0ABSENT\0") impossible in real env vars.
+            String restoreValue = ABSENT_SENTINEL.equals(entry.getValue()) ? null : entry.getValue();
             nativeSetEnv(entry.getKey(), restoreValue);
         }
     }
