@@ -54,7 +54,8 @@ async fn should_list_models_for_session() {
 
 #[tokio::test]
 async fn should_report_session_activity_when_idle() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_report_session_activity_when_idle",
         |ctx| {
@@ -86,7 +87,8 @@ async fn should_report_session_activity_when_idle() {
 
 #[tokio::test]
 async fn should_get_and_set_allowall_permissions() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_get_and_set_allowall_permissions",
         |ctx| {
@@ -162,7 +164,8 @@ async fn should_get_and_set_allowall_permissions() {
 
 #[tokio::test]
 async fn should_read_empty_sql_todos_for_fresh_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_read_empty_sql_todos_for_fresh_session",
         |ctx| {
@@ -193,7 +196,8 @@ async fn should_read_empty_sql_todos_for_fresh_session() {
 
 #[tokio::test]
 async fn should_get_telemetry_engagement_id() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_get_telemetry_engagement_id",
         |ctx| {
@@ -222,7 +226,8 @@ async fn should_get_telemetry_engagement_id() {
 
 #[tokio::test]
 async fn should_get_current_tool_metadata_after_initialization() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_get_current_tool_metadata_after_initialization",
         |ctx| {
@@ -262,7 +267,8 @@ async fn should_get_current_tool_metadata_after_initialization() {
 
 #[tokio::test]
 async fn should_add_byok_provider_and_model_at_runtime() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_add_byok_provider_and_model_at_runtime",
         |ctx| {
@@ -315,6 +321,7 @@ async fn should_add_byok_provider_and_model_at_runtime() {
                     .model()
                     .switch_to(ModelSwitchToRequest {
                         context_tier: None,
+                        defer_if_model_change_queued: None,
                         model_capabilities: None,
                         model_id: selection_id.to_string(),
                         reasoning_effort: None,
@@ -341,7 +348,8 @@ async fn should_add_byok_provider_and_model_at_runtime() {
 
 #[tokio::test]
 async fn should_return_empty_completions_when_host_does_not_provide_them() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_return_empty_completions_when_host_does_not_provide_them",
         |ctx| {
@@ -374,7 +382,8 @@ async fn should_return_empty_completions_when_host_does_not_provide_them() {
 
 #[tokio::test]
 async fn should_report_visibility_as_unsynced_for_local_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_report_visibility_as_unsynced_for_local_session",
         |ctx| {
@@ -417,7 +426,8 @@ async fn should_report_visibility_as_unsynced_for_local_session() {
 
 #[tokio::test]
 async fn should_get_context_attribution_and_heaviest_messages_after_turn() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_get_context_attribution_and_heaviest_messages_after_turn",
         |ctx| {
@@ -463,7 +473,8 @@ async fn should_get_context_attribution_and_heaviest_messages_after_turn() {
 
 #[tokio::test]
 async fn should_update_and_clear_live_subagent_settings() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_update_and_clear_live_subagent_settings",
         |ctx| {
@@ -514,7 +525,8 @@ async fn should_update_and_clear_live_subagent_settings() {
 
 #[tokio::test]
 async fn should_reload_session_plugins() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_session_state_extras",
         "should_reload_session_plugins",
         |ctx| {
@@ -553,3 +565,5 @@ async fn should_reload_session_plugins() {
     )
     .await;
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_session_state_extras", 11);

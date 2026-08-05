@@ -122,6 +122,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 	if c.options.Mode != ModeEmpty {
 		return
 	}
+	if config.EnableExperimentalMode == nil {
+		f := false
+		config.EnableExperimentalMode = &f
+	}
 	if config.EnableSessionTelemetry == nil {
 		f := false
 		config.EnableSessionTelemetry = &f
@@ -159,6 +163,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 	}
 	if config.MCPOAuthTokenStorage == "" {
 		config.MCPOAuthTokenStorage = "in-memory"
+	}
+	if config.CustomAgentsLocalOnly == nil {
+		localOnly := true
+		config.CustomAgentsLocalOnly = &localOnly
 	}
 }
 
@@ -166,6 +174,10 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	if c.options.Mode != ModeEmpty {
 		return
 	}
+	if config.EnableExperimentalMode == nil {
+		f := false
+		config.EnableExperimentalMode = &f
+	}
 	if config.EnableSessionTelemetry == nil {
 		f := false
 		config.EnableSessionTelemetry = &f
@@ -203,6 +215,10 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	}
 	if config.MCPOAuthTokenStorage == "" {
 		config.MCPOAuthTokenStorage = "in-memory"
+	}
+	if config.CustomAgentsLocalOnly == nil {
+		localOnly := true
+		config.CustomAgentsLocalOnly = &localOnly
 	}
 }
 

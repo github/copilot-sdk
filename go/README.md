@@ -55,7 +55,6 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session (OnPermissionRequest is optional; ApproveAll allows every tool)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:               "gpt-5",
         OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -88,6 +87,12 @@ func main() {
     <-done
 }
 ```
+
+When targeting MCP tools configured through `MCPServers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
+`ExcludedTools`, prefer the source-qualified form
+`mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
+`DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
 
 ## Distributing your application with an embedded GitHub Copilot CLI
 
@@ -193,7 +198,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
 
   `StdioConnection` and `TCPConnection` accept an optional connection-level `Env`. Set environment variables via **either** the client-level `Env` option or the connection's `Env`, not both (setting both panics); prefer the connection-level `Env`.
-- `WorkingDirectory` (string): Working directory for the runtime process
+- `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
@@ -205,7 +210,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **SessionConfig:**
 
 - `Model` (string): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
+- `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
@@ -215,7 +220,9 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
-- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `WorkingDirectory` (string): Working directory for the session (default: runtime process working directory)
+- `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
+- `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
@@ -591,7 +598,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
 - `WireAPI` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
-- `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
+- `Azure.APIVersion` (string): Azure API version; when empty, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 
@@ -674,7 +681,7 @@ An `OnPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+Use the built-in `PermissionHandler.ApproveAll` helper when managed settings are disabled:
 
 ```go
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
@@ -683,9 +690,11 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 })
 ```
 
+When `EnableManagedSettings` is true for the session, `ApproveAll` returns an error. Use a custom handler for managed sessions; request-level `RequiresManagedApproval()` remains available for human-facing confirmation logic.
+
 ### Custom Permission Handler
 
-Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
+Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic. Check `RequiresManagedApproval()` before any automatic approval:
 
 ```go
 import (
@@ -698,6 +707,10 @@ import (
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        if request.RequiresManagedApproval() {
+            return &rpc.PermissionDecisionNoResult{}, nil
+        }
+
         // Type-switch on the discriminated PermissionRequest variants to
         // access per-kind fields:
         if shell, ok := request.(*copilot.PermissionRequestShell); ok {
@@ -964,6 +977,25 @@ Communicates with CLI via TCP socket. Useful for distributed scenarios.
 ## Environment Variables
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
+
+## Development
+
+Tests require a supported [Node.js version](../nodejs/README.md#prerequisites). From the repository root:
+
+```bash
+cd nodejs
+npm ci
+```
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd go
+./test.sh
+```
 
 ## License
 

@@ -34,6 +34,8 @@ public record SessionInstalledPlugin(
     /** Path where the plugin is cached locally */
     @JsonProperty("cache_path") String cachePath,
     /** Source descriptor for direct repo installs (when marketplace is empty) */
-    @JsonProperty("source") Object source
+    @JsonProperty("source") Object source,
+    /** Per-plugin source fingerprint (a SHA-256 hash of the plugin's catalog source spec plus its resolved source subtree — NOT a Git commit SHA) captured at marketplace install/update time. Auto-update compares it against the freshly recomputed fingerprint to detect a content change that does not bump the version. Absent for pre-existing installs and for direct (non-marketplace) installs. */
+    @JsonProperty("source_sha") String sourceSha
 ) {
 }

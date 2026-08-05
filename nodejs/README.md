@@ -36,7 +36,7 @@ import { CopilotClient, approveAll } from "@github/copilot-sdk";
 const client = new CopilotClient();
 await client.start();
 
-// Create a session (onPermissionRequest is optional; approveAll allows every tool)
+// approveAll is only valid when managed settings are disabled.
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -70,6 +70,12 @@ await using session = await client.createSession({
 });
 // session is automatically disconnected when leaving scope
 ```
+
+When targeting MCP tools configured through `mcpServers`, remember the runtime
+tool name is `<server-key>-<tool-name>`. For `availableTools` and
+`excludedTools`, prefer `new ToolSet().addMcp("<server-key>-<tool-name>")` or
+the raw `mcp:<server-key>-<tool-name>` form. For `customAgents[].tools` and
+`defaultAgent.excludedTools`, use `<server-key>-<tool-name>` directly.
 
 ## API Reference
 
@@ -125,12 +131,14 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `reasoningEffort?: "low" | "medium" | "high" | "xhigh"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
+- `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
+- `workingDirectory?: string` - Working directory for the session (default: runtime process cwd).
+- `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
-- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. Use `approveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
+- `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
@@ -751,7 +759,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 - `apiKey?: string` - API key (optional for local providers like Ollama)
 - `bearerToken?: string` - Bearer token for authentication (takes precedence over apiKey)
 - `wireApi?: "completions" | "responses"` - API format for OpenAI/Azure (default: "completions")
-- `azure?.apiVersion?: string` - Azure API version (default: "2024-10-21")
+- `azure?.apiVersion?: string` - Azure API version; when omitted, the runtime uses the GA versionless `v1` route
 
 **Example with Ollama:**
 
@@ -855,7 +863,7 @@ An `onPermissionRequest` handler is optional when you create or resume a session
 
 ### Approve All (simplest)
 
-Use the built-in `approveAll` helper to allow every tool call without any checks:
+Use the built-in `approveAll` helper when managed settings are disabled:
 
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
@@ -866,9 +874,11 @@ const session = await client.createSession({
 });
 ```
 
+When `enableManagedSettings` is true for the session, `approveAll` throws. Use a custom handler for managed sessions; request-level `managedApprovalRequired` remains available for human-facing confirmation logic.
+
 ### Custom Permission Handler
 
-Provide your own function to inspect each request and apply custom logic:
+Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
@@ -876,6 +886,11 @@ import type { PermissionRequest, PermissionRequestResult } from "@github/copilot
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: (request: PermissionRequest, invocation): PermissionRequestResult => {
+        if ("managedApprovalRequired" in request && request.managedApprovalRequired === true) {
+            // Leave the request pending for the host's human-facing confirmation flow.
+            return { kind: "no-result" };
+        }
+
         // request.kind — what type of operation is being requested:
         //   "shell"       — executing a shell command
         //   "write"       — writing or editing a file
@@ -913,7 +928,7 @@ The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-
 | `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
 | `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
 | `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
-| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)  | —                                                                       |
+| `"no-result"`            | Suppress this SDK client's response so another connected client can answer the pending request | —                                                                     |
 
 ### Resuming Sessions
 
@@ -1058,6 +1073,16 @@ const session = await client.createSession({
                 errorHandling: "retry", // "retry", "skip", or "abort"
             };
         },
+
+        // Called when the top-level agent naturally stops
+        onAgentStop: async (input, invocation) => {
+            if (!input.stopHookActive && needsMoreWork()) {
+                return {
+                    decision: "block",
+                    reason: "Run the final validation and fix any failures.",
+                };
+            }
+        },
     },
 });
 ```
@@ -1071,6 +1096,7 @@ const session = await client.createSession({
 - `onSessionStart` - Run logic when a session starts or resumes.
 - `onSessionEnd` - Cleanup or logging when session ends.
 - `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
+- `onAgentStop` - Observe natural top-level agent completion. Return `{ decision: "block", reason }` to request another turn; use `stopHookActive` to avoid repeated blocks.
 
 ## Error Handling
 
@@ -1081,6 +1107,21 @@ try {
 } catch (error) {
     console.error("Error:", error.message);
 }
+```
+
+## Development
+
+From the repository root:
+
+```bash
+cd test/harness
+npm ci
+```
+
+```bash
+cd nodejs
+npm ci
+npm test
 ```
 
 ## License

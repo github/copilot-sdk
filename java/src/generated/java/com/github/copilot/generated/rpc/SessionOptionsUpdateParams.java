@@ -32,7 +32,7 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("model") String model,
     /** Per-property model capability overrides for the selected model. */
     @JsonProperty("modelCapabilitiesOverrides") ModelCapabilitiesOverride modelCapabilitiesOverrides,
-    /** Reasoning effort for the selected model (model-defined enum). */
+    /** Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** Reasoning summary mode for supported model clients. */
     @JsonProperty("reasoningSummary") OptionsUpdateReasoningSummary reasoningSummary,
@@ -66,9 +66,11 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
     /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
-    /** Shell init profile (`None` or `NonInteractive`). */
+    /** Per-session settings for built-in shell tools. */
+    @JsonProperty("shell") ShellOptions shell,
+    /** Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`). */
     @JsonProperty("shellInitProfile") String shellInitProfile,
-    /** Per-shell process flags (e.g., `pwsh` arguments). */
+    /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
@@ -82,7 +84,7 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("skillDirectories") List<String> skillDirectories,
     /** Skill IDs that should be excluded from this session. */
     @JsonProperty("disabledSkills") List<String> disabledSkills,
-    /** Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag. */
+    /** Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`. */
     @JsonProperty("enableOnDemandInstructionDiscovery") Boolean enableOnDemandInstructionDiscovery,
     /** Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB. */
     @JsonProperty("maxInlineBinaryBytes") Long maxInlineBinaryBytes,
@@ -116,6 +118,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("agentContext") String agentContext,
     /** Override directory for the session-events log. When unset, the runtime's default events log directory is used. */
     @JsonProperty("eventsLogDirectory") String eventsLogDirectory,
+    /** Whether subagent callback events should be forwarded into the session event log sink. */
+    @JsonProperty("eventsLogIncludesSubagents") Boolean eventsLogIncludesSubagents,
     /** Additional content-exclusion policies to merge into the session's policy set. */
     @JsonProperty("additionalContentExclusionPolicies") List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
     /** Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users). */

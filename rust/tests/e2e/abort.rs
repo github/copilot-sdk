@@ -10,22 +10,24 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 
 use super::support::{
     DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, wait_for_event,
-    with_e2e_context,
 };
 
 #[tokio::test]
 async fn should_abort_during_active_streaming() {
-    with_e2e_context("abort", "should_abort_during_active_streaming", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config().with_streaming(true))
-                .await
-                .expect("create session");
-            let events = session.subscribe();
+    super::support::with_dedicated_e2e_context(
+        "abort",
+        "should_abort_during_active_streaming",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_streaming(true))
+                    .await
+                    .expect("create session");
+                let events = session.subscribe();
 
-            session
+                session
                 .send(
                     "Write a very long essay about the history of computing, covering every decade \
                          from the 1940s to the 2020s in great detail.",
@@ -33,54 +35,55 @@ async fn should_abort_during_active_streaming() {
                 .await
                 .expect("send long streaming turn");
 
-            let delta = wait_for_event(events, "assistant.message_delta", |event| {
-                event.parsed_type() == SessionEventType::AssistantMessageDelta
+                let delta = wait_for_event(events, "assistant.message_delta", |event| {
+                    event.parsed_type() == SessionEventType::AssistantMessageDelta
+                })
+                .await;
+                assert!(
+                    !delta
+                        .typed_data::<AssistantMessageDeltaData>()
+                        .expect("assistant.message_delta data")
+                        .delta_content
+                        .is_empty()
+                );
+
+                session.abort().await.expect("abort session");
+
+                // Session should be usable after abort. Wait for the specific recovery
+                // message rather than racing against a late idle from the aborted turn.
+                let recovery_events = session.subscribe();
+                session
+                    .send("Say 'abort_recovery_ok'.")
+                    .await
+                    .expect("send recovery");
+                let recovery = wait_for_event(
+                    recovery_events,
+                    "assistant.message containing abort_recovery_ok",
+                    |event| {
+                        event.parsed_type() == SessionEventType::AssistantMessage
+                            && assistant_message_content(event)
+                                .to_lowercase()
+                                .contains("abort_recovery_ok")
+                    },
+                )
+                .await;
+                assert!(
+                    assistant_message_content(&recovery)
+                        .to_lowercase()
+                        .contains("abort_recovery_ok")
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
             })
-            .await;
-            assert!(
-                !delta
-                    .typed_data::<AssistantMessageDeltaData>()
-                    .expect("assistant.message_delta data")
-                    .delta_content
-                    .is_empty()
-            );
-
-            session.abort().await.expect("abort session");
-
-            // Session should be usable after abort. Wait for the specific recovery
-            // message rather than racing against a late idle from the aborted turn.
-            let recovery_events = session.subscribe();
-            session
-                .send("Say 'abort_recovery_ok'.")
-                .await
-                .expect("send recovery");
-            let recovery = wait_for_event(
-                recovery_events,
-                "assistant.message containing abort_recovery_ok",
-                |event| {
-                    event.parsed_type() == SessionEventType::AssistantMessage
-                        && assistant_message_content(event)
-                            .to_lowercase()
-                            .contains("abort_recovery_ok")
-                },
-            )
-            .await;
-            assert!(
-                assistant_message_content(&recovery)
-                    .to_lowercase()
-                    .contains("abort_recovery_ok")
-            );
-
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_abort_during_active_tool_execution() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "abort",
         "should_abort_during_active_tool_execution",
         |ctx| {

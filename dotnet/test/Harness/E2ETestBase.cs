@@ -59,6 +59,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
+        Ctx.PrepareForTest();
         await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
     }
@@ -88,15 +89,38 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         config ??= new ResumeSessionConfig();
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
 
-        await Client.StartAsync();
-        var port = Client.RuntimePort
-            ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
-
-        var client = Ctx.CreateClient(options: new CopilotClientOptions
+        CopilotClient client;
+        if (E2ETestContext.UsesInProcessTransport)
         {
-            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
-        });
+            client = Client;
+        }
+        else
+        {
+            await Client.StartAsync();
+            var port = Client.RuntimePort
+                ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
+
+            client = Ctx.CreateClient(options: new CopilotClientOptions
+            {
+                Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
+            });
+        }
+
         return await Ctx.ResumeSessionAsync(client, sessionId, config);
+    }
+
+    protected static async Task SuspendAndUntrackSessionForResumeAsync(CopilotSession session)
+    {
+        await session.Rpc.SuspendAsync();
+
+        // In-process clients host separate runtimes, while session.destroy removes the
+        // session from the current runtime. Untrack locally to exercise resume without
+        // either replacing an active wrapper or destroying the session first.
+        var removeFromClient = typeof(CopilotSession).GetMethod(
+            "RemoveFromClient",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("CopilotSession.RemoveFromClient was not found.");
+        removeFromClient.Invoke(session, null);
     }
 
     protected static string GetSystemMessage(ParsedHttpExchange exchange)

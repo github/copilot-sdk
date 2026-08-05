@@ -1,0 +1,181 @@
+name: "SDK"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Select SDK workflows
+    runs-on: ubuntu-latest
+    outputs:
+      nodejs: ${{ steps.select.outputs.nodejs }}
+      python: ${{ steps.select.outputs.python }}
+      go: ${{ steps.select.outputs.go }}
+      dotnet: ${{ steps.select.outputs.dotnet }}
+      java: ${{ steps.select.outputs.java }}
+      rust: ${{ steps.select.outputs.rust }}
+    steps:
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
+        with:
+          predicate-quantifier: every
+          filters: |
+            orchestrator:
+              - '.github/workflows/required-checks.yml'
+            nodejs:
+              - '{nodejs/**,test/**,.github/workflows/nodejs-sdk-tests.yml}'
+              - '!nodejs/scripts/**'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+            python:
+              - '{python/**,test/**,nodejs/package.json,.github/workflows/python-sdk-tests.yml}'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+            go:
+              - '{go/**,test/**,nodejs/package.json,.github/workflows/go-sdk-tests.yml,.github/actions/setup-copilot/**}'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+            dotnet:
+              - '{dotnet/**,test/**,nodejs/package.json,.github/workflows/dotnet-sdk-tests.yml}'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+            java:
+              - '{java/**,test/**,.github/workflows/java-sdk-tests.yml,.github/actions/setup-copilot/**,.github/actions/java-test-report/**}'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+            rust:
+              - '{rust/**,test/**,nodejs/package.json,.github/workflows/rust-sdk-tests.yml,.github/actions/setup-copilot/**}'
+              - '!**/*.md'
+              - '!**/LICENSE*'
+              - '!**/.gitignore'
+              - '!**/.editorconfig'
+              - '!**/*.{png,jpg,jpeg,gif,svg}'
+
+      - name: Select workflows
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ORCHESTRATOR_CHANGED: ${{ steps.filter.outputs.orchestrator }}
+          NODEJS_CHANGED: ${{ steps.filter.outputs.nodejs }}
+          PYTHON_CHANGED: ${{ steps.filter.outputs.python }}
+          GO_CHANGED: ${{ steps.filter.outputs.go }}
+          DOTNET_CHANGED: ${{ steps.filter.outputs.dotnet }}
+          JAVA_CHANGED: ${{ steps.filter.outputs.java }}
+          RUST_CHANGED: ${{ steps.filter.outputs.rust }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" || "$ORCHESTRATOR_CHANGED" == "true" ]]; then
+            for workflow in nodejs python go dotnet java rust; do
+              echo "$workflow=true" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+
+          echo "nodejs=${NODEJS_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+          echo "python=${PYTHON_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+          echo "go=${GO_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+          echo "dotnet=${DOTNET_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+          echo "java=${JAVA_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+          echo "rust=${RUST_CHANGED:-false}" >> "$GITHUB_OUTPUT"
+
+  nodejs:
+    needs: changes
+    if: needs.changes.outputs.nodejs == 'true'
+    uses: ./.github/workflows/nodejs-sdk-tests.yml
+    secrets: inherit
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    uses: ./.github/workflows/python-sdk-tests.yml
+    secrets: inherit
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    uses: ./.github/workflows/go-sdk-tests.yml
+    secrets: inherit
+
+  dotnet:
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
+    uses: ./.github/workflows/dotnet-sdk-tests.yml
+    secrets: inherit
+
+  java:
+    needs: changes
+    if: needs.changes.outputs.java == 'true'
+    uses: ./.github/workflows/java-sdk-tests.yml
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/rust-sdk-tests.yml
+    secrets: inherit
+
+  required:
+    name: "${{ matrix.name }} required"
+    if: always()
+    needs: [changes, nodejs, python, go, dotnet, java, rust]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: nodejs
+            name: Node.js
+          - key: python
+            name: Python
+          - key: go
+            name: Go
+          - key: dotnet
+            name: .NET
+          - key: java
+            name: Java
+          - key: rust
+            name: Rust
+    steps:
+      - name: Verify SDK workflow
+        env:
+          KEY: ${{ matrix.key }}
+          SELECTIONS: ${{ toJSON(needs.changes.outputs) }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          selected=$(jq -r --arg key "$KEY" '.[$key]' <<< "$SELECTIONS")
+          result=$(jq -r --arg key "$KEY" '.[$key].result' <<< "$RESULTS")
+
+          if [[ "$selected" == "true" && "$result" == "success" ]]; then
+            echo "$KEY SDK checks succeeded."
+            exit 0
+          fi
+
+          if [[ "$selected" == "false" && "$result" == "skipped" ]]; then
+            echo "$KEY SDK checks were not required."
+            exit 0
+          fi
+
+          echo "::error::$KEY SDK checks were selected=$selected with result=$result."
+          exit 1

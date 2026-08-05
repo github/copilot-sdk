@@ -42,8 +42,10 @@ public class SessionHooks {
     private PostToolUseHandler onPostToolUse;
     private PostToolUseFailureHandler onPostToolUseFailure;
     private UserPromptSubmittedHandler onUserPromptSubmitted;
+    private UserPromptTransformedHandler onUserPromptTransformed;
     private SessionStartHandler onSessionStart;
     private SessionEndHandler onSessionEnd;
+    private AgentStopHandler onAgentStop;
 
     /**
      * Gets the pre-tool-use handler.
@@ -161,6 +163,29 @@ public class SessionHooks {
     }
 
     /**
+     * Gets the user-prompt-transformed handler.
+     *
+     * @return the handler, or {@code null} if not set
+     * @since 1.0.11
+     */
+    public UserPromptTransformedHandler getOnUserPromptTransformed() {
+        return onUserPromptTransformed;
+    }
+
+    /**
+     * Sets the handler called after the runtime transforms a submitted prompt.
+     *
+     * @param onUserPromptTransformed
+     *            the handler
+     * @return this instance for method chaining
+     * @since 1.0.11
+     */
+    public SessionHooks setOnUserPromptTransformed(UserPromptTransformedHandler onUserPromptTransformed) {
+        this.onUserPromptTransformed = onUserPromptTransformed;
+        return this;
+    }
+
+    /**
      * Gets the session-start handler.
      *
      * @return the handler, or {@code null} if not set
@@ -207,12 +232,36 @@ public class SessionHooks {
     }
 
     /**
+     * Gets the agent-stop handler.
+     *
+     * @return the handler, or {@code null} if not set
+     * @since 1.0.9
+     */
+    public AgentStopHandler getOnAgentStop() {
+        return onAgentStop;
+    }
+
+    /**
+     * Sets the handler called when the top-level agent reaches a natural stop.
+     *
+     * @param onAgentStop
+     *            the handler
+     * @return this instance for method chaining
+     * @since 1.0.9
+     */
+    public SessionHooks setOnAgentStop(AgentStopHandler onAgentStop) {
+        this.onAgentStop = onAgentStop;
+        return this;
+    }
+
+    /**
      * Returns whether any hooks are registered.
      *
      * @return {@code true} if at least one hook handler is set
      */
     public boolean hasHooks() {
         return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null || onPostToolUseFailure != null
-                || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null;
+                || onUserPromptSubmitted != null || onUserPromptTransformed != null || onSessionStart != null
+                || onSessionEnd != null || onAgentStop != null;
     }
 }

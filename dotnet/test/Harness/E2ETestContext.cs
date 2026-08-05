@@ -5,6 +5,7 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
@@ -16,6 +17,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
+    internal static bool UsesInProcessTransport => IsInProcess(null);
 
     /// <summary>Optional logger injected by tests; applied to all clients created via <see cref="CreateClient"/>.</summary>
     public ILogger? Logger { get; set; }
@@ -141,20 +143,40 @@ public sealed class E2ETestContext : IAsyncDisposable
         if (!string.IsNullOrEmpty(envPath)) return envPath;
 
         // As of CLI 1.0.64-1 the @github/copilot package is a thin loader; the
-        // runnable index.js ships in the installed platform package
-        // (e.g. @github/copilot-linux-x64). Exactly one is installed.
+        // runnable index.js ships in the installed platform package.
         var githubModules = Path.Join(repoRoot, "nodejs", "node_modules", "@github");
-        if (Directory.Exists(githubModules))
-        {
-            var candidate = Directory.EnumerateDirectories(githubModules, "copilot-*")
-                .Select(dir => Path.Join(dir, "index.js"))
-                .FirstOrDefault(File.Exists);
-            if (candidate != null)
-                return candidate;
-        }
+        var packagePrefix = GetCliPackagePrefix();
+        var candidates = Directory.Exists(githubModules)
+            ? Directory.EnumerateDirectories(githubModules, $"{packagePrefix}-*", SearchOption.TopDirectoryOnly)
+                .Select(directory => Path.Join(directory, "index.js"))
+                .Where(File.Exists)
+                .ToArray()
+            : [];
 
-        throw new InvalidOperationException(
-            $"CLI not found under {githubModules}. Run 'npm install' in the nodejs directory first.");
+        return candidates.Length switch
+        {
+            1 => candidates[0],
+            0 => throw new InvalidOperationException(
+                $"CLI package matching '{packagePrefix}-*' not found under {githubModules}. " +
+                "Run 'npm install' in the nodejs directory first."),
+            _ => throw new InvalidOperationException(
+                $"Multiple CLI packages matching '{packagePrefix}-*' found under {githubModules}: " +
+                string.Join(", ", candidates.Select(Path.GetDirectoryName))),
+        };
+    }
+
+    private static string GetCliPackagePrefix()
+    {
+        var platform = OperatingSystem.IsWindows()
+            ? "win32"
+            : OperatingSystem.IsMacOS()
+                ? "darwin"
+                : OperatingSystem.IsLinux()
+                    ? RuntimeInformation.RuntimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal)
+                        ? "linuxmusl"
+                        : "linux"
+                    : throw new PlatformNotSupportedException("Unsupported operating system for Copilot CLI E2E tests.");
+        return $"copilot-{platform}";
     }
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
@@ -301,22 +323,8 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         if (IsInProcess(options.Connection))
         {
-            // In-process hosting: runtime code runs host-side in this process (the
-            // loaded cdylib) and reads the ambient process environment rather than
-            // the environment passed to copilot_runtime_host_start, so the per-test
-            // redirects, cleared tokens/HMAC, and isolated home must be mirrored
-            // onto this process's real environment. Restored after each test by
-            // InProcessEnvIsolationAttribute.
-            foreach (var (name, value) in env)
-            {
-                InProcessEnvIsolation.Apply(name, value);
-            }
-
-            // A per-client WorkingDirectory is rejected in-process; instead point this
-            // process's cwd at the desired directory so the worker inherits it at spawn
-            // (restored after the test by InProcessEnvIsolationAttribute).
             options.WorkingDirectory = null;
-            InProcessEnvIsolation.SetWorkingDirectory(desiredWorkingDirectory);
+            ApplyInProcessEnvironment(env, desiredWorkingDirectory);
         }
         else if (options.Connection is ChildProcessRuntimeConnection child)
         {
@@ -372,6 +380,29 @@ public sealed class E2ETestContext : IAsyncDisposable
         config ??= new ResumeSessionConfig();
         E2ETestBackendConfiguration.Current.ApplyProvider(config, ProxyUrl);
         return client.ResumeSessionAsync(sessionId, config);
+    }
+
+    internal void PrepareForTest()
+    {
+        if (UsesInProcessTransport)
+        {
+            ApplyInProcessEnvironment(GetEnvironment(), WorkDir);
+        }
+    }
+
+    private static void ApplyInProcessEnvironment(IReadOnlyDictionary<string, string> environment, string workingDirectory)
+    {
+        // Runtime code runs host-side in this process and reads its ambient environment,
+        // so restore the per-test redirects and isolated home after the assembly-level
+        // isolation attribute reset them at the end of the preceding test.
+        foreach (var (name, value) in environment)
+        {
+            InProcessEnvIsolation.Apply(name, value);
+        }
+
+        // The worker inherits the host process cwd because the native host has no
+        // per-client working-directory parameter.
+        InProcessEnvIsolation.SetWorkingDirectory(workingDirectory);
     }
 
     public void UntrackClient(CopilotClient client)

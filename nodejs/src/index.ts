@@ -12,6 +12,7 @@ export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
+export { defineFactory, FactoryResumeError, isFactoryRunTerminal } from "./factory.js";
 export {
     Canvas,
     CanvasError,
@@ -32,6 +33,7 @@ export {
     CopilotWebSocketHandler,
     CopilotWebSocketCloseStatus,
     CopilotWebSocketForwarder,
+    SessionFsSqliteTransactionFailure,
     SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and
@@ -39,13 +41,14 @@ export {
 // consumers can import them directly from "@github/copilot-sdk" instead of
 // reaching into the package's internal dist layout. See issue #1156.
 //
-// Three names from this file are also explicitly exported elsewhere in this
+// Five names from this file are also explicitly exported elsewhere in this
 // module — `SessionEvent` (re-exported below from `./types.js`),
-// `PermissionRequest` (re-exported below from `./types.js`), and
-// `AssistantMessageEvent` (re-exported above from `./session.js`). Per the
-// ECMAScript module spec, the explicit named re-exports shadow the names
-// arriving via `export type *`, so the hand-authored public API surface for
-// those three identifiers is preserved unchanged.
+// `PermissionRequest` (re-exported below from `./types.js`),
+// `PermissionRequestedData`/`PermissionRequestedEvent` (also re-exported below
+// from `./types.js`), and `AssistantMessageEvent` (re-exported above from
+// `./session.js`). Per the ECMAScript module spec, the explicit named re-exports
+// shadow the names arriving via `export type *`, so the hand-authored public API
+// surface for those five identifiers is preserved unchanged.
 export type * from "./generated/session-events.js";
 export type {
     CommandContext,
@@ -57,6 +60,12 @@ export type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    AgentStopHandler,
+    AgentStopHookInput,
+    AgentStopHookOutput,
+    UserPromptTransformedHandler,
+    UserPromptTransformedHookInput,
+    UserPromptTransformedHookOutput,
     CopilotClientMode,
     CopilotClientOptions,
     CopilotExpAssignmentResponse,
@@ -82,6 +91,7 @@ export type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
+    GitHubMcpToolConfig,
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
     GitHubTelemetryClientInfo,
@@ -89,6 +99,8 @@ export type {
     LargeToolOutputConfig,
     MemoryConfiguration,
     UiInputOptions,
+    FactoryLimits,
+    FactoryMeta,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -106,6 +118,8 @@ export type {
     NamedProviderConfig,
     PermissionHandler,
     PermissionRequest,
+    PermissionRequestedData,
+    PermissionRequestedEvent,
     PermissionRequestResult,
     ProviderConfig,
     ProviderModelConfig,
@@ -126,6 +140,7 @@ export type {
     SessionLifecycleEventMetadata,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionHooks,
     SessionCreatedEvent,
     SessionDeletedEvent,
     SessionUpdatedEvent,
@@ -141,6 +156,8 @@ export type {
     SessionFsSqliteQueryResult,
     SessionFsSqliteQueryType,
     SessionFsSqliteProvider,
+    SessionFsSqliteStatement,
+    SessionFsSqliteTransactionErrorClass,
     CopilotRequestContext,
     SystemMessageAppendConfig,
     SystemMessageConfig,
@@ -161,3 +178,26 @@ export type {
     TypedSessionLifecycleHandler,
     ZodSchema,
 } from "./types.js";
+export type {
+    RunOptions,
+    ResumeOptions,
+    FactoryResumeErrorCode,
+    SessionFactoryApi,
+    FactoryAgentOptions,
+    FactoryContext,
+    FactoryDefinition,
+    FactoryHandle,
+    FactoryJsonSchema,
+    JsonValue,
+    FactoryPipelineStage,
+    FactoryStepOptions,
+    FactoryRunResult,
+    FactoryRunStatus,
+    FactoryRunSummary,
+    FactoryRunDetail,
+    FactoryProgressPage,
+    FactoryProgressLine,
+    FactoryPhaseObservation,
+    FactoryPhaseStatus,
+    FactoryAgentSummary,
+} from "./factory.js";

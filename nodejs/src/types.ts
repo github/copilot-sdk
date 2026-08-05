@@ -11,6 +11,9 @@ import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { CopilotRequestHandler } from "./copilotRequestHandler.js";
 import type {
+    PermissionRequest as GeneratedPermissionRequest,
+    PermissionRequestedData as GeneratedPermissionRequestedData,
+    PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
     ReasoningSummary,
     SessionLimitsConfig,
     SessionEvent as GeneratedSessionEvent,
@@ -35,7 +38,9 @@ export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
 } from "./generated/rpc.js";
-export type SessionEvent = GeneratedSessionEvent;
+export type SessionEvent =
+    | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
+    | PermissionRequestedEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
@@ -43,6 +48,9 @@ export type { SessionFsFileInfo } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
 export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
 export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
+export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
+export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
+export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
@@ -1092,16 +1100,33 @@ export type SystemMessageConfig =
     | SystemMessageReplaceConfig
     | SystemMessageCustomizeConfig;
 
+import type { PermissionDecisionRequest } from "./generated/rpc.js";
+
 /**
  * Permission request types from the server. This is the generated
  * discriminated union from the runtime schema — switch on `kind` to
  * access the variant-specific fields (e.g. shell `commands`, write
  * `fileName`/`diff`, mcp `toolName`/`args`).
+ *
+ * `managedApprovalRequired` indicates that managed policy requires an explicit
+ * user decision. Hosts should bypass automatic approval and present their
+ * normal confirmation UI. The runtime currently emits it for managed Shell,
+ * Read, Edit, and Domain selector asks.
  */
-export type { PermissionRequest } from "./generated/session-events.js";
-import type { PermissionRequest } from "./generated/session-events.js";
+export type PermissionRequest = GeneratedPermissionRequest & {
+    readonly managedApprovalRequired?: boolean;
+};
 
-import type { PermissionDecisionRequest } from "./generated/rpc.js";
+export type PermissionRequestedData = Omit<
+    GeneratedPermissionRequestedData,
+    "permissionRequest"
+> & {
+    permissionRequest: PermissionRequest;
+};
+
+export type PermissionRequestedEvent = Omit<GeneratedPermissionRequestedEvent, "data"> & {
+    data: PermissionRequestedData;
+};
 
 /**
  * Permission decision result returned from a {@link PermissionHandler}.
@@ -1113,10 +1138,24 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 export type PermissionHandler = (
     request: PermissionRequest,
-    invocation: { sessionId: string }
+    invocation: { sessionId: string; managedSettingsEnabled?: boolean }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
-export const approveAll: PermissionHandler = () => ({ kind: "approve-once" });
+/**
+ * Approves permission requests when managed settings are disabled.
+ */
+export const approveAll: PermissionHandler = (request, invocation) => {
+    if (invocation.managedSettingsEnabled) {
+        throw new Error("approveAll cannot be used when managed settings are enabled");
+    }
+    if ("managedApprovalRequired" in request) {
+        const managedApprovalRequired = request.managedApprovalRequired;
+        if (managedApprovalRequired !== undefined && managedApprovalRequired !== false) {
+            return { kind: "no-result" };
+        }
+    }
+    return { kind: "approve-once" };
+};
 
 export const defaultJoinSessionPermissionHandler: PermissionHandler =
     (): PermissionRequestResult => ({
@@ -1399,6 +1438,33 @@ export type UserPromptSubmittedHandler = (
 ) => Promise<UserPromptSubmittedHookOutput | void> | UserPromptSubmittedHookOutput | void;
 
 /**
+ * Input for the user-prompt-transformed hook.
+ *
+ * This hook runs after the runtime has transformed the submitted prompt with
+ * generated context, but before it is persisted to session history or sent to
+ * the model.
+ */
+export interface UserPromptTransformedHookInput extends BaseHookInput {
+    prompt: string;
+    transformedPrompt: string;
+}
+
+/**
+ * Output for the user-prompt-transformed hook.
+ */
+export interface UserPromptTransformedHookOutput {
+    modifiedTransformedPrompt?: string;
+}
+
+/**
+ * Handler for the user-prompt-transformed hook.
+ */
+export type UserPromptTransformedHandler = (
+    input: UserPromptTransformedHookInput,
+    invocation: { sessionId: string }
+) => Promise<UserPromptTransformedHookOutput | void> | UserPromptTransformedHookOutput | void;
+
+/**
  * Input for session-start hook
  */
 export interface SessionStartHookInput extends BaseHookInput {
@@ -1476,6 +1542,49 @@ export type ErrorOccurredHandler = (
 ) => Promise<ErrorOccurredHookOutput | void> | ErrorOccurredHookOutput | void;
 
 /**
+ * Input for the agent-stop hook.
+ *
+ * Fires for the top-level (main) agent when it reaches a natural terminal stop
+ * — i.e. the agent has gone idle without a pending non-terminal tool call and
+ * was not aborted or blocked by a rejected tool. (For sub-agents, the runtime
+ * fires a separate sub-agent stop lifecycle.)
+ */
+export interface AgentStopHookInput extends BaseHookInput {
+    /** Why the agent stopped (for example, `"end_turn"`). */
+    stopReason?: string;
+    /** Path to the on-disk session transcript, when available. */
+    transcriptPath?: string;
+    /**
+     * True when this stop is a re-entry triggered by a previous agent-stop
+     * `block` decision (Claude-compatible `stop_hook_active` semantics). Lets a
+     * handler avoid blocking indefinitely.
+     */
+    stopHookActive?: boolean;
+}
+
+/**
+ * Output for the agent-stop hook.
+ *
+ * Return `{ decision: "block", reason }` to keep the agent running: the
+ * `reason` is enqueued as a follow-up user message so the agent continues
+ * working (for example, to remediate findings surfaced by the hook). The
+ * runtime caps consecutive blocks to prevent runaway loops. Returning nothing
+ * (or omitting `decision`) lets the agent stop normally.
+ */
+export interface AgentStopHookOutput {
+    decision?: "block";
+    reason?: string;
+}
+
+/**
+ * Handler for the agent-stop hook.
+ */
+export type AgentStopHandler = (
+    input: AgentStopHookInput,
+    invocation: { sessionId: string }
+) => Promise<AgentStopHookOutput | void> | AgentStopHookOutput | void;
+
+/**
  * Configuration for session hooks
  */
 export interface SessionHooks {
@@ -1512,6 +1621,11 @@ export interface SessionHooks {
     onUserPromptSubmitted?: UserPromptSubmittedHandler;
 
     /**
+     * Called after the runtime transforms a submitted prompt and before it is stored.
+     */
+    onUserPromptTransformed?: UserPromptTransformedHandler;
+
+    /**
      * Called when a session starts
      */
     onSessionStart?: SessionStartHandler;
@@ -1525,6 +1639,16 @@ export interface SessionHooks {
      * Called when an error occurs
      */
     onErrorOccurred?: ErrorOccurredHandler;
+
+    /**
+     * Called when the top-level agent reaches a natural terminal stop (it went
+     * idle without pending work and was not aborted). Return
+     * `{ decision: "block", reason }` to keep the agent running with `reason`
+     * enqueued as a follow-up message — for example, to have the agent
+     * remediate findings the handler surfaced. Returning nothing lets the
+     * agent stop.
+     */
+    onAgentStop?: AgentStopHandler;
 }
 
 // ============================================================================
@@ -1643,8 +1767,8 @@ export interface CustomAgentConfig {
     model?: string;
     /**
      * Reasoning effort level for this agent's model.
-     * When omitted, no per-agent override is sent and the backend chooses its
-     * default. The parent session effort is not inherited.
+     * When omitted, the runtime resolves the effort from model configuration,
+     * then inherits the parent effort only if this agent uses the same model.
      */
     reasoningEffort?: ReasoningEffort;
 }
@@ -1731,7 +1855,7 @@ export interface LargeToolOutputConfig {
 /**
  * Valid reasoning effort levels for models that support it.
  */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /**
  * Context window tier for the session. "long_context" pins the session to the
@@ -1837,6 +1961,44 @@ export interface CanvasProviderIdentity {
 }
 
 /**
+ * Static resource ceilings declared by a factory before it runs.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryLimits {
+    /** Maximum number of factory subagents that may run concurrently. Must be positive when present. */
+    maxConcurrentSubagents?: number;
+    /** Maximum total number of factory subagents that may be spawned. Must be positive when present. */
+    maxTotalSubagents?: number;
+    /** Maximum AI credits consumed by factory subagents and descendants. This post-paid ceiling is soft. */
+    maxAiCredits?: number;
+    /**
+     * Maximum accumulated active-execution time, in seconds. Active execution includes the entire extension body,
+     * subprocess waits, queued-agent waits, and sleeps. The limit is armed from the remaining headroom when a run
+     * resumes; time between attempts is not counted. Must be finite and positive when present.
+     */
+    timeoutSeconds?: number;
+}
+
+/**
+ * Registration metadata for an extension-authored factory.
+ *
+ * @experimental Part of the experimental Agent Factories surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface FactoryMeta {
+    /** Stable factory name used for invocation. */
+    name: string;
+    /** Human-readable factory description. */
+    description: string;
+    /** Display metadata for the progress phases the factory may report. */
+    phases: Array<{ title: string; detail?: string }>;
+    /** Optional resource ceilings presented to the user before execution. */
+    limits?: FactoryLimits;
+}
+
+/**
  * Provider-scoped options for the Copilot API (CAPI).
  *
  * These settings apply to the built-in Copilot API provider only. They live
@@ -1901,6 +2063,20 @@ export interface CopilotExpAssignmentResponse {
 }
 
 /**
+ * Configuration for the built-in GitHub MCP server.
+ *
+ * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+ * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+ */
+export interface GitHubMcpToolConfig {
+    enableAllTools?: boolean;
+    additionalToolsets?: string[];
+    additionalTools?: string[];
+    enableInsidersMode?: boolean;
+    disableFormDeferral?: boolean;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -1931,6 +2107,12 @@ export interface SessionConfigBase {
     reasoningSummary?: ReasoningSummary;
 
     /**
+     * Controls whether the session enables experimental features.
+     * Defaults to `false` in `"empty"` mode; otherwise the runtime decides when unset.
+     */
+    enableExperimentalMode?: boolean;
+
+    /**
      * Context window tier for models that support it. Use "long_context" to pin
      * the session to the long-context tier; omit or use "default" otherwise.
      */
@@ -1954,13 +2136,8 @@ export interface SessionConfigBase {
     configDirectory?: string;
 
     /**
-     * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
-     * `.vscode/mcp.json`) and skill directories from the working directory and merges
-     * them with any explicitly provided `mcpServers` and `skillDirectories`, with
-     * explicit values taking precedence on name collision.
-     *
-     * Note: custom instruction files (`.github/copilot-instructions.md`, `AGENTS.md`, etc.)
-     * are always loaded from the working directory regardless of this setting.
+     * Enables runtime discovery of supported configuration. Explicitly supplied
+     * configuration takes precedence over discovered values.
      *
      * @default false
      */
@@ -2235,6 +2412,14 @@ export interface SessionConfigBase {
     enableMcpApps?: boolean;
 
     /**
+     * Configuration for the built-in GitHub MCP server.
+     *
+     * `disableFormDeferral` only applies to the built-in GitHub MCP server and
+     * only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+     */
+    githubMcpToolConfig?: GitHubMcpToolConfig;
+
+    /**
      * Handler for exit-plan-mode requests from the agent.
      * When provided, enables `exitPlanMode.request` callbacks.
      */
@@ -2257,6 +2442,13 @@ export interface SessionConfigBase {
      * Tool operations will be relative to this directory.
      */
     workingDirectory?: string;
+
+    /**
+     * Additional directories the agent may access beyond the working directory.
+     * Relative paths are resolved against the session's working directory.
+     * Re-supply these directories when resuming a session.
+     */
+    additionalDirectories?: string[];
 
     /**
      * Enable streaming of assistant message and reasoning chunks.
@@ -2619,7 +2811,7 @@ export interface ProviderConfig {
      */
     azure?: {
         /**
-         * API version. Defaults to "2024-10-21".
+         * API version. When omitted, the runtime uses the GA versionless v1 route.
          */
         apiVersion?: string;
     };

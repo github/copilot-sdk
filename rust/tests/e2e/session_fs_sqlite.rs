@@ -4,13 +4,14 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use github_copilot_sdk::session_fs::{FsError, FsErrorKind};
 use github_copilot_sdk::{
-    Client, DirEntry, DirEntryKind, FileInfo, SessionConfig, SessionFsCapabilities,
-    SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider,
-    SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    DirEntry, DirEntryKind, FileInfo, SessionConfig, SessionFsCapabilities, SessionFsConfig,
+    SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError, SessionFsSqliteTransactionStatement,
 };
 use rusqlite::Connection;
 
-use super::support::with_e2e_context;
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::new("session_fs_sqlite", sqlite_client_options, 2);
 
 #[derive(Debug)]
 struct SqliteCall {
@@ -219,40 +220,93 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
         query: &str,
         _params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
+        let mut db_guard = self.db.lock().unwrap();
+        let db = Self::get_or_create_db(&mut db_guard)?;
+        Ok(Some(Self::run_statement(
+            db,
+            query_type,
+            query,
+            &self.session_id,
+            &self.sqlite_calls,
+        )?))
+    }
+
+    async fn sqlite_transaction(
+        &self,
+        statements: &[SessionFsSqliteTransactionStatement],
+    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+        let mut db_guard = self.db.lock().unwrap();
+        let db = Self::get_or_create_db(&mut db_guard)?;
+        db.execute_batch("BEGIN IMMEDIATE")
+            .map_err(|e| Self::classify_sqlite_error(&e))?;
+        let mut results = Vec::with_capacity(statements.len());
+        for statement in statements {
+            match Self::run_statement(
+                db,
+                statement.query_type.clone(),
+                &statement.query,
+                &self.session_id,
+                &self.sqlite_calls,
+            ) {
+                Ok(result) => results.push(result),
+                Err(e) => {
+                    let _ = db.execute_batch("ROLLBACK");
+                    return Err(Self::classify_error_message(e.to_string()));
+                }
+            }
+        }
+        db.execute_batch("COMMIT")
+            .map_err(|e| SessionFsSqliteTransactionError::post_commit_ambiguous(e.to_string()))?;
+        Ok(results)
+    }
+
+    async fn sqlite_exists(&self) -> Result<bool, FsError> {
+        Ok(self.db.lock().unwrap().is_some())
+    }
+}
+
+impl InMemorySqliteProvider {
+    fn classify_sqlite_error(error: &rusqlite::Error) -> SessionFsSqliteTransactionError {
+        Self::classify_error_message(error.to_string())
+    }
+
+    fn classify_error_message(message: String) -> SessionFsSqliteTransactionError {
+        if message.contains("locked") || message.contains("busy") {
+            SessionFsSqliteTransactionError::busy_or_locked(message)
+        } else {
+            SessionFsSqliteTransactionError::fatal(message)
+        }
+    }
+
+    fn run_statement(
+        db: &Connection,
+        query_type: SessionFsSqliteQueryType,
+        query: &str,
+        session_id: &str,
+        sqlite_calls: &Arc<Mutex<Vec<SqliteCall>>>,
+    ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let qt_str = match query_type {
             SessionFsSqliteQueryType::Exec => "exec",
             SessionFsSqliteQueryType::Query => "query",
             SessionFsSqliteQueryType::Run => "run",
             SessionFsSqliteQueryType::Unknown => "unknown",
         };
-        self.sqlite_calls.lock().unwrap().push(SqliteCall {
-            session_id: self.session_id.clone(),
+        sqlite_calls.lock().unwrap().push(SqliteCall {
+            session_id: session_id.to_string(),
             query_type: qt_str.to_string(),
             query: query.to_string(),
         });
 
-        let mut db_guard = self.db.lock().unwrap();
-        let db = Self::get_or_create_db(&mut db_guard)?;
         let trimmed = query.trim();
         if trimmed.is_empty() {
-            return Ok(Some(SessionFsSqliteQueryResult {
-                columns: vec![],
-                rows: vec![],
-                rows_affected: 0,
-                last_insert_rowid: None,
-            }));
+            return Ok(SessionFsSqliteQueryResult::default());
         }
 
         match query_type {
             SessionFsSqliteQueryType::Exec => {
                 db.execute_batch(trimmed)
                     .map_err(|e| FsError::new(FsErrorKind::Other, e))?;
-                Ok(Some(SessionFsSqliteQueryResult {
-                    columns: vec![],
-                    rows: vec![],
-                    rows_affected: 0,
-                    last_insert_rowid: None,
-                }))
+                Ok(SessionFsSqliteQueryResult::default())
             }
             SessionFsSqliteQueryType::Query => {
                 let mut stmt = db
@@ -292,36 +346,27 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     }
                     rows.push(map);
                 }
-                Ok(Some(SessionFsSqliteQueryResult {
+                Ok(SessionFsSqliteQueryResult {
                     columns,
                     rows,
                     rows_affected: 0,
                     last_insert_rowid: None,
-                }))
+                })
             }
             SessionFsSqliteQueryType::Run => {
                 let affected = db
                     .execute(trimmed, [])
                     .map_err(|e| FsError::new(FsErrorKind::Other, e))?;
                 let last_id = db.last_insert_rowid();
-                Ok(Some(SessionFsSqliteQueryResult {
+                Ok(SessionFsSqliteQueryResult {
                     columns: vec![],
                     rows: vec![],
                     rows_affected: affected as i64,
                     last_insert_rowid: Some(last_id),
-                }))
+                })
             }
-            _ => Ok(Some(SessionFsSqliteQueryResult {
-                columns: vec![],
-                rows: vec![],
-                rows_affected: 0,
-                last_insert_rowid: None,
-            })),
+            _ => Ok(SessionFsSqliteQueryResult::default()),
         }
-    }
-
-    async fn sqlite_exists(&self) -> Result<bool, FsError> {
-        Ok(self.db.lock().unwrap().is_some())
     }
 }
 
@@ -346,13 +391,12 @@ fn sqlite_session_fs_config() -> SessionFsConfig {
     .with_capabilities(SessionFsCapabilities::new().with_sqlite(true))
 }
 
-async fn start_sqlite_client(ctx: &super::support::E2eContext) -> Client {
-    Client::start(
-        ctx.client_options()
-            .with_session_fs(sqlite_session_fs_config()),
-    )
-    .await
-    .expect("start sqlite client")
+fn sqlite_client_options(
+    context: &super::support::E2eContext,
+) -> github_copilot_sdk::ClientOptions {
+    context
+        .client_options()
+        .with_session_fs(sqlite_session_fs_config())
 }
 
 fn sqlite_session_config(
@@ -365,7 +409,8 @@ fn sqlite_session_config(
 
 #[tokio::test]
 async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_fs_sqlite",
         "should_route_sql_queries_through_the_sessionfs_sqlite_handler",
         |ctx| {
@@ -377,7 +422,7 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
                     session_id,
                     sqlite_calls.clone(),
                 ));
-                let client = start_sqlite_client(ctx).await;
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         sqlite_session_config(ctx, provider).with_session_id(session_id),
@@ -435,7 +480,8 @@ async fn should_route_sql_queries_through_the_sessionfs_sqlite_handler() {
 
 #[tokio::test]
 async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session_fs_sqlite",
         "should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs",
         |ctx| {
@@ -445,7 +491,7 @@ async fn should_allow_subagents_to_use_sql_tool_via_inherited_sessionfs() {
                 let sqlite_calls = Arc::new(Mutex::new(Vec::new()));
                 let provider = Arc::new(InMemorySqliteProvider::new(session_id, sqlite_calls.clone()));
                 let provider_ref = provider.clone();
-                let client = start_sqlite_client(ctx).await;
+                let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         sqlite_session_config(ctx, provider).with_session_id(session_id),

@@ -203,6 +203,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeFactoryRunUpdated:
+		var d FactoryRunUpdatedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeHookEnd:
 		var d HookEndData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -385,6 +391,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionContextChanged:
 		var d SessionContextChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionContextCleared:
+		var d SessionContextClearedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -1346,6 +1358,12 @@ func unmarshalSystemNotification(data []byte) (SystemNotification, error) {
 			return nil, err
 		}
 		return &d, nil
+	case SystemNotificationTypeFactoryCompleted:
+		var d SystemNotificationFactoryCompleted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case SystemNotificationTypeInstructionDiscovered:
 		var d SystemNotificationInstructionDiscovered
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1366,6 +1384,12 @@ func unmarshalSystemNotification(data []byte) (SystemNotification, error) {
 		return &d, nil
 	case SystemNotificationTypeShellDetachedCompleted:
 		var d SystemNotificationShellDetachedCompleted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SystemNotificationTypeUnclassified:
+		var d SystemNotificationUnclassified
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -1399,6 +1423,17 @@ func (r SystemNotificationAgentCompleted) MarshalJSON() ([]byte, error) {
 
 func (r SystemNotificationAgentIdle) MarshalJSON() ([]byte, error) {
 	type alias SystemNotificationAgentIdle
+	return json.Marshal(struct {
+		Type SystemNotificationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r SystemNotificationFactoryCompleted) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationFactoryCompleted
 	return json.Marshal(struct {
 		Type SystemNotificationType `json:"type"`
 		alias
@@ -1443,6 +1478,17 @@ func (r SystemNotificationShellCompleted) MarshalJSON() ([]byte, error) {
 
 func (r SystemNotificationShellDetachedCompleted) MarshalJSON() ([]byte, error) {
 	type alias SystemNotificationShellDetachedCompleted
+	return json.Marshal(struct {
+		Type SystemNotificationType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
+	type alias SystemNotificationUnclassified
 	return json.Marshal(struct {
 		Type SystemNotificationType `json:"type"`
 		alias
@@ -1499,6 +1545,12 @@ func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
 		return &d, nil
 	case PermissionRequestKindExtensionPermissionAccess:
 		var d PermissionRequestExtensionPermissionAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionRequestKindFactory:
+		var d PermissionRequestFactory
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -1585,6 +1637,17 @@ func (r PermissionRequestExtensionManagement) MarshalJSON() ([]byte, error) {
 
 func (r PermissionRequestExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
 	type alias PermissionRequestExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionRequestFactory) MarshalJSON() ([]byte, error) {
+	type alias PermissionRequestFactory
 	return json.Marshal(struct {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
@@ -1708,6 +1771,12 @@ func unmarshalPermissionPromptRequest(data []byte) (PermissionPromptRequest, err
 			return nil, err
 		}
 		return &d, nil
+	case PermissionPromptRequestKindFactory:
+		var d PermissionPromptRequestFactory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case PermissionPromptRequestKindHook:
 		var d PermissionPromptRequestHook
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1810,6 +1879,17 @@ func (r PermissionPromptRequestExtensionPermissionAccess) MarshalJSON() ([]byte,
 	})
 }
 
+func (r PermissionPromptRequestFactory) MarshalJSON() ([]byte, error) {
+	type alias PermissionPromptRequestFactory
+	return json.Marshal(struct {
+		Kind PermissionPromptRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func (r PermissionPromptRequestHook) MarshalJSON() ([]byte, error) {
 	type alias PermissionPromptRequestHook
 	return json.Marshal(struct {
@@ -1893,6 +1973,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
 		RequestID         string          `json:"requestId"`
 		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
+		RiskAssessment    any             `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1914,6 +1995,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	}
 	r.RequestID = raw.RequestID
 	r.ResolvedByHook = raw.ResolvedByHook
+	r.RiskAssessment = raw.RiskAssessment
 	return nil
 }
 

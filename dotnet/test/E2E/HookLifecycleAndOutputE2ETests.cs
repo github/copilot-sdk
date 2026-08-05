@@ -11,8 +11,9 @@ namespace GitHub.Copilot.Test.E2E;
 /// <summary>
 /// E2E coverage for every handler exposed on <see cref="SessionHooks"/>:
 /// OnPreToolUse, OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
-/// OnSessionStart, OnSessionEnd, OnErrorOccurred. Output-shape behavior
-/// (modifiedPrompt / additionalContext / errorHandling / modifiedArgs /
+/// OnUserPromptTransformed, OnSessionStart, OnSessionEnd, OnErrorOccurred,
+/// OnAgentStop. Output-shape behavior (modifiedPrompt / modifiedTransformedPrompt /
+/// additionalContext / errorHandling / modifiedArgs /
 /// modifiedResult / sessionSummary) is asserted alongside hook invocation. If a
 /// new handler is added to <c>SessionHooks</c>, add a corresponding test here.
 /// </summary>
@@ -164,6 +165,37 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
     }
 
     [Fact]
+    public async Task Should_Invoke_UserPromptTransformed_Hook_And_Modify_Transformed_Prompt()
+    {
+        var inputs = new List<UserPromptTransformedHookInput>();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnUserPromptTransformed = (input, invocation) =>
+                {
+                    inputs.Add(input);
+                    Assert.False(string.IsNullOrWhiteSpace(invocation.SessionId));
+                    return Task.FromResult<UserPromptTransformedHookOutput?>(new UserPromptTransformedHookOutput
+                    {
+                        ModifiedTransformedPrompt = "Reply with exactly: HOOKED_TRANSFORMED_PROMPT",
+                    });
+                },
+            },
+        });
+
+        var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Answer the request above." });
+
+        Assert.NotEmpty(inputs);
+        Assert.Contains("Answer the request above.", inputs[0].Prompt);
+        Assert.Contains("Answer the request above.", inputs[0].TransformedPrompt);
+        Assert.Contains("<current_datetime>", inputs[0].TransformedPrompt);
+        Assert.True(inputs[0].Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.False(string.IsNullOrEmpty(inputs[0].WorkingDirectory));
+        Assert.Contains("HOOKED_TRANSFORMED_PROMPT", response?.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
     public async Task Should_Invoke_SessionStart_Hook()
     {
         var inputs = new List<SessionStartHookInput>();
@@ -253,6 +285,45 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
         // does not exist in the public surface today.
         Assert.Empty(inputs);
         Assert.NotNull(session.SessionId);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_AgentStop_Hook_And_Apply_Block_Response()
+    {
+        var inputs = new List<AgentStopHookInput>();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnAgentStop = (input, invocation) =>
+                {
+                    inputs.Add(input);
+                    Assert.False(string.IsNullOrWhiteSpace(invocation.SessionId));
+                    if (inputs.Count == 1)
+                    {
+                        return Task.FromResult<AgentStopHookOutput?>(new AgentStopHookOutput
+                        {
+                            Decision = "block",
+                            Reason = "Reply with exactly: AGENT_STOP_CONTINUED",
+                        });
+                    }
+
+                    return Task.FromResult<AgentStopHookOutput?>(null);
+                },
+            },
+        });
+
+        var response = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Reply with exactly: AGENT_STOP_INITIAL",
+        });
+
+        Assert.Equal(2, inputs.Count);
+        Assert.NotEqual(true, inputs[0].StopHookActive);
+        Assert.True(inputs[1].StopHookActive);
+        Assert.Equal("end_turn", inputs[0].StopReason);
+        Assert.False(string.IsNullOrWhiteSpace(inputs[0].TranscriptPath));
+        Assert.Contains("AGENT_STOP_CONTINUED", response?.Data.Content ?? string.Empty);
     }
 
     [Fact]

@@ -92,6 +92,9 @@ from .generated.session_events import (
     SessionEventType,
 )
 from .session import (
+    AgentStopHandler,
+    AgentStopHookInput,
+    AgentStopHookOutput,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -110,6 +113,7 @@ from .session import (
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    GitHubMcpToolConfig,
     InfiniteSessionConfig,
     InputOptions,
     LargeToolOutputConfig,
@@ -169,12 +173,16 @@ from .session import (
     UserPromptSubmittedHandler,
     UserPromptSubmittedHookInput,
     UserPromptSubmittedHookOutput,
+    UserPromptTransformedHandler,
+    UserPromptTransformedHookInput,
+    UserPromptTransformedHookOutput,
 )
 from .session_fs_provider import (
     SessionFsFileInfo,
     SessionFsProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
+    SessionFsSqliteTransactionFailure,
     create_session_fs_adapter,
 )
 from .tools import (
@@ -196,6 +204,9 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "AgentStopHandler",
+    "AgentStopHookInput",
+    "AgentStopHookOutput",
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
@@ -241,6 +252,7 @@ __all__ = [
     "GetAuthStatusResponse",
     "BearerTokenProvider",
     "GetStatusResponse",
+    "GitHubMcpToolConfig",
     "GitHubTelemetryClientInfo",
     "GitHubTelemetryEvent",
     "GitHubTelemetryNotification",
@@ -318,6 +330,7 @@ __all__ = [
     "SessionFsProvider",
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
+    "SessionFsSqliteTransactionFailure",
     "SessionHooks",
     "SessionLimitsConfig",
     "SessionLifecycleEvent",
@@ -352,6 +365,9 @@ __all__ = [
     "UserPromptSubmittedHandler",
     "UserPromptSubmittedHookInput",
     "UserPromptSubmittedHookOutput",
+    "UserPromptTransformedHandler",
+    "UserPromptTransformedHookInput",
+    "UserPromptTransformedHookOutput",
     "convert_mcp_call_tool_result",
     "create_session_fs_adapter",
     "define_tool",

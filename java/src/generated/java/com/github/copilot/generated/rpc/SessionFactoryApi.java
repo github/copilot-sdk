@@ -51,6 +51,22 @@ public final class SessionFactoryApi {
     }
 
     /**
+     * Parameters for resuming a factory run from its persisted identity.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryResumeResult> resume(SessionFactoryResumeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.resume", _p, SessionFactoryResumeResult.class);
+    }
+
+    /**
      * Parameters for retrieving a factory run.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -64,6 +80,49 @@ public final class SessionFactoryApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.factory.getRun", _p, SessionFactoryGetRunResult.class);
+    }
+
+    /**
+     * Empty parameters for listing factory runs.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryListRunsResult> listRuns() {
+        return caller.invoke("session.factory.listRuns", java.util.Map.of("sessionId", this.sessionId), SessionFactoryListRunsResult.class);
+    }
+
+    /**
+     * Parameters for retrieving a factory run.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryGetRunDetailResult> getRunDetail(SessionFactoryGetRunDetailParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.getRunDetail", _p, SessionFactoryGetRunDetailResult.class);
+    }
+
+    /**
+     * Parameters for paging factory progress.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionFactoryGetRunProgressResult> getRunProgress(SessionFactoryGetRunProgressParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.getRunProgress", _p, SessionFactoryGetRunProgressResult.class);
     }
 
     /**

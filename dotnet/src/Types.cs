@@ -833,6 +833,9 @@ public sealed class PermissionInvocation
     /// Identifier of the session that triggered the permission request.
     /// </summary>
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Whether managed settings are enabled for this session.</summary>
+    public bool ManagedSettingsEnabled { get; set; }
 }
 
 // ============================================================================
@@ -1654,6 +1657,55 @@ public sealed class UserPromptSubmittedHookOutput
 }
 
 /// <summary>
+/// Input for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the prompt was transformed.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The user prompt after any user-prompt-submitted hooks have run.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The model-facing prompt after runtime transformations.
+    /// </summary>
+    [JsonPropertyName("transformedPrompt")]
+    public string TransformedPrompt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Output for a user-prompt-transformed hook.
+/// </summary>
+public sealed class UserPromptTransformedHookOutput
+{
+    /// <summary>
+    /// Replacement model-facing prompt to persist and send to the model.
+    /// </summary>
+    [JsonPropertyName("modifiedTransformedPrompt")]
+    public string? ModifiedTransformedPrompt { get; set; }
+}
+
+/// <summary>
 /// Input for a session-start hook.
 /// </summary>
 public sealed class SessionStartHookInput
@@ -1872,6 +1924,67 @@ public sealed class ErrorOccurredHookOutput
 }
 
 /// <summary>
+/// Input for an agent-stop hook.
+/// </summary>
+public sealed class AgentStopHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the agent stopped.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason the agent stopped.
+    /// </summary>
+    [JsonPropertyName("stopReason")]
+    public string? StopReason { get; set; }
+
+    /// <summary>
+    /// Path to the on-disk session transcript.
+    /// </summary>
+    [JsonPropertyName("transcriptPath")]
+    public string? TranscriptPath { get; set; }
+
+    /// <summary>
+    /// Whether this stop follows a previous block decision from the hook.
+    /// </summary>
+    [JsonPropertyName("stop_hook_active")]
+    public bool? StopHookActive { get; set; }
+}
+
+/// <summary>
+/// Output for an agent-stop hook.
+/// </summary>
+public sealed class AgentStopHookOutput
+{
+    /// <summary>
+    /// Set to <c>"block"</c> to keep the agent running.
+    /// </summary>
+    [JsonPropertyName("decision")]
+    public string? Decision { get; set; }
+
+    /// <summary>
+    /// Follow-up instruction supplied when the stop is blocked.
+    /// </summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}
+
+/// <summary>
 /// Hook handlers configuration for a session.
 /// </summary>
 public sealed class SessionHooks
@@ -1904,6 +2017,11 @@ public sealed class SessionHooks
     public Func<UserPromptSubmittedHookInput, HookInvocation, Task<UserPromptSubmittedHookOutput?>>? OnUserPromptSubmitted { get; set; }
 
     /// <summary>
+    /// Handler called after the runtime transforms a submitted prompt and before it is stored.
+    /// </summary>
+    public Func<UserPromptTransformedHookInput, HookInvocation, Task<UserPromptTransformedHookOutput?>>? OnUserPromptTransformed { get; set; }
+
+    /// <summary>
     /// Handler called when a session starts.
     /// </summary>
     public Func<SessionStartHookInput, HookInvocation, Task<SessionStartHookOutput?>>? OnSessionStart { get; set; }
@@ -1917,6 +2035,11 @@ public sealed class SessionHooks
     /// Handler called when an error occurs.
     /// </summary>
     public Func<ErrorOccurredHookInput, HookInvocation, Task<ErrorOccurredHookOutput?>>? OnErrorOccurred { get; set; }
+
+    /// <summary>
+    /// Handler called when the top-level agent reaches a natural stop.
+    /// </summary>
+    public Func<AgentStopHookInput, HookInvocation, Task<AgentStopHookOutput?>>? OnAgentStop { get; set; }
 }
 
 /// <summary>
@@ -2275,7 +2398,7 @@ public sealed class CapiSessionOptions
 public sealed class AzureOptions
 {
     /// <summary>
-    /// Azure OpenAI API version to use (e.g., "2024-02-01").
+    /// Azure OpenAI API version. When omitted, the runtime uses the GA versionless v1 route.
     /// </summary>
     [JsonPropertyName("apiVersion")]
     public string? ApiVersion { get; set; }
@@ -2660,8 +2783,8 @@ public sealed class CustomAgentConfig
 
     /// <summary>
     /// Reasoning effort level for this agent's model.
-    /// When omitted, no per-agent override is sent and the backend chooses its
-    /// default. The parent session effort is not inherited.
+    /// When omitted, the runtime resolves model configuration, then inherits
+    /// the parent effort only if this agent uses the same model.
     /// </summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -2892,6 +3015,36 @@ public sealed class CopilotExpAssignmentResponse
 }
 
 /// <summary>
+/// Configuration for the built-in GitHub MCP server.
+/// </summary>
+public sealed class GitHubMcpToolConfig
+{
+    /// <summary>Enables all GitHub MCP tools.</summary>
+    [JsonPropertyName("enableAllTools")]
+    public bool? EnableAllTools { get; set; }
+
+    /// <summary>Additional GitHub MCP toolsets to enable.</summary>
+    [JsonPropertyName("additionalToolsets")]
+    public IList<string>? AdditionalToolsets { get; set; }
+
+    /// <summary>Additional GitHub MCP tools to enable.</summary>
+    [JsonPropertyName("additionalTools")]
+    public IList<string>? AdditionalTools { get; set; }
+
+    /// <summary>Enables GitHub MCP insiders-mode tools.</summary>
+    [JsonPropertyName("enableInsidersMode")]
+    public bool? EnableInsidersMode { get; set; }
+
+    /// <summary>
+    /// Disables form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    /// </summary>
+    [JsonPropertyName("disableFormDeferral")]
+    public bool? DisableFormDeferral { get; set; }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -2928,6 +3081,20 @@ public abstract class SessionConfigBase
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
         EnableMcpApps = other.EnableMcpApps;
+        GitHubMcpToolConfig = other.GitHubMcpToolConfig is null
+            ? null
+            : new GitHubMcpToolConfig
+            {
+                EnableAllTools = other.GitHubMcpToolConfig.EnableAllTools,
+                AdditionalToolsets = other.GitHubMcpToolConfig.AdditionalToolsets is not null
+                    ? [.. other.GitHubMcpToolConfig.AdditionalToolsets]
+                    : null,
+                AdditionalTools = other.GitHubMcpToolConfig.AdditionalTools is not null
+                    ? [.. other.GitHubMcpToolConfig.AdditionalTools]
+                    : null,
+                EnableInsidersMode = other.GitHubMcpToolConfig.EnableInsidersMode,
+                DisableFormDeferral = other.GitHubMcpToolConfig.DisableFormDeferral,
+            };
         ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -2955,6 +3122,7 @@ public abstract class SessionConfigBase
         Providers = other.Providers is not null ? [.. other.Providers] : null;
         Models = other.Models is not null ? [.. other.Models] : null;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        EnableExperimentalMode = other.EnableExperimentalMode;
         SkipCustomInstructions = other.SkipCustomInstructions;
         CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
         CoauthorEnabled = other.CoauthorEnabled;
@@ -2985,6 +3153,7 @@ public abstract class SessionConfigBase
         SystemMessage = other.SystemMessage;
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
+        AdditionalDirectories = other.AdditionalDirectories is not null ? [.. other.AdditionalDirectories] : null;
     }
 
     /// <summary>Client name to identify the application using the SDK.</summary>
@@ -2995,7 +3164,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Reasoning effort level for models that support it.
-    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Valid values: "low", "medium", "high", "xhigh", "max".
     /// Only applies to models where capabilities.supports.reasoningEffort is true.
     /// </summary>
     public string? ReasoningEffort { get; set; }
@@ -3035,15 +3204,8 @@ public abstract class SessionConfigBase
     public string? ConfigDirectory { get; set; }
 
     /// <summary>
-    /// When <see langword="true"/>, automatically discovers MCP server configurations
-    /// (e.g. <c>.mcp.json</c>, <c>.vscode/mcp.json</c>) and skill directories from
-    /// the working directory and merges them with any explicitly provided
-    /// <see cref="McpServers"/> and <see cref="SkillDirectories"/>, with explicit
-    /// values taking precedence on name collision.
-    /// <para>
-    /// Custom instruction files (<c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>, etc.)
-    /// are always loaded from the working directory regardless of this setting.
-    /// </para>
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
 
@@ -3165,6 +3327,15 @@ public abstract class SessionConfigBase
     public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>
+    /// Controls whether the session enables experimental features.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/> in <see cref="CopilotClientMode.Empty"/>.
+    /// Otherwise, the runtime decides when left <see langword="null"/>.
+    /// </remarks>
+    public bool? EnableExperimentalMode { get; set; }
+
+    /// <summary>
     /// When <see langword="true"/>, suppresses loading of custom instruction files
     /// (e.g. <c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>) from the working directory.
     /// When <see langword="null"/>, the SDK chooses based on
@@ -3243,11 +3414,24 @@ public abstract class SessionConfigBase
     [Experimental(Diagnostics.Experimental)]
     public bool EnableMcpApps { get; set; }
 
+    /// <summary>
+    /// Configuration for the built-in GitHub MCP server.
+    /// <c>DisableFormDeferral</c> only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    /// </summary>
+    public GitHubMcpToolConfig? GitHubMcpToolConfig { get; set; }
+
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
 
     /// <summary>Working directory for the session.</summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Additional directories the agent may access beyond <see cref="WorkingDirectory"/>.
+    /// Relative paths resolve against the session working directory. Re-supply them when resuming.
+    /// </summary>
+    public IList<string>? AdditionalDirectories { get; set; }
 
     /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.

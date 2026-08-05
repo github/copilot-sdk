@@ -254,7 +254,7 @@ public class StreamingFidelityTest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setStreaming(true).setReasoningEffort("high"))
+                            .setModel("gpt-5.4").setStreaming(true).setReasoningEffort("high"))
                     .get();
 
             List<SessionEvent> events = new ArrayList<>();

@@ -10,11 +10,12 @@ use github_copilot_sdk::{Error, IndexMap, McpServerConfig, McpStdioServerConfig}
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn should_list_tools_and_report_running_status_for_connected_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_list_tools_and_report_running_status_for_connected_server",
         |ctx| {
@@ -61,7 +62,8 @@ async fn should_list_tools_and_report_running_status_for_connected_server() {
 
 #[tokio::test]
 async fn should_throw_when_listing_tools_for_unconnected_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_throw_when_listing_tools_for_unconnected_server",
         |ctx| {
@@ -98,7 +100,8 @@ async fn should_throw_when_listing_tools_for_unconnected_server() {
 
 #[tokio::test]
 async fn should_stop_running_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_stop_running_mcp_server",
         |ctx| {
@@ -137,7 +140,8 @@ async fn should_stop_running_mcp_server() {
 
 #[tokio::test]
 async fn should_start_and_restart_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_start_and_restart_mcp_server",
         |ctx| {
@@ -194,62 +198,16 @@ async fn should_start_and_restart_mcp_server() {
     .await;
 }
 
-#[tokio::test]
-async fn should_register_and_unregister_external_mcp_client() {
-    with_e2e_context(
-        "rpc_mcp_lifecycle",
-        "should_register_and_unregister_external_mcp_client",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let host_server = "rpc-lifecycle-extclient-host";
-                let client = ctx.start_client().await;
-                let session =
-                    client
-                        .create_session(ctx.approve_all_session_config().with_mcp_servers(
-                            create_test_mcp_servers(ctx.repo_root(), host_server),
-                        ))
-                        .await
-                        .expect("create session");
-                wait_for_mcp_server_status(&session, host_server, McpServerStatus::Connected).await;
-
-                let external_name = "rpc-lifecycle-external-client";
-                assert!(!is_mcp_server_running(&session, external_name).await);
-
-                call_session_rpc(
-                    &session,
-                    "session.mcp.registerExternalClient",
-                    json!({
-                        "serverName": external_name,
-                        "client": { "id": external_name },
-                        "transport": { "kind": "in-process" },
-                        "config": { "command": "noop" }
-                    }),
-                )
-                .await
-                .expect("register external MCP client");
-                assert!(is_mcp_server_running(&session, external_name).await);
-
-                call_session_rpc(
-                    &session,
-                    "session.mcp.unregisterExternalClient",
-                    json!({ "serverName": external_name }),
-                )
-                .await
-                .expect("unregister external MCP client");
-                assert!(!is_mcp_server_running(&session, external_name).await);
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
+// There is deliberately no e2e test for `session.mcp.registerExternalClient`. That method is
+// marked `visibility: internal` in the shared API contract: its `client` and `transport` fields
+// are live in-process MCP SDK instances, so it cannot be driven over JSON-RPC, and no SDK
+// exposes it as a typed method. A raw-RPC test used to pass only because older CLIs routed
+// internal methods generically; it never exercised a supported wire API.
 
 #[tokio::test]
 async fn should_reload_mcp_servers_with_config() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_reload_mcp_servers_with_config",
         |ctx| {
@@ -291,7 +249,8 @@ async fn should_reload_mcp_servers_with_config() {
 
 #[tokio::test]
 async fn should_configure_github_mcp_server() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_mcp_lifecycle",
         "should_configure_github_mcp_server",
         |ctx| {
@@ -421,3 +380,5 @@ fn assert_error_contains(err: &Error, expected: &str) {
         "expected error to contain {expected:?}, got {message}"
     );
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_mcp_lifecycle", 6);

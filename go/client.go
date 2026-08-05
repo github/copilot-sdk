@@ -796,12 +796,14 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
 	req.EnableCitations = config.EnableCitations
 	req.SessionLimits = config.SessionLimits
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.MCPServers = config.MCPServers
 	req.MCPOAuthTokenStorage = config.MCPOAuthTokenStorage
 	req.EnvValueMode = "direct"
@@ -848,6 +850,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
@@ -868,9 +871,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	if config.OnPermissionRequest != nil {
@@ -905,7 +910,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// message is dispatched) so notifications for the new session id are
 	// routed to a registered session.
 	initializeSession := func(sessionID string) (*Session, error) {
-		s := newSession(sessionID, c.client, "")
+		s := newSession(
+			sessionID,
+			c.client,
+			"",
+			config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+		)
 
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
@@ -1115,6 +1125,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Providers = config.Providers
 	req.Models = config.Models
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.IsExperimentalMode = config.EnableExperimentalMode
 	req.SkipCustomInstructions = config.SkipCustomInstructions
 	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
 	req.CoauthorEnabled = config.CoauthorEnabled
@@ -1149,12 +1160,15 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnUserPromptTransformed != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
-		config.Hooks.OnErrorOccurred != nil) {
+		config.Hooks.OnErrorOccurred != nil ||
+		config.Hooks.OnAgentStop != nil) {
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
+	req.AdditionalDirectories = config.AdditionalDirectories
 	req.ConfigDir = config.ConfigDirectory
 	req.EnableConfigDiscovery = config.EnableConfigDiscovery
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
@@ -1218,6 +1232,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
 	}
+	req.GitHubMCPToolConfig = config.GitHubMCPToolConfig
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
@@ -1225,7 +1240,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	session := newSession(
+		sessionID,
+		c.client,
+		"",
+		config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+	)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)

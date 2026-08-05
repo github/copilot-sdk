@@ -10,7 +10,7 @@ This style guide applies to all documentation in the `docs/` directory. These do
 
 Use **sentence case** for all headings. Capitalize only the first word and proper nouns.
 
-* `## Quick start: Azure AI Foundry` — not `## Quick Start: Azure AI Foundry`
+* `## Quick start: Microsoft Foundry` — not `## Quick Start: Microsoft Foundry`
 * `# Custom agents and sub-agent orchestration` — not `# Custom Agents & Sub-Agent Orchestration`
 
 Use `and` instead of `&` in headings.
@@ -49,7 +49,7 @@ When a callout applies to a specific language, put the qualifier as bold text in
 
 ```markdown
 > [!TIP]
-> **(Python / Go)** These SDKs use a single `Data` class/struct with all fields optional.
+> **(Python / Go)** These SDKs use separate, per-event data types.
 ```
 
 ## Lists

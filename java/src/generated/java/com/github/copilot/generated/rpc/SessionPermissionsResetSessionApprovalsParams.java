@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * No parameters; clears all session-scoped tool permission approvals.
+ * Clears session-scoped tool permission approvals, and optionally the location-scoped ones.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionPermissionsResetSessionApprovalsParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Whether location-scoped approvals are cleared too. Defaults to `true`. */
+    @JsonProperty("includeLocation") Boolean includeLocation
 ) {
 }

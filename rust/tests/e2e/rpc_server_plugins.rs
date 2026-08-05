@@ -8,15 +8,14 @@ use github_copilot_sdk::rpc::{
     PluginsUpdateRequest,
 };
 
-use super::support::with_e2e_context;
-
 const MARKETPLACE_NAME: &str = "csharp-e2e-marketplace";
 const PLUGIN_NAME: &str = "csharp-e2e-plugin";
 const DIRECT_PLUGIN_NAME: &str = "csharp-e2e-direct";
 
 #[tokio::test]
 async fn should_install_and_list_plugin_from_local_marketplace() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_install_and_list_plugin_from_local_marketplace",
         |ctx| {
@@ -65,7 +64,8 @@ async fn should_install_and_list_plugin_from_local_marketplace() {
 
 #[tokio::test]
 async fn should_enable_and_disable_marketplace_plugin() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_enable_and_disable_marketplace_plugin",
         |ctx| {
@@ -135,7 +135,8 @@ async fn should_enable_and_disable_marketplace_plugin() {
 
 #[tokio::test]
 async fn should_update_single_marketplace_plugin() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_update_single_marketplace_plugin",
         |ctx| {
@@ -184,7 +185,8 @@ async fn should_update_single_marketplace_plugin() {
 
 #[tokio::test]
 async fn should_update_all_installed_plugins() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_update_all_installed_plugins",
         |ctx| {
@@ -241,7 +243,8 @@ async fn should_update_all_installed_plugins() {
 
 #[tokio::test]
 async fn should_install_direct_local_plugin_with_deprecation_warning() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_install_direct_local_plugin_with_deprecation_warning",
         |ctx| {
@@ -316,7 +319,8 @@ async fn should_install_direct_local_plugin_with_deprecation_warning() {
 
 #[tokio::test]
 async fn should_list_browse_refresh_and_remove_local_marketplace() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_list_browse_refresh_and_remove_local_marketplace",
         |ctx| {
@@ -434,7 +438,8 @@ async fn should_list_browse_refresh_and_remove_local_marketplace() {
 
 #[tokio::test]
 async fn should_reload_mcp_config_cache() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "rpc_server_plugins",
         "should_reload_mcp_config_cache",
         |ctx| {
@@ -538,3 +543,5 @@ fn single_plugin<'a>(
     assert_eq!(matches.len(), 1, "expected one plugin in {list:?}");
     matches[0]
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_server_plugins", 7);

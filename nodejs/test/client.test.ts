@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from "node:events";
 import { PassThrough } from "stream";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
@@ -18,6 +21,40 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 async function stopClient(client: CopilotClient): Promise<void> {
     await client.stop();
 }
+
+describe("approveAll", () => {
+    const request = {
+        kind: "url" as const,
+        url: "https://api.example.com/data",
+        intention: "Fetch domain data",
+    };
+    const invocation = { sessionId: "session-1", managedSettingsEnabled: false };
+
+    it("approves ordinary permission requests", () => {
+        expect(approveAll(request, invocation)).toEqual({ kind: "approve-once" });
+    });
+
+    it("rejects managed settings sessions", () => {
+        expect(() => approveAll(request, { ...invocation, managedSettingsEnabled: true })).toThrow(
+            "approveAll cannot be used when managed settings are enabled"
+        );
+    });
+
+    it("leaves managed requests pending when managed settings are disabled", () => {
+        expect(approveAll({ ...request, managedApprovalRequired: true }, invocation)).toEqual({
+            kind: "no-result",
+        });
+    });
+
+    it("fails closed when managed approval metadata is malformed", () => {
+        const malformedRequest = {
+            ...request,
+            managedApprovalRequired: "yes",
+        } as unknown as Parameters<typeof approveAll>[0];
+
+        expect(approveAll(malformedRequest, invocation)).toEqual({ kind: "no-result" });
+    });
+});
 
 describe("CopilotClient", () => {
     it("disposes the stdio connection when child stdin emits an error", async () => {
@@ -102,6 +139,55 @@ describe("CopilotClient", () => {
         });
     });
 
+    it("forwards GitHub MCP tool config on create and resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const githubMcpToolConfig = {
+            enableAllTools: true,
+            additionalToolsets: ["repos"],
+            additionalTools: ["get_issue"],
+            enableInsidersMode: true,
+            disableFormDeferral: true,
+        };
+
+        const session = await client.createSession({ githubMcpToolConfig });
+        await client.resumeSession(session.sessionId, { githubMcpToolConfig });
+
+        expect(spy.mock.calls.find(([method]) => method === "session.create")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+        expect(spy.mock.calls.find(([method]) => method === "session.resume")![1]).toMatchObject({
+            githubMcpToolConfig,
+        });
+    });
+
+    it("omits GitHub MCP tool config when unset", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({});
+
+        expect(
+            spy.mock.calls.find(([method]) => method === "session.create")![1]
+        ).not.toHaveProperty("githubMcpToolConfig");
+    });
+
     it("passes MCP OAuth requests through when optional metadata is absent", async () => {
         let observedRequest: any;
         const session = new CopilotSession(
@@ -181,6 +267,42 @@ describe("CopilotClient", () => {
         expect(spy).toHaveBeenCalledWith(
             "session.create",
             expect.objectContaining({ requestPermission: true })
+        );
+    });
+
+    it("forwards additional directories when creating and resuming sessions", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId, workspacePath: "/workspace" };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            sessionId: "create-with-additional-directories",
+            additionalDirectories: ["/repo/shared", "/repo/generated"],
+            onPermissionRequest: approveAll,
+        });
+        await client.resumeSession("resume-with-additional-directories", {
+            additionalDirectories: ["/repo/resumed"],
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                additionalDirectories: ["/repo/shared", "/repo/generated"],
+            })
+        );
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ additionalDirectories: ["/repo/resumed"] })
         );
     });
 
@@ -399,6 +521,100 @@ describe("CopilotClient", () => {
         )![1] as any;
         expect(createPayload.reasoningSummary).toBe("concise");
         expect(resumePayload.reasoningSummary).toBe("none");
+    });
+
+    it("forwards enableExperimentalMode in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: false,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            enableExperimentalMode: true,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.isExperimentalMode).toBe(false);
+        expect(resumePayload.isExperimentalMode).toBe(true);
+    });
+
+    it("defaults enableExperimentalMode by client mode", async () => {
+        const baseDirectory = mkdtempSync(join(tmpdir(), "copilot-sdk-node-empty-"));
+        const emptyClient = new CopilotClient({ mode: "empty", baseDirectory });
+        await emptyClient.start();
+        onTestFinished(() => emptyClient.forceStop());
+
+        const emptySpy = vi
+            .spyOn((emptyClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const emptySession = await emptyClient.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+        await emptyClient.resumeSession(emptySession.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+        });
+
+        const emptyCreatePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const emptyResumePayload = emptySpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(emptyCreatePayload.isExperimentalMode).toBe(false);
+        expect(emptyResumePayload.isExperimentalMode).toBe(false);
+
+        const cliClient = new CopilotClient();
+        await cliClient.start();
+        onTestFinished(() => cliClient.forceStop());
+
+        const cliSpy = vi
+            .spyOn((cliClient as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const cliSession = await cliClient.createSession({
+            onPermissionRequest: approveAll,
+        });
+        await cliClient.resumeSession(cliSession.sessionId, {
+            onPermissionRequest: approveAll,
+        });
+
+        const cliCreatePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const cliResumePayload = cliSpy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(cliCreatePayload.isExperimentalMode).toBeUndefined();
+        expect(cliResumePayload.isExperimentalMode).toBeUndefined();
     });
 
     it("forwards contextTier in session.create and session.resume", async () => {
@@ -3139,16 +3355,47 @@ describe("CopilotClient", () => {
             expect(failureCalls).toEqual(["fail-tool"]);
         });
 
+        it("registers hooks.invoke on the JSON-RPC connection and routes it to handleHooksInvoke", async () => {
+            const client = new CopilotClient();
+            const handleHooksInvoke = vi
+                .spyOn(client as any, "handleHooksInvoke")
+                .mockResolvedValue({ output: { additionalContext: "ok" } });
+
+            const fakeConnection = {
+                onNotification: vi.fn(),
+                onRequest: vi.fn(),
+                onClose: vi.fn(),
+                onError: vi.fn(),
+            };
+
+            (client as any).connection = fakeConnection;
+            (client as any).attachConnectionHandlers();
+
+            const hooksRegistration = fakeConnection.onRequest.mock.calls.find(
+                ([method]: [string, unknown]) => method === "hooks.invoke"
+            );
+            expect(hooksRegistration).toBeDefined();
+
+            const handler = hooksRegistration![1] as (params: {
+                sessionId: string;
+                hookType: string;
+                input: unknown;
+            }) => Promise<{ output?: unknown }>;
+            const payload = {
+                sessionId: "session-1",
+                hookType: "postToolUseFailure",
+                input: { toolName: "shell" },
+            };
+
+            await expect(handler(payload)).resolves.toEqual({
+                output: { additionalContext: "ok" },
+            });
+            expect(handleHooksInvoke).toHaveBeenCalledWith(payload);
+        });
+
         it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
-            // Validates the full JSON-RPC entry point used by the CLI:
-            // clientGlobalHandlers.hooks.invoke({sessionId, hookType, input})
-            // → CopilotSession._handleHooksInvoke(hookType, input)
-            // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
-            //
-            // This guards the wire-format contract that the bundled Copilot
-            // CLI relies on: the hookType string "postToolUseFailure" and the
-            // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
-            // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
+            // Validates the dispatch behavior for the internal `hooks.invoke`
+            // payload after the JSON-RPC connection hands it to the SDK.
             const client = new CopilotClient();
             await client.start();
             onTestFinished(() => stopClient(client));
@@ -3172,7 +3419,7 @@ describe("CopilotClient", () => {
                 cwd: "/tmp",
             };
 
-            const response = await (client as any).clientGlobalHandlers.hooks.invoke({
+            const response = await (client as any).handleHooksInvoke({
                 sessionId: session.sessionId,
                 hookType: "postToolUseFailure",
                 input: failureInput,
@@ -3192,6 +3439,83 @@ describe("CopilotClient", () => {
             expect(response).toEqual({
                 output: { additionalContext: "context from failure hook" },
             });
+        });
+
+        it("dispatches agentStop to onAgentStop and returns a block decision", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onAgentStop: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { decision: "block", reason: "2 vulnerabilities found; please fix" };
+                    },
+                },
+            });
+
+            const result = await (session as any)._handleHooksInvoke("agentStop", {
+                stopReason: "end_turn",
+                transcriptPath: "/tmp/transcript.jsonl",
+                stop_hook_active: true,
+                timestamp: 1700000000000,
+                cwd: "/repo",
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                stopReason: "end_turn",
+                transcriptPath: "/tmp/transcript.jsonl",
+                stopHookActive: true,
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/repo",
+            });
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            expect(result).toEqual({
+                decision: "block",
+                reason: "2 vulnerabilities found; please fix",
+            });
+        });
+
+        it("routes agentStop hooks.invoke JSON-RPC requests to onAgentStop", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+
+            const received: { input: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onAgentStop: async (input) => {
+                        received.push({ input });
+                        // Returning nothing lets the agent stop normally.
+                    },
+                },
+            });
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "agentStop",
+                input: {
+                    stopReason: "end_turn",
+                    stop_hook_active: true,
+                    timestamp: 1700000000000,
+                    cwd: "/repo",
+                },
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                stopReason: "end_turn",
+                stopHookActive: true,
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/repo",
+            });
+            // No decision returned — the SDK forwards an empty output envelope.
+            expect(response).toEqual({ output: undefined });
         });
     });
 

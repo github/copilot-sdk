@@ -18,6 +18,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.rpc.AgentStopHookInput;
+import com.github.copilot.rpc.AgentStopHookOutput;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PostToolUseHookInput;
@@ -25,6 +27,8 @@ import com.github.copilot.rpc.PreToolUseHookInput;
 import com.github.copilot.rpc.PreToolUseHookOutput;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
+import com.github.copilot.rpc.UserPromptTransformedHookInput;
+import com.github.copilot.rpc.UserPromptTransformedHookOutput;
 
 /**
  * Tests for hooks functionality (pre-tool-use and post-tool-use hooks).
@@ -223,6 +227,76 @@ public class HooksTest {
             assertNotNull(response, "Response should not be null");
 
             assertEquals(originalContent, Files.readString(testFile), "Denied preToolUse hook should block file edits");
+        }
+    }
+
+    /**
+     * Verifies that agent-stop can block a natural stop and enqueue another turn.
+     *
+     * @see Snapshot:
+     *      hooks_extended/should_invoke_agentstop_hook_and_apply_block_response
+     */
+    @Test
+    void testInvokeAgentStopHookAndApplyBlockResponse() throws Exception {
+        ctx.configureForTest("hooks_extended", "should_invoke_agentstop_hook_and_apply_block_response");
+
+        var inputs = new ArrayList<AgentStopHookInput>();
+        final String[] sessionIdHolder = new String[1];
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnAgentStop((input, invocation) -> {
+                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
+                    inputs.add(input);
+                    if (inputs.size() == 1) {
+                        return CompletableFuture.completedFuture(new AgentStopHookOutput().setDecision("block")
+                                .setReason("Reply with exactly: AGENT_STOP_CONTINUED"));
+                    }
+                    return CompletableFuture.completedFuture(null);
+                }));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(config).get();
+            sessionIdHolder[0] = session.getSessionId();
+
+            var response = session.sendAndWait(new MessageOptions().setPrompt("Reply with exactly: AGENT_STOP_INITIAL"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertEquals(2, inputs.size());
+            assertNotEquals(Boolean.TRUE, inputs.get(0).getStopHookActive());
+            assertEquals(Boolean.TRUE, inputs.get(1).getStopHookActive());
+            assertEquals("end_turn", inputs.get(0).getStopReason());
+            assertFalse(inputs.get(0).getTranscriptPath().isBlank());
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("AGENT_STOP_CONTINUED"));
+        }
+    }
+
+    @Test
+    void testInvokeUserPromptTransformedHookAndModifyTransformedPrompt() throws Exception {
+        ctx.configureForTest("hooks_extended",
+                "should_invoke_userprompttransformed_hook_and_modify_transformed_prompt");
+
+        var inputs = new ArrayList<UserPromptTransformedHookInput>();
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnUserPromptTransformed((input, invocation) -> {
+                    assertFalse(invocation.getSessionId().isBlank());
+                    inputs.add(input);
+                    return CompletableFuture.completedFuture(
+                            new UserPromptTransformedHookOutput("Reply with exactly: HOOKED_TRANSFORMED_PROMPT"));
+                }));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(config).get();
+            var response = session.sendAndWait(new MessageOptions().setPrompt("Answer the request above.")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertFalse(inputs.isEmpty());
+            assertTrue(inputs.get(0).prompt().contains("Answer the request above."));
+            assertTrue(inputs.get(0).transformedPrompt().contains("Answer the request above."));
+            assertTrue(inputs.get(0).transformedPrompt().contains("<current_datetime>"));
+            assertTrue(inputs.get(0).timestamp() > 0);
+            assertFalse(inputs.get(0).cwd().isBlank());
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("HOOKED_TRANSFORMED_PROMPT"));
         }
     }
 }

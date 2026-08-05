@@ -530,7 +530,7 @@ const session = await client.createSession({
 });
 
 session.on("assistant.message_delta", (event) => {
-    process.stdout.write(event.data.delta ?? "");
+    process.stdout.write(event.data.deltaContent ?? "");
 });
 
 await session.sendAndWait({ prompt: "Write a quicksort implementation in TypeScript" });

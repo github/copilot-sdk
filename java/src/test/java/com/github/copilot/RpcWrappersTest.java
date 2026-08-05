@@ -205,7 +205,7 @@ class RpcWrappersTest {
         var session = new SessionRpc(stub, "sess-xyz");
 
         // switchTo takes extra params beyond sessionId
-        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null);
+        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null, null);
         session.model.switchTo(switchParams);
 
         assertEquals(1, stub.calls.size());
@@ -230,8 +230,8 @@ class RpcWrappersTest {
         assertEquals("session.agent.list", stub.calls.get(0).method());
 
         var params = stub.calls.get(0).params();
-        assertInstanceOf(Map.class, params);
-        assertEquals("sess-999", ((Map<?, ?>) params).get("sessionId"));
+        assertInstanceOf(com.fasterxml.jackson.databind.node.ObjectNode.class, params);
+        assertEquals("sess-999", ((com.fasterxml.jackson.databind.node.ObjectNode) params).get("sessionId").asText());
     }
 
     @Test

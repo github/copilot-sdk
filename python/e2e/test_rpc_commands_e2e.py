@@ -6,10 +6,10 @@ import pytest
 
 from copilot.rpc import (
     CommandsInvokeRequest,
-    CommandsListRequest,
     CommandsRespondToQueuedCommandRequest,
     ExecuteCommandParams,
     QueuedCommandHandled,
+    SessionCommandsListRequest,
     SlashCommandKind,
     SlashCommandTextResult,
 )
@@ -33,7 +33,7 @@ class TestRpcCommands:
             ],
         )
         try:
-            commands = await session.rpc.commands.list(CommandsListRequest())
+            commands = await session.rpc.commands.list(SessionCommandsListRequest())
             by_name = {command.name: command for command in commands.commands}
 
             builtins = [

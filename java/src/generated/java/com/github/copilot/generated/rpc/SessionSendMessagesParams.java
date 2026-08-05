@@ -42,7 +42,7 @@ public record SessionSendMessagesParams(
     @JsonProperty("traceparent") String traceparent,
     /** W3C Trace Context tracestate header for distributed tracing */
     @JsonProperty("tracestate") String tracestate,
-    /** If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. */
+    /** If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly. */
     @JsonProperty("wait") Boolean wait_
 ) {
 }

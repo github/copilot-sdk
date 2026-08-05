@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionModelSwitchToResult(
     /** Currently active model identifier after the switch */
-    @JsonProperty("modelId") String modelId
+    @JsonProperty("modelId") String modelId,
+    /** True when the switch was deferred (enqueued as a cancellable `/model` command) because a turn was active or another model change was already queued, rather than applied immediately. When true, the session's live model is unchanged until the queued change drains. */
+    @JsonProperty("deferred") Boolean deferred
 ) {
 }

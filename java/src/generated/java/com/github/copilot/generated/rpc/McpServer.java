@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record McpServer(
     /** Server name (config key) */
     @JsonProperty("name") String name,
-    /** Connection status: connected, failed, needs-auth, pending, disabled, or not_configured */
+    /** Connection status: connected, failed, needs-auth, pending, disabled, stopped, or not_configured */
     @JsonProperty("status") McpServerStatus status,
     /** Configuration source: user, workspace, plugin, or builtin */
     @JsonProperty("source") McpServerSource source,

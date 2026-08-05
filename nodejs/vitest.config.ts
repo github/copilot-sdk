@@ -1,11 +1,13 @@
 import { defineConfig } from "vitest/config";
 
+const integrationTestTimeout = process.platform === "win32" ? 60000 : 30000;
+
 export default defineConfig({
     test: {
         globals: true,
         environment: "node",
-        testTimeout: 30000, // 30 seconds for integration tests
-        hookTimeout: 30000,
+        testTimeout: integrationTestTimeout,
+        hookTimeout: integrationTestTimeout,
         teardownTimeout: 10000,
         isolate: true, // Run each test file in isolation
         pool: "forks", // Use process forking for better isolation

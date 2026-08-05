@@ -60,12 +60,15 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
         @JsonProperty("initiator") String initiator,
+        /** Coarse classification of the interaction that produced this call, mirroring the session's per-request agent context (e.g. `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, `conversation-user`). Non-billing; lets consumers attribute a model call to a call class (e.g. sub-agent/sidekick) independently of the billing initiator. Absent when the runtime did not classify the request. */
+        @JsonProperty("interactionType") String interactionType,
         /** Completion ID from the model provider (e.g., chatcmpl-abc123) */
         @JsonProperty("apiCallId") String apiCallId,
         /** GitHub request tracing ID (x-github-request-id header) for server-side log correlation */
         @JsonProperty("providerCallId") String providerCallId,
         /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
         @JsonProperty("serviceRequestId") String serviceRequestId,
+        @JsonProperty("rte") Boolean rte,
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Parent tool call ID when this usage originates from a sub-agent */
@@ -76,6 +79,14 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */
         @JsonProperty("reasoningEffort") String reasoningEffort,
+        /** Number of tools available to the model for this call */
+        @JsonProperty("availableToolCount") Long availableToolCount,
+        /** Number of tokens used by tool definitions for this call */
+        @JsonProperty("toolTokenCount") Long toolTokenCount,
+        /** Number of tool calls returned by the model */
+        @JsonProperty("numToolCalls") Long numToolCalls,
+        /** Tool-call counts keyed by tool name */
+        @JsonProperty("toolCounts") Map<String, Long> toolCounts,
         /** Finish reason reported by the model for this API call (e.g. "stop", "length", "tool_calls", "content_filter"). Normalized to OpenAI vocabulary; for Anthropic models a "refusal" stop reason maps to "content_filter". */
         @JsonProperty("finishReason") String finishReason,
         /** Whether the model response was blocked or truncated by content filtering (finish_reason === 'content_filter'). For Anthropic models this corresponds to a 'refusal' stop reason. */
