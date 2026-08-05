@@ -142,9 +142,9 @@ jobs:
         shell: bash
         working-directory: ./nodejs
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
@@ -272,9 +272,9 @@ jobs:
         run: |
           echo "::warning title=e2e gate bypassed::Publishing SDK canary despite a non-passing e2e gate (test job result: ${{ needs.test.result }}) via publish-force. Triggered by '${{ github.actor }}' through '${{ github.event_name }}'. The e2e signal was bypassed; build + feed-only guards still apply."
 
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
