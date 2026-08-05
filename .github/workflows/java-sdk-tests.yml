@@ -45,6 +45,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Test documentation version updater
+        if: matrix.test-jdk == '25'
+        run: ./scripts/test-update-documentation-versions.sh
+
       - name: Build SDK and set up test harness
         run: mvn test-compile jar:jar
 
