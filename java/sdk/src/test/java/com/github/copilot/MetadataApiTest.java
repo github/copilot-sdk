@@ -10,6 +10,7 @@ import com.github.copilot.generated.ToolExecutionProgressEvent;
 import com.github.copilot.generated.rpc.ModelBillingTokenPrices;
 import com.github.copilot.generated.rpc.ModelBillingTokenPricesLongContext;
 import com.github.copilot.rpc.*;
+import com.github.copilot.e2e.SkipInProcess;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -271,6 +272,7 @@ public class MetadataApiTest {
     // ===== Integration Tests (require CLI) =====
 
     @Test
+    @SkipInProcess("Uses explicit CLI stdio transport")
     void testGetStatus() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -287,6 +289,7 @@ public class MetadataApiTest {
     }
 
     @Test
+    @SkipInProcess("Uses explicit CLI stdio transport")
     void testGetAuthStatus() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -302,6 +305,7 @@ public class MetadataApiTest {
     }
 
     @Test
+    @SkipInProcess("Uses explicit CLI stdio transport")
     void testListModels() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 

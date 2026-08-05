@@ -86,8 +86,7 @@ public class ExecutorWiringTest {
     }
 
     private CopilotClientOptions createOptionsWithExecutor(TrackingExecutor executor) {
-        CopilotClientOptions options = new CopilotClientOptions().setCliPath(ctx.getCliPath())
-                .setCwd(ctx.getWorkDir().toString()).setEnvironment(ctx.getEnvironment()).setExecutor(executor)
+        CopilotClientOptions options = new CopilotClientOptions().setExecutor(executor)
                 .setGitHubToken("fake-token-for-e2e-tests");
         return options;
     }
@@ -111,7 +110,7 @@ public class ExecutorWiringTest {
         TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
         int beforeStart = trackingExecutor.getTaskCount();
 
-        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+        try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
             client.start().get(30, TimeUnit.SECONDS);
 
             assertTrue(trackingExecutor.getTaskCount() > beforeStart,
@@ -156,7 +155,7 @@ public class ExecutorWiringTest {
                 });
 
         // Reset count after client construction to isolate tool-call dispatch
-        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+        try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
             CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(encryptTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
@@ -198,7 +197,7 @@ public class ExecutorWiringTest {
         var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> CompletableFuture
                 .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED)));
 
-        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+        try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
             CopilotSession session = client.createSession(config).get();
 
             Path testFile = ctx.getWorkDir().resolve("test.txt");
@@ -247,7 +246,7 @@ public class ExecutorWiringTest {
                             .completedFuture(new UserInputResponse().setAnswer(answer).setWasFreeform(wasFreeform));
                 });
 
-        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+        try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
             CopilotSession session = client.createSession(config).get();
 
             int beforeSend = trackingExecutor.getTaskCount();
@@ -286,7 +285,7 @@ public class ExecutorWiringTest {
                 .setHooks(new SessionHooks().setOnPreToolUse(
                         (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.allow())));
 
-        try (CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor))) {
+        try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
             CopilotSession session = client.createSession(config).get();
 
             Path testFile = ctx.getWorkDir().resolve("hello.txt");
@@ -342,7 +341,7 @@ public class ExecutorWiringTest {
                     return CompletableFuture.completedFuture(input.toUpperCase());
                 });
 
-        CopilotClient client = new CopilotClient(createOptionsWithExecutor(trackingExecutor));
+        CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor));
         client.createSession(new SessionConfig().setTools(List.of(encryptTool))
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 

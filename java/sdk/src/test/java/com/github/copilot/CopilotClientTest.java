@@ -131,6 +131,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates external CLI URL transport options")
     void testCliUrlAutoCorrectsUseStdio() {
         var options = new CopilotClientOptions().setCliUrl("localhost:3000").setUseStdio(true);
 
@@ -141,6 +142,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates external CLI URL transport options")
     void testCliUrlOnlyConstruction() {
         var options = new CopilotClientOptions().setCliUrl("localhost:4321");
 
@@ -289,6 +291,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates TCP transport options")
     void testTcpConnectionTokenAcceptedInTcpMode() {
         var options = new CopilotClientOptions().setUseStdio(false).setTcpConnectionToken("my-token");
 
@@ -409,6 +412,7 @@ public class CopilotClientTest {
     // ===== getState() coverage =====
 
     @Test
+    @SkipInProcess("Validates subprocess CLI path failure handling")
     void testGetStateErrorAfterFailedStart() throws Exception {
         // Use a non-existent CLI path to trigger a startup failure
         var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
@@ -429,6 +433,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates subprocess CLI path failure handling")
     void testGetStateConnectingDuringStart() throws Exception {
         // Use a non-existent CLI path; the future won't complete immediately
         var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
@@ -469,6 +474,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates subprocess CLI path failure handling")
     void testCloseAfterFailedStart() throws Exception {
         var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
         var client = new CopilotClient(options);
@@ -528,6 +534,7 @@ public class CopilotClientTest {
     // ===== start() idempotency =====
 
     @Test
+    @SkipInProcess("Validates subprocess CLI path failure handling")
     void testStartIsIdempotentSingleConnectionAttempt() throws Exception {
         var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
 

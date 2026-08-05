@@ -123,6 +123,7 @@ public final class CopilotClient implements AutoCloseable {
     private final Integer optionsPort;
     private final RuntimeConnection runtimeConnection;
     private final String effectiveConnectionToken;
+    private final Runnable closeHook;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
 
@@ -142,7 +143,12 @@ public final class CopilotClient implements AutoCloseable {
      *             if mutually exclusive options are provided
      */
     public CopilotClient(CopilotClientOptions options) {
+        this(options, null);
+    }
+
+    CopilotClient(CopilotClientOptions options, Runnable closeHook) {
         this.options = options != null ? options : new CopilotClientOptions();
+        this.closeHook = closeHook;
 
         // Resolve the transport: an explicit RuntimeConnection wins; otherwise the
         // COPILOT_SDK_DEFAULT_CONNECTION env var, or the individual transport options.
@@ -1663,6 +1669,9 @@ public final class CopilotClient implements AutoCloseable {
             LOG.log(Level.FINE, "Error during close", e);
         } finally {
             shutdownOwnedExecutor();
+            if (closeHook != null) {
+                closeHook.run();
+            }
         }
     }
 

@@ -327,8 +327,7 @@ public class E2ETestContext implements AutoCloseable {
      */
     public CopilotClient createClient() {
         CopilotClientOptions options = new CopilotClientOptions().setGitHubToken(DEFAULT_GITHUB_TOKEN);
-        applyContextOptions(options);
-        return new CopilotClient(options);
+        return createClient(options);
     }
 
     /**
@@ -341,7 +340,10 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient(CopilotClientOptions options) {
-        applyContextOptions(options);
+        CopilotClient client = applyContextOptions(options);
+        if (client != null) {
+            return client;
+        }
         if (options.getGitHubToken() == null) {
             options.setGitHubToken(DEFAULT_GITHUB_TOKEN);
         }
@@ -349,10 +351,17 @@ public class E2ETestContext implements AutoCloseable {
         return new CopilotClient(options);
     }
 
-    private void applyContextOptions(CopilotClientOptions options) {
+    private CopilotClient applyContextOptions(CopilotClientOptions options) {
         if (isInProcessMode(options)) {
-            inProcessEnvGuards.add(new InProcessEnvGuard(buildInProcessEnvironment(options)));
-            return;
+            InProcessEnvGuard guard = new InProcessEnvGuard(buildInProcessEnvironment(options));
+            inProcessEnvGuards.add(guard);
+            try {
+                options.setEnvironment(null);
+                return new CopilotClient(options, guard::close);
+            } catch (RuntimeException e) {
+                guard.close();
+                throw e;
+            }
         }
         if (options.getCliPath() == null) {
             options.setCliPath(cliPath);
@@ -363,6 +372,7 @@ public class E2ETestContext implements AutoCloseable {
         if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
             options.setEnvironment(getEnvironment());
         }
+        return null;
     }
 
     private boolean isInProcessMode(CopilotClientOptions options) {
