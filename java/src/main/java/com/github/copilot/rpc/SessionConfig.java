@@ -84,6 +84,7 @@ public class SessionConfig {
     private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
+    private List<String> disabledMcpServers;
     private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
@@ -1269,6 +1270,29 @@ public class SessionConfig {
     }
 
     /**
+     * Gets exact MCP server names disabled for this session.
+     *
+     * @return the disabled MCP server names, or {@code null} when none are disabled
+     */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets exact MCP server names to disable for this session. Disabled servers are
+     * not started or authenticated on create or cold resume; a resident resume
+     * cannot stop servers already running.
+     *
+     * @param disabledMcpServers
+     *            the server names to disable
+     * @return this config for method chaining
+     */
+    public SessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
+        return this;
+    }
+
+    /**
      * Gets the custom configuration directory.
      *
      * @return the config directory path
@@ -2079,6 +2103,7 @@ public class SessionConfig {
         copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
         copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;

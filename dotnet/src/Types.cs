@@ -3070,6 +3070,7 @@ public abstract class SessionConfigBase
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        DisabledMcpServers = other.DisabledMcpServers is not null ? [.. other.DisabledMcpServers] : null;
         EnableCitations = other.EnableCitations;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
@@ -3499,6 +3500,13 @@ public abstract class SessionConfigBase
 
     /// <summary>List of skill names to disable.</summary>
     public IList<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Exact MCP server names to disable for this session. Disabled servers are not
+    /// started or authenticated on create or cold resume; a resident resume cannot
+    /// stop servers that are already running.
+    /// </summary>
+    public IList<string>? DisabledMcpServers { get; set; }
 
     /// <summary>
     /// Infinite session configuration for persistent workspaces and automatic compaction.

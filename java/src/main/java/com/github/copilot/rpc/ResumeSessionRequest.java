@@ -192,6 +192,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
+    @JsonProperty("disabledMcpServers")
+    private List<String> disabledMcpServers;
+
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
 
@@ -911,6 +914,18 @@ public final class ResumeSessionRequest {
     /** Sets disabled skills. @param disabledSkills the skill names to disable */
     public void setDisabledSkills(List<String> disabledSkills) {
         this.disabledSkills = disabledSkills;
+    }
+
+    /** Gets disabled MCP server names. @return the server names */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets disabled MCP server names. @param disabledMcpServers the server names
+     */
+    public void setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
     }
 
     /** Gets infinite sessions config. @return the infinite sessions config */

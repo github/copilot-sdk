@@ -160,6 +160,7 @@ final class SessionRequestBuilder {
         request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
+        request.setDisabledMcpServers(config.getDisabledMcpServers());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
@@ -309,6 +310,7 @@ final class SessionRequestBuilder {
         request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
+        request.setDisabledMcpServers(config.getDisabledMcpServers());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
 

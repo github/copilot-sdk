@@ -169,13 +169,17 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() {
+    void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() throws Exception {
         var largeOutput = new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L)
                 .setOutputDirectory("/tmp/out");
-        var config = new SessionConfig().setPluginDirectories(List.of("/plugins/a")).setLargeOutput(largeOutput);
+        var config = new SessionConfig().setPluginDirectories(List.of("/plugins/a"))
+                .setDisabledMcpServers(List.of("local-files", "remote-github")).setLargeOutput(largeOutput);
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals(List.of("/plugins/a"), request.getPluginDirectories());
+        assertEquals(List.of("local-files", "remote-github"), request.getDisabledMcpServers());
         assertEquals(largeOutput, request.getLargeOutput());
+        assertTrue(JsonRpcClient.getObjectMapper().writeValueAsString(request)
+                .contains("\"disabledMcpServers\":[\"local-files\",\"remote-github\"]"));
     }
 
     @Test
@@ -460,13 +464,17 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildResumeRequestSetsPluginDirectoriesAndLargeOutput() {
+    void testBuildResumeRequestSetsPluginDirectoriesAndLargeOutput() throws Exception {
         var largeOutput = new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
                 .setOutputDirectory("/tmp/resume");
-        var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r")).setLargeOutput(largeOutput);
+        var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r"))
+                .setDisabledMcpServers(List.of("local-files-r")).setLargeOutput(largeOutput);
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-16", config);
         assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
+        assertEquals(List.of("local-files-r"), request.getDisabledMcpServers());
         assertEquals(largeOutput, request.getLargeOutput());
+        assertTrue(JsonRpcClient.getObjectMapper().writeValueAsString(request)
+                .contains("\"disabledMcpServers\":[\"local-files-r\"]"));
     }
 
     @Test

@@ -1376,6 +1376,10 @@ type SessionConfig struct {
 	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// DisabledMCPServers is a list of exact MCP server names to disable for this session.
+	// Disabled servers are not started or authenticated on create or cold resume.
+	// A resident resume cannot stop servers that are already running.
+	DisabledMCPServers []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	// When enabled (default), sessions automatically manage context limits and persist state.
 	InfiniteSessions *InfiniteSessionConfig
@@ -1855,6 +1859,10 @@ type ResumeSessionConfig struct {
 	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// DisabledMCPServers is a list of exact MCP server names to disable for this session.
+	// Disabled servers are not started or authenticated on create or cold resume.
+	// A resident resume cannot stop servers that are already running.
+	DisabledMCPServers []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	InfiniteSessions *InfiniteSessionConfig
 	// LargeOutput configures handling of large tool outputs. When a tool produces
@@ -2390,6 +2398,7 @@ type createSessionRequest struct {
 	PluginDirectories                  []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
+	DisabledMCPServers                 *[]string                              `json:"disabledMcpServers,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
@@ -2485,6 +2494,7 @@ type resumeSessionRequest struct {
 	PluginDirectories                  []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
 	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
+	DisabledMCPServers                 *[]string                              `json:"disabledMcpServers,omitempty"`
 	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	LargeOutput                        *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`

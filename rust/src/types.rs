@@ -1928,6 +1928,10 @@ pub struct SessionConfig {
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
+    /// Exact MCP server names to disable for this session. Disabled servers are
+    /// not started or authenticated on create or cold resume; a resident resume
+    /// cannot stop servers that are already running.
+    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
@@ -2148,6 +2152,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
+            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -2263,6 +2268,7 @@ impl Default for SessionConfig {
             large_output: None,
             tool_search: None,
             disabled_skills: None,
+            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -2425,6 +2431,7 @@ impl SessionConfig {
             large_output: self.large_output,
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
+            disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
             custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
@@ -2862,6 +2869,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set exact MCP server names to disable for this session.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the custom agents (sub-agents) configured for this session.
     pub fn with_custom_agents<I: IntoIterator<Item = CustomAgentConfig>>(
         mut self,
@@ -3176,6 +3193,9 @@ pub struct ResumeSessionConfig {
     pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
+    /// Exact MCP server names to disable on resume. This prevents startup and
+    /// authentication during a cold resume, but cannot stop resident servers.
+    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks on resume.
     pub hooks: Option<bool>,
     /// Custom agents to re-supply on resume.
@@ -3363,6 +3383,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
+            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -3522,6 +3543,7 @@ impl ResumeSessionConfig {
             large_output: self.large_output,
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
+            disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
             custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
@@ -3616,6 +3638,7 @@ impl ResumeSessionConfig {
             large_output: None,
             tool_search: None,
             disabled_skills: None,
+            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -4029,6 +4052,16 @@ impl ResumeSessionConfig {
         S: Into<String>,
     {
         self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set exact MCP server names to disable for this session.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -6342,6 +6375,10 @@ mod tests {
 
         let cfg = SessionConfig {
             plugin_directories: Some(vec![PathBuf::from("/tmp/plugins")]),
+            disabled_mcp_servers: Some(vec![
+                "local-files".to_string(),
+                "remote-github".to_string(),
+            ]),
             large_output: Some(
                 LargeToolOutputConfig::new()
                     .with_enabled(true)
@@ -6356,6 +6393,10 @@ mod tests {
             .expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins");
+        assert_eq!(
+            wire_json["disabledMcpServers"],
+            serde_json::json!(["local-files", "remote-github"])
+        );
         assert_eq!(wire_json["largeOutput"]["enabled"], true);
         assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 1024);
         assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output");
@@ -6365,6 +6406,7 @@ mod tests {
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
     }
 
@@ -6414,6 +6456,7 @@ mod tests {
 
         let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
         cfg.plugin_directories = Some(vec![PathBuf::from("/tmp/plugins-r")]);
+        cfg.disabled_mcp_servers = Some(vec!["local-files-r".to_string()]);
         cfg.large_output = Some(
             LargeToolOutputConfig::new()
                 .with_enabled(false)
@@ -6424,6 +6467,10 @@ mod tests {
         let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins-r");
+        assert_eq!(
+            wire_json["disabledMcpServers"],
+            serde_json::json!(["local-files-r"])
+        );
         assert_eq!(wire_json["largeOutput"]["enabled"], false);
         assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 2048);
         assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output-r");
@@ -6433,7 +6480,36 @@ mod tests {
             .expect("default resume has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn session_config_clones_disabled_mcp_servers() {
+        let create = SessionConfig::default().with_disabled_mcp_servers(["local-files"]);
+        let mut create_clone = create.clone();
+        create_clone
+            .disabled_mcp_servers
+            .as_mut()
+            .expect("configured disabled MCP servers")
+            .push("remote-github".to_string());
+        assert_eq!(
+            create.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_disabled_mcp_servers(["local-files"]);
+        let mut resume_clone = resume.clone();
+        resume_clone
+            .disabled_mcp_servers
+            .as_mut()
+            .expect("configured disabled MCP servers")
+            .push("remote-github".to_string());
+        assert_eq!(
+            resume.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
     }
 
     #[test]
@@ -6457,6 +6533,7 @@ mod tests {
             .with_enable_on_demand_instruction_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["local-files"])
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
@@ -6494,6 +6571,10 @@ mod tests {
         assert_eq!(
             cfg.disabled_skills.as_deref(),
             Some(&["broken-skill".to_string()][..])
+        );
+        assert_eq!(
+            cfg.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
@@ -6533,6 +6614,7 @@ mod tests {
             .with_enable_on_demand_instruction_discovery(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["local-files"])
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
@@ -6570,6 +6652,10 @@ mod tests {
         assert_eq!(
             cfg.disabled_skills.as_deref(),
             Some(&["broken-skill".to_string()][..])
+        );
+        assert_eq!(
+            cfg.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));

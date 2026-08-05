@@ -94,6 +94,7 @@ public class ResumeSessionConfig {
     private ToolSearchConfig toolSearch;
     private MemoryConfiguration memory;
     private List<String> disabledSkills;
+    private List<String> disabledMcpServers;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
@@ -1578,6 +1579,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets exact MCP server names disabled for this session.
+     *
+     * @return the disabled MCP server names, or {@code null} when none are disabled
+     */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets exact MCP server names to disable for this session. Disabled servers are
+     * not started or authenticated on create or cold resume; a resident resume
+     * cannot stop servers already running.
+     *
+     * @param disabledMcpServers
+     *            the server names to disable
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
+        return this;
+    }
+
+    /**
      * Gets the infinite session configuration.
      *
      * @return the infinite session config
@@ -1954,6 +1978,7 @@ public class ResumeSessionConfig {
         copy.toolSearch = this.toolSearch;
         copy.memory = this.memory;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.disabledMcpServers = this.disabledMcpServers != null ? new ArrayList<>(this.disabledMcpServers) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;

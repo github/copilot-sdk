@@ -937,6 +937,7 @@ class TestCreateSessionConfig:
             client._client.request = mock_request
 
             plugin_dirs = ["/tmp/plugins/a", "/tmp/plugins/b"]
+            disabled_mcp_servers = ["local-files", "remote-github"]
             large_output = {
                 "enabled": True,
                 "max_size_bytes": 1024,
@@ -951,19 +952,45 @@ class TestCreateSessionConfig:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 plugin_directories=plugin_dirs,
+                disabled_mcp_servers=disabled_mcp_servers,
                 large_output=large_output,
             )
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
                 plugin_directories=plugin_dirs,
+                disabled_mcp_servers=disabled_mcp_servers,
                 large_output=large_output,
             )
 
             assert captured["session.create"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.create"]["disabledMcpServers"] == disabled_mcp_servers
             assert captured["session.create"]["largeOutput"] == expected_large_output_wire
             assert captured["session.resume"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.resume"]["disabledMcpServers"] == disabled_mcp_servers
             assert captured["session.resume"]["largeOutput"] == expected_large_output_wire
+
+            empty_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                disabled_mcp_servers=[],
+            )
+            await client.resume_session(
+                empty_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                disabled_mcp_servers=[],
+            )
+            assert captured["session.create"]["disabledMcpServers"] == []
+            assert captured["session.resume"]["disabledMcpServers"] == []
+
+            omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "disabledMcpServers" not in captured["session.create"]
+            assert "disabledMcpServers" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

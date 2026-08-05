@@ -152,6 +152,9 @@ public final class CreateSessionRequest {
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
+    @JsonProperty("disabledMcpServers")
+    private List<String> disabledMcpServers;
+
     @JsonProperty("configDir")
     private String configDirectory;
 
@@ -695,6 +698,18 @@ public final class CreateSessionRequest {
     /** Sets disabled skills. @param disabledSkills the skill names to disable */
     public void setDisabledSkills(List<String> disabledSkills) {
         this.disabledSkills = disabledSkills;
+    }
+
+    /** Gets disabled MCP server names. @return the server names */
+    public List<String> getDisabledMcpServers() {
+        return disabledMcpServers == null ? null : Collections.unmodifiableList(disabledMcpServers);
+    }
+
+    /**
+     * Sets disabled MCP server names. @param disabledMcpServers the server names
+     */
+    public void setDisabledMcpServers(List<String> disabledMcpServers) {
+        this.disabledMcpServers = disabledMcpServers;
     }
 
     /** Gets config directory. @return the config directory path */
