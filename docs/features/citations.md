@@ -170,7 +170,8 @@ session.on((event) => {
         const quoted = event.data.content.slice(span.startIndex, span.endIndex);
         for (const reference of span.references) {
             const source = sourceById.get(reference.sourceId);
-            console.log(`"${quoted}" — ${source?.title ?? source?.url ?? source?.path}`);
+            const label = source?.title ?? source?.url ?? source?.path ?? source?.id;
+            console.log(`"${quoted}" — ${label}`);
         }
     }
 });
@@ -185,6 +186,11 @@ session.on((event) => {
 ```python
 from copilot.session_events import SessionEventType
 
+def utf16_slice(text: str, start: int, end: int) -> str:
+    """Slice by UTF-16 code units, which is how span offsets are measured."""
+    units = text.encode("utf-16-le")
+    return units[start * 2 : end * 2].decode("utf-16-le")
+
 def handle(event):
     if event.type != SessionEventType.ASSISTANT_MESSAGE or not event.data.citations:
         return
@@ -192,10 +198,11 @@ def handle(event):
     sources = {source.id: source for source in event.data.citations.sources}
 
     for span in event.data.citations.spans:
-        quoted = event.data.content[span.start_index : span.end_index]
+        quoted = utf16_slice(event.data.content, span.start_index, span.end_index)
         for reference in span.references:
             source = sources[reference.source_id]
-            print(f'"{quoted}" — {source.title or source.url or source.path}')
+            label = source.title or source.url or source.path or source.id
+            print(f'"{quoted}" — {label}')
 
 session.on(handle)
 ```
@@ -207,6 +214,8 @@ session.on(handle)
 <!-- docs-validate: skip -->
 
 ```go
+// import "unicode/utf16"
+
 session.On(func(event copilot.SessionEvent) {
 	d, ok := event.Data.(*copilot.AssistantMessageData)
 	if !ok || d.Citations == nil {
@@ -218,13 +227,26 @@ session.On(func(event copilot.SessionEvent) {
 		sources[source.ID] = source
 	}
 
+	// Span offsets are UTF-16 code units, so index the UTF-16 view of the content.
+	units := utf16.Encode([]rune(d.Content))
+
 	for _, span := range d.Citations.Spans {
-		quoted := d.Content[span.StartIndex:span.EndIndex]
+		quoted := string(utf16.Decode(units[span.StartIndex:span.EndIndex]))
 		for _, reference := range span.References {
 			source := sources[reference.SourceID]
-			fmt.Printf("%q — %s\n", quoted, source.ID)
+			label := source.ID
+			switch {
+			case source.Title != nil:
+				label = *source.Title
+			case source.URL != nil:
+				label = *source.URL
+			case source.Path != nil:
+				label = *source.Path
+			}
+			fmt.Printf("%q — %s\n", quoted, label)
 		}
-	}})
+	}
+})
 ```
 
 </details>
@@ -249,7 +271,8 @@ session.On<SessionEvent>(evt =>
         foreach (var reference in span.References)
         {
             var source = sources[reference.SourceId];
-            Console.WriteLine($"\"{quoted}\" — {source.Title ?? source.Url ?? source.Path}");
+            var label = source.Title ?? source.Url ?? source.Path ?? source.Id;
+            Console.WriteLine($"\"{quoted}\" — {label}");
         }
     }
 });
@@ -276,7 +299,11 @@ session.on(AssistantMessageEvent.class, event -> {
                 .substring(span.startIndex().intValue(), span.endIndex().intValue());
         for (CitationReference reference : span.references()) {
             CitationSource source = sources.get(reference.sourceId());
-            System.out.printf("\"%s\" — %s%n", quoted, source.title());
+            String label = source.title() != null ? source.title()
+                    : source.url() != null ? source.url()
+                    : source.path() != null ? source.path()
+                    : source.id();
+            System.out.printf("\"%s\" — %s%n", quoted, label);
         }
     }
 });
@@ -289,6 +316,9 @@ session.on(AssistantMessageEvent.class, event -> {
 <!-- docs-validate: skip -->
 
 ```rust
+use github_copilot_sdk::session_events::AssistantMessageData;
+use std::collections::HashMap;
+
 let mut events = session.subscribe();
 
 while let Ok(event) = events.recv().await {
@@ -296,11 +326,39 @@ while let Ok(event) = events.recv().await {
         continue;
     }
 
-    let Some(citations) = event.data.get("citations") else {
+    let Some(data) = event.typed_data::<AssistantMessageData>() else {
+        continue;
+    };
+    let Some(citations) = data.citations.as_ref() else {
         continue;
     };
 
-    println!("{citations}");
+    let sources: HashMap<&str, _> = citations
+        .sources
+        .iter()
+        .map(|source| (source.id.as_str(), source))
+        .collect();
+
+    // Span offsets are UTF-16 code units, so index the UTF-16 view of the content.
+    let units: Vec<u16> = data.content.encode_utf16().collect();
+
+    for span in &citations.spans {
+        let quoted = String::from_utf16_lossy(
+            &units[span.start_index as usize..span.end_index as usize],
+        );
+        for reference in &span.references {
+            let Some(source) = sources.get(reference.source_id.as_str()) else {
+                continue;
+            };
+            let label = source
+                .title
+                .as_deref()
+                .or(source.url.as_deref())
+                .or(source.path.as_deref())
+                .unwrap_or(source.id.as_str());
+            println!("\"{quoted}\" — {label}");
+        }
+    }
 }
 ```
 
@@ -328,7 +386,7 @@ The `citations` object separates deduplicated sources from the spans that refere
 | `CitationReference` | `providerMetadata?` | Provider-native correlation data, passed through opaquely |
 
 > [!TIP]
-> Span offsets are measured in UTF-16 code units against the final `content` string. In Python, Go, and Rust, convert offsets before slicing if the response contains characters outside the Basic Multilingual Plane, such as emoji.
+> Span offsets are measured in UTF-16 code units against the final `content` string. TypeScript, Java, and .NET strings are already UTF-16, so you can slice them directly. Python strings are indexed by Unicode code point and Go and Rust strings are UTF-8, so convert the content to UTF-16 code units before slicing, as the examples above do.
 
 ### Citation locations
 
@@ -364,7 +422,7 @@ await session.sendAndWait({
 });
 ```
 
-See [Image input](./image-input.md) for the full attachment API.
+See [Image input](./image-input.md) for the attachment API and the `file` and `blob` attachment shapes.
 
 ### Return citable sources from a tool
 
@@ -380,6 +438,6 @@ Tool results carry an experimental `citableSources` array. Each entry supplies `
 ## Further reading
 
 * [Streaming events](./streaming-events.md): subscribe to session events and narrow event types
-* [Image input](./image-input.md): send documents and images as attachments
+* [Image input](./image-input.md): attach files and in-memory blobs to a message
 * [Session persistence](./session-persistence.md): resume sessions and re-apply session options
 * [Compatibility](../troubleshooting/compatibility.md): SDK and CLI feature matrix
