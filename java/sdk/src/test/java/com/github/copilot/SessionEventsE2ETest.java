@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -184,8 +185,9 @@ public class SessionEventsE2ETest {
             // Usage events may or may not be emitted depending on the model/API version
             // This test verifies the event handler works when they are emitted
             // We don't assert they must be present since it depends on the backend
-            assertTrue(usageEvents.size() >= 0,
-                    "Usage event handler should not throw (collected " + usageEvents.size() + " events)");
+            if (!usageEvents.isEmpty()) {
+                assertNotNull(usageEvents.get(0).getData(), "Usage event should carry data");
+            }
         }
     }
 
