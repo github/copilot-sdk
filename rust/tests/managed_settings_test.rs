@@ -59,7 +59,7 @@ async fn read_managed_settings_calls_server_scoped_method_before_session_create(
         "jsonrpc": "2.0",
         "id": request["id"],
         "result": {
-            "settingsJson": settings.to_string(),
+            "settingsJson": settings.clone(),
         },
     });
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
@@ -69,7 +69,7 @@ async fn read_managed_settings_calls_server_scoped_method_before_session_create(
         .unwrap()
         .unwrap()
         .expect("read managed settings");
-    assert_eq!(result.settings_json, Some(settings.to_string()));
+    assert_eq!(result.settings_json, Some(settings));
     assert_eq!(result.error_message, None);
 }
 

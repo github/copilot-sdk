@@ -2185,8 +2185,8 @@ impl Client {
     /// Read validated, canonical device managed settings from the runtime.
     ///
     /// This is a server-scoped RPC and does not create or require an agent
-    /// session. Successful reads return `settings_json`; runtime discovery
-    /// failures are reported through `error_message`.
+    /// session. Successful reads return native JSON in `settings_json`;
+    /// runtime discovery failures are reported through `error_message`.
     pub async fn read_managed_settings(&self) -> Result<ManagedSettingsReadResult> {
         let result = self
             .call(MANAGED_SETTINGS_READ_METHOD, Some(serde_json::json!({})))

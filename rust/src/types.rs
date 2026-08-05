@@ -115,7 +115,7 @@ pub struct SessionLifecycleEvent {
 pub struct ManagedSettingsReadResult {
     /// Validated, canonical managed settings JSON, when settings are available.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings_json: Option<String>,
+    pub settings_json: Option<Value>,
     /// Runtime-provided error message, when settings could not be read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
