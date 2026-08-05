@@ -123,7 +123,7 @@ public final class InProcessEnvGuard implements AutoCloseable {
             // Identity comparison is intentional: ABSENT_SENTINEL is a unique instance
             // used to distinguish "env var was absent" from "env var was empty string".
             @SuppressWarnings("StringEquality")
-            boolean wasAbsent = entry.getValue() == ABSENT_SENTINEL;
+            boolean wasAbsent = entry.getValue() == ABSENT_SENTINEL; // lgtm[java/reference-equality-on-strings]
             String restoreValue = wasAbsent ? null : entry.getValue();
             nativeSetEnv(entry.getKey(), restoreValue);
         }
