@@ -395,7 +395,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      *            {@code true} to end the agent turn after a successful call to this
      *            tool
      * @return a new {@code ToolDefinition} with the flag applied
-     * @since 1.0.7
+     * @since 1.0.11
      */
     @CopilotExperimental
     public ToolDefinition isTerminal(boolean value) {
