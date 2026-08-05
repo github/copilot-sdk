@@ -14,6 +14,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.e2e.SkipInProcess;
+
 import com.github.copilot.generated.rpc.AccountAllUsers;
 import com.github.copilot.generated.rpc.AccountLoginParams;
 import com.github.copilot.generated.rpc.AccountLogoutParams;
@@ -70,6 +72,7 @@ class RpcServerMiscE2ETest {
     }
 
     @Test
+    @SkipInProcess("Builds a client with per-client environment and cwd overrides to test account login/logout flows")
     void testShouldLoginListGetCurrentAuthAndLogoutAccount() throws Exception {
         ctx.configureForTest("rpc_server_misc", "should_login_list_getcurrentauth_and_logout_account");
         var token = "java-account-token";

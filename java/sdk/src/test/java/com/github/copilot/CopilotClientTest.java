@@ -7,6 +7,8 @@ package com.github.copilot;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.e2e.SkipInProcess;
+
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PingResponse;
@@ -119,6 +121,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Constructs the client with CliPath explicitly, which the in-process transport does not accept")
     void testClientConstructionWithOptions() {
         var options = new CopilotClientOptions().setCliPath("/path/to/cli").setLogLevel("debug").setAutoStart(false);
 
@@ -149,6 +152,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Validates CliPath and CliUrl subprocess transport conflicts, which are not applicable in in-process mode")
     void testCliUrlMutualExclusionWithCliPath() {
         var options = new CopilotClientOptions().setCliUrl("localhost:3000").setCliPath("/path/to/cli");
 
@@ -156,6 +160,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Verifies spawning and talking to a child stdio process instead of the in-process runtime")
     void testStartAndConnectUsingStdio() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -173,6 +178,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Asserts child-process startup stderr reporting for invalid CLI arguments")
     void testShouldReportErrorWithStderrWhenCliFailsToStart() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -190,6 +196,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Verifies spawning and talking to a child TCP process instead of the in-process runtime")
     void testStartAndConnectUsingTcp() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -205,6 +212,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Exercises lifecycle of a spawned CLI process selected via CliPath")
     void testForceStopWithoutCleanup() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
@@ -497,6 +505,7 @@ public class CopilotClientTest {
     }
 
     @Test
+    @SkipInProcess("Exercises session shutdown after stopping a spawned CLI process selected via CliPath")
     void testCloseSessionAfterStoppingClientDoesNotThrow() throws Exception {
         assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 

@@ -18,7 +18,10 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.copilot.ffi.InProcessEnvGuard;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.InProcessRuntimeConnection;
+import com.github.copilot.rpc.RuntimeConnection;
 
 /**
  * E2E test context that manages the test environment including the CapiProxy,
@@ -71,6 +74,7 @@ public class E2ETestContext implements AutoCloseable {
     private String proxyUrl;
     private final CapiProxy proxy;
     private final Path repoRoot;
+    private final List<InProcessEnvGuard> inProcessEnvGuards = new ArrayList<>();
     private Path currentSnapshotFile;
 
     private E2ETestContext(String cliPath, Path homeDir, Path workDir, String proxyUrl, CapiProxy proxy,
@@ -322,9 +326,8 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient() {
-        CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
-                .setEnvironment(getEnvironment()).setGitHubToken(DEFAULT_GITHUB_TOKEN);
-
+        CopilotClientOptions options = new CopilotClientOptions().setGitHubToken(DEFAULT_GITHUB_TOKEN);
+        applyContextOptions(options);
         return new CopilotClient(options);
     }
 
@@ -338,6 +341,19 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient(CopilotClientOptions options) {
+        applyContextOptions(options);
+        if (options.getGitHubToken() == null) {
+            options.setGitHubToken(DEFAULT_GITHUB_TOKEN);
+        }
+
+        return new CopilotClient(options);
+    }
+
+    private void applyContextOptions(CopilotClientOptions options) {
+        if (isInProcessMode(options)) {
+            inProcessEnvGuards.add(new InProcessEnvGuard(buildInProcessEnvironment(options)));
+            return;
+        }
         if (options.getCliPath() == null) {
             options.setCliPath(cliPath);
         }
@@ -347,11 +363,26 @@ public class E2ETestContext implements AutoCloseable {
         if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
             options.setEnvironment(getEnvironment());
         }
-        if (options.getGitHubToken() == null) {
-            options.setGitHubToken(DEFAULT_GITHUB_TOKEN);
-        }
+    }
 
-        return new CopilotClient(options);
+    private boolean isInProcessMode(CopilotClientOptions options) {
+        RuntimeConnection connection = options.getConnection();
+        if (connection instanceof InProcessRuntimeConnection) {
+            return true;
+        }
+        String defaultConnection = System.getenv("COPILOT_SDK_DEFAULT_CONNECTION");
+        return defaultConnection != null && "inprocess".equalsIgnoreCase(defaultConnection.trim());
+    }
+
+    private Map<String, String> buildInProcessEnvironment(CopilotClientOptions options) {
+        Map<String, String> env = new HashMap<>(getEnvironment());
+        Map<String, String> optionEnvironment = options.getEnvironment();
+        if (optionEnvironment != null && !optionEnvironment.isEmpty()) {
+            env.putAll(optionEnvironment);
+            options.setEnvironment(null);
+        }
+        env.put("COPILOT_CLI_PATH", cliPath);
+        return env;
     }
 
     /**
@@ -428,6 +459,9 @@ public class E2ETestContext implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        for (int i = inProcessEnvGuards.size() - 1; i >= 0; i--) {
+            inProcessEnvGuards.get(i).close();
+        }
         proxy.stop();
 
         // Clean up temp directories (best effort)

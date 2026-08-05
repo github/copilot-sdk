@@ -15,6 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.e2e.SkipInProcess;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
@@ -29,6 +31,7 @@ class ClientOptionsE2ETest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
+    @SkipInProcess("Exercises direct CLI argument and working-directory forwarding to a spawned stdio subprocess")
     void testShouldForwardAdvancedSessionCreationOptionsToTheCli() throws Exception {
         try (var fake = FakeStdioCli.create()) {
             var workDir = fake.path("create-work");
@@ -95,6 +98,7 @@ class ClientOptionsE2ETest {
     }
 
     @Test
+    @SkipInProcess("Exercises direct CLI argument and working-directory forwarding to a spawned stdio subprocess")
     void testShouldForwardSingularProviderConfigurationOnSessionCreation() throws Exception {
         try (var fake = FakeStdioCli.create()) {
             try (var client = fake.createClient()) {
@@ -123,6 +127,7 @@ class ClientOptionsE2ETest {
     }
 
     @Test
+    @SkipInProcess("Exercises direct CLI argument and working-directory forwarding to a spawned stdio subprocess")
     void testShouldForwardAdvancedSessionResumeOptionsToTheCli() throws Exception {
         try (var fake = FakeStdioCli.create()) {
             var workDir = fake.path("resume-work");

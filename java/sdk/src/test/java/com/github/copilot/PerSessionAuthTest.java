@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.e2e.SkipInProcess;
+
 import com.github.copilot.generated.rpc.SessionGitHubAuthGetStatusResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
@@ -110,6 +112,7 @@ public class PerSessionAuthTest {
     }
 
     @Test
+    @SkipInProcess("Builds a client with per-client environment, cwd, and logged-in-user overrides that the shared in-process runtime cannot isolate")
     void shouldBeUnauthenticatedWithoutToken() throws Exception {
         Map<String, String> env = new HashMap<>(ctx.getEnvironment());
         env.put("COPILOT_DEBUG_GITHUB_API_URL", ctx.getProxyUrl());
