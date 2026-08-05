@@ -710,9 +710,9 @@ async with await client.create_session(
     ...
 ```
 
-Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`.
+Available section IDs: `"preamble"`, `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"runtime_instructions"`, `"last_instructions"`. `"identity"` and `"tool_instructions"` are section groups that target a collection of related sub-sections as a unit; use `"preamble"` to target just the identity preamble.
 
-Each section override supports four string actions: `"replace"`, `"remove"`, `"append"`, and `"prepend"`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `"remove"` overrides are silently ignored.
+Each section override supports five string actions: `"replace"`, `"remove"`, `"append"`, `"prepend"`, and `"preserve"` (a no-op that opts an individually-addressable section out of a group-level `"remove"`). Unknown section IDs are handled gracefully: content from `"replace"`/`"append"`/`"prepend"` overrides is appended to additional instructions, and `"remove"` overrides are silently ignored.
 
 You can also pass a transform callback as the `action` instead of a string. The callback receives the current section content and returns the new content (sync or async):
 
