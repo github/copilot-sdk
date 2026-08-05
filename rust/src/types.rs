@@ -530,6 +530,7 @@ impl std::fmt::Debug for Tool {
             .field("parameters", &self.parameters)
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
+            .field("is_terminal", &self.is_terminal)
             .field("defer", &self.defer)
             .field("metadata", &self.metadata)
             .field(
@@ -7561,5 +7562,23 @@ mod is_terminal_tests {
         };
         let value = serde_json::to_value(&tool).expect("tool serializes");
         assert!(value.get("isTerminal").is_none());
+    }
+
+    /// `Tool` has a hand-written `Debug` impl, so a new field is only reported
+    /// if it is added there by hand. Guard against that drift.
+    #[test]
+    fn is_terminal_appears_in_debug_output() {
+        let terminal = Tool {
+            name: "clear_context".to_owned(),
+            is_terminal: true,
+            ..Default::default()
+        };
+        assert!(format!("{terminal:?}").contains("is_terminal: true"));
+
+        let plain = Tool {
+            name: "plain".to_owned(),
+            ..Default::default()
+        };
+        assert!(format!("{plain:?}").contains("is_terminal: false"));
     }
 }
