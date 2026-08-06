@@ -288,6 +288,39 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task SessionRequests_Serialize_Terminal_Tools()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var terminalTool = CopilotTool.DefineTool(
+            (Func<string>)(() => "done"),
+            new CopilotToolOptions { IsTerminal = true });
+        var plainTool = CopilotTool.DefineTool((Func<string>)(() => "continue"));
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [terminalTool, plainTool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var createRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var createTools = createRequest.Params.GetProperty("tools");
+        Assert.True(createTools[0].GetProperty("isTerminal").GetBoolean());
+        Assert.False(createTools[1].TryGetProperty("isTerminal", out _));
+
+        server.ClearRequests();
+
+        await using var resumed = await client.ResumeSessionAsync("resume-with-terminal-tool", new ResumeSessionConfig
+        {
+            Tools = [terminalTool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("isTerminal").GetBoolean());
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_Registers_McpAuth_Interest_Only_When_Handler_Configured()
     {
         await using var server = await FakeCopilotServer.StartAsync();
