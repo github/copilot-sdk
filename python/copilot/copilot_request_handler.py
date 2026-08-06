@@ -25,7 +25,7 @@ import asyncio
 import base64
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .generated.rpc import (
     LlmInferenceHTTPRequestChunkRequest,
@@ -207,9 +207,7 @@ class CopilotWebSocketForwarder(CopilotWebSocketHandler):
         self._receive_task = asyncio.create_task(self._receive_loop())
 
     async def _receive_loop(self) -> None:
-        upstream = self._upstream
-        if upstream is None:
-            return
+        upstream = cast(Any, self._upstream)
         try:
             async for message in upstream:
                 await self.send_response_message(message)
