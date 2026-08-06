@@ -876,36 +876,6 @@ describe("CopilotClient", () => {
         expect((connectCall![1] as any).enableGitHubTelemetryForwarding).toBeUndefined();
     });
 
-    it("uses session.detach when the server advertises the capability", async () => {
-        const client = new CopilotClient();
-        const sendRequest = vi.fn(async (method: string, params: any) => {
-            if (method === "connect") {
-                return {
-                    ok: true,
-                    protocolVersion: 3,
-                    version: "test",
-                    capabilities: ["session.detach"],
-                };
-            }
-            if (method === "session.create") {
-                return { sessionId: params.sessionId };
-            }
-            if (method === "session.detach") {
-                return { success: true };
-            }
-            throw new Error(`Unexpected method: ${method}`);
-        });
-        (client as any).connection = { sendRequest };
-
-        await (client as any).verifyProtocolVersion();
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        await session.disconnect();
-
-        expect(sendRequest).toHaveBeenCalledWith("session.detach", {
-            sessionId: session.sessionId,
-        });
-    });
-
     it("does not opt into GitHub telemetry forwarding without a handler", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -2191,7 +2161,6 @@ describe("CopilotClient", () => {
                 undefined,
                 undefined,
                 {
-                    supportsSessionDetach: true,
                     onDisconnected,
                 }
             );
@@ -2229,8 +2198,7 @@ describe("CopilotClient", () => {
                 "test-session",
                 { sendRequest } as any,
                 undefined,
-                undefined,
-                { supportsSessionDetach: true }
+                undefined
             );
 
             await expect(session.disconnect()).rejects.toThrow("detach failed");
@@ -2245,28 +2213,11 @@ describe("CopilotClient", () => {
 
         it("detaches a session when asynchronously disposed", async () => {
             const sendRequest = vi.fn(async () => ({ success: true }));
-            const session = new CopilotSession(
-                "test-session",
-                { sendRequest } as any,
-                undefined,
-                undefined,
-                { supportsSessionDetach: true }
-            );
+            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
 
             await session[Symbol.asyncDispose]();
 
             expect(sendRequest).toHaveBeenCalledWith("session.detach", {
-                sessionId: "test-session",
-            });
-        });
-
-        it("uses legacy destroy when the runtime does not advertise detach", async () => {
-            const sendRequest = vi.fn(async () => undefined);
-            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
-
-            await session.disconnect();
-
-            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
                 sessionId: "test-session",
             });
         });
@@ -2284,7 +2235,6 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -2316,7 +2266,6 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             await expect(
                 client.createSession({
@@ -2419,7 +2368,6 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             await expect(
                 client.resumeSession("test-session", {
@@ -2454,7 +2402,6 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             await expect(
                 client.resumeSession("test-session", {
@@ -3935,9 +3882,7 @@ describe("CopilotClient", () => {
             const resumed = new CopilotSession(
                 "resumed-session",
                 (client as any).connection,
-                undefined,
-                undefined,
-                { supportsSessionDetach: true }
+                undefined
             );
             (client as any).sessions.set(created.sessionId, created);
             (client as any).sessions.set(resumed.sessionId, resumed);
