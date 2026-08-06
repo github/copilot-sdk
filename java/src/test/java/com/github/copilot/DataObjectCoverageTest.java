@@ -155,6 +155,13 @@ class DataObjectCoverageTest {
         assertEquals("http://127.0.0.1:8106/docs/target-app/", args.get("url"));
     }
 
+    @Test
+    void permissionRequestWithoutExtensionDataPreservesNull() {
+        var request = PermissionRequest.fromJsonValue(java.util.Map.of("kind", "read", "toolCallId", "tool-123"));
+
+        assertNull(request.getExtensionData());
+    }
+
     // ===== SectionOverride setContent =====
 
     @Test
