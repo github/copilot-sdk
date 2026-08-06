@@ -74,6 +74,7 @@ from .generated.rpc import (
     OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
+    SessionManagedSettings,
     _ConnectResult,
     _HookInvokeRequest,
     _HookInvokeResponse,
@@ -2090,6 +2091,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: SessionManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -2241,6 +2243,10 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Permissions-only enterprise policy injected by
+                the SDK host. It is independent of ``enable_managed_settings``,
+                composes restrictively with other managed sources, and is not
+                persisted. Sent on the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2388,6 +2394,9 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
+
+        if managed_settings is not None:
+            payload["managedSettings"] = managed_settings.to_dict()
 
         # Add working directory if provided
         if working_directory:
@@ -2575,7 +2584,8 @@ class CopilotClient:
                 sid,
                 self._client,
                 workspace_path=None,
-                managed_settings_enabled=enable_managed_settings is True,
+                managed_settings_enabled=enable_managed_settings is True
+                or managed_settings is not None,
             )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
@@ -2799,6 +2809,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: SessionManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2951,6 +2962,9 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Permissions-only enterprise policy injected for
+                this resume. Re-supply it because the client layer is not
+                persisted. Sent on the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -3122,6 +3136,9 @@ class CopilotClient:
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
 
+        if managed_settings is not None:
+            payload["managedSettings"] = managed_settings.to_dict()
+
         if working_directory:
             payload["workingDirectory"] = working_directory
         if additional_directories:
@@ -3234,7 +3251,8 @@ class CopilotClient:
             session_id,
             self._client,
             workspace_path=None,
-            managed_settings_enabled=enable_managed_settings is True,
+            managed_settings_enabled=enable_managed_settings is True
+            or managed_settings is not None,
         )
         if self._session_fs_config:
             if create_session_fs_handler is None:

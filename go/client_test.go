@@ -3527,6 +3527,58 @@ func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_ManagedSettings(t *testing.T) {
+	disable := rpc.DisableBypassPermissionsModeDisable
+	settings := &rpc.SessionManagedSettings{
+		Permissions: &rpc.SessionManagedPermissions{
+			DisableBypassPermissionsMode: &disable,
+			Deny:                         []string{"Shell(git push)"},
+			Ask:                          []string{"Domain(publish.example)"},
+			Allow:                        []string{},
+		},
+	}
+
+	if !hasManagedSettings(nil, settings) {
+		t.Fatal("expected direct injection to enable managed safeguards")
+	}
+
+	for name, request := range map[string]any{
+		"create": createSessionRequest{ManagedSettings: settings},
+		"resume": resumeSessionRequest{SessionID: "s1", ManagedSettings: settings},
+	} {
+		t.Run(name, func(t *testing.T) {
+			data, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("unmarshal request: %v", err)
+			}
+			permissions := payload["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+			if permissions["disableBypassPermissionsMode"] != "disable" {
+				t.Fatalf("unexpected bypass mode: %v", permissions["disableBypassPermissionsMode"])
+			}
+			allow, ok := permissions["allow"].([]any)
+			if !ok || len(allow) != 0 {
+				t.Fatalf("explicit empty allow list was not preserved: %v", permissions["allow"])
+			}
+		})
+	}
+
+	data, err := json.Marshal(createSessionRequest{})
+	if err != nil {
+		t.Fatalf("marshal empty request: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal empty request: %v", err)
+	}
+	if _, ok := payload["managedSettings"]; ok {
+		t.Fatal("managedSettings must be omitted when absent")
+	}
+}
+
 func TestIsTerminal(t *testing.T) {
 	t.Run("IsTerminal is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{

@@ -10,7 +10,7 @@ package com.github.copilot.generated;
 import javax.annotation.processing.Generated;
 
 /**
- * Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+ * Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
  *
  * @since 1.0.0
  */
@@ -20,6 +20,10 @@ public enum ManagedSettingsResolvedSource {
     SERVER("server"),
     /** The {@code device} variant. */
     DEVICE("device"),
+    /** The {@code client} variant. */
+    CLIENT("client"),
+    /** The {@code mixed} variant. */
+    MIXED("mixed"),
     /** The {@code none} variant. */
     NONE("none");
 

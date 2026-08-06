@@ -404,6 +404,7 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         .rpc()
                         .permissions()
                         .handle_pending_permission_request(PermissionDecisionRequest {
+                            decision_context: None,
                             request_id: request_id.into(),
                             result,
                         })

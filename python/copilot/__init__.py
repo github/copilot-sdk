@@ -80,11 +80,14 @@ from .copilot_request_handler import (
 )
 from .generated.rpc import (
     CurrentToolMetadata,
+    DisableBypassPermissionsMode,
     GitHubTelemetryClientInfo,
     GitHubTelemetryEvent,
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    SessionManagedPermissions,
+    SessionManagedSettings,
 )
 from .generated.session_events import (
     PermissionRequest,
@@ -235,6 +238,7 @@ __all__ = [
     "CopilotWebSocketHandler",
     "CreateSessionFsHandler",
     "CurrentToolMetadata",
+    "DisableBypassPermissionsMode",
     "ElicitationContext",
     "ElicitationHandler",
     "ElicitationParams",
@@ -275,6 +279,8 @@ __all__ = [
     "ModelBilling",
     "ModelBillingTokenPrices",
     "ModelBillingTokenPricesLongContext",
+    "SessionManagedPermissions",
+    "SessionManagedSettings",
     "ModelCapabilities",
     "ModelCapabilitiesOverride",
     "ModelInfo",

@@ -25,6 +25,7 @@ import type {
     OpenCanvasInstance,
     RemoteSessionMode,
     CurrentToolMetadata,
+    SessionManagedSettings,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
@@ -37,6 +38,9 @@ export type {
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    DisableBypassPermissionsMode,
+    SessionManagedPermissions,
+    SessionManagedSettings,
 } from "./generated/rpc.js";
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
@@ -2585,6 +2589,13 @@ export interface SessionConfigBase {
      * if omitted, the runtime is expected to reject session creation (fail-closed).
      */
     enableManagedSettings?: boolean;
+
+    /**
+     * Permissions-only enterprise policy injected by the SDK host at session
+     * create or resume. This is independent of {@link enableManagedSettings},
+     * composes restrictively with other managed sources, and is not persisted.
+     */
+    managedSettings?: SessionManagedSettings;
 
     /**
      * When true, skips embedding-based retrieval for this session.

@@ -235,6 +235,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
+    @JsonProperty("managedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private ManagedSettings managedSettings;
 
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
@@ -1109,5 +1112,18 @@ public final class ResumeSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * @param managedSettings
+     *            host-injected managed settings
+     */
+    public void setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
     }
 }

@@ -3044,6 +3044,30 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
+/// <summary>Enterprise permission policy injected by an SDK host at session startup.</summary>
+public sealed class ManagedSettingsPermissions
+{
+    /// <summary>When set to <c>"disable"</c>, prevents bypass permission modes.</summary>
+    [JsonPropertyName("disableBypassPermissionsMode")]
+    public string? DisableBypassPermissionsMode { get; set; }
+
+    /// <summary>Permission rules that block matching operations.</summary>
+    public IList<string>? Deny { get; set; }
+
+    /// <summary>Permission rules that require explicit approval.</summary>
+    public IList<string>? Ask { get; set; }
+
+    /// <summary>Permission rules that allow matching operations.</summary>
+    public IList<string>? Allow { get; set; }
+}
+
+/// <summary>Permissions-only managed settings injected by an SDK host.</summary>
+public sealed class ManagedSettings
+{
+    /// <summary>Gets or sets the managed permission policy.</summary>
+    public ManagedSettingsPermissions? Permissions { get; set; }
+}
+
 /// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
@@ -3136,6 +3160,7 @@ public abstract class SessionConfigBase
         RemoteSession = other.RemoteSession;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
+        ManagedSettings = other.ManagedSettings;
 #pragma warning disable GHCP001
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
@@ -3600,6 +3625,13 @@ public abstract class SessionConfigBase
     /// wire as <c>enableManagedSettings</c>.
     /// </summary>
     public bool? EnableManagedSettings { get; set; }
+
+    /// <summary>
+    /// Gets or sets permissions-only managed settings injected at session
+    /// create or resume. This is independent of <see cref="EnableManagedSettings"/>
+    /// and must be re-supplied on resume because it is not persisted.
+    /// </summary>
+    public ManagedSettings? ManagedSettings { get; set; }
 
 #pragma warning disable GHCP001
     /// <summary>

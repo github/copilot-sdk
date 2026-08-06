@@ -66,6 +66,13 @@ pub(crate) struct SessionHandlers {
     pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
 }
 
+fn has_managed_settings(
+    enable_managed_settings: Option<bool>,
+    managed_settings: Option<&crate::types::SessionManagedSettings>,
+) -> bool {
+    enable_managed_settings == Some(true) || managed_settings.is_some()
+}
+
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
     tx: oneshot::Sender<Result<Option<SessionEvent>, Error>>,
@@ -899,7 +906,10 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
-            managed_settings_enabled: wire.enable_managed_settings == Some(true),
+            managed_settings_enabled: has_managed_settings(
+                wire.enable_managed_settings,
+                wire.managed_settings.as_ref(),
+            ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),
@@ -1169,7 +1179,10 @@ impl Client {
         );
         let handlers = SessionHandlers {
             permission: permission_handler,
-            managed_settings_enabled: wire.enable_managed_settings == Some(true),
+            managed_settings_enabled: has_managed_settings(
+                wire.enable_managed_settings,
+                wire.managed_settings.as_ref(),
+            ),
             elicitation: runtime.elicitation_handler.take(),
             mcp_auth: runtime.mcp_auth_handler.take(),
             user_input: runtime.user_input_handler.take(),

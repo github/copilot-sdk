@@ -2683,13 +2683,15 @@ func (r PermissionDecisionUserNotAvailable) MarshalJSON() ([]byte, error) {
 
 func (r *PermissionDecisionRequest) UnmarshalJSON(data []byte) error {
 	type rawPermissionDecisionRequest struct {
-		RequestID string          `json:"requestId"`
-		Result    json.RawMessage `json:"result"`
+		DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+		RequestID       string                     `json:"requestId"`
+		Result          json.RawMessage            `json:"result"`
 	}
 	var raw rawPermissionDecisionRequest
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.DecisionContext = raw.DecisionContext
 	r.RequestID = raw.RequestID
 	if raw.Result != nil {
 		value, err := unmarshalPermissionDecision(raw.Result)
@@ -3711,6 +3713,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		DetachedFromSpawningParentEngagementID *string                                              `json:"detachedFromSpawningParentEngagementId,omitempty"`
 		DetachedFromSpawningParentSessionID    *string                                              `json:"detachedFromSpawningParentSessionId,omitempty"`
 		DisabledInstructionSources             []string                                             `json:"disabledInstructionSources,omitzero"`
+		DisabledMCPServers                     []string                                             `json:"disabledMcpServers,omitzero"`
 		DisabledSkills                         []string                                             `json:"disabledSkills,omitzero"`
 		EnableCitations                        *bool                                                `json:"enableCitations,omitempty"`
 		EnableFileChangeTracking               *bool                                                `json:"enableFileChangeTracking,omitempty"`
@@ -3731,6 +3734,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
+		ManagedSettings                        *SessionManagedSettings                              `json:"managedSettings,omitempty"`
 		MaxInlineBinaryBytes                   *int64                                               `json:"maxInlineBinaryBytes,omitempty"`
 		Memory                                 *MemoryConfiguration                                 `json:"memory,omitempty"`
 		Model                                  *string                                              `json:"model,omitempty"`
@@ -3787,6 +3791,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.DetachedFromSpawningParentEngagementID = raw.DetachedFromSpawningParentEngagementID
 	r.DetachedFromSpawningParentSessionID = raw.DetachedFromSpawningParentSessionID
 	r.DisabledInstructionSources = raw.DisabledInstructionSources
+	r.DisabledMCPServers = raw.DisabledMCPServers
 	r.DisabledSkills = raw.DisabledSkills
 	r.EnableCitations = raw.EnableCitations
 	r.EnableFileChangeTracking = raw.EnableFileChangeTracking
@@ -3807,6 +3812,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IsExperimentalMode = raw.IsExperimentalMode
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
+	r.ManagedSettings = raw.ManagedSettings
 	r.MaxInlineBinaryBytes = raw.MaxInlineBinaryBytes
 	r.Memory = raw.Memory
 	r.Model = raw.Model

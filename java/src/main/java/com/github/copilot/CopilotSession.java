@@ -1025,8 +1025,8 @@ public final class CopilotSession implements AutoCloseable {
                             return;
                         }
                         getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
-                                        result));
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, result,
+                                        null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }
@@ -1036,8 +1036,8 @@ public final class CopilotSession implements AutoCloseable {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                         getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
-                                        denied));
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
+                                        null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, e);
                     }
@@ -1049,7 +1049,8 @@ public final class CopilotSession implements AutoCloseable {
                     PermissionRequestResult denied = new PermissionRequestResult();
                     denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                     getRpc().permissions.handlePendingPermissionRequest(
-                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied));
+                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
+                                    null));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
                 }

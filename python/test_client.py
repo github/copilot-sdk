@@ -20,6 +20,8 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
+    SessionManagedPermissions,
+    SessionManagedSettings,
     StdioRuntimeConnection,
     define_tool,
 )
@@ -34,6 +36,7 @@ from copilot.client import (
     ModelLimits,
     ModelSupports,
 )
+from copilot.generated.rpc import DisableBypassPermissionsMode
 from copilot.session import PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -717,6 +720,55 @@ class TestCreateSessionConfig:
 
             assert "isExperimentalMode" not in captured["session.create"]
             assert "isExperimentalMode" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_forward_managed_settings(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                result = {"sessionId": params.get("sessionId") or "session-1"}
+                callback = kwargs.get("on_response_inline")
+                if callback is not None:
+                    callback(result)
+                return result
+
+            client._client.request = mock_request
+            settings = SessionManagedSettings(
+                permissions=SessionManagedPermissions(
+                    disable_bypass_permissions_mode=DisableBypassPermissionsMode.DISABLE,
+                    deny=["Shell(git push)"],
+                    ask=[],
+                    allow=[],
+                )
+            )
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=settings,
+            )
+            resumed = await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=settings,
+            )
+
+            assert session._managed_settings_enabled is True
+            assert resumed._managed_settings_enabled is True
+            for method in ("session.create", "session.resume"):
+                assert captured[method]["managedSettings"] == {
+                    "permissions": {
+                        "disableBypassPermissionsMode": "disable",
+                        "deny": ["Shell(git push)"],
+                        "ask": [],
+                        "allow": [],
+                    }
+                }
+                assert "enableManagedSettings" not in captured[method]
         finally:
             await client.force_stop()
 

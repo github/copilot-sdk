@@ -140,6 +140,8 @@ export type {
     SessionLifecycleEventMetadata,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionManagedPermissions,
+    SessionManagedSettings,
     SessionHooks,
     SessionCreatedEvent,
     SessionDeletedEvent,

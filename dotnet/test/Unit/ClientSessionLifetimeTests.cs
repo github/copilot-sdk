@@ -480,6 +480,46 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Fact]
+    public async Task Create_And_Resume_Serialize_ManagedSettings()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        var settings = new ManagedSettings
+        {
+            Permissions = new ManagedSettingsPermissions
+            {
+                DisableBypassPermissionsMode = "disable",
+                Deny = ["shell(rm*)"],
+                Ask = [],
+                Allow = []
+            }
+        };
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            ManagedSettings = settings,
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        await using var resumed = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
+        {
+            ManagedSettings = settings,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnEvent = _ => { }
+        });
+
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var request = Assert.Single(server.Requests, request => request.Method == method);
+            Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
+            var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+            Assert.Equal("disable", permissions.GetProperty("disableBypassPermissionsMode").GetString());
+            Assert.Empty(permissions.GetProperty("ask").EnumerateArray());
+            Assert.Empty(permissions.GetProperty("allow").EnumerateArray());
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {

@@ -201,6 +201,7 @@ final class SessionRequestBuilder {
         request.setCloud(config.getCloud());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
+        request.setManagedSettings(config.getManagedSettings());
 
         return request;
     }
@@ -337,6 +338,7 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
+        request.setManagedSettings(config.getManagedSettings());
 
         return request;
     }
@@ -374,7 +376,8 @@ final class SessionRequestBuilder {
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
         }
-        session.setManagedSettingsEnabled(config.getEnableManagedSettings().orElse(false));
+        session.setManagedSettingsEnabled(
+                config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
@@ -425,7 +428,8 @@ final class SessionRequestBuilder {
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
         }
-        session.setManagedSettingsEnabled(config.getEnableManagedSettings().orElse(false));
+        session.setManagedSettingsEnabled(
+                config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }

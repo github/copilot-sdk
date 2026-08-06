@@ -108,6 +108,7 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private ManagedSettings managedSettings;
 
     /**
      * Gets the custom session ID.
@@ -2041,6 +2042,21 @@ public class SessionConfig {
         return this;
     }
 
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * @param managedSettings
+     *            permissions-only managed settings
+     * @return this config
+     */
+    public SessionConfig setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
+        return this;
+    }
+
     /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
@@ -2128,6 +2144,7 @@ public class SessionConfig {
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.managedSettings = this.managedSettings;
         return copy;
     }
 }

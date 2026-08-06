@@ -107,6 +107,7 @@ public class ResumeSessionConfig {
     private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private ManagedSettings managedSettings;
 
     /**
      * Gets the AI model to use.
@@ -1910,6 +1911,21 @@ public class ResumeSessionConfig {
         return this;
     }
 
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * @param managedSettings
+     *            permissions-only managed settings
+     * @return this config
+     */
+    public ResumeSessionConfig setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
+        return this;
+    }
+
     /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
@@ -1992,6 +2008,7 @@ public class ResumeSessionConfig {
         copy.remoteSession = this.remoteSession;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.managedSettings = this.managedSettings;
         return copy;
     }
 }

@@ -27,8 +27,8 @@ use crate::types::{
     CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
     DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig, InfiniteSessionConfig,
     LargeToolOutputConfig, McpServerConfig, MemoryConfiguration, NamedProviderConfig,
-    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
-    ToolSearchConfig,
+    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SessionManagedSettings,
+    SystemMessageConfig, Tool, ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -185,6 +185,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<SessionManagedSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
 }
 
@@ -333,6 +335,8 @@ pub(crate) struct SessionResumeWire {
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<SessionManagedSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
 }

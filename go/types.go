@@ -1498,6 +1498,10 @@ type SessionConfig struct {
 	// be set; if omitted, the runtime is expected to reject session creation
 	// (fail-closed). Unset behaves exactly as before.
 	EnableManagedSettings *bool
+	// ManagedSettings supplies a permissions-only enterprise policy directly
+	// to the runtime. It is independent of EnableManagedSettings and must be
+	// re-supplied on resume because the client layer is not persisted.
+	ManagedSettings *rpc.SessionManagedSettings
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1961,6 +1965,9 @@ type ResumeSessionConfig struct {
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
 	EnableManagedSettings *bool
+	// ManagedSettings re-supplies the session-local enterprise policy on
+	// resume. See SessionConfig.ManagedSettings.
+	ManagedSettings *rpc.SessionManagedSettings
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -2423,6 +2430,7 @@ type createSessionRequest struct {
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
+	ManagedSettings                    *rpc.SessionManagedSettings            `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2519,6 +2527,7 @@ type resumeSessionRequest struct {
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
+	ManagedSettings                    *rpc.SessionManagedSettings            `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

@@ -73,6 +73,74 @@ describe("CopilotClient", () => {
         expect(dispose).toHaveBeenCalledOnce();
     });
 
+    describe("managedSettings serialization", () => {
+        async function capture(
+            method: "session.create" | "session.resume",
+            config: any
+        ): Promise<any> {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (requestMethod: string, params: any) => {
+                    if (requestMethod === method)
+                        return { sessionId: params.sessionId ?? "session-1" };
+                    throw new Error(`Unexpected method: ${requestMethod}`);
+                });
+            if (method === "session.create") {
+                await client.createSession({ onPermissionRequest: approveAll, ...config });
+            } else {
+                await client.resumeSession("session-1", {
+                    onPermissionRequest: approveAll,
+                    ...config,
+                });
+            }
+            return spy.mock.calls.find(([requestMethod]) => requestMethod === method)![1];
+        }
+
+        it.each(["session.create", "session.resume"] as const)(
+            "forwards permissions on %s and preserves empty arrays",
+            async (method) => {
+                const params = await capture(method, {
+                    managedSettings: {
+                        permissions: {
+                            disableBypassPermissionsMode: "disable",
+                            deny: ["Shell(git push)"],
+                            ask: [],
+                            allow: [],
+                        },
+                    },
+                });
+                expect(params.managedSettings).toEqual({
+                    permissions: {
+                        disableBypassPermissionsMode: "disable",
+                        deny: ["Shell(git push)"],
+                        ask: [],
+                        allow: [],
+                    },
+                });
+                expect(params.enableManagedSettings).toBeUndefined();
+            }
+        );
+
+        it("omits absent settings and enables safeguards for direct injection", async () => {
+            expect((await capture("session.create", {})).managedSettings).toBeUndefined();
+
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => stopClient(client));
+            vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+                async (_method: string, params: any) => ({ sessionId: params.sessionId })
+            );
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                managedSettings: { permissions: { deny: ["Edit(/secrets/**)"] } },
+            });
+            expect((session as any).managedSettingsEnabled).toBe(true);
+        });
+    });
+
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));

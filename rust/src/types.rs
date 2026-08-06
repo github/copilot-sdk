@@ -2055,6 +2055,9 @@ pub struct SessionConfig {
     /// (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Permissions-only enterprise policy injected by the SDK host. This is
+    /// independent of `enable_managed_settings` and is not persisted.
+    pub managed_settings: Option<SessionManagedSettings>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -2200,6 +2203,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
+            .field("managed_settings", &self.managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field(
                 "session_fs_provider",
@@ -2312,6 +2316,7 @@ impl Default for SessionConfig {
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2476,6 +2481,7 @@ impl SessionConfig {
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
+            managed_settings: self.managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
         };
 
@@ -3100,6 +3106,12 @@ impl SessionConfig {
         self.enable_managed_settings = Some(enabled);
         self
     }
+
+    /// Inject a permissions-only enterprise policy for this session.
+    pub fn with_managed_settings(mut self, settings: SessionManagedSettings) -> Self {
+        self.managed_settings = Some(settings);
+        self
+    }
 }
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
@@ -3292,6 +3304,8 @@ pub struct ResumeSessionConfig {
     /// process restart. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Permissions-only enterprise policy re-supplied for this resume.
+    pub managed_settings: Option<SessionManagedSettings>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -3430,6 +3444,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
+            .field("managed_settings", &self.managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field(
                 "session_fs_provider",
@@ -3587,6 +3602,7 @@ impl ResumeSessionConfig {
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
+            managed_settings: self.managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
@@ -3681,6 +3697,7 @@ impl ResumeSessionConfig {
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -4283,6 +4300,12 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_enable_managed_settings`].
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
+        self
+    }
+
+    /// Re-supply a permissions-only enterprise policy for this resume.
+    pub fn with_managed_settings(mut self, settings: SessionManagedSettings) -> Self {
+        self.managed_settings = Some(settings);
         self
     }
 }
@@ -5606,10 +5629,11 @@ impl InputFormat {
 /// [`crate::rpc`]; they live here so the crate-root
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
-    Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
-    ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    DisableBypassPermissionsMode, Model, ModelBilling, ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext, ModelCapabilities, ModelCapabilitiesLimits,
+    ModelCapabilitiesLimitsVision, ModelCapabilitiesSupports, ModelList, ModelPolicy,
+    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable, SessionManagedPermissions, SessionManagedSettings,
 };
 
 /// Permission categories the CLI may request approval for.
