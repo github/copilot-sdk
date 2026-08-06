@@ -317,6 +317,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         String description = annotation.value();
         boolean overridesBuiltIn = annotation.overridesBuiltInTool();
         boolean skipPermission = annotation.skipPermission();
+        boolean isTerminal = annotation.isTerminal();
         com.github.copilot.rpc.ToolDefer defer = annotation.defer();
 
         // Generate schema with @CopilotToolParam metadata (descriptions, names,
@@ -329,6 +330,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         // Use the record constructor directly so all flags apply independently
         String overridesArg = overridesBuiltIn ? "Boolean.TRUE" : "null";
         String skipPermArg = skipPermission ? "Boolean.TRUE" : "null";
+        String isTerminalArg = isTerminal ? "Boolean.TRUE" : "null";
         String deferArg = defer != com.github.copilot.rpc.ToolDefer.NONE ? "ToolDefer." + defer.name() : "null";
 
         out.println("            new ToolDefinition(");
@@ -341,7 +343,8 @@ public class CopilotToolProcessor extends AbstractProcessor {
         out.println("                " + overridesArg + ",");
         out.println("                " + skipPermArg + ",");
         out.println("                " + deferArg + ",");
-        out.println("                " + metadataSource(annotation));
+        out.println("                " + metadataSource(annotation) + ",");
+        out.println("                " + isTerminalArg);
         out.print("            )");
     }
 
