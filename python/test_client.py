@@ -794,6 +794,45 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_tool_is_terminal(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            tool = Tool(name="my_tool", description="a tool", is_terminal=True)
+            plain_tool = Tool(name="plain_tool", description="a tool")
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool, plain_tool],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[tool],
+            )
+
+            create_tools = captured["session.create"]["tools"]
+            assert create_tools[0]["isTerminal"] is True
+            # Omitted when left at its default.
+            assert "isTerminal" not in create_tools[1]
+            assert captured["session.resume"]["tools"][0]["isTerminal"] is True
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_canvas_provider(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()

@@ -2793,7 +2793,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null,
         CopilotToolDefer? Defer = null,
-        IDictionary<string, JsonNode?>? Metadata = null)
+        IDictionary<string, JsonNode?>? Metadata = null,
+        bool? IsTerminal = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
@@ -2801,11 +2802,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var skipPerm = function.AdditionalProperties.TryGetValue(CopilotTool.SkipPermissionKey, out var skipVal) && skipVal is true;
             var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
             var metadata = function.AdditionalProperties.TryGetValue(CopilotTool.MetadataKey, out var metaVal) && metaVal is IDictionary<string, JsonNode?> m ? m : null;
+            var isTerminal = function.AdditionalProperties.TryGetValue(CopilotTool.IsTerminalKey, out var terminalVal) && terminalVal is true;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null,
                 defer,
-                metadata);
+                metadata,
+                isTerminal ? true : null);
         }
     }
 

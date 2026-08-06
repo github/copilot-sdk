@@ -346,6 +346,12 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// When `true`, a successful call to this tool ends the agent turn: the
+    /// runtime's tool phase halts instead of feeding the result back to the
+    /// model for another round. A failed call leaves the loop running so the
+    /// model can read the error and retry.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_terminal: bool,
     /// Controls whether the tool may be deferred (loaded lazily via tool
     /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
     /// tool can be deferred and surfaced through tool search. When
@@ -470,6 +476,18 @@ impl Tool {
         self
     }
 
+    /// Sets whether a successful call to this tool ends the agent turn.
+    ///
+    /// When `true`, the runtime's tool phase halts after a successful call
+    /// instead of feeding the result back to the model for another round. A
+    /// failed call leaves the loop running so the model can read the error and
+    /// retry.
+    #[must_use]
+    pub fn with_is_terminal(mut self, is_terminal: bool) -> Self {
+        self.is_terminal = is_terminal;
+        self
+    }
+
     /// Set the deferral mode controlling whether the tool may be loaded
     /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
     /// ([`DeferMode::Never`]).
@@ -512,6 +530,7 @@ impl std::fmt::Debug for Tool {
             .field("parameters", &self.parameters)
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
+            .field("is_terminal", &self.is_terminal)
             .field("defer", &self.defer)
             .field("metadata", &self.metadata)
             .field(
@@ -7600,5 +7619,52 @@ mod permission_builder_tests {
 
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("isExperimentalMode").is_none());
+    }
+}
+
+#[cfg(test)]
+mod is_terminal_tests {
+    use super::Tool;
+
+    #[test]
+    fn is_terminal_serializes_as_camel_case_when_set() {
+        let tool = Tool {
+            name: "clear_context".to_owned(),
+            is_terminal: true,
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&tool).expect("tool serializes");
+        assert_eq!(
+            value.get("isTerminal"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn is_terminal_is_omitted_when_false() {
+        let tool = Tool {
+            name: "plain".to_owned(),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&tool).expect("tool serializes");
+        assert!(value.get("isTerminal").is_none());
+    }
+
+    /// `Tool` has a hand-written `Debug` impl, so a new field is only reported
+    /// if it is added there by hand. Guard against that drift.
+    #[test]
+    fn is_terminal_appears_in_debug_output() {
+        let terminal = Tool {
+            name: "clear_context".to_owned(),
+            is_terminal: true,
+            ..Default::default()
+        };
+        assert!(format!("{terminal:?}").contains("is_terminal: true"));
+
+        let plain = Tool {
+            name: "plain".to_owned(),
+            ..Default::default()
+        };
+        assert!(format!("{plain:?}").contains("is_terminal: false"));
     }
 }

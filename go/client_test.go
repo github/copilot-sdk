@@ -3526,3 +3526,40 @@ func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 		}
 	})
 }
+
+func TestIsTerminal(t *testing.T) {
+	t.Run("IsTerminal is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "clear_context",
+			Description: "Clear the conversation",
+			IsTerminal:  true,
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isTerminal"] != true {
+			t.Errorf("Expected isTerminal to be true, got %v", m["isTerminal"])
+		}
+	})
+
+	t.Run("IsTerminal is omitted when false", func(t *testing.T) {
+		tool := Tool{Name: "plain", Description: "A plain tool"}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["isTerminal"]; ok {
+			t.Error("Expected isTerminal to be omitted when false")
+		}
+	})
+}

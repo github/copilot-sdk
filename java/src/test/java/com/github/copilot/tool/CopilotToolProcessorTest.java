@@ -620,8 +620,8 @@ class CopilotToolProcessorTest {
         assertFalse(generated.contains("Map.<String, Object>of("),
                 "Expected no metadata map for a tool without metadata, got:\n" + generated);
         String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
-        assertTrue(normalizedGenerated.contains("                null\n            )"),
-                "Expected metadata constructor argument to be null when metadata is absent, got:\n" + generated);
+        assertTrue(normalizedGenerated.contains("                null,\n                null\n            )"),
+                "Expected metadata and isTerminal constructor arguments to be null when absent, got:\n" + generated);
     }
 
     @Test
@@ -1243,6 +1243,28 @@ class CopilotToolProcessorTest {
                 "Expected Boolean.TRUE for overridesBuiltInTool, got:\n" + generated);
     }
 
+    @Test
+    void generatesTerminalTool_whenIsTerminal() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class TerminalTools {
+                    @CopilotTool(value = "Ends the turn", isTerminal = true)
+                    public String finish() {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.TerminalTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.TerminalTools$$CopilotToolMeta");
+        String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
+        assertTrue(normalizedGenerated.contains(
+                "                null,\n                null,\n                null,\n                null,\n                Boolean.TRUE\n            )"),
+                "Expected Boolean.TRUE for isTerminal in the final constructor position, got:\n" + generated);
+    }
+
     // ── Test: Combined flags all apply independently ────────────────────────────
 
     @Test
@@ -1252,7 +1274,8 @@ class CopilotToolProcessorTest {
                 import com.github.copilot.tool.CopilotTool;
                 import com.github.copilot.rpc.ToolDefer;
                 public class CombinedTools {
-                    @CopilotTool(value = "Combined", overridesBuiltInTool = true, skipPermission = true, defer = ToolDefer.AUTO)
+                    @CopilotTool(value = "Combined", overridesBuiltInTool = true, skipPermission = true,
+                        isTerminal = true, defer = ToolDefer.AUTO)
                     public String doAll() {
                         return "done";
                     }
@@ -1268,11 +1291,10 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("Boolean.TRUE"),
                 "Expected Boolean.TRUE for override/skipPermission, got:\n" + generated);
         assertTrue(generated.contains("ToolDefer.AUTO"), "Expected ToolDefer.AUTO, got:\n" + generated);
-        // Count Boolean.TRUE occurrences — should be 2 (overridesBuiltInTool +
-        // skipPermission)
+        // Count Boolean.TRUE occurrences — override, skipPermission, and isTerminal.
         long boolCount = generated.lines().filter(l -> l.contains("Boolean.TRUE")).count();
-        assertEquals(2, boolCount,
-                "Expected 2 Boolean.TRUE lines (overridesBuiltInTool + skipPermission), got:\n" + generated);
+        assertEquals(3, boolCount,
+                "Expected 3 Boolean.TRUE lines (override + skipPermission + isTerminal), got:\n" + generated);
     }
 
     // ── Test: ToolDefer.NONE results in regular create ──────────────────────────

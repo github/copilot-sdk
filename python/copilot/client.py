@@ -2282,6 +2282,8 @@ class CopilotClient:
                     definition["defer"] = tool.defer
                 if tool.metadata is not None:
                     definition["metadata"] = tool.metadata
+                if tool.is_terminal:
+                    definition["isTerminal"] = True
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
@@ -2992,6 +2994,8 @@ class CopilotClient:
                     definition["defer"] = tool.defer
                 if tool.metadata is not None:
                     definition["metadata"] = tool.metadata
+                if tool.is_terminal:
+                    definition["isTerminal"] = True
                 tool_defs.append(definition)
 
         # Empty-mode validation and normalization
