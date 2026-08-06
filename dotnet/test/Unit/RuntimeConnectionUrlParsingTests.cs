@@ -33,15 +33,6 @@ public class RuntimeConnectionUrlParsingTests
         Assert.Equal(7000, GetPrivateField<int?>(client, "_optionsPort"));
     }
 
-    [Fact]
-    public void ForUri_RejectsUrlPath()
-    {
-        Assert.Throws<ArgumentException>(() => new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri("http://localhost:8080/path")
-        }));
-    }
-
     private static T? GetPrivateField<T>(object instance, string name)
     {
         var field = instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);

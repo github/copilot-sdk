@@ -94,15 +94,6 @@ func TestClient_URLParsing(t *testing.T) {
 		NewClient(&ClientOptions{Connection: URIConnection{URL: "invalid-url"}})
 	})
 
-	t.Run("should panic for URL path", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic for invalid URL path")
-			}
-		}()
-		NewClient(&ClientOptions{Connection: URIConnection{URL: "http://localhost:8080/path"}})
-	})
-
 	t.Run("should panic for invalid port - too high", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {

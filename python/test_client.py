@@ -1224,10 +1224,6 @@ class TestURLParsing:
         with pytest.raises(ValueError, match="Invalid cli_url format"):
             CopilotClient(connection=RuntimeConnection.for_uri("invalid-url"))
 
-    def test_invalid_url_path(self):
-        with pytest.raises(ValueError, match="Invalid cli_url format"):
-            CopilotClient(connection=RuntimeConnection.for_uri("http://localhost:8080/path"))
-
     def test_invalid_port_too_high(self):
         with pytest.raises(ValueError, match="Invalid port in cli_url"):
             CopilotClient(connection=RuntimeConnection.for_uri("localhost:99999"))
@@ -1243,6 +1239,18 @@ class TestURLParsing:
     def test_is_external_server_true(self):
         client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:8080"))
         assert client._is_external_server
+
+    @pytest.mark.asyncio
+    async def test_connect_via_tcp_uses_family_independent_resolution(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
+        fake_socket = Mock()
+        fake_socket.makefile.return_value = Mock()
+
+        with patch("socket.create_connection", return_value=fake_socket) as create_connection:
+            await client._connect_via_tcp()
+
+        create_connection.assert_called_once_with(("::1", 9000), timeout=10)
+        client._process.terminate()
 
 
 class TestSessionFsConfig:

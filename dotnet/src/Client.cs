@@ -301,15 +301,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "[ipv6]:port", "http://host:port".</param>
     private static Uri ParseRuntimeUrl(string url)
     {
-        url = url.Trim();
-
         // If it's just a port number, treat as localhost
         if (int.TryParse(url, out var port))
         {
-            if (port <= 0 || port > 65535)
-            {
-                throw new ArgumentException($"Invalid runtime URL port: {url}");
-            }
             return new Uri($"http://localhost:{port}");
         }
 
@@ -320,18 +314,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             url = "https://" + url;
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            string.IsNullOrEmpty(uri.Host) ||
-            uri.Port <= 0 ||
-            uri.Port > 65535 ||
-            (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/") ||
-            !string.IsNullOrEmpty(uri.Query) ||
-            !string.IsNullOrEmpty(uri.Fragment))
-        {
-            throw new ArgumentException($"Invalid runtime URL: {url}");
-        }
-
-        return uri;
+        return new Uri(url);
     }
 
     /// <summary>

@@ -30,7 +30,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, ClassVar, Literal, TypedDict, cast, overload
-from urllib.parse import urlsplit
 
 from ._diagnostics import log_timing
 from ._ffi_runtime_host import FfiRuntimeHost
@@ -1643,7 +1642,7 @@ class CopilotClient:
         Raises:
             ValueError: If the URL format is invalid or the port is out of range.
         """
-        clean_url = url.strip()
+        clean_url = re.sub(r"^https?://", "", url)
 
         # Check if it's just a port number
         if clean_url.isdigit():
@@ -1652,22 +1651,27 @@ class CopilotClient:
                 raise ValueError(f"Invalid port in cli_url: {url}")
             return ("localhost", port)
 
-        parsed = urlsplit(clean_url if "://" in clean_url else f"tcp://{clean_url}")
-        if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
-            raise ValueError(f"Invalid cli_url format: {url}")
+        ipv6_match = re.match(r"^\[([^\]]+)\]:(.*)$", clean_url)
+        if ipv6_match:
+            host = ipv6_match.group(1)
+            port_text = ipv6_match.group(2)
+        else:
+            # Parse host:port format
+            parts = clean_url.split(":")
+            if len(parts) != 2:
+                raise ValueError(f"Invalid cli_url format: {url}")
+            host = parts[0] if parts[0] else "localhost"
+            port_text = parts[1]
 
         try:
-            port = parsed.port
+            port = int(port_text)
         except ValueError as e:
             raise ValueError(f"Invalid port in cli_url: {url}") from e
-
-        if port is None:
-            raise ValueError(f"Invalid cli_url format: {url}")
 
         if port <= 0 or port > 65535:
             raise ValueError(f"Invalid port in cli_url: {url}")
 
-        return (parsed.hostname or "localhost", port)
+        return (host, port)
 
     async def __aenter__(self) -> CopilotClient:
         """
@@ -4272,14 +4276,12 @@ class CopilotClient:
         if not self._runtime_port:
             raise RuntimeError("Server port not available")
 
-        # Create a TCP socket connection with timeout
+        # Create a TCP socket connection with timeout. create_connection resolves
+        # both IPv4 and IPv6 addresses instead of forcing AF_INET.
         import socket
 
         # Connection timeout constant
         TCP_CONNECTION_TIMEOUT = 10  # seconds
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(TCP_CONNECTION_TIMEOUT)
 
         try:
             tcp_connect_start = time.perf_counter()
@@ -4287,7 +4289,9 @@ class CopilotClient:
                 "CopilotClient._connect_via_tcp connecting to CLI server",
                 extra={"host": self._actual_host, "port": self._runtime_port},
             )
-            sock.connect((self._actual_host, self._runtime_port))
+            sock = socket.create_connection(
+                (self._actual_host, self._runtime_port), timeout=TCP_CONNECTION_TIMEOUT
+            )
             sock.settimeout(None)  # Remove timeout after connection
             log_timing(
                 logger,

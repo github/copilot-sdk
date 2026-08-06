@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	neturl "net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -376,44 +375,44 @@ func setEnvValue(env []string, key string, value string) []string {
 // Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port".
 // Panics if the URL format is invalid or the port is out of range.
 func parseCLIURL(url string) (string, int) {
-	cleanURL := strings.TrimSpace(url)
-	if cleanURL == "" {
-		panic(fmt.Sprintf("Invalid URIConnection format: %s", url))
+	// Remove protocol if present
+	cleanURL, _ := strings.CutPrefix(url, "https://")
+	cleanURL, _ = strings.CutPrefix(cleanURL, "http://")
+
+	// Use the standard parser only for the bracketed IPv6 form. Keep the
+	// existing host:port parsing behavior for all other inputs.
+	if strings.HasPrefix(cleanURL, "[") {
+		host, portStr, err := net.SplitHostPort(cleanURL)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port <= 0 || port > 65535 {
+			panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
+		}
+		return host, port
 	}
 
-	if _, err := strconv.Atoi(cleanURL); err == nil {
-		port := parseCLIPort(url, cleanURL)
-		return "localhost", port
+	// Parse host:port or port format
+	var host string
+	var portStr string
+	if before, after, found := strings.Cut(cleanURL, ":"); found {
+		host = before
+		portStr = after
+	} else {
+		portStr = cleanURL
 	}
 
-	parseURL := cleanURL
-	if !strings.Contains(parseURL, "://") {
-		parseURL = "tcp://" + parseURL
-	}
-
-	parsed, err := neturl.Parse(parseURL)
-	if err != nil {
-		panic(fmt.Sprintf("Invalid URIConnection format: %s", url))
-	}
-	if parsed.Host == "" || parsed.Port() == "" || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
-		panic(fmt.Sprintf("Invalid URIConnection format: %s", url))
-	}
-
-	port := parseCLIPort(url, parsed.Port())
-	host := parsed.Hostname()
 	if host == "" {
 		host = "localhost"
 	}
 
-	return host, port
-}
-
-func parseCLIPort(url string, portStr string) int {
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
 		panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
 	}
-	return port
+
+	return host, port
 }
 
 // Start starts the CLI server (if not using an external server) and establishes

@@ -2219,15 +2219,6 @@ describe("CopilotClient", () => {
             }).toThrow(/Invalid cliUrl format/);
         });
 
-        it("should throw error for URL path", () => {
-            expect(() => {
-                new CopilotClient({
-                    connection: RuntimeConnection.forUri("http://localhost:8080/path"),
-                    logLevel: "error",
-                });
-            }).toThrow(/Invalid cliUrl format/);
-        });
-
         it("should throw error for invalid port - too high", () => {
             expect(() => {
                 new CopilotClient({

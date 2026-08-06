@@ -768,43 +768,35 @@ export class CopilotClient {
      * Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port"
      */
     private parseCliUrl(url: string): { host: string; port: number } {
-        const trimmedUrl = url.trim();
+        // Remove protocol if present
+        const cleanUrl = url.replace(/^https?:\/\//, "");
 
         // Check if it's just a port number
-        if (/^\d+$/.test(trimmedUrl)) {
-            return { host: "localhost", port: parseInt(trimmedUrl, 10) };
+        if (/^\d+$/.test(cleanUrl)) {
+            return { host: "localhost", port: parseInt(cleanUrl, 10) };
         }
 
-        let parsed: URL;
-        try {
-            parsed = new URL(
-                /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmedUrl) ? trimmedUrl : `tcp://${trimmedUrl}`
-            );
-        } catch {
-            if (trimmedUrl.includes(":")) {
+        // Handle the canonical bracketed IPv6 host:port form without changing
+        // the existing parser behavior for other inputs.
+        const ipv6Match = cleanUrl.match(/^\[([^\]]+)\]:(\d+)$/);
+        if (ipv6Match) {
+            const port = parseInt(ipv6Match[2], 10);
+            if (isNaN(port) || port <= 0 || port > 65535) {
                 throw new Error(`Invalid port in cliUrl: ${url}`);
             }
+            return { host: ipv6Match[1], port };
+        }
+
+        // Parse host:port format
+        const parts = cleanUrl.split(":");
+        if (parts.length !== 2) {
             throw new Error(
                 `Invalid cliUrl format: ${url}. Expected "host:port", "[ipv6]:port", "http://host:port", or "port"`
             );
         }
 
-        const explicitPort = trimmedUrl.match(/:(\d+)(?:[/?#]|$)/)?.[1];
-        const portString = parsed.port || explicitPort;
-
-        if (
-            !portString ||
-            (parsed.pathname !== "" && parsed.pathname !== "/") ||
-            parsed.search !== "" ||
-            parsed.hash !== ""
-        ) {
-            throw new Error(
-                `Invalid cliUrl format: ${url}. Expected "host:port", "[ipv6]:port", "http://host:port", or "port"`
-            );
-        }
-
-        const host = parsed.hostname.replace(/^\[(.*)\]$/, "$1") || "localhost";
-        const port = parseInt(portString, 10);
+        const host = parts[0] || "localhost";
+        const port = parseInt(parts[1], 10);
 
         if (isNaN(port) || port <= 0 || port > 65535) {
             throw new Error(`Invalid port in cliUrl: ${url}`);
