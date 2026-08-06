@@ -114,6 +114,7 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+const MANAGED_SETTINGS_READ_METHOD: &str = "managedSettings.read";
 
 fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Option<u64>) {
     match value {
@@ -2308,6 +2309,18 @@ impl Client {
     pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse> {
         let result = self
             .call("auth.getStatus", Some(serde_json::json!({})))
+            .await?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    /// Read validated, canonical device managed settings from the runtime.
+    ///
+    /// This is a server-scoped RPC and does not create or require an agent
+    /// session. Successful reads return native JSON in `settings_json`;
+    /// runtime discovery failures are reported through `error_message`.
+    pub async fn read_managed_settings(&self) -> Result<ManagedSettingsReadResult> {
+        let result = self
+            .call(MANAGED_SETTINGS_READ_METHOD, Some(serde_json::json!({})))
             .await?;
         Ok(serde_json::from_value(result)?)
     }
