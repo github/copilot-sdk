@@ -742,14 +742,18 @@ export type AutoModeResolvedReasoningBucket =
   /** The request looks high-reasoning; a stronger model is appropriate. */
   | "high";
 /**
- * Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)
+ * Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.
  */
 export type ManagedSettingsResolvedSource =
-  /** Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority). */
+  /** Only the server/account channel contributed. */
   | "server"
-  /** Device-level MDM policy discovered from plist/registry/file (lower authority). */
+  /** Only the device MDM/plist/registry/file channel contributed. */
   | "device"
-  /** No managed policy is in force (no layer contributed). */
+  /** Only session-local SDK-host injection contributed. */
+  | "client"
+  /** More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers. */
+  | "mixed"
+  /** No managed policy is in force (no channel contributed). */
   | "none";
 /**
  * The category of runtime action that enterprise managed settings governed (blocked or capped)
@@ -8644,7 +8648,7 @@ export interface AutoModeResolvedData {
   stickyOverride?: boolean;
 }
 /**
- * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
  */
 /** @experimental */
 export interface ManagedSettingsResolvedEvent {
@@ -8675,7 +8679,7 @@ export interface ManagedSettingsResolvedEvent {
   type: "session.managed_settings_resolved";
 }
 /**
- * Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ * Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
  */
 /** @experimental */
 export interface ManagedSettingsResolvedData {
@@ -8684,7 +8688,11 @@ export interface ManagedSettingsResolvedData {
    */
   bypassPermissionsDisabled: boolean;
   /**
-   * Whether the device (MDM/plist/registry/file) managed-settings layer was present
+   * Whether a session-local permissions layer injected by the SDK host was present
+   */
+  clientManaged?: boolean;
+  /**
+   * Whether an actual device MDM/plist/registry/file managed-settings layer was present
    */
   deviceManaged: boolean;
   /**
@@ -8696,7 +8704,7 @@ export interface ManagedSettingsResolvedData {
    */
   managedKeys: string[];
   /**
-   * Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
+   * Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
    */
   permissionsAllowIntersected?: boolean;
   /**
@@ -9133,6 +9141,10 @@ export interface SkillsLoadedSkill {
    * Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
    */
   argumentHint?: string;
+  /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
   /**
    * Description of what the skill does
    */

@@ -418,6 +418,9 @@ export type DebugCollectLogsResultKind =
   | "archive"
   /** A directory containing redacted files was written. */
   | "directory";
+
+/** @experimental */
+export type DisableBypassPermissionsMode = "disable";
 /**
  * Persisted extension discovery source
  *
@@ -1272,6 +1275,63 @@ export type SessionContextAttribution = {
    */
   totalTokens: number;
   /**
+   * The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
+   */
+  modelId: string;
+  /**
+   * How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
+   */
+  modelSource: string;
+  /**
+   * Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
+   */
+  promptTokenLimit: number;
+  /**
+   * Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
+   */
+  limit: number;
+  /**
+   * Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
+   */
+  bufferTokens: number;
+  /**
+   * Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
+   */
+  compactionThreshold: number;
+  /**
+   * The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+   */
+  categories: {
+    /**
+     * System prompt tokens, excluding custom instructions.
+     */
+    systemPrompt: number;
+    /**
+     * Custom-instructions tokens (0 when none are configured).
+     */
+    customInstructions: number;
+    /**
+     * Non-MCP tool-definition tokens.
+     */
+    systemTools: number;
+    /**
+     * MCP tool-definition tokens.
+     */
+    mcpTools: number;
+    /**
+     * Conversation (user/assistant/tool) message tokens.
+     */
+    messages: number;
+    /**
+     * Remaining unused window capacity (clamped at 0).
+     */
+    freeSpace: number;
+    /**
+     * Output reserve plus post-blocking-threshold buffer.
+     */
+    buffer: number;
+  };
+  /**
    * Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
    */
   entries: {
@@ -1619,6 +1679,52 @@ export type PermissionDecisionApproveForLocationApproval =
   | PermissionDecisionApproveForLocationApprovalExtensionManagement
   | PermissionDecisionApproveForLocationApprovalFactory
   | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess;
+/**
+ * Disposition of a permission request as observed by the responding client.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionOutcome".
+ */
+/** @experimental */
+export type PermissionDecisionOutcome =
+  /** The request was approved automatically without a new human decision. */
+  | "auto_approved"
+  /** The request was denied without an interactive user decision; source records why. */
+  | "autopilot_denied"
+  /** The response came from an interactive user prompt. */
+  | "prompted_user";
+/**
+ * Controlled reason or actor responsible for a permission response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionSource".
+ */
+/** @experimental */
+export type PermissionDecisionSource =
+  /** The response followed the auto-approval judge recommendation. */
+  | "judge_recommendation"
+  /** A human supplied the response through an interactive prompt. */
+  | "human_response"
+  /** The host applied a standing policy or override rather than a judge recommendation or human decision. */
+  | "host_policy"
+  /** The host denied the request because no interactive user response was available. */
+  | "unattended_fallback";
+/**
+ * Client surface that submitted a permission response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionSurface".
+ */
+/** @experimental */
+export type PermissionDecisionSurface =
+  /** The interactive Copilot CLI terminal UI. */
+  | "tui"
+  /** The non-interactive Copilot CLI prompt mode. */
+  | "prompt_mode"
+  /** The Copilot App client. */
+  | "copilot_app"
+  /** A generic Copilot SDK client. */
+  | "sdk";
 /**
  * Tool approval to persist and apply
  *
@@ -5222,6 +5328,61 @@ export interface ExtensionContextPushInput {
   };
 }
 /**
+ * Opaque integrator-owned process launch profile for one extension entrypoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProfile".
+ */
+/** @experimental */
+export interface ExtensionLaunchProfile {
+  /**
+   * Executable used to launch the extension entrypoint.
+   */
+  executable: string;
+  /**
+   * Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint.
+   */
+  args: string[];
+  /**
+   * Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence.
+   */
+  env: {
+    [k: string]: string | undefined;
+  };
+}
+/**
+ * A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderResolveRequest".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderResolveRequest {
+  /**
+   * Source-qualified extension identifier.
+   */
+  id: string;
+  /**
+   * Human-readable extension name.
+   */
+  name: string;
+  /**
+   * Absolute path to the discovered extension entrypoint.
+   */
+  modulePath: string;
+  source: ExtensionSource;
+}
+/**
+ * The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExtensionLaunchProviderResolveResult".
+ */
+/** @experimental */
+export interface ExtensionLaunchProviderResolveResult {
+  launch?: ExtensionLaunchProfile;
+}
+/**
  * Extensions discovered for the session, with their current status.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7346,6 +7507,25 @@ export interface LspInitializeRequest {
    * Force re-initialization even when LSP configs were already loaded for the working directory.
    */
   force?: boolean;
+}
+/**
+ * Validated device-managed settings discovered before a session exists.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSettingsReadResult".
+ */
+/** @experimental */
+export interface ManagedSettingsReadResult {
+  /**
+   * Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.
+   */
+  settingsJson?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Discovery or validation error text when managed settings could not be read safely.
+   */
+  errorMessage?: string;
 }
 /**
  * Result of registering a new marketplace.
@@ -10352,6 +10532,18 @@ export interface PermissionDecisionDeniedByPermissionRequestHook {
   interrupt?: boolean;
 }
 /**
+ * Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionDecisionContext".
+ */
+/** @experimental */
+export interface PermissionDecisionContext {
+  outcome: PermissionDecisionOutcome;
+  source: PermissionDecisionSource;
+  surface: PermissionDecisionSurface;
+}
+/**
  * Pending permission request ID and the decision to apply (approve/reject and scope).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10364,6 +10556,7 @@ export interface PermissionDecisionRequest {
    */
   requestId: string;
   result: PermissionDecision;
+  decisionContext?: PermissionDecisionContext;
 }
 /**
  * Location-scoped tool approval to persist.
@@ -13056,9 +13249,9 @@ export interface SandboxConfig {
    */
   ghAuth?: boolean;
   /**
-   * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).
+   * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).
    */
-  allowDevToolCaches?: boolean;
+  allowDevToolAccess?: boolean;
 }
 /**
  * User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -13663,6 +13856,10 @@ export interface ServerSkill {
    * Unique identifier for the skill
    */
   name: string;
+  /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
   /**
    * Description of what the skill does
    */
@@ -14478,6 +14675,38 @@ export interface SessionLoadDeferredRepoHooksResult {
   hookCount: number;
 }
 /**
+ * Enterprise permission policy expressed with the runtime's managed permission-rule syntax.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagedPermissions".
+ */
+/** @experimental */
+export interface SessionManagedPermissions {
+  disableBypassPermissionsMode?: DisableBypassPermissionsMode;
+  /**
+   * Permission rules that block matching operations. Deny has highest precedence.
+   */
+  deny?: string[];
+  /**
+   * Permission rules that require explicit human approval.
+   */
+  ask?: string[];
+  /**
+   * Permission rules that allow matching operations unless another managed source, deny, or ask rule restricts them.
+   */
+  allow?: string[];
+}
+/**
+ * Managed settings an SDK host may inject at session startup. Only permissions are accepted in this initial contract.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagedSettings".
+ */
+/** @experimental */
+export interface SessionManagedSettings {
+  permissions?: SessionManagedPermissions;
+}
+/**
  * Point-in-time snapshot of slow-changing session identifier and state fields
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -14628,6 +14857,7 @@ export interface SessionOpenOptions {
    * Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap.
    */
   enableManagedSettings?: boolean;
+  managedSettings?: SessionManagedSettings;
   /**
    * Opt in to capturing file changes for session rewind and session diff. Capture cannot reconstruct changes made before it was enabled. On create it starts capture from the first turn. It is also honored on resume: for a session that already has tracked prior turns, tracking continues automatically even if this is omitted; passing it on resume additionally enables tracking for an eligible session that has no prior root turn yet. Resuming a session whose prior root turns were never tracked has no restorable baseline, so tracking stays disabled for it and rewind reports file change tracking as unavailable; the resume itself still succeeds, so sessions that predate tracking remain loadable. The opt-in is only rejected when the session can never track (a subagent session, or one without local session storage). It is intentionally absent from the mutable options update because enabling it after edits have occurred would create an incomplete, misleading baseline. Subagents share the parent session's capture store and are not tracked as separate rewind points: a file a subagent writes is attributed to whichever root user turn was open when the capture was staged, just before the tool body ran. A turn cannot open while a staged capture is still in flight, so a subagent tool that staged under the spawning turn stays attributed to it however late the write lands, while a capture it stages after the user's next message belongs to that later turn. Attribution decides which turn's rewind point counts and file preview include that write; it does not narrow which rewinds revert it, because a rewind restores every capture from the selected turn onward, so the earlier spawning turn reverts it as well.
    */
@@ -14722,6 +14952,10 @@ export interface SessionOpenOptions {
    */
   logInteractiveShells?: boolean;
   envValueMode?: SessionOpenOptionsEnvValueMode;
+  /**
+   * MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume.
+   */
+  disabledMcpServers?: string[];
   /**
    * Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
    */
@@ -16203,6 +16437,10 @@ export interface Skill {
    * Unique identifier for the skill
    */
   name: string;
+  /**
+   * Canonical slash command name used to invoke the skill, without the leading '/'
+   */
+  commandName?: string;
   /**
    * Description of what the skill does
    */
@@ -18718,6 +18956,13 @@ export function createServerRpc(connection: MessageConnection) {
             disable: async (params: DiscoveredExtensionsDisableRequest): Promise<void> =>
                 connection.sendRequest("extensions.disable", params),
         },
+        /**
+         * Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+         *
+         * @experimental
+         */
+        registerExtensionLaunchProvider: async (): Promise<void> =>
+            connection.sendRequest("registerExtensionLaunchProvider", {}),
         /** @experimental */
         plugins: {
             /**
@@ -18929,6 +19174,16 @@ export function createServerRpc(connection: MessageConnection) {
                 set: async (params: UserSettingsSetRequest): Promise<UserSettingsSetResult> =>
                     connection.sendRequest("user.settings.set", params),
             },
+        },
+        /** @experimental */
+        managedSettings: {
+            /**
+             * Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.
+             *
+             * @returns Validated device-managed settings discovered before a session exists.
+             */
+            read: async (): Promise<ManagedSettingsReadResult> =>
+                connection.sendRequest("managedSettings.read", {}),
         },
         /** @experimental */
         runtime: {
@@ -21646,6 +21901,19 @@ export function registerClientSessionApiHandlers(
     });
 }
 
+/** Handler for `extensionLaunchProvider` client global API methods. */
+/** @experimental */
+export interface ExtensionLaunchProviderHandler {
+    /**
+     * Asks the registered SDK client to resolve an opaque process launch profile for one discovered extension entrypoint immediately before launch or reload. The provider must respond within 15 seconds.
+     *
+     * @param params A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+     *
+     * @returns The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+     */
+    resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
+}
+
 /** Handler for `llmInference` client global API methods. */
 /** @experimental */
 export interface LlmInferenceHandler {
@@ -21680,6 +21948,7 @@ export interface GitHubTelemetryHandler {
 
 /** All client global API handler groups. */
 export interface ClientGlobalApiHandlers {
+    extensionLaunchProvider?: ExtensionLaunchProviderHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
 }
@@ -21695,6 +21964,11 @@ export function registerClientGlobalApiHandlers(
     connection: MessageConnection,
     handlers: ClientGlobalApiHandlers,
 ): void {
+    connection.onRequest("extensionLaunchProvider.resolve", async (params: ExtensionLaunchProviderResolveRequest) => {
+        const handler = handlers.extensionLaunchProvider;
+        if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
+        return handler.resolve(params);
+    });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;
         if (!handler) throw new Error("No llmInference client-global handler registered");

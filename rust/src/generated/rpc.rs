@@ -71,6 +71,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `managedSettings.*` sub-namespace.
+    pub fn managed_settings(&self) -> ClientRpcManagedSettings<'a> {
+        ClientRpcManagedSettings {
+            client: self.client,
+        }
+    }
+
     /// `mcp.*` sub-namespace.
     pub fn mcp(&self) -> ClientRpcMcp<'a> {
         ClientRpcMcp {
@@ -195,6 +202,29 @@ impl<'a> ClientRpc<'a> {
             .call(rpc_methods::CONNECT, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Registers the calling SDK client as the per-entrypoint extension launch provider. Call before creating any sessions. When omitted, the runtime temporarily falls back to its built-in Node launcher for backward compatibility.
+    ///
+    /// Wire method: `registerExtensionLaunchProvider`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn register_extension_launch_provider(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::REGISTEREXTENSIONLAUNCHPROVIDER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 }
 
@@ -751,6 +781,38 @@ impl<'a> ClientRpcLlmInference<'a> {
                 rpc_methods::LLMINFERENCE_HTTPRESPONSECHUNK,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `managedSettings.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcManagedSettings<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcManagedSettings<'a> {
+    /// Discovers device-managed settings from production MDM and managed-file sources, validates them against the runtime-owned managed-settings schema, and returns the canonical JSON without requiring a session.
+    ///
+    /// Wire method: `managedSettings.read`.
+    ///
+    /// # Returns
+    ///
+    /// Validated device-managed settings discovered before a session exists.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read(&self) -> Result<ManagedSettingsReadResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::MANAGEDSETTINGS_READ, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

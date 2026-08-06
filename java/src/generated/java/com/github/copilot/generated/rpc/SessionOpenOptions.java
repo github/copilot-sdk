@@ -47,6 +47,8 @@ public record SessionOpenOptions(
     @JsonProperty("expAssignments") Object expAssignments,
     /** Opt-in: self-fetch and enforce enterprise managed settings at session bootstrap. */
     @JsonProperty("enableManagedSettings") Boolean enableManagedSettings,
+    /** Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted. */
+    @JsonProperty("managedSettings") SessionManagedSettings managedSettings,
     /** Opt in to capturing file changes for session rewind and session diff. Capture cannot reconstruct changes made before it was enabled. On create it starts capture from the first turn. It is also honored on resume: for a session that already has tracked prior turns, tracking continues automatically even if this is omitted; passing it on resume additionally enables tracking for an eligible session that has no prior root turn yet. Resuming a session whose prior root turns were never tracked has no restorable baseline, so tracking stays disabled for it and rewind reports file change tracking as unavailable; the resume itself still succeeds, so sessions that predate tracking remain loadable. The opt-in is only rejected when the session can never track (a subagent session, or one without local session storage). It is intentionally absent from the mutable options update because enabling it after edits have occurred would create an incomplete, misleading baseline. Subagents share the parent session's capture store and are not tracked as separate rewind points: a file a subagent writes is attributed to whichever root user turn was open when the capture was staged, just before the tool body ran. A turn cannot open while a staged capture is still in flight, so a subagent tool that staged under the spawning turn stays attributed to it however late the write lands, while a capture it stages after the user's next message belongs to that later turn. Attribution decides which turn's rewind point counts and file preview include that write; it does not narrow which rewinds revert it, because a rewind restores every capture from the selected turn onward, so the earlier spawning turn reverts it as well. */
     @JsonProperty("enableFileChangeTracking") Boolean enableFileChangeTracking,
     /** Feature-flag values resolved by the host. */
@@ -101,6 +103,8 @@ public record SessionOpenOptions(
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
     /** How MCP server environment values are interpreted. */
     @JsonProperty("envValueMode") SessionOpenOptionsEnvValueMode envValueMode,
+    /** MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume. */
+    @JsonProperty("disabledMcpServers") List<String> disabledMcpServers,
     /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
     /** Additional directories to search for skills. */
