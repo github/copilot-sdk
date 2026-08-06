@@ -2143,6 +2143,209 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    describe("session disconnect", () => {
+        it("detaches a session without destroying it", async () => {
+            const onDisconnected = vi.fn();
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.detach") {
+                    return { success: true };
+                }
+                if (method === "session.getMessages") {
+                    return { events: [] };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            const session = new CopilotSession(
+                "test-session",
+                { sendRequest } as any,
+                undefined,
+                undefined,
+                {
+                    onDisconnected,
+                }
+            );
+
+            await expect(session.getEvents()).resolves.toEqual([]);
+            await expect(session.disconnect()).resolves.toBeUndefined();
+            await expect(session.getEvents()).rejects.toThrow("has been disconnected");
+            await expect(session.disconnect()).resolves.toBeUndefined();
+
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+                sessionId: "test-session",
+            });
+            expect(sendRequest).not.toHaveBeenCalledWith("session.destroy", expect.anything());
+            expect(
+                sendRequest.mock.calls.filter(([method]) => method === "session.detach")
+            ).toHaveLength(1);
+            expect(onDisconnected).toHaveBeenCalledTimes(1);
+        });
+
+        it("leaves a session connected when detach fails so it can be retried", async () => {
+            let detachResponse: { success: boolean; error?: string } = {
+                success: false,
+                error: "detach failed",
+            };
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.detach") {
+                    return detachResponse;
+                }
+                if (method === "session.getMessages") {
+                    return { events: [] };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
+
+            await expect(session.disconnect()).rejects.toThrow("detach failed");
+            await expect(session.getEvents()).resolves.toEqual([]);
+
+            detachResponse = { success: true };
+            await expect(session.disconnect()).resolves.toBeUndefined();
+            expect(
+                sendRequest.mock.calls.filter(([method]) => method === "session.detach")
+            ).toHaveLength(2);
+        });
+
+        it("detaches a session when asynchronously disposed", async () => {
+            const sendRequest = vi.fn(async () => ({ success: true }));
+            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
+
+            await session[Symbol.asyncDispose]();
+
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+                sessionId: "test-session",
+            });
+        });
+
+        it("removes a detached session from the client routing map", async () => {
+            const client = new CopilotClient();
+            const sendRequest = vi.fn(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId };
+                }
+                if (method === "session.detach") {
+                    return { success: true };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+            });
+            expect((client as any).sessions.get(session.sessionId)).toBe(session);
+
+            await session.disconnect();
+
+            expect((client as any).sessions.has(session.sessionId)).toBe(false);
+            expect((client as any).sessionOwnership.has(session.sessionId)).toBe(false);
+        });
+
+        it("destroys a newly created session when initialization fails", async () => {
+            const client = new CopilotClient({
+                mode: "empty",
+                baseDirectory: "/tmp/copilot-test",
+            });
+            const sendRequest = vi.fn(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId };
+                }
+                if (method === "session.options.update") {
+                    throw new Error("options failed");
+                }
+                if (method === "session.destroy") {
+                    return { success: true };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+
+            await expect(
+                client.createSession({
+                    onPermissionRequest: approveAll,
+                    availableTools: [],
+                })
+            ).rejects.toThrow("options failed");
+
+            const sessionId = sendRequest.mock.calls.find(
+                ([method]) => method === "session.create"
+            )?.[1].sessionId;
+            expect(sendRequest).toHaveBeenCalledWith("session.destroy", { sessionId });
+            expect((client as any).sessions.size).toBe(0);
+            expect((client as any).sessionOwnership.size).toBe(0);
+        });
+
+        it("destroys a cloud session when session filesystem initialization fails", async () => {
+            const client = new CopilotClient({
+                sessionFs: {
+                    initialCwd: "/",
+                    sessionStatePath: "/tmp/copilot-test",
+                    conventions: "posix",
+                },
+            });
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.create") {
+                    return { sessionId: "cloud-session" };
+                }
+                if (method === "session.destroy") {
+                    return { success: true };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+
+            await expect(
+                client.createSession({
+                    cloud: {},
+                    onPermissionRequest: approveAll,
+                })
+            ).rejects.toThrow("createSessionFsProvider is required");
+
+            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
+                sessionId: "cloud-session",
+            });
+            expect((client as any).sessions.size).toBe(0);
+            expect((client as any).sessionOwnership.size).toBe(0);
+        });
+
+        it("detaches a resumed session when initialization fails", async () => {
+            const client = new CopilotClient({
+                mode: "empty",
+                baseDirectory: "/tmp/copilot-test",
+            });
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.resume") {
+                    return { sessionId: "test-session" };
+                }
+                if (method === "session.options.update") {
+                    throw new Error("options failed");
+                }
+                if (method === "session.detach") {
+                    return { success: true };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+
+            await expect(
+                client.resumeSession("test-session", {
+                    onPermissionRequest: approveAll,
+                    availableTools: [],
+                })
+            ).rejects.toThrow("options failed");
+
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+                sessionId: "test-session",
+            });
+            expect((client as any).sessions.size).toBe(0);
+            expect((client as any).sessionOwnership.size).toBe(0);
+        });
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
@@ -3587,6 +3790,46 @@ describe("CopilotClient", () => {
     });
 
     describe("shutdown", () => {
+        it("destroys created sessions and detaches resumed sessions", async () => {
+            const client = new CopilotClient();
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.destroy" || method === "session.detach") {
+                    return { success: true };
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = {
+                sendRequest,
+                dispose: vi.fn(),
+            };
+            (client as any).isExternalServer = true;
+            (client as any).state = "connected";
+
+            const created = new CopilotSession(
+                "created-session",
+                (client as any).connection,
+                undefined
+            );
+            const resumed = new CopilotSession(
+                "resumed-session",
+                (client as any).connection,
+                undefined
+            );
+            (client as any).sessions.set(created.sessionId, created);
+            (client as any).sessions.set(resumed.sessionId, resumed);
+            (client as any).sessionOwnership.set(created.sessionId, "created");
+            (client as any).sessionOwnership.set(resumed.sessionId, "resumed");
+
+            await expect(client.stop()).resolves.toEqual([]);
+
+            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
+                sessionId: created.sessionId,
+            });
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+                sessionId: resumed.sessionId,
+            });
+        });
+
         it("requests runtime shutdown when stopping an SDK-owned process", async () => {
             const client = new CopilotClient();
             const calls: string[] = [];

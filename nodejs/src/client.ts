@@ -484,6 +484,7 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    private sessionOwnership: Map<string, "created" | "resumed"> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -963,12 +964,17 @@ export class CopilotClient {
         }
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
+            const ownership = this.sessionOwnership.get(sessionId);
             let lastError: Error | null = null;
 
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    await session.disconnect();
+                    if (ownership === "created") {
+                        await session._destroy();
+                    } else {
+                        await session.disconnect();
+                    }
                     lastError = null;
                     break; // Success
                 } catch (error) {
@@ -994,6 +1000,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.sessionOwnership.clear();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1176,6 +1183,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.sessionOwnership.clear();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1406,20 +1414,7 @@ export class CopilotClient {
         if (Object.keys(patch).length === 0) {
             return;
         }
-        try {
-            await session.rpc.options.update(patch);
-        } catch (e) {
-            // The runtime session exists but the post-create options
-            // patch failed — best-effort disconnect so we don't leak
-            // it (in empty mode it would otherwise keep running with
-            // permissive defaults).
-            try {
-                await session.disconnect();
-            } catch {
-                // Swallow: original error is the one the caller needs.
-            }
-            throw e;
-        }
+        await session.rpc.options.update(patch);
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
@@ -1468,6 +1463,12 @@ export class CopilotClient {
                 {
                     mcpAuthHandler: config.onMcpAuthRequest,
                     managedSettingsEnabled: config.enableManagedSettings,
+                    onDisconnected: (disconnectedSession) => {
+                        if (this.sessions.get(sessionId) === disconnectedSession) {
+                            this.sessions.delete(sessionId);
+                            this.sessionOwnership.delete(sessionId);
+                        }
+                    },
                 }
             );
             s.registerTools(config.tools);
@@ -1499,25 +1500,26 @@ export class CopilotClient {
                 s.on(config.onEvent);
             }
             this.sessions.set(sessionId, s);
+            this.sessionOwnership.set(sessionId, "created");
             this.setupSessionFs(s, config);
             return s;
         };
 
         let session: CopilotSession | undefined;
         let registeredId: string | undefined;
-
-        // Pre-register non-cloud sessions BEFORE issuing the RPC so any
-        // session-scoped requests the CLI emits during `session.create`
-        // processing (e.g. sessionFs.writeFile for workspace metadata) can be
-        // routed to the correct handlers.
-        if (localSessionId !== undefined) {
-            session = initializeSession(localSessionId);
-            registeredId = localSessionId;
-        }
-
-        const toolFilterOptions = this.resolveToolFilterOptions(config);
+        let createdSessionId: string | undefined;
 
         try {
+            // Pre-register non-cloud sessions BEFORE issuing the RPC so any
+            // session-scoped requests the CLI emits during `session.create`
+            // processing (e.g. sessionFs.writeFile for workspace metadata) can be
+            // routed to the correct handlers.
+            if (localSessionId !== undefined) {
+                registeredId = localSessionId;
+                session = initializeSession(localSessionId);
+            }
+
+            const toolFilterOptions = this.resolveToolFilterOptions(config);
             const response = await this.connection!.sendRequest("session.create", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
@@ -1623,15 +1625,17 @@ export class CopilotClient {
                 throw new Error("session.create response did not include a sessionId");
             }
             if (localSessionId !== undefined && localSessionId !== returnedSessionId) {
+                createdSessionId = returnedSessionId;
                 throw new Error(
                     `session.create returned sessionId ${returnedSessionId} but the caller requested ${localSessionId}`
                 );
             }
+            createdSessionId = returnedSessionId;
             if (session === undefined) {
                 // Cloud / server-assigned path: register the session now that
                 // the CLI has told us which id it chose.
-                session = initializeSession(returnedSessionId);
                 registeredId = returnedSessionId;
+                session = initializeSession(returnedSessionId);
             }
             if (config.onMcpAuthRequest) {
                 await this.connection!.sendRequest("session.eventLog.registerInterest", {
@@ -1644,8 +1648,31 @@ export class CopilotClient {
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
+            if (createdSessionId !== undefined) {
+                try {
+                    if (session?.sessionId === createdSessionId) {
+                        await session._destroy();
+                    } else {
+                        const response = (await this.connection!.sendRequest("session.destroy", {
+                            sessionId: createdSessionId,
+                        })) as { success: boolean; error?: string };
+                        if (!response.success) {
+                            throw new Error(
+                                `Failed to destroy session ${createdSessionId}: ${response.error || "Unknown error"}`
+                            );
+                        }
+                    }
+                } catch (cleanupError) {
+                    throw new AggregateError(
+                        [e, cleanupError],
+                        "Session creation failed and the created session could not be destroyed",
+                        { cause: e }
+                    );
+                }
+            }
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
+                this.sessionOwnership.delete(registeredId);
             }
             throw e;
         }
@@ -1709,6 +1736,12 @@ export class CopilotClient {
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
                 managedSettingsEnabled: config.enableManagedSettings,
+                onDisconnected: (disconnectedSession) => {
+                    if (this.sessions.get(sessionId) === disconnectedSession) {
+                        this.sessions.delete(sessionId);
+                        this.sessionOwnership.delete(sessionId);
+                    }
+                },
             }
         );
         session.registerTools(config.tools);
@@ -1756,11 +1789,13 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
+        this.sessionOwnership.set(sessionId, "resumed");
 
-        const toolFilterOptions = this.resolveToolFilterOptions(config);
+        let resumedOnServer = false;
 
         try {
+            this.setupSessionFs(session, config);
+            const toolFilterOptions = this.resolveToolFilterOptions(config);
             const response = await this.connection!.sendRequest("session.resume", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 sessionId,
@@ -1856,6 +1891,7 @@ export class CopilotClient {
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
             });
+            resumedOnServer = true;
 
             const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;
@@ -1875,7 +1911,19 @@ export class CopilotClient {
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
+            if (resumedOnServer) {
+                try {
+                    await session.disconnect();
+                } catch (cleanupError) {
+                    throw new AggregateError(
+                        [e, cleanupError],
+                        "Session resume failed and the attachment could not be detached",
+                        { cause: e }
+                    );
+                }
+            }
             this.sessions.delete(sessionId);
+            this.sessionOwnership.delete(sessionId);
             throw e;
         }
 
@@ -2121,6 +2169,7 @@ export class CopilotClient {
 
         // Remove from local sessions map if present
         this.sessions.delete(sessionId);
+        this.sessionOwnership.delete(sessionId);
     }
 
     /**
