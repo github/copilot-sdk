@@ -16,13 +16,13 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 
 func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	type rawEvent struct {
-		AgentID *string `json:"agentId,omitempty"`
-		Data json.RawMessage `json:"data"`
-		Ephemeral *bool `json:"ephemeral,omitempty"`
-		ID string `json:"id"`
-		ParentID *string `json:"parentId"`
-		Timestamp time.Time `json:"timestamp"`
-		Type SessionEventType `json:"type"`
+		AgentID   *string          `json:"agentId,omitempty"`
+		Data      json.RawMessage  `json:"data"`
+		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
+		Type      SessionEventType `json:"type"`
 	}
 	var raw rawEvent
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -733,20 +733,20 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
-		AgentID *string `json:"agentId,omitempty"`
-		Data any `json:"data"`
-		Ephemeral *bool `json:"ephemeral,omitempty"`
-		ID string `json:"id"`
-		ParentID *string `json:"parentId"`
-		Timestamp time.Time `json:"timestamp"`
-		Type SessionEventType `json:"type"`
+		AgentID   *string          `json:"agentId,omitempty"`
+		Data      any              `json:"data"`
+		Ephemeral *bool            `json:"ephemeral,omitempty"`
+		ID        string           `json:"id"`
+		ParentID  *string          `json:"parentId"`
+		Timestamp time.Time        `json:"timestamp"`
+		Type      SessionEventType `json:"type"`
 	}
 	return json.Marshal(rawEvent{
-		AgentID: e.AgentID,
-		Data: e.Data,
+		AgentID:   e.AgentID,
+		Data:      e.Data,
 		Ephemeral: e.Ephemeral,
-		ID: e.ID,
-		ParentID: e.ParentID,
+		ID:        e.ID,
+		ParentID:  e.ParentID,
 		Timestamp: e.Timestamp,
 		Type:      e.Type(),
 	})
@@ -760,20 +760,19 @@ func (r RawSessionEventData) MarshalJSON() ([]byte, error) {
 	return r.Raw, nil
 }
 
-
 func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
-		AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
-		Attachments []json.RawMessage `json:"attachments,omitzero"`
-		Content string `json:"content"`
-		Delivery *UserMessageDelivery `json:"delivery,omitempty"`
-		InteractionID *string `json:"interactionId,omitempty"`
-		IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
-		NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitzero"`
-		ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
-		Source *string `json:"source,omitempty"`
-		SupportedNativeDocumentMIMETypes []string `json:"supportedNativeDocumentMimeTypes,omitzero"`
-		TransformedContent *string `json:"transformedContent,omitempty"`
+		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
+		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
+		Content                          string                `json:"content"`
+		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
+		InteractionID                    *string               `json:"interactionId,omitempty"`
+		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
+		NativeDocumentPathFallbackPaths  []string              `json:"nativeDocumentPathFallbackPaths,omitzero"`
+		ParentAgentTaskID                *string               `json:"parentAgentTaskId,omitempty"`
+		Source                           *string               `json:"source,omitempty"`
+		SupportedNativeDocumentMIMETypes []string              `json:"supportedNativeDocumentMimeTypes,omitzero"`
+		TransformedContent               *string               `json:"transformedContent,omitempty"`
 	}
 	var raw rawUserMessageData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -855,7 +854,7 @@ func (r CitationLocationBlock) MarshalJSON() ([]byte, error) {
 		Type CitationLocationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -866,7 +865,7 @@ func (r CitationLocationChar) MarshalJSON() ([]byte, error) {
 		Type CitationLocationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -877,17 +876,17 @@ func (r CitationLocationPage) MarshalJSON() ([]byte, error) {
 		Type CitationLocationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
 
 func (r *CitationReference) UnmarshalJSON(data []byte) error {
 	type rawCitationReference struct {
-		CitedText *string `json:"citedText,omitempty"`
-		Location json.RawMessage `json:"location,omitempty"`
-		ProviderMetadata any `json:"providerMetadata,omitempty"`
-		SourceID string `json:"sourceId"`
+		CitedText        *string         `json:"citedText,omitempty"`
+		Location         json.RawMessage `json:"location,omitempty"`
+		ProviderMetadata any             `json:"providerMetadata,omitempty"`
+		SourceID         string          `json:"sourceId"`
 	}
 	var raw rawCitationReference
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -908,9 +907,9 @@ func (r *CitationReference) UnmarshalJSON(data []byte) error {
 
 func matchesBinaryAssetReference(data []byte) bool {
 	var rawGroup0 struct {
-		AssetID json.RawMessage `json:"assetId"`
-		ByteLength json.RawMessage `json:"byteLength"`
-		Data json.RawMessage `json:"data"`
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
 		OmittedReason json.RawMessage `json:"omittedReason"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
@@ -930,9 +929,9 @@ func matchesBinaryAssetReference(data []byte) bool {
 
 func matchesOmittedBinaryResult(data []byte) bool {
 	var rawGroup0 struct {
-		AssetID json.RawMessage `json:"assetId"`
-		ByteLength json.RawMessage `json:"byteLength"`
-		Data json.RawMessage `json:"data"`
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
 		OmittedReason json.RawMessage `json:"omittedReason"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
@@ -952,9 +951,9 @@ func matchesOmittedBinaryResult(data []byte) bool {
 
 func matchesPersistedBinaryImage(data []byte) bool {
 	var rawGroup0 struct {
-		AssetID json.RawMessage `json:"assetId"`
-		ByteLength json.RawMessage `json:"byteLength"`
-		Data json.RawMessage `json:"data"`
+		AssetID       json.RawMessage `json:"assetId"`
+		ByteLength    json.RawMessage `json:"byteLength"`
+		Data          json.RawMessage `json:"data"`
 		OmittedReason json.RawMessage `json:"omittedReason"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
@@ -1053,7 +1052,7 @@ func (r BinaryAssetReference) MarshalJSON() ([]byte, error) {
 		Type PersistedBinaryResultType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1064,7 +1063,7 @@ func (r OmittedBinaryResult) MarshalJSON() ([]byte, error) {
 		Type PersistedBinaryResultType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1075,7 +1074,7 @@ func (r PersistedBinaryImage) MarshalJSON() ([]byte, error) {
 		Type PersistedBinaryResultType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1157,7 +1156,7 @@ func (r ToolExecutionCompleteContentAudio) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1168,7 +1167,7 @@ func (r ToolExecutionCompleteContentImage) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1241,7 +1240,7 @@ func (r ToolExecutionCompleteContentResource) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1252,7 +1251,7 @@ func (r ToolExecutionCompleteContentResourceLink) MarshalJSON() ([]byte, error) 
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1263,7 +1262,7 @@ func (r ToolExecutionCompleteContentShellExit) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1274,7 +1273,7 @@ func (r ToolExecutionCompleteContentTerminal) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1285,21 +1284,21 @@ func (r ToolExecutionCompleteContentText) MarshalJSON() ([]byte, error) {
 		Type ToolExecutionCompleteContentType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
 
 func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	type rawToolExecutionCompleteResult struct {
-		BinaryResultsForLlm []json.RawMessage `json:"binaryResultsForLlm,omitzero"`
-		CitableSources []CitableSource `json:"citableSources,omitzero"`
-		Content string `json:"content"`
-		Contents []json.RawMessage `json:"contents,omitzero"`
-		DetailedContent *string `json:"detailedContent,omitempty"`
-		MCPMeta any `json:"mcpMeta,omitempty"`
-		StructuredContent any `json:"structuredContent,omitempty"`
-		UIResource *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
+		BinaryResultsForLlm []json.RawMessage                `json:"binaryResultsForLlm,omitzero"`
+		CitableSources      []CitableSource                  `json:"citableSources,omitzero"`
+		Content             string                           `json:"content"`
+		Contents            []json.RawMessage                `json:"contents,omitzero"`
+		DetailedContent     *string                          `json:"detailedContent,omitempty"`
+		MCPMeta             any                              `json:"mcpMeta,omitempty"`
+		StructuredContent   any                              `json:"structuredContent,omitempty"`
+		UIResource          *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
 	var raw rawToolExecutionCompleteResult
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1417,7 +1416,7 @@ func (r SystemNotificationAgentCompleted) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1428,7 +1427,7 @@ func (r SystemNotificationAgentIdle) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1439,7 +1438,7 @@ func (r SystemNotificationFactoryCompleted) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1450,7 +1449,7 @@ func (r SystemNotificationInstructionDiscovered) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1461,7 +1460,7 @@ func (r SystemNotificationNewInboxMessage) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1472,7 +1471,7 @@ func (r SystemNotificationShellCompleted) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1483,7 +1482,7 @@ func (r SystemNotificationShellDetachedCompleted) MarshalJSON() ([]byte, error) 
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
@@ -1494,15 +1493,15 @@ func (r SystemNotificationUnclassified) MarshalJSON() ([]byte, error) {
 		Type SystemNotificationType `json:"type"`
 		alias
 	}{
-		Type: r.Type(),
+		Type:  r.Type(),
 		alias: alias(r),
 	})
 }
 
 func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	type rawSystemNotificationData struct {
-		Content string `json:"content"`
-		Kind json.RawMessage `json:"kind"`
+		Content string          `json:"content"`
+		Kind    json.RawMessage `json:"kind"`
 	}
 	var raw rawSystemNotificationData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -1620,7 +1619,7 @@ func (r PermissionRequestCustomTool) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1631,7 +1630,7 @@ func (r PermissionRequestExtensionManagement) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1642,7 +1641,7 @@ func (r PermissionRequestExtensionPermissionAccess) MarshalJSON() ([]byte, error
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1653,7 +1652,7 @@ func (r PermissionRequestFactory) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1664,7 +1663,7 @@ func (r PermissionRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1675,7 +1674,7 @@ func (r PermissionRequestMCP) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1686,7 +1685,7 @@ func (r PermissionRequestMemory) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1697,7 +1696,7 @@ func (r PermissionRequestRead) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1708,7 +1707,7 @@ func (r PermissionRequestShell) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1719,7 +1718,7 @@ func (r PermissionRequestURL) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1730,7 +1729,7 @@ func (r PermissionRequestWrite) MarshalJSON() ([]byte, error) {
 		Kind PermissionRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1842,7 +1841,7 @@ func (r PermissionPromptRequestCommands) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1853,7 +1852,7 @@ func (r PermissionPromptRequestCustomTool) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1864,7 +1863,7 @@ func (r PermissionPromptRequestExtensionManagement) MarshalJSON() ([]byte, error
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1875,7 +1874,7 @@ func (r PermissionPromptRequestExtensionPermissionAccess) MarshalJSON() ([]byte,
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1886,7 +1885,7 @@ func (r PermissionPromptRequestFactory) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1897,7 +1896,7 @@ func (r PermissionPromptRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1908,7 +1907,7 @@ func (r PermissionPromptRequestMCP) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1919,7 +1918,7 @@ func (r PermissionPromptRequestMemory) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1930,7 +1929,7 @@ func (r PermissionPromptRequestPath) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1941,7 +1940,7 @@ func (r PermissionPromptRequestRead) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1952,7 +1951,7 @@ func (r PermissionPromptRequestURL) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1963,7 +1962,7 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 		Kind PermissionPromptRequestKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -1971,10 +1970,10 @@ func (r PermissionPromptRequestWrite) MarshalJSON() ([]byte, error) {
 func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionRequestedData struct {
 		PermissionRequest json.RawMessage `json:"permissionRequest"`
-		PromptRequest json.RawMessage `json:"promptRequest,omitempty"`
-		RequestID string `json:"requestId"`
-		ResolvedByHook *bool `json:"resolvedByHook,omitempty"`
-		RiskAssessment any `json:"riskAssessment,omitempty"`
+		PromptRequest     json.RawMessage `json:"promptRequest,omitempty"`
+		RequestID         string          `json:"requestId"`
+		ResolvedByHook    *bool           `json:"resolvedByHook,omitempty"`
+		RiskAssessment    any             `json:"riskAssessment,omitempty"`
 	}
 	var raw rawPermissionRequestedData
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -2089,15 +2088,15 @@ func (r PermissionApproved) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
 
 func (r *PermissionApprovedForLocation) UnmarshalJSON(data []byte) error {
 	type rawPermissionApprovedForLocation struct {
-		Approval json.RawMessage `json:"approval"`
-		LocationKey string `json:"locationKey"`
+		Approval    json.RawMessage `json:"approval"`
+		LocationKey string          `json:"locationKey"`
 	}
 	var raw rawPermissionApprovedForLocation
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -2120,7 +2119,7 @@ func (r PermissionApprovedForLocation) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2149,7 +2148,7 @@ func (r PermissionApprovedForSession) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2160,7 +2159,7 @@ func (r PermissionCancelled) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2171,7 +2170,7 @@ func (r PermissionDeniedByContentExclusionPolicy) MarshalJSON() ([]byte, error) 
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2182,7 +2181,7 @@ func (r PermissionDeniedByPermissionRequestHook) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2193,7 +2192,7 @@ func (r PermissionDeniedByRules) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2204,7 +2203,7 @@ func (r PermissionDeniedInteractivelyByUser) MarshalJSON() ([]byte, error) {
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
@@ -2215,16 +2214,16 @@ func (r PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) MarshalJSON() 
 		Kind PermissionResultKind `json:"kind"`
 		alias
 	}{
-		Kind: r.Kind(),
+		Kind:  r.Kind(),
 		alias: alias(r),
 	})
 }
 
 func (r *PermissionCompletedData) UnmarshalJSON(data []byte) error {
 	type rawPermissionCompletedData struct {
-		RequestID string `json:"requestId"`
-		Result json.RawMessage `json:"result"`
-		ToolCallID *string `json:"toolCallId,omitempty"`
+		RequestID  string          `json:"requestId"`
+		Result     json.RawMessage `json:"result"`
+		ToolCallID *string         `json:"toolCallId,omitempty"`
 	}
 	var raw rawPermissionCompletedData
 	if err := json.Unmarshal(data, &raw); err != nil {

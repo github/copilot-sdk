@@ -6,10 +6,10 @@ package rpc
 import (
 	"context"
 	"encoding/json"
-	"time"
 	"errors"
 	"fmt"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"time"
 )
 
 // Parameters for aborting the current turn
@@ -322,6 +322,7 @@ func (RawAgentRegistrySpawnResultData) agentRegistrySpawnResult() {}
 func (r RawAgentRegistrySpawnResultData) Kind() AgentRegistrySpawnResultKind {
 	return r.Discriminator
 }
+
 // `child_process.spawn` itself failed before the child entered the registry.
 // Experimental: AgentRegistrySpawnError is part of an experimental API and may change or be
 // removed.
@@ -336,6 +337,7 @@ func (AgentRegistrySpawnError) agentRegistrySpawnResult() {}
 func (AgentRegistrySpawnError) Kind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindSpawnError
 }
+
 // Spawn succeeded but the child did not publish a matching managed-server entry within the
 // timeout.
 // Experimental: AgentRegistrySpawnRegistryTimeout is part of an experimental API and may
@@ -351,6 +353,7 @@ func (AgentRegistrySpawnRegistryTimeout) agentRegistrySpawnResult() {}
 func (AgentRegistrySpawnRegistryTimeout) Kind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindRegistryTimeout
 }
+
 // Managed-server child was spawned and registered successfully.
 // Experimental: AgentRegistrySpawnSpawned is part of an experimental API and may change or
 // be removed.
@@ -374,6 +377,7 @@ func (AgentRegistrySpawnSpawned) agentRegistrySpawnResult() {}
 func (AgentRegistrySpawnSpawned) Kind() AgentRegistrySpawnResultKind {
 	return AgentRegistrySpawnResultKindSpawned
 }
+
 // Synchronous pre-validation rejected the spawn request.
 // Experimental: AgentRegistrySpawnValidationError is part of an experimental API and may
 // change or be removed.
@@ -490,6 +494,7 @@ func (RawAttachmentData) attachment() {}
 func (r RawAttachmentData) Type() AttachmentType {
 	return r.Discriminator
 }
+
 // Blob attachment with inline base64-encoded data
 // Experimental: AttachmentBlob is part of an experimental API and may change or be removed.
 type AttachmentBlob struct {
@@ -514,6 +519,7 @@ func (AttachmentBlob) attachment() {}
 func (AttachmentBlob) Type() AttachmentType {
 	return AttachmentTypeBlob
 }
+
 // Directory attachment
 // Experimental: AttachmentDirectory is part of an experimental API and may change or be
 // removed.
@@ -532,6 +538,7 @@ func (AttachmentDirectory) attachment() {}
 func (AttachmentDirectory) Type() AttachmentType {
 	return AttachmentTypeDirectory
 }
+
 // Structured context contributed by an extension. Composer pills displayed in the host are
 // forwarded back through session.send.attachments, then rendered into the model prompt as
 // an <extension_context> XML block.
@@ -558,6 +565,7 @@ func (AttachmentExtensionContext) attachment() {}
 func (AttachmentExtensionContext) Type() AttachmentType {
 	return AttachmentTypeExtensionContext
 }
+
 // File attachment
 // Experimental: AttachmentFile is part of an experimental API and may change or be removed.
 type AttachmentFile struct {
@@ -589,6 +597,7 @@ func (AttachmentFile) attachment() {}
 func (AttachmentFile) Type() AttachmentType {
 	return AttachmentTypeFile
 }
+
 // Pointer to a GitHub Actions job.
 // Experimental: AttachmentGitHubActionsJob is part of an experimental API and may change or
 // be removed.
@@ -612,6 +621,7 @@ func (AttachmentGitHubActionsJob) attachment() {}
 func (AttachmentGitHubActionsJob) Type() AttachmentType {
 	return AttachmentTypeGitHubActionsJob
 }
+
 // Pointer to a GitHub commit.
 // Experimental: AttachmentGitHubCommit is part of an experimental API and may change or be
 // removed.
@@ -630,6 +640,7 @@ func (AttachmentGitHubCommit) attachment() {}
 func (AttachmentGitHubCommit) Type() AttachmentType {
 	return AttachmentTypeGitHubCommit
 }
+
 // Pointer to a file in a GitHub repository at a specific ref.
 // Experimental: AttachmentGitHubFile is part of an experimental API and may change or be
 // removed.
@@ -648,6 +659,7 @@ func (AttachmentGitHubFile) attachment() {}
 func (AttachmentGitHubFile) Type() AttachmentType {
 	return AttachmentTypeGitHubFile
 }
+
 // Pointer to a single-file diff. At least one of `head` and `base` must be present.
 // Experimental: AttachmentGitHubFileDiff is part of an experimental API and may change or
 // be removed.
@@ -664,6 +676,7 @@ func (AttachmentGitHubFileDiff) attachment() {}
 func (AttachmentGitHubFileDiff) Type() AttachmentType {
 	return AttachmentTypeGitHubFileDiff
 }
+
 // GitHub issue, pull request, or discussion reference
 // Experimental: AttachmentGitHubReference is part of an experimental API and may change or
 // be removed.
@@ -684,6 +697,7 @@ func (AttachmentGitHubReference) attachment() {}
 func (AttachmentGitHubReference) Type() AttachmentType {
 	return AttachmentTypeGitHubReference
 }
+
 // Pointer to a GitHub release.
 // Experimental: AttachmentGitHubRelease is part of an experimental API and may change or be
 // removed.
@@ -702,6 +716,7 @@ func (AttachmentGitHubRelease) attachment() {}
 func (AttachmentGitHubRelease) Type() AttachmentType {
 	return AttachmentTypeGitHubRelease
 }
+
 // Pointer to a GitHub repository.
 // Experimental: AttachmentGitHubRepository is part of an experimental API and may change or
 // be removed.
@@ -721,6 +736,7 @@ func (AttachmentGitHubRepository) attachment() {}
 func (AttachmentGitHubRepository) Type() AttachmentType {
 	return AttachmentTypeGitHubRepository
 }
+
 // Pointer to a line range inside a file in a GitHub repository.
 // Experimental: AttachmentGitHubSnippet is part of an experimental API and may change or be
 // removed.
@@ -741,6 +757,7 @@ func (AttachmentGitHubSnippet) attachment() {}
 func (AttachmentGitHubSnippet) Type() AttachmentType {
 	return AttachmentTypeGitHubSnippet
 }
+
 // Pointer to a comparison between two git revisions.
 // Experimental: AttachmentGitHubTreeComparison is part of an experimental API and may
 // change or be removed.
@@ -757,6 +774,7 @@ func (AttachmentGitHubTreeComparison) attachment() {}
 func (AttachmentGitHubTreeComparison) Type() AttachmentType {
 	return AttachmentTypeGitHubTreeComparison
 }
+
 // Generic GitHub URL reference.
 // Experimental: AttachmentGitHubURL is part of an experimental API and may change or be
 // removed.
@@ -769,6 +787,7 @@ func (AttachmentGitHubURL) attachment() {}
 func (AttachmentGitHubURL) Type() AttachmentType {
 	return AttachmentTypeGitHubURL
 }
+
 // Code selection attachment from an editor
 // Experimental: AttachmentSelection is part of an experimental API and may change or be
 // removed.
@@ -866,6 +885,7 @@ func (RawAuthInfoData) authInfo() {}
 func (r RawAuthInfoData) Type() AuthInfoType {
 	return r.Discriminator
 }
+
 // Authentication-info variant for API-key authentication to a non-GitHub LLM provider,
 // carrying the secret `apiKey` and host.
 // Experimental: APIKeyAuthInfo is part of an experimental API and may change or be removed.
@@ -884,6 +904,7 @@ func (APIKeyAuthInfo) authInfo() {}
 func (APIKeyAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeAPIKey
 }
+
 // Authentication-info variant for direct Copilot API token auth sourced from environment
 // variables, with public GitHub host.
 // Experimental: CopilotAPITokenAuthInfo is part of an experimental API and may change or be
@@ -901,6 +922,7 @@ func (CopilotAPITokenAuthInfo) authInfo() {}
 func (CopilotAPITokenAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeCopilotAPIToken
 }
+
 // Authentication-info variant for a token sourced from an environment variable, with host,
 // optional login, token, and env var name.
 // Experimental: EnvAuthInfo is part of an experimental API and may change or be removed.
@@ -924,6 +946,7 @@ func (EnvAuthInfo) authInfo() {}
 func (EnvAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeEnv
 }
+
 // Authentication-info variant for GitHub CLI credentials, carrying host, login, and the `gh
 // auth token` value.
 // Experimental: GhCLIAuthInfo is part of an experimental API and may change or be removed.
@@ -944,6 +967,7 @@ func (GhCLIAuthInfo) authInfo() {}
 func (GhCLIAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeGhCLI
 }
+
 // Authentication-info variant for GitHub-internal HMAC auth, carrying the public GitHub
 // host and HMAC secret.
 // Experimental: HMACAuthInfo is part of an experimental API and may change or be removed.
@@ -962,6 +986,7 @@ func (HMACAuthInfo) authInfo() {}
 func (HMACAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeHMAC
 }
+
 // Authentication-info variant for SDK-configured token authentication, carrying host and
 // the secret token value.
 // Experimental: TokenAuthInfo is part of an experimental API and may change or be removed.
@@ -980,6 +1005,7 @@ func (TokenAuthInfo) authInfo() {}
 func (TokenAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeToken
 }
+
 // Authentication-info variant for OAuth user auth, with host and login; the token remains
 // in the runtime secret store.
 // Experimental: UserAuthInfo is part of an experimental API and may change or be removed.
@@ -1521,16 +1547,16 @@ type CopilotUserResponse struct {
 // Experimental: CopilotUserResponseEndpoints is part of an experimental API and may change
 // or be removed.
 type CopilotUserResponseEndpoints struct {
-	API *string `json:"api,omitempty"`
-	Exp *string `json:"exp,omitempty"`
+	API           *string `json:"api,omitempty"`
+	Exp           *string `json:"exp,omitempty"`
 	OriginTracker *string `json:"origin-tracker,omitempty"`
-	Proxy *string `json:"proxy,omitempty"`
-	Telemetry *string `json:"telemetry,omitempty"`
+	Proxy         *string `json:"proxy,omitempty"`
+	Telemetry     *string `json:"telemetry,omitempty"`
 }
 
 type CopilotUserResponseOrganizationListItem struct {
 	Login *string `json:"login,omitempty"`
-	Name *string `json:"name,omitempty"`
+	Name  *string `json:"name,omitempty"`
 }
 
 // Quota snapshot map from the raw Copilot user-response passthrough, with chat,
@@ -1715,6 +1741,7 @@ func (RawDebugCollectLogsDestinationData) debugCollectLogsDestination() {}
 func (r RawDebugCollectLogsDestinationData) Kind() DebugCollectLogsDestinationKind {
 	return r.Discriminator
 }
+
 type DebugCollectLogsDestinationArchive struct {
 	// When true, create the archive atomically without overwriting an existing file by
 	// appending ` (N)` before the extension as needed. Defaults to false.
@@ -1727,6 +1754,7 @@ func (DebugCollectLogsDestinationArchive) debugCollectLogsDestination() {}
 func (DebugCollectLogsDestinationArchive) Kind() DebugCollectLogsDestinationKind {
 	return DebugCollectLogsDestinationKindArchive
 }
+
 type DebugCollectLogsDestinationDirectory struct {
 	// Directory where redacted files should be staged. The directory is created if needed.
 	OutputDirectory string `json:"outputDirectory"`
@@ -2007,7 +2035,7 @@ type EventLogTailResult struct {
 // Either '*' to receive all event types, or a non-empty list of event types to receive
 // Experimental: EventLogTypes is part of an experimental API and may change or be removed.
 type EventLogTypes struct {
-	String *EventLogTypesString
+	String      *EventLogTypesString
 	StringArray []string
 }
 
@@ -2187,6 +2215,7 @@ func (RawExternalToolTextResultForLlmContentData) externalToolTextResultForLlmCo
 func (r RawExternalToolTextResultForLlmContentData) Type() ExternalToolTextResultForLlmContentType {
 	return r.Discriminator
 }
+
 // Audio content block with base64-encoded data
 // Experimental: ExternalToolTextResultForLlmContentAudio is part of an experimental API and
 // may change or be removed.
@@ -2201,6 +2230,7 @@ func (ExternalToolTextResultForLlmContentAudio) externalToolTextResultForLlmCont
 func (ExternalToolTextResultForLlmContentAudio) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeAudio
 }
+
 // Image content block with base64-encoded data
 // Experimental: ExternalToolTextResultForLlmContentImage is part of an experimental API and
 // may change or be removed.
@@ -2215,6 +2245,7 @@ func (ExternalToolTextResultForLlmContentImage) externalToolTextResultForLlmCont
 func (ExternalToolTextResultForLlmContentImage) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeImage
 }
+
 // Embedded resource content block with inline text or binary data
 // Experimental: ExternalToolTextResultForLlmContentResource is part of an experimental API
 // and may change or be removed.
@@ -2227,6 +2258,7 @@ func (ExternalToolTextResultForLlmContentResource) externalToolTextResultForLlmC
 func (ExternalToolTextResultForLlmContentResource) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeResource
 }
+
 // Resource link content block referencing an external resource
 // Experimental: ExternalToolTextResultForLlmContentResourceLink is part of an experimental
 // API and may change or be removed.
@@ -2251,6 +2283,7 @@ func (ExternalToolTextResultForLlmContentResourceLink) externalToolTextResultFor
 func (ExternalToolTextResultForLlmContentResourceLink) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeResourceLink
 }
+
 // Shell command exit metadata with optional output preview
 // Experimental: ExternalToolTextResultForLlmContentShellExit is part of an experimental API
 // and may change or be removed.
@@ -2272,6 +2305,7 @@ func (ExternalToolTextResultForLlmContentShellExit) externalToolTextResultForLlm
 func (ExternalToolTextResultForLlmContentShellExit) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeShellExit
 }
+
 // Terminal/shell output content block with optional exit code and working directory
 // Experimental: ExternalToolTextResultForLlmContentTerminal is part of an experimental API
 // and may change or be removed.
@@ -2288,6 +2322,7 @@ func (ExternalToolTextResultForLlmContentTerminal) externalToolTextResultForLlmC
 func (ExternalToolTextResultForLlmContentTerminal) Type() ExternalToolTextResultForLlmContentType {
 	return ExternalToolTextResultForLlmContentTypeTerminal
 }
+
 // Plain text content block
 // Experimental: ExternalToolTextResultForLlmContentText is part of an experimental API and
 // may change or be removed.
@@ -2312,7 +2347,9 @@ type RawExternalToolTextResultForLlmContentResourceDetailsData struct {
 	Raw json.RawMessage
 }
 
-func (RawExternalToolTextResultForLlmContentResourceDetailsData) externalToolTextResultForLlmContentResourceDetails() {}
+func (RawExternalToolTextResultForLlmContentResourceDetailsData) externalToolTextResultForLlmContentResourceDetails() {
+}
+
 // Embedded binary resource contents identified by a URI, with an optional MIME type and a
 // base64-encoded blob.
 // Experimental: EmbeddedBlobResourceContents is part of an experimental API and may change
@@ -2342,7 +2379,6 @@ type EmbeddedTextResourceContents struct {
 }
 
 func (EmbeddedTextResourceContents) externalToolTextResultForLlmContentResourceDetails() {}
-
 
 // Icon image for a resource
 // Experimental: ExternalToolTextResultForLlmContentResourceLinkIcon is part of an
@@ -2412,19 +2448,19 @@ type FactoryAgentResult struct {
 // Experimental: FactoryAgentSummary is part of an experimental API and may change or be
 // removed.
 type FactoryAgentSummary struct {
-	ActiveMs int64 `json:"activeMs"`
-	Activity *string `json:"activity,omitempty"`
-	AgentID string `json:"agentId"`
-	AgentType string `json:"agentType"`
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	Label string `json:"label"`
-	PhaseID *string `json:"phaseId"`
+	ActiveMs       int64   `json:"activeMs"`
+	Activity       *string `json:"activity,omitempty"`
+	AgentID        string  `json:"agentId"`
+	AgentType      string  `json:"agentType"`
+	CompletedAt    *int64  `json:"completedAt,omitempty"`
+	Label          string  `json:"label"`
+	PhaseID        *string `json:"phaseId"`
 	RequestedModel *string `json:"requestedModel,omitempty"`
-	ResolvedModel *string `json:"resolvedModel,omitempty"`
-	RunID string `json:"runId"`
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	Status string `json:"status"`
-	ToolCallID string `json:"toolCallId"`
+	ResolvedModel  *string `json:"resolvedModel,omitempty"`
+	RunID          string  `json:"runId"`
+	StartedAt      *int64  `json:"startedAt,omitempty"`
+	Status         string  `json:"status"`
+	ToolCallID     string  `json:"toolCallId"`
 }
 
 // Parameters for cancelling a factory run.
@@ -2439,7 +2475,7 @@ type FactoryCancelRequest struct {
 // Experimental: FactoryCurrentPhase is part of an experimental API and may change or be
 // removed.
 type FactoryCurrentPhase struct {
-	ID string `json:"id"`
+	ID      string `json:"id"`
 	Ordinal *int64 `json:"ordinal"`
 }
 
@@ -2447,10 +2483,10 @@ type FactoryCurrentPhase struct {
 // Experimental: FactoryDeclaredLimits is part of an experimental API and may change or be
 // removed.
 type FactoryDeclaredLimits struct {
-	MaxAiCredits *float64 `json:"maxAiCredits,omitempty"`
-	MaxConcurrentSubagents *int64 `json:"maxConcurrentSubagents,omitempty"`
-	MaxTotalSubagents *int64 `json:"maxTotalSubagents,omitempty"`
-	TimeoutSeconds *float64 `json:"timeoutSeconds,omitempty"`
+	MaxAiCredits           *float64 `json:"maxAiCredits,omitempty"`
+	MaxConcurrentSubagents *int64   `json:"maxConcurrentSubagents,omitempty"`
+	MaxTotalSubagents      *int64   `json:"maxTotalSubagents,omitempty"`
+	TimeoutSeconds         *float64 `json:"timeoutSeconds,omitempty"`
 }
 
 // Parameters sent to the owning extension to execute a factory closure.
@@ -2577,19 +2613,19 @@ type FactoryLogRequest struct {
 // Experimental: FactoryPhaseObservation is part of an experimental API and may change or be
 // removed.
 type FactoryPhaseObservation struct {
-	AccumulatedActiveMs int64 `json:"accumulatedActiveMs"`
-	CompletedAt *int64 `json:"completedAt,omitempty"`
-	CurrentActiveMs int64 `json:"currentActiveMs"`
-	Detail *string `json:"detail,omitempty"`
-	EntryCount int64 `json:"entryCount"`
-	ID string `json:"id"`
-	LastEnteredRunAttempt int64 `json:"lastEnteredRunAttempt"`
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	Ordinal *int64 `json:"ordinal"`
-	StartedAt *int64 `json:"startedAt,omitempty"`
-	Status FactoryPhaseStatus `json:"status"`
-	Title string `json:"title"`
-	TotalAgentCount int64 `json:"totalAgentCount"`
+	AccumulatedActiveMs   int64              `json:"accumulatedActiveMs"`
+	CompletedAt           *int64             `json:"completedAt,omitempty"`
+	CurrentActiveMs       int64              `json:"currentActiveMs"`
+	Detail                *string            `json:"detail,omitempty"`
+	EntryCount            int64              `json:"entryCount"`
+	ID                    string             `json:"id"`
+	LastEnteredRunAttempt int64              `json:"lastEnteredRunAttempt"`
+	LiveAgentCount        int64              `json:"liveAgentCount"`
+	Ordinal               *int64             `json:"ordinal"`
+	StartedAt             *int64             `json:"startedAt,omitempty"`
+	Status                FactoryPhaseStatus `json:"status"`
+	Title                 string             `json:"title"`
+	TotalAgentCount       int64              `json:"totalAgentCount"`
 }
 
 // One durable factory progress record.
@@ -2614,11 +2650,11 @@ type FactoryProgressLine struct {
 // Experimental: FactoryProgressPage is part of an experimental API and may change or be
 // removed.
 type FactoryProgressPage struct {
-	HasMoreNewer bool `json:"hasMoreNewer"`
-	HasMoreOlder bool `json:"hasMoreOlder"`
-	NewestSeq *int64 `json:"newestSeq"`
-	OldestSeq *int64 `json:"oldestSeq"`
-	Records []FactoryProgressLine `json:"records"`
+	HasMoreNewer bool                  `json:"hasMoreNewer"`
+	HasMoreOlder bool                  `json:"hasMoreOlder"`
+	NewestSeq    *int64                `json:"newestSeq"`
+	OldestSeq    *int64                `json:"oldestSeq"`
+	Records      []FactoryProgressLine `json:"records"`
 	// Run revision reflected by this page.
 	Revision int64 `json:"revision"`
 }
@@ -2647,8 +2683,8 @@ type FactoryResumeResult struct {
 // Experimental: FactoryRunConsumed is part of an experimental API and may change or be
 // removed.
 type FactoryRunConsumed struct {
-	ActiveMs int64 `json:"activeMs"`
-	NanoAiu int64 `json:"nanoAiu"`
+	ActiveMs  int64 `json:"activeMs"`
+	NanoAiu   int64 `json:"nanoAiu"`
 	Subagents int64 `json:"subagents"`
 }
 
@@ -2656,28 +2692,28 @@ type FactoryRunConsumed struct {
 // Experimental: FactoryRunDetail is part of an experimental API and may change or be
 // removed.
 type FactoryRunDetail struct {
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	Agents []FactoryAgentSummary `json:"agents"`
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	CompletedAt *int64 `json:"completedAt"`
-	Consumed FactoryRunConsumed `json:"consumed"`
-	CreatedAt int64 `json:"createdAt"`
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	Description string `json:"description"`
-	FactoryName string `json:"factoryName"`
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	ObservedAt int64 `json:"observedAt"`
-	Phases []FactoryPhaseObservation `json:"phases"`
-	Progress FactoryProgressPage `json:"progress"`
-	Revision int64 `json:"revision"`
-	RunID string `json:"runId"`
-	StartedAt *int64 `json:"startedAt"`
-	Status FactoryRunStatus `json:"status"`
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	UpdatedAt int64 `json:"updatedAt"`
+	ActiveSegmentStartedAt *int64                    `json:"activeSegmentStartedAt"`
+	Agents                 []FactoryAgentSummary     `json:"agents"`
+	Approved               *FactoryDeclaredLimits    `json:"approved"`
+	CompletedAt            *int64                    `json:"completedAt"`
+	Consumed               FactoryRunConsumed        `json:"consumed"`
+	CreatedAt              int64                     `json:"createdAt"`
+	CurrentPhase           *FactoryCurrentPhase      `json:"currentPhase"`
+	DeclaredLimits         FactoryDeclaredLimits     `json:"declaredLimits"`
+	DeclaredPhaseCount     int64                     `json:"declaredPhaseCount"`
+	Description            string                    `json:"description"`
+	FactoryName            string                    `json:"factoryName"`
+	LiveAgentCount         int64                     `json:"liveAgentCount"`
+	ObservedAt             int64                     `json:"observedAt"`
+	Phases                 []FactoryPhaseObservation `json:"phases"`
+	Progress               FactoryProgressPage       `json:"progress"`
+	Revision               int64                     `json:"revision"`
+	RunID                  string                    `json:"runId"`
+	StartedAt              *int64                    `json:"startedAt"`
+	Status                 FactoryRunStatus          `json:"status"`
+	Terminal               *FactoryRunTerminal       `json:"terminal"`
+	TotalSpawnedAgentCount int64                     `json:"totalSpawnedAgentCount"`
+	UpdatedAt              int64                     `json:"updatedAt"`
 }
 
 // Machine-readable factory run failure.
@@ -2697,6 +2733,7 @@ func (RawFactoryRunFailureData) factoryRunFailure() {}
 func (r RawFactoryRunFailureData) Type() FactoryRunFailureType {
 	return r.Discriminator
 }
+
 type FactoryRunFailureFactoryDurableFailure struct {
 	// Stable failure code.
 	Code string `json:"code"`
@@ -2710,6 +2747,7 @@ func (FactoryRunFailureFactoryDurableFailure) factoryRunFailure() {}
 func (FactoryRunFailureFactoryDurableFailure) Type() FactoryRunFailureType {
 	return FactoryRunFailureTypeFactoryDurableFailure
 }
+
 type FactoryRunFailureFactoryLimitReached struct {
 	// Resource ceiling that stopped the run.
 	Kind FactoryRunFailureKind `json:"kind"`
@@ -2723,6 +2761,7 @@ func (FactoryRunFailureFactoryLimitReached) factoryRunFailure() {}
 func (FactoryRunFailureFactoryLimitReached) Type() FactoryRunFailureType {
 	return FactoryRunFailureTypeFactoryLimitReached
 }
+
 type FactoryRunFailureFactoryResumeDeclined struct {
 	// Human-readable reason the resume did not proceed.
 	Reason string `json:"reason"`
@@ -2788,35 +2827,35 @@ type FactoryRunResult struct {
 // Experimental: FactoryRunSummary is part of an experimental API and may change or be
 // removed.
 type FactoryRunSummary struct {
-	ActiveSegmentStartedAt *int64 `json:"activeSegmentStartedAt"`
-	Approved *FactoryDeclaredLimits `json:"approved"`
-	CompletedAt *int64 `json:"completedAt"`
-	Consumed FactoryRunConsumed `json:"consumed"`
-	CreatedAt int64 `json:"createdAt"`
-	CurrentPhase *FactoryCurrentPhase `json:"currentPhase"`
-	DeclaredLimits FactoryDeclaredLimits `json:"declaredLimits"`
-	DeclaredPhaseCount int64 `json:"declaredPhaseCount"`
-	Description string `json:"description"`
-	FactoryName string `json:"factoryName"`
-	LiveAgentCount int64 `json:"liveAgentCount"`
-	ObservedAt int64 `json:"observedAt"`
-	Revision int64 `json:"revision"`
-	RunID string `json:"runId"`
-	StartedAt *int64 `json:"startedAt"`
-	Status FactoryRunStatus `json:"status"`
-	Terminal *FactoryRunTerminal `json:"terminal"`
-	TotalSpawnedAgentCount int64 `json:"totalSpawnedAgentCount"`
-	UpdatedAt int64 `json:"updatedAt"`
+	ActiveSegmentStartedAt *int64                 `json:"activeSegmentStartedAt"`
+	Approved               *FactoryDeclaredLimits `json:"approved"`
+	CompletedAt            *int64                 `json:"completedAt"`
+	Consumed               FactoryRunConsumed     `json:"consumed"`
+	CreatedAt              int64                  `json:"createdAt"`
+	CurrentPhase           *FactoryCurrentPhase   `json:"currentPhase"`
+	DeclaredLimits         FactoryDeclaredLimits  `json:"declaredLimits"`
+	DeclaredPhaseCount     int64                  `json:"declaredPhaseCount"`
+	Description            string                 `json:"description"`
+	FactoryName            string                 `json:"factoryName"`
+	LiveAgentCount         int64                  `json:"liveAgentCount"`
+	ObservedAt             int64                  `json:"observedAt"`
+	Revision               int64                  `json:"revision"`
+	RunID                  string                 `json:"runId"`
+	StartedAt              *int64                 `json:"startedAt"`
+	Status                 FactoryRunStatus       `json:"status"`
+	Terminal               *FactoryRunTerminal    `json:"terminal"`
+	TotalSpawnedAgentCount int64                  `json:"totalSpawnedAgentCount"`
+	UpdatedAt              int64                  `json:"updatedAt"`
 }
 
 // Prompt-safe terminal factory outcome.
 // Experimental: FactoryRunTerminal is part of an experimental API and may change or be
 // removed.
 type FactoryRunTerminal struct {
-	Error *string `json:"error,omitempty"`
-	Failure FactoryRunFailure `json:"failure,omitempty"`
-	Reason *string `json:"reason,omitempty"`
-	ResultPreview *string `json:"resultPreview,omitempty"`
+	Error         *string           `json:"error,omitempty"`
+	Failure       FactoryRunFailure `json:"failure,omitempty"`
+	Reason        *string           `json:"reason,omitempty"`
+	ResultPreview *string           `json:"resultPreview,omitempty"`
 }
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
@@ -3246,9 +3285,9 @@ type HistoryTruncateResult struct {
 type HookInvokeRequest struct {
 	// Internal: HookType is part of the SDK's internal API surface and is not intended for
 	// external use.
-	HookType HookType `json:"hookType"`
-	Input any `json:"input"`
-	SessionID string `json:"sessionId"`
+	HookType  HookType `json:"hookType"`
+	Input     any      `json:"input"`
+	SessionID string   `json:"sessionId"`
 }
 
 // Optional output returned by an SDK callback hook.
@@ -3309,9 +3348,9 @@ type InstalledPluginInfo struct {
 // removed.
 type InstalledPluginSource struct {
 	InstalledPluginSourceGitHub *InstalledPluginSourceGitHub
-	InstalledPluginSourceLocal *InstalledPluginSourceLocal
-	InstalledPluginSourceURL *InstalledPluginSourceURL
-	String *string
+	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
+	InstalledPluginSourceURL    *InstalledPluginSourceURL
+	String                      *string
 }
 
 // Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or
@@ -3320,8 +3359,8 @@ type InstalledPluginSource struct {
 // or be removed.
 type InstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
-	Ref *string `json:"ref,omitempty"`
-	Repo string `json:"repo"`
+	Ref  *string `json:"ref,omitempty"`
+	Repo string  `json:"repo"`
 	// Optional full 40-character hexadecimal commit SHA.
 	Sha *string `json:"sha,omitempty"`
 	// Constant value. Always "github".
@@ -3343,12 +3382,12 @@ type InstalledPluginSourceLocal struct {
 // be removed.
 type InstalledPluginSourceURL struct {
 	Path *string `json:"path,omitempty"`
-	Ref *string `json:"ref,omitempty"`
+	Ref  *string `json:"ref,omitempty"`
 	// Optional full 40-character hexadecimal commit SHA.
 	Sha *string `json:"sha,omitempty"`
 	// Constant value. Always "url".
 	Source InstalledPluginSourceURLSource `json:"source"`
-	URL string `json:"url"`
+	URL    string                         `json:"url"`
 }
 
 // Canonical file or directory where custom instructions can be discovered or created, with
@@ -3517,8 +3556,8 @@ type LlmInferenceHTTPRequestStartRequest struct {
 	// covers auxiliary calls that have no model call id). Otherwise, first-party CAPI requests
 	// fall back to the runtime's agent task id — the same value the runtime emits as the
 	// `X-Agent-Task-Id` header — while custom-provider requests fall back to the model call id.
-	AgentInvocationID *string `json:"agentInvocationId,omitempty"`
-	Headers map[string][]string `json:"headers"`
+	AgentInvocationID *string             `json:"agentInvocationId,omitempty"`
+	Headers           map[string][]string `json:"headers"`
 	// Coarse classification of the interaction that produced this request. Open string for
 	// forward-compatibility; known values include `conversation-agent`,
 	// `conversation-subagent`, `conversation-sampling`, `conversation-background`,
@@ -4176,24 +4215,29 @@ type RawMCPHeadersHandlePendingHeadersRefreshRequestData struct {
 	Raw           json.RawMessage
 }
 
-func (RawMCPHeadersHandlePendingHeadersRefreshRequestData) mcpHeadersHandlePendingHeadersRefreshRequest() {}
+func (RawMCPHeadersHandlePendingHeadersRefreshRequestData) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
 func (r RawMCPHeadersHandlePendingHeadersRefreshRequestData) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
 	return r.Discriminator
 }
+
 type MCPHeadersHandlePendingHeadersRefreshRequestHeaders struct {
 	// Headers to overlay onto the MCP request. Dynamic headers override static config headers
 	// but do not replace SDK-managed request headers.
 	Headers map[string]string `json:"headers"`
 }
 
-func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {}
+func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
 func (MCPHeadersHandlePendingHeadersRefreshRequestHeaders) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
 	return MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders
 }
+
 type MCPHeadersHandlePendingHeadersRefreshRequestNone struct {
 }
 
-func (MCPHeadersHandlePendingHeadersRefreshRequestNone) mcpHeadersHandlePendingHeadersRefreshRequest() {}
+func (MCPHeadersHandlePendingHeadersRefreshRequestNone) mcpHeadersHandlePendingHeadersRefreshRequest() {
+}
 func (MCPHeadersHandlePendingHeadersRefreshRequestNone) Kind() MCPHeadersHandlePendingHeadersRefreshRequestKind {
 	return MCPHeadersHandlePendingHeadersRefreshRequestKindNone
 }
@@ -4366,6 +4410,7 @@ func (RawMCPOauthPendingRequestResponseData) mcpOauthPendingRequestResponse() {}
 func (r RawMCPOauthPendingRequestResponseData) Kind() MCPOauthPendingRequestResponseKind {
 	return r.Discriminator
 }
+
 type MCPOauthPendingRequestResponseCancelled struct {
 }
 
@@ -4373,6 +4418,7 @@ func (MCPOauthPendingRequestResponseCancelled) mcpOauthPendingRequestResponse() 
 func (MCPOauthPendingRequestResponseCancelled) Kind() MCPOauthPendingRequestResponseKind {
 	return MCPOauthPendingRequestResponseKindCancelled
 }
+
 type MCPOauthPendingRequestResponseToken struct {
 	// Access token acquired by the SDK host
 	AccessToken string `json:"accessToken"`
@@ -4685,6 +4731,7 @@ type RawMCPServerConfigData struct {
 }
 
 func (RawMCPServerConfigData) mcpServerConfig() {}
+
 // Remote MCP server configuration accessed over HTTP or SSE.
 // Experimental: MCPServerConfigHTTP is part of an experimental API and may change or be
 // removed.
@@ -4760,7 +4807,6 @@ type MCPServerConfigStdio struct {
 }
 
 func (MCPServerConfigStdio) mcpServerConfig() {}
-
 
 // Recorded MCP server connection failure.
 // Experimental: MCPServerFailureInfo is part of an experimental API and may change or be
@@ -5445,8 +5491,8 @@ type OpenCanvasInstance struct {
 // Experimental: OptionsUpdateAdditionalContentExclusionPolicy is part of an experimental
 // API and may change or be removed.
 type OptionsUpdateAdditionalContentExclusionPolicy struct {
-	LastUpdatedAt any `json:"last_updated_at"`
-	Rules []OptionsUpdateAdditionalContentExclusionPolicyRule `json:"rules"`
+	LastUpdatedAt any                                                 `json:"last_updated_at"`
+	Rules         []OptionsUpdateAdditionalContentExclusionPolicyRule `json:"rules"`
 	// Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
 	Scope OptionsUpdateAdditionalContentExclusionPolicyScope `json:"scope"`
 }
@@ -5456,9 +5502,9 @@ type OptionsUpdateAdditionalContentExclusionPolicy struct {
 // Experimental: OptionsUpdateAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type OptionsUpdateAdditionalContentExclusionPolicyRule struct {
-	IfAnyMatch []string `json:"ifAnyMatch,omitzero"`
+	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
-	Paths []string `json:"paths"`
+	Paths       []string `json:"paths"`
 	// Source descriptor for a `session.options.update` content-exclusion rule, with source name
 	// and type.
 	Source OptionsUpdateAdditionalContentExclusionPolicyRuleSource `json:"source"`
@@ -5513,6 +5559,7 @@ func (RawPermissionDecisionData) permissionDecision() {}
 func (r RawPermissionDecisionData) Kind() PermissionDecisionKind {
 	return r.Discriminator
 }
+
 // Permission-decision variant indicating the request was approved.
 // Experimental: PermissionDecisionApproved is part of an experimental API and may change or
 // be removed.
@@ -5523,6 +5570,7 @@ func (PermissionDecisionApproved) permissionDecision() {}
 func (PermissionDecisionApproved) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproved
 }
+
 // Permission-decision variant indicating approval was persisted for a project location,
 // with approval details and location key.
 // Experimental: PermissionDecisionApprovedForLocation is part of an experimental API and
@@ -5538,6 +5586,7 @@ func (PermissionDecisionApprovedForLocation) permissionDecision() {}
 func (PermissionDecisionApprovedForLocation) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForLocation
 }
+
 // Permission-decision variant indicating approval was remembered for the session, with
 // approval details.
 // Experimental: PermissionDecisionApprovedForSession is part of an experimental API and may
@@ -5551,6 +5600,7 @@ func (PermissionDecisionApprovedForSession) permissionDecision() {}
 func (PermissionDecisionApprovedForSession) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovedForSession
 }
+
 // Permission-decision request variant to approve and persist a permission for a project
 // location, with approval details and location key.
 // Experimental: PermissionDecisionApproveForLocation is part of an experimental API and may
@@ -5566,6 +5616,7 @@ func (PermissionDecisionApproveForLocation) permissionDecision() {}
 func (PermissionDecisionApproveForLocation) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForLocation
 }
+
 // Permission-decision request variant to approve for the rest of the session, with optional
 // tool approval or URL domain.
 // Experimental: PermissionDecisionApproveForSession is part of an experimental API and may
@@ -5581,6 +5632,7 @@ func (PermissionDecisionApproveForSession) permissionDecision() {}
 func (PermissionDecisionApproveForSession) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveForSession
 }
+
 // Permission-decision request variant to approve only the current permission request.
 // Experimental: PermissionDecisionApproveOnce is part of an experimental API and may change
 // or be removed.
@@ -5593,6 +5645,7 @@ func (PermissionDecisionApproveOnce) permissionDecision() {}
 func (PermissionDecisionApproveOnce) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApproveOnce
 }
+
 // Permission-decision request variant to permanently approve a URL domain across sessions.
 // Experimental: PermissionDecisionApprovePermanently is part of an experimental API and may
 // change or be removed.
@@ -5605,6 +5658,7 @@ func (PermissionDecisionApprovePermanently) permissionDecision() {}
 func (PermissionDecisionApprovePermanently) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindApprovePermanently
 }
+
 // Permission-decision variant indicating the request was cancelled before use, with an
 // optional reason.
 // Experimental: PermissionDecisionCancelled is part of an experimental API and may change
@@ -5618,6 +5672,7 @@ func (PermissionDecisionCancelled) permissionDecision() {}
 func (PermissionDecisionCancelled) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindCancelled
 }
+
 // Permission-decision variant indicating denial by content-exclusion policy, with path and
 // message.
 // Experimental: PermissionDecisionDeniedByContentExclusionPolicy is part of an experimental
@@ -5633,6 +5688,7 @@ func (PermissionDecisionDeniedByContentExclusionPolicy) permissionDecision() {}
 func (PermissionDecisionDeniedByContentExclusionPolicy) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByContentExclusionPolicy
 }
+
 // Permission-decision variant indicating denial by a permission request hook, with optional
 // message and interrupt flag.
 // Experimental: PermissionDecisionDeniedByPermissionRequestHook is part of an experimental
@@ -5648,6 +5704,7 @@ func (PermissionDecisionDeniedByPermissionRequestHook) permissionDecision() {}
 func (PermissionDecisionDeniedByPermissionRequestHook) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByPermissionRequestHook
 }
+
 // Permission-decision variant indicating explicit denial by permission rules, with the
 // matching rules.
 // Experimental: PermissionDecisionDeniedByRules is part of an experimental API and may
@@ -5661,6 +5718,7 @@ func (PermissionDecisionDeniedByRules) permissionDecision() {}
 func (PermissionDecisionDeniedByRules) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedByRules
 }
+
 // Permission-decision variant indicating the user denied an interactive prompt, with
 // optional feedback and force-reject flag.
 // Experimental: PermissionDecisionDeniedInteractivelyByUser is part of an experimental API
@@ -5676,6 +5734,7 @@ func (PermissionDecisionDeniedInteractivelyByUser) permissionDecision() {}
 func (PermissionDecisionDeniedInteractivelyByUser) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedInteractivelyByUser
 }
+
 // Permission-decision variant indicating no approval rule matched and user confirmation was
 // unavailable.
 // Experimental: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser is part of
@@ -5687,6 +5746,7 @@ func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) permissi
 func (PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
+
 // Permission-decision request variant to reject a pending permission request, with optional
 // feedback.
 // Experimental: PermissionDecisionReject is part of an experimental API and may change or
@@ -5700,6 +5760,7 @@ func (PermissionDecisionReject) permissionDecision() {}
 func (PermissionDecisionReject) Kind() PermissionDecisionKind {
 	return PermissionDecisionKindReject
 }
+
 // Permission-decision variant indicating no user was available to confirm the request.
 // Experimental: PermissionDecisionUserNotAvailable is part of an experimental API and may
 // change or be removed.
@@ -5724,10 +5785,12 @@ type RawPermissionDecisionApproveForLocationApprovalData struct {
 	Raw           json.RawMessage
 }
 
-func (RawPermissionDecisionApproveForLocationApprovalData) permissionDecisionApproveForLocationApproval() {}
+func (RawPermissionDecisionApproveForLocationApprovalData) permissionDecisionApproveForLocationApproval() {
+}
 func (r RawPermissionDecisionApproveForLocationApprovalData) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return r.Discriminator
 }
+
 // Location-scoped approval details for specific command identifiers.
 // Experimental: PermissionDecisionApproveForLocationApprovalCommands is part of an
 // experimental API and may change or be removed.
@@ -5736,10 +5799,12 @@ type PermissionDecisionApproveForLocationApprovalCommands struct {
 	CommandIdentifiers []string `json:"commandIdentifiers"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalCommands) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalCommands) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalCommands) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindCommands
 }
+
 // Location-scoped approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionDecisionApproveForLocationApprovalCustomTool is part of an
 // experimental API and may change or be removed.
@@ -5748,10 +5813,12 @@ type PermissionDecisionApproveForLocationApprovalCustomTool struct {
 	ToolName string `json:"toolName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalCustomTool) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalCustomTool) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalCustomTool) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindCustomTool
 }
+
 // Location-scoped approval details for extension-management operations, optionally narrowed
 // by operation.
 // Experimental: PermissionDecisionApproveForLocationApprovalExtensionManagement is part of
@@ -5762,10 +5829,12 @@ type PermissionDecisionApproveForLocationApprovalExtensionManagement struct {
 	Operation *string `json:"operation,omitempty"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalExtensionManagement) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalExtensionManagement) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalExtensionManagement) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindExtensionManagement
 }
+
 // Location-scoped approval details for an extension's permission-gated capability access,
 // keyed by extension name.
 // Experimental: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess is
@@ -5775,10 +5844,12 @@ type PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess struc
 	ExtensionName string `json:"extensionName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess
 }
+
 // Location-scoped factory approval, optionally narrowed by approval key.
 // Experimental: PermissionDecisionApproveForLocationApprovalFactory is part of an
 // experimental API and may change or be removed.
@@ -5788,10 +5859,12 @@ type PermissionDecisionApproveForLocationApprovalFactory struct {
 	ApprovalKey *string `json:"approvalKey,omitempty"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalFactory) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalFactory) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalFactory) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindFactory
 }
+
 // Location-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCP is part of an experimental
@@ -5803,10 +5876,12 @@ type PermissionDecisionApproveForLocationApprovalMCP struct {
 	ToolName *string `json:"toolName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalMCP) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalMCP) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalMCP) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMCP
 }
+
 // Location-scoped approval details for MCP sampling requests from a server.
 // Experimental: PermissionDecisionApproveForLocationApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
@@ -5815,37 +5890,44 @@ type PermissionDecisionApproveForLocationApprovalMCPSampling struct {
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionDecisionApproveForLocationApprovalMCPSampling) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalMCPSampling) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalMCPSampling) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMCPSampling
 }
+
 // Location-scoped approval details for writes to long-term memory.
 // Experimental: PermissionDecisionApproveForLocationApprovalMemory is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalMemory struct {
 }
 
-func (PermissionDecisionApproveForLocationApprovalMemory) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalMemory) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalMemory) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindMemory
 }
+
 // Location-scoped approval details for read-only filesystem operations.
 // Experimental: PermissionDecisionApproveForLocationApprovalRead is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalRead struct {
 }
 
-func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalRead) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalRead) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindRead
 }
+
 // Location-scoped approval details for filesystem write operations.
 // Experimental: PermissionDecisionApproveForLocationApprovalWrite is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForLocationApprovalWrite struct {
 }
 
-func (PermissionDecisionApproveForLocationApprovalWrite) permissionDecisionApproveForLocationApproval() {}
+func (PermissionDecisionApproveForLocationApprovalWrite) permissionDecisionApproveForLocationApproval() {
+}
 func (PermissionDecisionApproveForLocationApprovalWrite) Kind() PermissionDecisionApproveForLocationApprovalKind {
 	return PermissionDecisionApproveForLocationApprovalKindWrite
 }
@@ -5863,10 +5945,12 @@ type RawPermissionDecisionApproveForSessionApprovalData struct {
 	Raw           json.RawMessage
 }
 
-func (RawPermissionDecisionApproveForSessionApprovalData) permissionDecisionApproveForSessionApproval() {}
+func (RawPermissionDecisionApproveForSessionApprovalData) permissionDecisionApproveForSessionApproval() {
+}
 func (r RawPermissionDecisionApproveForSessionApprovalData) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return r.Discriminator
 }
+
 // Session-scoped approval details for specific command identifiers.
 // Experimental: PermissionDecisionApproveForSessionApprovalCommands is part of an
 // experimental API and may change or be removed.
@@ -5875,10 +5959,12 @@ type PermissionDecisionApproveForSessionApprovalCommands struct {
 	CommandIdentifiers []string `json:"commandIdentifiers"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalCommands) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalCommands) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalCommands) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindCommands
 }
+
 // Session-scoped approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionDecisionApproveForSessionApprovalCustomTool is part of an
 // experimental API and may change or be removed.
@@ -5887,10 +5973,12 @@ type PermissionDecisionApproveForSessionApprovalCustomTool struct {
 	ToolName string `json:"toolName"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalCustomTool) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalCustomTool) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalCustomTool) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindCustomTool
 }
+
 // Session-scoped approval details for extension-management operations, optionally narrowed
 // by operation.
 // Experimental: PermissionDecisionApproveForSessionApprovalExtensionManagement is part of
@@ -5901,10 +5989,12 @@ type PermissionDecisionApproveForSessionApprovalExtensionManagement struct {
 	Operation *string `json:"operation,omitempty"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalExtensionManagement) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalExtensionManagement) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalExtensionManagement) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindExtensionManagement
 }
+
 // Session-scoped approval details for an extension's permission-gated capability access,
 // keyed by extension name.
 // Experimental: PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess is
@@ -5914,10 +6004,12 @@ type PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess struct
 	ExtensionName string `json:"extensionName"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess
 }
+
 // Session-scoped factory approval, optionally narrowed by approval key.
 // Experimental: PermissionDecisionApproveForSessionApprovalFactory is part of an
 // experimental API and may change or be removed.
@@ -5927,10 +6019,12 @@ type PermissionDecisionApproveForSessionApprovalFactory struct {
 	ApprovalKey *string `json:"approvalKey,omitempty"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalFactory) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalFactory) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalFactory) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindFactory
 }
+
 // Session-scoped approval details for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCP is part of an experimental
@@ -5946,6 +6040,7 @@ func (PermissionDecisionApproveForSessionApprovalMCP) permissionDecisionApproveF
 func (PermissionDecisionApproveForSessionApprovalMCP) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMCP
 }
+
 // Session-scoped approval details for MCP sampling requests from a server.
 // Experimental: PermissionDecisionApproveForSessionApprovalMCPSampling is part of an
 // experimental API and may change or be removed.
@@ -5954,37 +6049,44 @@ type PermissionDecisionApproveForSessionApprovalMCPSampling struct {
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionDecisionApproveForSessionApprovalMCPSampling) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalMCPSampling) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalMCPSampling) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMCPSampling
 }
+
 // Session-scoped approval details for writes to long-term memory.
 // Experimental: PermissionDecisionApproveForSessionApprovalMemory is part of an
 // experimental API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalMemory struct {
 }
 
-func (PermissionDecisionApproveForSessionApprovalMemory) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalMemory) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalMemory) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindMemory
 }
+
 // Session-scoped approval details for read-only filesystem operations.
 // Experimental: PermissionDecisionApproveForSessionApprovalRead is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalRead struct {
 }
 
-func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalRead) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalRead) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindRead
 }
+
 // Session-scoped approval details for filesystem write operations.
 // Experimental: PermissionDecisionApproveForSessionApprovalWrite is part of an experimental
 // API and may change or be removed.
 type PermissionDecisionApproveForSessionApprovalWrite struct {
 }
 
-func (PermissionDecisionApproveForSessionApprovalWrite) permissionDecisionApproveForSessionApproval() {}
+func (PermissionDecisionApproveForSessionApprovalWrite) permissionDecisionApproveForSessionApproval() {
+}
 func (PermissionDecisionApproveForSessionApprovalWrite) Kind() PermissionDecisionApproveForSessionApprovalKind {
 	return PermissionDecisionApproveForSessionApprovalKindWrite
 }
@@ -6180,8 +6282,8 @@ type PermissionRulesSet struct {
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicy is part of an
 // experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicy struct {
-	LastUpdatedAt any `json:"last_updated_at"`
-	Rules []PermissionsConfigureAdditionalContentExclusionPolicyRule `json:"rules"`
+	LastUpdatedAt any                                                        `json:"last_updated_at"`
+	Rules         []PermissionsConfigureAdditionalContentExclusionPolicyRule `json:"rules"`
 	// Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`
 	// enumeration.
 	Scope PermissionsConfigureAdditionalContentExclusionPolicyScope `json:"scope"`
@@ -6192,9 +6294,9 @@ type PermissionsConfigureAdditionalContentExclusionPolicy struct {
 // Experimental: PermissionsConfigureAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type PermissionsConfigureAdditionalContentExclusionPolicyRule struct {
-	IfAnyMatch []string `json:"ifAnyMatch,omitzero"`
+	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
-	Paths []string `json:"paths"`
+	Paths       []string `json:"paths"`
 	// Source descriptor for a `session.permissions.configure` content-exclusion rule, with
 	// source name and type.
 	Source PermissionsConfigureAdditionalContentExclusionPolicyRuleSource `json:"source"`
@@ -6271,10 +6373,12 @@ type RawPermissionsLocationsAddToolApprovalDetailsData struct {
 	Raw           json.RawMessage
 }
 
-func (RawPermissionsLocationsAddToolApprovalDetailsData) permissionsLocationsAddToolApprovalDetails() {}
+func (RawPermissionsLocationsAddToolApprovalDetailsData) permissionsLocationsAddToolApprovalDetails() {
+}
 func (r RawPermissionsLocationsAddToolApprovalDetailsData) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return r.Discriminator
 }
+
 // Location-persisted tool approval details for specific command identifiers.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsCommands is part of an
 // experimental API and may change or be removed.
@@ -6283,10 +6387,12 @@ type PermissionsLocationsAddToolApprovalDetailsCommands struct {
 	CommandIdentifiers []string `json:"commandIdentifiers"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsCommands) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsCommands) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsCommands) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindCommands
 }
+
 // Location-persisted tool approval details for a custom tool, keyed by tool name.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsCustomTool is part of an
 // experimental API and may change or be removed.
@@ -6295,10 +6401,12 @@ type PermissionsLocationsAddToolApprovalDetailsCustomTool struct {
 	ToolName string `json:"toolName"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsCustomTool) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsCustomTool) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsCustomTool) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindCustomTool
 }
+
 // Location-persisted tool approval details for extension-management operations, optionally
 // narrowed by operation.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsExtensionManagement is part of an
@@ -6309,10 +6417,12 @@ type PermissionsLocationsAddToolApprovalDetailsExtensionManagement struct {
 	Operation *string `json:"operation,omitempty"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsExtensionManagement) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement
 }
+
 // Location-persisted tool approval details for an extension's permission-gated capability
 // access, keyed by extension name.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess is part
@@ -6322,10 +6432,12 @@ type PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess struct 
 	ExtensionName string `json:"extensionName"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess
 }
+
 // Location-persisted factory approval, optionally narrowed by approval key.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsFactory is part of an
 // experimental API and may change or be removed.
@@ -6335,10 +6447,12 @@ type PermissionsLocationsAddToolApprovalDetailsFactory struct {
 	ApprovalKey *string `json:"approvalKey,omitempty"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsFactory) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsFactory) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsFactory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindFactory
 }
+
 // Location-persisted tool approval details for an MCP server tool, or all tools when
 // `toolName` is null.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCP is part of an experimental
@@ -6354,6 +6468,7 @@ func (PermissionsLocationsAddToolApprovalDetailsMCP) permissionsLocationsAddTool
 func (PermissionsLocationsAddToolApprovalDetailsMCP) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMCP
 }
+
 // Location-persisted tool approval details for MCP sampling requests from a server.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMCPSampling is part of an
 // experimental API and may change or be removed.
@@ -6362,20 +6477,24 @@ type PermissionsLocationsAddToolApprovalDetailsMCPSampling struct {
 	ServerName string `json:"serverName"`
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsMCPSampling) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMCPSampling
 }
+
 // Location-persisted tool approval details for writes to long-term memory.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsMemory is part of an experimental
 // API and may change or be removed.
 type PermissionsLocationsAddToolApprovalDetailsMemory struct {
 }
 
-func (PermissionsLocationsAddToolApprovalDetailsMemory) permissionsLocationsAddToolApprovalDetails() {}
+func (PermissionsLocationsAddToolApprovalDetailsMemory) permissionsLocationsAddToolApprovalDetails() {
+}
 func (PermissionsLocationsAddToolApprovalDetailsMemory) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindMemory
 }
+
 // Location-persisted tool approval details for read-only filesystem operations.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsRead is part of an experimental
 // API and may change or be removed.
@@ -6386,6 +6505,7 @@ func (PermissionsLocationsAddToolApprovalDetailsRead) permissionsLocationsAddToo
 func (PermissionsLocationsAddToolApprovalDetailsRead) Kind() PermissionsLocationsAddToolApprovalDetailsKind {
 	return PermissionsLocationsAddToolApprovalDetailsKindRead
 }
+
 // Location-persisted tool approval details for filesystem write operations.
 // Experimental: PermissionsLocationsAddToolApprovalDetailsWrite is part of an experimental
 // API and may change or be removed.
@@ -7050,6 +7170,7 @@ func (RawPushAttachmentData) pushAttachment() {}
 func (r RawPushAttachmentData) Type() PushAttachmentType {
 	return r.Discriminator
 }
+
 // Slim input shape for extension_context attachments; identity fields are runtime-derived.
 // Experimental: ExtensionContextPushInput is part of an experimental API and may change or
 // be removed.
@@ -7064,6 +7185,7 @@ func (ExtensionContextPushInput) pushAttachment() {}
 func (ExtensionContextPushInput) Type() PushAttachmentType {
 	return PushAttachmentTypeExtensionContext
 }
+
 // Blob attachment with inline base64-encoded data
 // Experimental: PushAttachmentBlob is part of an experimental API and may change or be
 // removed.
@@ -7080,6 +7202,7 @@ func (PushAttachmentBlob) pushAttachment() {}
 func (PushAttachmentBlob) Type() PushAttachmentType {
 	return PushAttachmentTypeBlob
 }
+
 // Directory attachment
 // Experimental: PushAttachmentDirectory is part of an experimental API and may change or be
 // removed.
@@ -7094,6 +7217,7 @@ func (PushAttachmentDirectory) pushAttachment() {}
 func (PushAttachmentDirectory) Type() PushAttachmentType {
 	return PushAttachmentTypeDirectory
 }
+
 // File attachment
 // Experimental: PushAttachmentFile is part of an experimental API and may change or be
 // removed.
@@ -7110,6 +7234,7 @@ func (PushAttachmentFile) pushAttachment() {}
 func (PushAttachmentFile) Type() PushAttachmentType {
 	return PushAttachmentTypeFile
 }
+
 // Pointer to a GitHub Actions job.
 // Experimental: PushAttachmentGitHubActionsJob is part of an experimental API and may
 // change or be removed.
@@ -7133,6 +7258,7 @@ func (PushAttachmentGitHubActionsJob) pushAttachment() {}
 func (PushAttachmentGitHubActionsJob) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubActionsJob
 }
+
 // Pointer to a GitHub commit.
 // Experimental: PushAttachmentGitHubCommit is part of an experimental API and may change or
 // be removed.
@@ -7151,6 +7277,7 @@ func (PushAttachmentGitHubCommit) pushAttachment() {}
 func (PushAttachmentGitHubCommit) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubCommit
 }
+
 // Pointer to a file in a GitHub repository at a specific ref.
 // Experimental: PushAttachmentGitHubFile is part of an experimental API and may change or
 // be removed.
@@ -7169,6 +7296,7 @@ func (PushAttachmentGitHubFile) pushAttachment() {}
 func (PushAttachmentGitHubFile) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubFile
 }
+
 // Pointer to a single-file diff. At least one of `head` and `base` must be present.
 // Experimental: PushAttachmentGitHubFileDiff is part of an experimental API and may change
 // or be removed.
@@ -7185,6 +7313,7 @@ func (PushAttachmentGitHubFileDiff) pushAttachment() {}
 func (PushAttachmentGitHubFileDiff) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubFileDiff
 }
+
 // GitHub issue, pull request, or discussion reference
 // Experimental: PushAttachmentGitHubReference is part of an experimental API and may change
 // or be removed.
@@ -7205,6 +7334,7 @@ func (PushAttachmentGitHubReference) pushAttachment() {}
 func (PushAttachmentGitHubReference) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubReference
 }
+
 // Pointer to a GitHub release.
 // Experimental: PushAttachmentGitHubRelease is part of an experimental API and may change
 // or be removed.
@@ -7223,6 +7353,7 @@ func (PushAttachmentGitHubRelease) pushAttachment() {}
 func (PushAttachmentGitHubRelease) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubRelease
 }
+
 // Pointer to a GitHub repository.
 // Experimental: PushAttachmentGitHubRepository is part of an experimental API and may
 // change or be removed.
@@ -7242,6 +7373,7 @@ func (PushAttachmentGitHubRepository) pushAttachment() {}
 func (PushAttachmentGitHubRepository) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubRepository
 }
+
 // Pointer to a line range inside a file in a GitHub repository.
 // Experimental: PushAttachmentGitHubSnippet is part of an experimental API and may change
 // or be removed.
@@ -7262,6 +7394,7 @@ func (PushAttachmentGitHubSnippet) pushAttachment() {}
 func (PushAttachmentGitHubSnippet) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubSnippet
 }
+
 // Pointer to a comparison between two git revisions.
 // Experimental: PushAttachmentGitHubTreeComparison is part of an experimental API and may
 // change or be removed.
@@ -7278,6 +7411,7 @@ func (PushAttachmentGitHubTreeComparison) pushAttachment() {}
 func (PushAttachmentGitHubTreeComparison) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubTreeComparison
 }
+
 // Generic GitHub URL reference.
 // Experimental: PushAttachmentGitHubURL is part of an experimental API and may change or be
 // removed.
@@ -7290,6 +7424,7 @@ func (PushAttachmentGitHubURL) pushAttachment() {}
 func (PushAttachmentGitHubURL) Type() PushAttachmentType {
 	return PushAttachmentTypeGitHubURL
 }
+
 // Code selection attachment from an editor
 // Experimental: PushAttachmentSelection is part of an experimental API and may change or be
 // removed.
@@ -7429,6 +7564,7 @@ func (QueuedCommandHandled) queuedCommandResult() {}
 func (QueuedCommandHandled) Handled() bool {
 	return true
 }
+
 // Queued-command response indicating the host did not execute the command and the queue may
 // continue.
 // Experimental: QueuedCommandNotHandled is part of an experimental API and may change or be
@@ -7672,8 +7808,8 @@ type QueueSnapshotResult struct {
 // removed.
 type QueueUpdateTextRequest struct {
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
-	ID string `json:"id"`
-	Prompt string `json:"prompt"`
+	ID            string  `json:"id"`
+	Prompt        string  `json:"prompt"`
 }
 
 // Result of editing a queued message.
@@ -7805,6 +7941,7 @@ func (RawRemoteControlStatusData) remoteControlStatus() {}
 func (r RawRemoteControlStatusData) State() RemoteControlStatusState {
 	return r.Discriminator
 }
+
 // Remote control is connected to a local session.
 // Experimental: RemoteControlStatusActive is part of an experimental API and may change or
 // be removed.
@@ -7834,6 +7971,7 @@ func (RemoteControlStatusActive) remoteControlStatus() {}
 func (RemoteControlStatusActive) State() RemoteControlStatusState {
 	return RemoteControlStatusStateActive
 }
+
 // Remote control is in the middle of initial setup.
 // Experimental: RemoteControlStatusConnecting is part of an experimental API and may change
 // or be removed.
@@ -7846,6 +7984,7 @@ func (RemoteControlStatusConnecting) remoteControlStatus() {}
 func (RemoteControlStatusConnecting) State() RemoteControlStatusState {
 	return RemoteControlStatusStateConnecting
 }
+
 // The last setup attempt failed. The singleton is otherwise off.
 // Experimental: RemoteControlStatusError is part of an experimental API and may change or
 // be removed.
@@ -7860,6 +7999,7 @@ func (RemoteControlStatusError) remoteControlStatus() {}
 func (RemoteControlStatusError) State() RemoteControlStatusState {
 	return RemoteControlStatusStateError
 }
+
 // Remote control is not connected.
 // Experimental: RemoteControlStatusOff is part of an experimental API and may change or be
 // removed.
@@ -8920,7 +9060,7 @@ type SessionFSSqliteQueryResult struct {
 // change or be removed.
 type SessionFSSqliteTransactionError struct {
 	ErrorClass SessionFSSqliteTransactionErrorClass `json:"errorClass"`
-	Message string `json:"message"`
+	Message    string                               `json:"message"`
 }
 
 // Statements to execute atomically. Providers apply busy handling for every call.
@@ -8928,7 +9068,7 @@ type SessionFSSqliteTransactionError struct {
 // change or be removed.
 type SessionFSSqliteTransactionRequest struct {
 	// Target session identifier
-	SessionID string `json:"sessionId"`
+	SessionID  string                                `json:"sessionId"`
 	Statements []SessionFSSqliteTransactionStatement `json:"statements"`
 }
 
@@ -8936,8 +9076,8 @@ type SessionFSSqliteTransactionRequest struct {
 // Experimental: SessionFSSqliteTransactionResult is part of an experimental API and may
 // change or be removed.
 type SessionFSSqliteTransactionResult struct {
-	Error *SessionFSSqliteTransactionError `json:"error,omitempty"`
-	Results []SessionFSSqliteQueryResult `json:"results"`
+	Error   *SessionFSSqliteTransactionError `json:"error,omitempty"`
+	Results []SessionFSSqliteQueryResult     `json:"results"`
 }
 
 // One statement in an atomic SQLite transaction.
@@ -9045,9 +9185,9 @@ type SessionInstalledPlugin struct {
 // or be removed.
 type SessionInstalledPluginSource struct {
 	SessionInstalledPluginSourceGitHub *SessionInstalledPluginSourceGitHub
-	SessionInstalledPluginSourceLocal *SessionInstalledPluginSourceLocal
-	SessionInstalledPluginSourceURL *SessionInstalledPluginSourceURL
-	String *string
+	SessionInstalledPluginSourceLocal  *SessionInstalledPluginSourceLocal
+	SessionInstalledPluginSourceURL    *SessionInstalledPluginSourceURL
+	String                             *string
 }
 
 // Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or
@@ -9056,8 +9196,8 @@ type SessionInstalledPluginSource struct {
 // change or be removed.
 type SessionInstalledPluginSourceGitHub struct {
 	Path *string `json:"path,omitempty"`
-	Ref *string `json:"ref,omitempty"`
-	Repo string `json:"repo"`
+	Ref  *string `json:"ref,omitempty"`
+	Repo string  `json:"repo"`
 	// Optional full 40-character hexadecimal commit SHA.
 	Sha *string `json:"sha,omitempty"`
 	// Constant value. Always "github".
@@ -9079,12 +9219,12 @@ type SessionInstalledPluginSourceLocal struct {
 // change or be removed.
 type SessionInstalledPluginSourceURL struct {
 	Path *string `json:"path,omitempty"`
-	Ref *string `json:"ref,omitempty"`
+	Ref  *string `json:"ref,omitempty"`
 	// Optional full 40-character hexadecimal commit SHA.
 	Sha *string `json:"sha,omitempty"`
 	// Constant value. Always "url".
 	Source SessionInstalledPluginSourceURLSource `json:"source"`
-	URL string `json:"url"`
+	URL    string                                `json:"url"`
 }
 
 // Baseline data provenance for a prediction.
@@ -9155,6 +9295,7 @@ func (RawSessionLimitPredictionResultData) sessionLimitPredictionResult() {}
 func (r RawSessionLimitPredictionResultData) Kind() SessionLimitPredictionResultKind {
 	return r.Discriminator
 }
+
 type SessionLimitPredictionResultAvailable struct {
 	// Predicted session limit details.
 	Prediction SessionLimitPredictionDetails `json:"prediction"`
@@ -9164,6 +9305,7 @@ func (SessionLimitPredictionResultAvailable) sessionLimitPredictionResult() {}
 func (SessionLimitPredictionResultAvailable) Kind() SessionLimitPredictionResultKind {
 	return SessionLimitPredictionResultKindAvailable
 }
+
 type SessionLimitPredictionResultUnavailable struct {
 	// Reason no prediction is available.
 	Reason SessionLimitPredictionUnavailableReason `json:"reason"`
@@ -9179,7 +9321,7 @@ func (SessionLimitPredictionResultUnavailable) Kind() SessionLimitPredictionResu
 // change or be removed.
 type SessionLimitPredictionTierOption struct {
 	// AI-credit cap for this tier.
-	Cap float64 `json:"cap"`
+	Cap  float64                    `json:"cap"`
 	Tier SessionLimitPredictionTier `json:"tier"`
 }
 
@@ -9211,6 +9353,7 @@ func (LocalSessionMetadataValue) sessionListEntry() {}
 func (LocalSessionMetadataValue) sessionListEntryIsRemote() bool {
 	return false
 }
+
 // Remote session metadata for the session to hand off (typically obtained from
 // `sessions.list` with `source: "remote"`).
 // Experimental: RemoteSessionMetadataValue is part of an experimental API and may change or
@@ -9409,7 +9552,7 @@ type SessionModelListRequest struct {
 // Experimental: SessionModelPriceCategory is part of an experimental API and may change or
 // be removed.
 type SessionModelPriceCategory struct {
-	ID string `json:"id"`
+	ID            string                   `json:"id"`
 	PriceCategory ModelPickerPriceCategory `json:"priceCategory"`
 }
 
@@ -9612,8 +9755,8 @@ type SessionOpenOptions struct {
 // Experimental: SessionOpenOptionsAdditionalContentExclusionPolicy is part of an
 // experimental API and may change or be removed.
 type SessionOpenOptionsAdditionalContentExclusionPolicy struct {
-	LastUpdatedAt any `json:"last_updated_at"`
-	Rules []SessionOpenOptionsAdditionalContentExclusionPolicyRule `json:"rules"`
+	LastUpdatedAt any                                                      `json:"last_updated_at"`
+	Rules         []SessionOpenOptionsAdditionalContentExclusionPolicyRule `json:"rules"`
 	// Allowed values for the `SessionOpenOptionsAdditionalContentExclusionPolicyScope`
 	// enumeration.
 	Scope SessionOpenOptionsAdditionalContentExclusionPolicyScope `json:"scope"`
@@ -9624,9 +9767,9 @@ type SessionOpenOptionsAdditionalContentExclusionPolicy struct {
 // Experimental: SessionOpenOptionsAdditionalContentExclusionPolicyRule is part of an
 // experimental API and may change or be removed.
 type SessionOpenOptionsAdditionalContentExclusionPolicyRule struct {
-	IfAnyMatch []string `json:"ifAnyMatch,omitzero"`
+	IfAnyMatch  []string `json:"ifAnyMatch,omitzero"`
 	IfNoneMatch []string `json:"ifNoneMatch,omitzero"`
-	Paths []string `json:"paths"`
+	Paths       []string `json:"paths"`
 	// Source descriptor for a `sessions.open` content-exclusion rule, with source name and type.
 	Source SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource `json:"source"`
 }
@@ -9656,6 +9799,7 @@ func (RawSessionOpenParamsData) sessionOpenParams() {}
 func (r RawSessionOpenParamsData) Kind() SessionOpenParamsKind {
 	return r.Discriminator
 }
+
 // Parameters for attaching to an already-active session by ID.
 // Experimental: SessionsOpenAttach is part of an experimental API and may change or be
 // removed.
@@ -9668,6 +9812,7 @@ func (SessionsOpenAttach) sessionOpenParams() {}
 func (SessionsOpenAttach) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindAttach
 }
+
 // Parameters for creating a new cloud session.
 // Experimental: SessionsOpenCloud is part of an experimental API and may change or be
 // removed.
@@ -9693,6 +9838,7 @@ func (SessionsOpenCloud) sessionOpenParams() {}
 func (SessionsOpenCloud) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindCloud
 }
+
 // Parameters for creating a new local session.
 // Experimental: SessionsOpenCreate is part of an experimental API and may change or be
 // removed.
@@ -9707,6 +9853,7 @@ func (SessionsOpenCreate) sessionOpenParams() {}
 func (SessionsOpenCreate) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindCreate
 }
+
 // Parameters for fetching a remote session and handing it off to a new local session.
 // Experimental: SessionsOpenHandoff is part of an experimental API and may change or be
 // removed.
@@ -9743,6 +9890,7 @@ func (SessionsOpenHandoff) sessionOpenParams() {}
 func (SessionsOpenHandoff) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindHandoff
 }
+
 // Parameters for connecting to a live remote session.
 // Experimental: SessionsOpenRemote is part of an experimental API and may change or be
 // removed.
@@ -9759,6 +9907,7 @@ func (SessionsOpenRemote) sessionOpenParams() {}
 func (SessionsOpenRemote) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindRemote
 }
+
 // Parameters for resuming a specific local session.
 // Experimental: SessionsOpenResume is part of an experimental API and may change or be
 // removed.
@@ -9777,6 +9926,7 @@ func (SessionsOpenResume) sessionOpenParams() {}
 func (SessionsOpenResume) Kind() SessionOpenParamsKind {
 	return SessionOpenParamsKindResume
 }
+
 // Parameters for resuming the most relevant local session.
 // Experimental: SessionsOpenResumeLast is part of an experimental API and may change or be
 // removed.
@@ -10021,7 +10171,7 @@ type SessionSetCredentialsResult struct {
 // API and may change or be removed.
 type SessionSettingsBuiltInToolAvailabilitySnapshot struct {
 	CreatePullRequest *bool `json:"createPullRequest,omitempty"`
-	ReportProgress *bool `json:"reportProgress,omitempty"`
+	ReportProgress    *bool `json:"reportProgress,omitempty"`
 }
 
 // Named Rust-owned settings predicate to evaluate for this session.
@@ -10046,25 +10196,25 @@ type SessionSettingsEvaluatePredicateResult struct {
 // be removed.
 type SessionSettingsJobSnapshot struct {
 	BuiltInToolAvailability *SessionSettingsBuiltInToolAvailabilitySnapshot `json:"builtInToolAvailability,omitempty"`
-	EventType *string `json:"eventType,omitempty"`
-	IsTriggerJob *bool `json:"isTriggerJob,omitempty"`
+	EventType               *string                                         `json:"eventType,omitempty"`
+	IsTriggerJob            *bool                                           `json:"isTriggerJob,omitempty"`
 }
 
 // Redacted model routing settings for a session.
 // Experimental: SessionSettingsModelSnapshot is part of an experimental API and may change
 // or be removed.
 type SessionSettingsModelSnapshot struct {
-	CallbackURL *string `json:"callbackUrl,omitempty"`
+	CallbackURL            *string `json:"callbackUrl,omitempty"`
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
-	InstanceID *string `json:"instanceId,omitempty"`
-	Model *string `json:"model,omitempty"`
+	InstanceID             *string `json:"instanceId,omitempty"`
+	Model                  *string `json:"model,omitempty"`
 }
 
 // Online-evaluation settings safe to expose across the SDK boundary.
 // Experimental: SessionSettingsOnlineEvaluationSnapshot is part of an experimental API and
 // may change or be removed.
 type SessionSettingsOnlineEvaluationSnapshot struct {
-	DisableOnlineEvaluation *bool `json:"disableOnlineEvaluation,omitempty"`
+	DisableOnlineEvaluation          *bool `json:"disableOnlineEvaluation,omitempty"`
 	EnableOnlineEvaluationOutputFile *bool `json:"enableOnlineEvaluationOutputFile,omitempty"`
 }
 
@@ -10072,18 +10222,18 @@ type SessionSettingsOnlineEvaluationSnapshot struct {
 // Experimental: SessionSettingsRepoSnapshot is part of an experimental API and may change
 // or be removed.
 type SessionSettingsRepoSnapshot struct {
-	Branch *string `json:"branch,omitempty"`
-	Commit *string `json:"commit,omitempty"`
-	Host *string `json:"host,omitempty"`
-	HostProtocol *string `json:"hostProtocol,omitempty"`
-	ID *float64 `json:"id,omitempty"`
-	Name *string `json:"name,omitempty"`
-	OwnerID *float64 `json:"ownerId,omitempty"`
-	OwnerName *string `json:"ownerName,omitempty"`
-	PrCommitCount *float64 `json:"prCommitCount,omitempty"`
-	ReadWrite *bool `json:"readWrite,omitempty"`
-	SecretScanningURL *string `json:"secretScanningUrl,omitempty"`
-	ServerURL *string `json:"serverUrl,omitempty"`
+	Branch            *string  `json:"branch,omitempty"`
+	Commit            *string  `json:"commit,omitempty"`
+	Host              *string  `json:"host,omitempty"`
+	HostProtocol      *string  `json:"hostProtocol,omitempty"`
+	ID                *float64 `json:"id,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	OwnerID           *float64 `json:"ownerId,omitempty"`
+	OwnerName         *string  `json:"ownerName,omitempty"`
+	PrCommitCount     *float64 `json:"prCommitCount,omitempty"`
+	ReadWrite         *bool    `json:"readWrite,omitempty"`
+	SecretScanningURL *string  `json:"secretScanningUrl,omitempty"`
+	ServerURL         *string  `json:"serverUrl,omitempty"`
 }
 
 // Redacted, serializable view of session runtime settings for SDK boundary consumers.
@@ -10091,30 +10241,30 @@ type SessionSettingsRepoSnapshot struct {
 // Experimental: SessionSettingsSnapshot is part of an experimental API and may change or be
 // removed.
 type SessionSettingsSnapshot struct {
-	ClientName *string `json:"clientName,omitempty"`
-	Job SessionSettingsJobSnapshot `json:"job"`
-	Model SessionSettingsModelSnapshot `json:"model"`
+	ClientName       *string                                 `json:"clientName,omitempty"`
+	Job              SessionSettingsJobSnapshot              `json:"job"`
+	Model            SessionSettingsModelSnapshot            `json:"model"`
 	OnlineEvaluation SessionSettingsOnlineEvaluationSnapshot `json:"onlineEvaluation"`
-	Repo SessionSettingsRepoSnapshot `json:"repo"`
-	StartTimeMs *float64 `json:"startTimeMs,omitempty"`
-	TimeoutMs *float64 `json:"timeoutMs,omitempty"`
-	Validation SessionSettingsValidationSnapshot `json:"validation"`
-	Version *string `json:"version,omitempty"`
+	Repo             SessionSettingsRepoSnapshot             `json:"repo"`
+	StartTimeMs      *float64                                `json:"startTimeMs,omitempty"`
+	TimeoutMs        *float64                                `json:"timeoutMs,omitempty"`
+	Validation       SessionSettingsValidationSnapshot       `json:"validation"`
+	Version          *string                                 `json:"version,omitempty"`
 }
 
 // Redacted validation and memory-tool settings for a session.
 // Experimental: SessionSettingsValidationSnapshot is part of an experimental API and may
 // change or be removed.
 type SessionSettingsValidationSnapshot struct {
-	AdvisoryEnabled *bool `json:"advisoryEnabled,omitempty"`
-	CodeqlEnabled *bool `json:"codeqlEnabled,omitempty"`
-	CodeReviewEnabled *bool `json:"codeReviewEnabled,omitempty"`
-	CodeReviewModel *string `json:"codeReviewModel,omitempty"`
-	DependabotTimeout *float64 `json:"dependabotTimeout,omitempty"`
-	MemoryStoreEnabled *bool `json:"memoryStoreEnabled,omitempty"`
-	MemoryVoteEnabled *bool `json:"memoryVoteEnabled,omitempty"`
-	SecretScanningEnabled *bool `json:"secretScanningEnabled,omitempty"`
-	Timeout *float64 `json:"timeout,omitempty"`
+	AdvisoryEnabled       *bool    `json:"advisoryEnabled,omitempty"`
+	CodeqlEnabled         *bool    `json:"codeqlEnabled,omitempty"`
+	CodeReviewEnabled     *bool    `json:"codeReviewEnabled,omitempty"`
+	CodeReviewModel       *string  `json:"codeReviewModel,omitempty"`
+	DependabotTimeout     *float64 `json:"dependabotTimeout,omitempty"`
+	MemoryStoreEnabled    *bool    `json:"memoryStoreEnabled,omitempty"`
+	MemoryVoteEnabled     *bool    `json:"memoryVoteEnabled,omitempty"`
+	SecretScanningEnabled *bool    `json:"secretScanningEnabled,omitempty"`
+	Timeout               *float64 `json:"timeout,omitempty"`
 }
 
 // UUID prefix to resolve to a unique session ID.
@@ -11002,6 +11152,7 @@ func (RawSlashCommandInvocationResultData) slashCommandInvocationResult() {}
 func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResultKind {
 	return r.Discriminator
 }
+
 // Slash-command invocation result that submits an agent prompt, with display prompt,
 // optional mode, optional user-facing notice, and settings-change flag.
 // Experimental: SlashCommandAgentPromptResult is part of an experimental API and may change
@@ -11024,6 +11175,7 @@ func (SlashCommandAgentPromptResult) slashCommandInvocationResult() {}
 func (SlashCommandAgentPromptResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindAgentPrompt
 }
+
 // Slash-command invocation result indicating completion, with optional message and
 // settings-change flag.
 // Experimental: SlashCommandCompletedResult is part of an experimental API and may change
@@ -11040,6 +11192,7 @@ func (SlashCommandCompletedResult) slashCommandInvocationResult() {}
 func (SlashCommandCompletedResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindCompleted
 }
+
 // Slash-command invocation result asking the client to present subcommand options for a
 // parent command.
 // Experimental: SlashCommandSelectSubcommandResult is part of an experimental API and may
@@ -11060,6 +11213,7 @@ func (SlashCommandSelectSubcommandResult) slashCommandInvocationResult() {}
 func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindSelectSubcommand
 }
+
 // Slash-command invocation result containing text output plus Markdown/ANSI rendering flags.
 // Experimental: SlashCommandTextResult is part of an experimental API and may change or be
 // removed.
@@ -11136,6 +11290,7 @@ func (RawTaskInfoData) taskInfo() {}
 func (r RawTaskInfoData) Type() TaskInfoType {
 	return r.Discriminator
 }
+
 // Tracked background agent task metadata, including IDs, status, timing, agent type,
 // prompt, model, result, and latest response.
 // Experimental: TaskAgentInfo is part of an experimental API and may change or be removed.
@@ -11185,6 +11340,7 @@ func (TaskAgentInfo) taskInfo() {}
 func (TaskAgentInfo) Type() TaskInfoType {
 	return TaskInfoTypeAgent
 }
+
 // Tracked shell task metadata, including ID, command, status, timing, attachment/execution
 // mode, log path, and PID.
 // Experimental: TaskShellInfo is part of an experimental API and may change or be removed.
@@ -11241,6 +11397,7 @@ func (RawTaskProgressData) taskProgress() {}
 func (r RawTaskProgressData) Type() TaskProgressType {
 	return r.Discriminator
 }
+
 // Progress snapshot for an agent task, with recent activity lines and optional latest
 // intent.
 // Experimental: TaskAgentProgress is part of an experimental API and may change or be
@@ -11256,6 +11413,7 @@ func (TaskAgentProgress) taskProgress() {}
 func (TaskAgentProgress) Type() TaskProgressType {
 	return TaskProgressTypeAgent
 }
+
 // Progress snapshot for a shell task, with recent stdout/stderr output and optional process
 // ID.
 // Experimental: TaskShellProgress is part of an experimental API and may change or be
@@ -11613,6 +11771,7 @@ func (RawUIElicitationSchemaPropertyData) uiElicitationSchemaProperty() {}
 func (r RawUIElicitationSchemaPropertyData) Type() UIElicitationSchemaPropertyType {
 	return r.Discriminator
 }
+
 // Multi-select string field where each option pairs a value with a display label.
 // Experimental: UIElicitationArrayAnyOfField is part of an experimental API and may change
 // or be removed.
@@ -11635,6 +11794,7 @@ func (UIElicitationArrayAnyOfField) uiElicitationSchemaProperty() {}
 func (UIElicitationArrayAnyOfField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
+
 // Multi-select string field whose allowed values are defined inline.
 // Experimental: UIElicitationArrayEnumField is part of an experimental API and may change
 // or be removed.
@@ -11657,6 +11817,7 @@ func (UIElicitationArrayEnumField) uiElicitationSchemaProperty() {}
 func (UIElicitationArrayEnumField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeArray
 }
+
 // Boolean field rendered as a yes/no toggle.
 // Experimental: UIElicitationSchemaPropertyBoolean is part of an experimental API and may
 // change or be removed.
@@ -11673,6 +11834,7 @@ func (UIElicitationSchemaPropertyBoolean) uiElicitationSchemaProperty() {}
 func (UIElicitationSchemaPropertyBoolean) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeBoolean
 }
+
 // Numeric field accepting either a number or an integer.
 // Experimental: UIElicitationSchemaPropertyNumber is part of an experimental API and may
 // change or be removed.
@@ -11686,7 +11848,7 @@ type UIElicitationSchemaPropertyNumber struct {
 	// Minimum allowed value (inclusive).
 	Minimum *float64 `json:"minimum,omitempty"`
 	// Human-readable label for the field.
-	Title *string `json:"title,omitempty"`
+	Title         *string                               `json:"title,omitempty"`
 	Discriminator UIElicitationSchemaPropertyNumberType `json:"type,omitempty"`
 }
 
@@ -11697,6 +11859,7 @@ func (r UIElicitationSchemaPropertyNumber) Type() UIElicitationSchemaPropertyTyp
 	}
 	return UIElicitationSchemaPropertyType(r.Discriminator)
 }
+
 // Free-text string field with optional length and format constraints.
 // Experimental: UIElicitationSchemaPropertyString is part of an experimental API and may
 // change or be removed.
@@ -11719,6 +11882,7 @@ func (UIElicitationSchemaPropertyString) uiElicitationSchemaProperty() {}
 func (UIElicitationSchemaPropertyString) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
+
 // Single-select string field whose allowed values are defined inline.
 // Experimental: UIElicitationStringEnumField is part of an experimental API and may change
 // or be removed.
@@ -11739,6 +11903,7 @@ func (UIElicitationStringEnumField) uiElicitationSchemaProperty() {}
 func (UIElicitationStringEnumField) Type() UIElicitationSchemaPropertyType {
 	return UIElicitationSchemaPropertyTypeString
 }
+
 // Single-select string field where each option pairs a value with a display label.
 // Experimental: UIElicitationStringOneOfField is part of an experimental API and may change
 // or be removed.
@@ -12153,6 +12318,7 @@ func (RawUserToolSessionApprovalData) userToolSessionApproval() {}
 func (r RawUserToolSessionApprovalData) Kind() UserToolSessionApprovalKind {
 	return r.Discriminator
 }
+
 // Session-scoped tool-approval rule for specific shell command identifiers.
 // Experimental: UserToolSessionApprovalCommands is part of an experimental API and may
 // change or be removed.
@@ -12165,6 +12331,7 @@ func (UserToolSessionApprovalCommands) userToolSessionApproval() {}
 func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCommands
 }
+
 // Session-scoped tool-approval rule for a custom tool, keyed by tool name.
 // Experimental: UserToolSessionApprovalCustomTool is part of an experimental API and may
 // change or be removed.
@@ -12177,6 +12344,7 @@ func (UserToolSessionApprovalCustomTool) userToolSessionApproval() {}
 func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindCustomTool
 }
+
 // Session-scoped tool-approval rule for extension-management operations, optionally
 // narrowed by operation.
 // Experimental: UserToolSessionApprovalExtensionManagement is part of an experimental API
@@ -12190,6 +12358,7 @@ func (UserToolSessionApprovalExtensionManagement) userToolSessionApproval() {}
 func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindExtensionManagement
 }
+
 // Session-scoped tool-approval rule for an extension's permission-gated capability access,
 // keyed by extension name.
 // Experimental: UserToolSessionApprovalExtensionPermissionAccess is part of an experimental
@@ -12203,6 +12372,7 @@ func (UserToolSessionApprovalExtensionPermissionAccess) userToolSessionApproval(
 func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindExtensionPermissionAccess
 }
+
 // Session-scoped factory approval, optionally narrowed by approval key.
 // Experimental: UserToolSessionApprovalFactory is part of an experimental API and may
 // change or be removed.
@@ -12215,6 +12385,7 @@ func (UserToolSessionApprovalFactory) userToolSessionApproval() {}
 func (UserToolSessionApprovalFactory) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindFactory
 }
+
 // Session-scoped tool-approval rule for an MCP server tool, or all tools on the server when
 // `toolName` is null.
 // Experimental: UserToolSessionApprovalMCP is part of an experimental API and may change or
@@ -12230,6 +12401,7 @@ func (UserToolSessionApprovalMCP) userToolSessionApproval() {}
 func (UserToolSessionApprovalMCP) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMCP
 }
+
 // Session-scoped tool-approval rule for writes to long-term memory.
 // Experimental: UserToolSessionApprovalMemory is part of an experimental API and may change
 // or be removed.
@@ -12240,6 +12412,7 @@ func (UserToolSessionApprovalMemory) userToolSessionApproval() {}
 func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindMemory
 }
+
 // Session-scoped tool-approval rule for read-only filesystem operations.
 // Experimental: UserToolSessionApprovalRead is part of an experimental API and may change
 // or be removed.
@@ -12250,6 +12423,7 @@ func (UserToolSessionApprovalRead) userToolSessionApproval() {}
 func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindRead
 }
+
 // Session-scoped tool-approval rule for filesystem write operations.
 // Experimental: UserToolSessionApprovalWrite is part of an experimental API and may change
 // or be removed.
@@ -12358,7 +12532,7 @@ type WorkspacesAddSummaryRequest struct {
 // Experimental: WorkspacesAddSummaryResult is part of an experimental API and may change or
 // be removed.
 type WorkspacesAddSummaryResult struct {
-	Summary any `json:"summary,omitempty"`
+	Summary   any `json:"summary,omitempty"`
 	Workspace any `json:"workspace,omitempty"`
 }
 
@@ -12432,24 +12606,24 @@ type WorkspacesGetWorkspaceResult struct {
 }
 
 type WorkspacesGetWorkspaceResultWorkspace struct {
-	Branch *string `json:"branch,omitempty"`
-	ChronicleSyncDismissed *bool `json:"chronicle_sync_dismissed,omitempty"`
-	ClientName *string `json:"client_name,omitempty"`
-	CreatedAt *time.Time `json:"created_at,omitempty"`
-	Cwd *string `json:"cwd,omitempty"`
-	GitRoot *string `json:"git_root,omitempty"`
+	Branch                 *string    `json:"branch,omitempty"`
+	ChronicleSyncDismissed *bool      `json:"chronicle_sync_dismissed,omitempty"`
+	ClientName             *string    `json:"client_name,omitempty"`
+	CreatedAt              *time.Time `json:"created_at,omitempty"`
+	Cwd                    *string    `json:"cwd,omitempty"`
+	GitRoot                *string    `json:"git_root,omitempty"`
 	// Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
-	HostType *WorkspacesWorkspaceDetailsHostType `json:"host_type,omitempty"`
-	ID string `json:"id"`
-	McLastEventID *string `json:"mc_last_event_id,omitempty"`
-	McSessionID *string `json:"mc_session_id,omitempty"`
-	McTaskID *string `json:"mc_task_id,omitempty"`
-	Name *string `json:"name,omitempty"`
-	RemoteSteerable *bool `json:"remote_steerable,omitempty"`
-	Repository *string `json:"repository,omitempty"`
-	SummaryCount *int64 `json:"summary_count,omitempty"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
-	UserNamed *bool `json:"user_named,omitempty"`
+	HostType        *WorkspacesWorkspaceDetailsHostType `json:"host_type,omitempty"`
+	ID              string                              `json:"id"`
+	McLastEventID   *string                             `json:"mc_last_event_id,omitempty"`
+	McSessionID     *string                             `json:"mc_session_id,omitempty"`
+	McTaskID        *string                             `json:"mc_task_id,omitempty"`
+	Name            *string                             `json:"name,omitempty"`
+	RemoteSteerable *bool                               `json:"remote_steerable,omitempty"`
+	Repository      *string                             `json:"repository,omitempty"`
+	SummaryCount    *int64                              `json:"summary_count,omitempty"`
+	UpdatedAt       *time.Time                          `json:"updated_at,omitempty"`
+	UserNamed       *bool                               `json:"user_named,omitempty"`
 }
 
 // Workspace checkpoints in chronological order; empty when the workspace is not enabled.
@@ -12748,8 +12922,8 @@ type AgentRegistrySpawnResultKind string
 
 const (
 	AgentRegistrySpawnResultKindRegistryTimeout AgentRegistrySpawnResultKind = "registry-timeout"
-	AgentRegistrySpawnResultKindSpawned AgentRegistrySpawnResultKind = "spawned"
-	AgentRegistrySpawnResultKindSpawnError AgentRegistrySpawnResultKind = "spawn-error"
+	AgentRegistrySpawnResultKindSpawned         AgentRegistrySpawnResultKind = "spawned"
+	AgentRegistrySpawnResultKindSpawnError      AgentRegistrySpawnResultKind = "spawn-error"
 	AgentRegistrySpawnResultKindValidationError AgentRegistrySpawnResultKind = "validation-error"
 )
 
@@ -12811,21 +12985,21 @@ const (
 type AttachmentType string
 
 const (
-	AttachmentTypeBlob AttachmentType = "blob"
-	AttachmentTypeDirectory AttachmentType = "directory"
-	AttachmentTypeExtensionContext AttachmentType = "extension_context"
-	AttachmentTypeFile AttachmentType = "file"
-	AttachmentTypeGitHubActionsJob AttachmentType = "github_actions_job"
-	AttachmentTypeGitHubCommit AttachmentType = "github_commit"
-	AttachmentTypeGitHubFile AttachmentType = "github_file"
-	AttachmentTypeGitHubFileDiff AttachmentType = "github_file_diff"
-	AttachmentTypeGitHubReference AttachmentType = "github_reference"
-	AttachmentTypeGitHubRelease AttachmentType = "github_release"
-	AttachmentTypeGitHubRepository AttachmentType = "github_repository"
-	AttachmentTypeGitHubSnippet AttachmentType = "github_snippet"
+	AttachmentTypeBlob                 AttachmentType = "blob"
+	AttachmentTypeDirectory            AttachmentType = "directory"
+	AttachmentTypeExtensionContext     AttachmentType = "extension_context"
+	AttachmentTypeFile                 AttachmentType = "file"
+	AttachmentTypeGitHubActionsJob     AttachmentType = "github_actions_job"
+	AttachmentTypeGitHubCommit         AttachmentType = "github_commit"
+	AttachmentTypeGitHubFile           AttachmentType = "github_file"
+	AttachmentTypeGitHubFileDiff       AttachmentType = "github_file_diff"
+	AttachmentTypeGitHubReference      AttachmentType = "github_reference"
+	AttachmentTypeGitHubRelease        AttachmentType = "github_release"
+	AttachmentTypeGitHubRepository     AttachmentType = "github_repository"
+	AttachmentTypeGitHubSnippet        AttachmentType = "github_snippet"
 	AttachmentTypeGitHubTreeComparison AttachmentType = "github_tree_comparison"
-	AttachmentTypeGitHubURL AttachmentType = "github_url"
-	AttachmentTypeSelection AttachmentType = "selection"
+	AttachmentTypeGitHubURL            AttachmentType = "github_url"
+	AttachmentTypeSelection            AttachmentType = "selection"
 )
 
 // Type discriminator for AuthInfo.
@@ -12833,13 +13007,13 @@ const (
 type AuthInfoType string
 
 const (
-	AuthInfoTypeAPIKey AuthInfoType = "api-key"
+	AuthInfoTypeAPIKey          AuthInfoType = "api-key"
 	AuthInfoTypeCopilotAPIToken AuthInfoType = "copilot-api-token"
-	AuthInfoTypeEnv AuthInfoType = "env"
-	AuthInfoTypeGhCLI AuthInfoType = "gh-cli"
-	AuthInfoTypeHMAC AuthInfoType = "hmac"
-	AuthInfoTypeToken AuthInfoType = "token"
-	AuthInfoTypeUser AuthInfoType = "user"
+	AuthInfoTypeEnv             AuthInfoType = "env"
+	AuthInfoTypeGhCLI           AuthInfoType = "gh-cli"
+	AuthInfoTypeHMAC            AuthInfoType = "hmac"
+	AuthInfoTypeToken           AuthInfoType = "token"
+	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
 // Neutral SDK discriminator for the connected remote session kind.
@@ -12892,7 +13066,7 @@ const (
 type DebugCollectLogsDestinationKind string
 
 const (
-	DebugCollectLogsDestinationKindArchive DebugCollectLogsDestinationKind = "archive"
+	DebugCollectLogsDestinationKindArchive   DebugCollectLogsDestinationKind = "archive"
 	DebugCollectLogsDestinationKindDirectory DebugCollectLogsDestinationKind = "directory"
 )
 
@@ -13106,13 +13280,13 @@ const (
 type ExternalToolTextResultForLlmContentType string
 
 const (
-	ExternalToolTextResultForLlmContentTypeAudio ExternalToolTextResultForLlmContentType = "audio"
-	ExternalToolTextResultForLlmContentTypeImage ExternalToolTextResultForLlmContentType = "image"
-	ExternalToolTextResultForLlmContentTypeResource ExternalToolTextResultForLlmContentType = "resource"
+	ExternalToolTextResultForLlmContentTypeAudio        ExternalToolTextResultForLlmContentType = "audio"
+	ExternalToolTextResultForLlmContentTypeImage        ExternalToolTextResultForLlmContentType = "image"
+	ExternalToolTextResultForLlmContentTypeResource     ExternalToolTextResultForLlmContentType = "resource"
 	ExternalToolTextResultForLlmContentTypeResourceLink ExternalToolTextResultForLlmContentType = "resource_link"
-	ExternalToolTextResultForLlmContentTypeShellExit ExternalToolTextResultForLlmContentType = "shell_exit"
-	ExternalToolTextResultForLlmContentTypeTerminal ExternalToolTextResultForLlmContentType = "terminal"
-	ExternalToolTextResultForLlmContentTypeText ExternalToolTextResultForLlmContentType = "text"
+	ExternalToolTextResultForLlmContentTypeShellExit    ExternalToolTextResultForLlmContentType = "shell_exit"
+	ExternalToolTextResultForLlmContentTypeTerminal     ExternalToolTextResultForLlmContentType = "terminal"
+	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
 )
 
 // Execution-critical factory storage operation.
@@ -13192,7 +13366,7 @@ type FactoryRunFailureType string
 
 const (
 	FactoryRunFailureTypeFactoryDurableFailure FactoryRunFailureType = "factory_durable_failure"
-	FactoryRunFailureTypeFactoryLimitReached FactoryRunFailureType = "factory_limit_reached"
+	FactoryRunFailureTypeFactoryLimitReached   FactoryRunFailureType = "factory_limit_reached"
 	FactoryRunFailureTypeFactoryResumeDeclined FactoryRunFailureType = "factory_resume_declined"
 )
 
@@ -13586,7 +13760,7 @@ type MCPHeadersHandlePendingHeadersRefreshRequestKind string
 
 const (
 	MCPHeadersHandlePendingHeadersRefreshRequestKindHeaders MCPHeadersHandlePendingHeadersRefreshRequestKind = "headers"
-	MCPHeadersHandlePendingHeadersRefreshRequestKindNone MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
+	MCPHeadersHandlePendingHeadersRefreshRequestKindNone    MCPHeadersHandlePendingHeadersRefreshRequestKind = "none"
 )
 
 // OAuth grant type override for this login.
@@ -13607,7 +13781,7 @@ type MCPOauthPendingRequestResponseKind string
 
 const (
 	MCPOauthPendingRequestResponseKindCancelled MCPOauthPendingRequestResponseKind = "cancelled"
-	MCPOauthPendingRequestResponseKindToken MCPOauthPendingRequestResponseKind = "token"
+	MCPOauthPendingRequestResponseKindToken     MCPOauthPendingRequestResponseKind = "token"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
@@ -13888,53 +14062,53 @@ const (
 type PermissionDecisionApproveForLocationApprovalKind string
 
 const (
-	PermissionDecisionApproveForLocationApprovalKindCommands PermissionDecisionApproveForLocationApprovalKind = "commands"
-	PermissionDecisionApproveForLocationApprovalKindCustomTool PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
-	PermissionDecisionApproveForLocationApprovalKindExtensionManagement PermissionDecisionApproveForLocationApprovalKind = "extension-management"
+	PermissionDecisionApproveForLocationApprovalKindCommands                  PermissionDecisionApproveForLocationApprovalKind = "commands"
+	PermissionDecisionApproveForLocationApprovalKindCustomTool                PermissionDecisionApproveForLocationApprovalKind = "custom-tool"
+	PermissionDecisionApproveForLocationApprovalKindExtensionManagement       PermissionDecisionApproveForLocationApprovalKind = "extension-management"
 	PermissionDecisionApproveForLocationApprovalKindExtensionPermissionAccess PermissionDecisionApproveForLocationApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForLocationApprovalKindFactory PermissionDecisionApproveForLocationApprovalKind = "factory"
-	PermissionDecisionApproveForLocationApprovalKindMCP PermissionDecisionApproveForLocationApprovalKind = "mcp"
-	PermissionDecisionApproveForLocationApprovalKindMCPSampling PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
-	PermissionDecisionApproveForLocationApprovalKindMemory PermissionDecisionApproveForLocationApprovalKind = "memory"
-	PermissionDecisionApproveForLocationApprovalKindRead PermissionDecisionApproveForLocationApprovalKind = "read"
-	PermissionDecisionApproveForLocationApprovalKindWrite PermissionDecisionApproveForLocationApprovalKind = "write"
+	PermissionDecisionApproveForLocationApprovalKindFactory                   PermissionDecisionApproveForLocationApprovalKind = "factory"
+	PermissionDecisionApproveForLocationApprovalKindMCP                       PermissionDecisionApproveForLocationApprovalKind = "mcp"
+	PermissionDecisionApproveForLocationApprovalKindMCPSampling               PermissionDecisionApproveForLocationApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForLocationApprovalKindMemory                    PermissionDecisionApproveForLocationApprovalKind = "memory"
+	PermissionDecisionApproveForLocationApprovalKindRead                      PermissionDecisionApproveForLocationApprovalKind = "read"
+	PermissionDecisionApproveForLocationApprovalKindWrite                     PermissionDecisionApproveForLocationApprovalKind = "write"
 )
 
 // Kind discriminator for PermissionDecisionApproveForSessionApproval.
 type PermissionDecisionApproveForSessionApprovalKind string
 
 const (
-	PermissionDecisionApproveForSessionApprovalKindCommands PermissionDecisionApproveForSessionApprovalKind = "commands"
-	PermissionDecisionApproveForSessionApprovalKindCustomTool PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
-	PermissionDecisionApproveForSessionApprovalKindExtensionManagement PermissionDecisionApproveForSessionApprovalKind = "extension-management"
+	PermissionDecisionApproveForSessionApprovalKindCommands                  PermissionDecisionApproveForSessionApprovalKind = "commands"
+	PermissionDecisionApproveForSessionApprovalKindCustomTool                PermissionDecisionApproveForSessionApprovalKind = "custom-tool"
+	PermissionDecisionApproveForSessionApprovalKindExtensionManagement       PermissionDecisionApproveForSessionApprovalKind = "extension-management"
 	PermissionDecisionApproveForSessionApprovalKindExtensionPermissionAccess PermissionDecisionApproveForSessionApprovalKind = "extension-permission-access"
-	PermissionDecisionApproveForSessionApprovalKindFactory PermissionDecisionApproveForSessionApprovalKind = "factory"
-	PermissionDecisionApproveForSessionApprovalKindMCP PermissionDecisionApproveForSessionApprovalKind = "mcp"
-	PermissionDecisionApproveForSessionApprovalKindMCPSampling PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
-	PermissionDecisionApproveForSessionApprovalKindMemory PermissionDecisionApproveForSessionApprovalKind = "memory"
-	PermissionDecisionApproveForSessionApprovalKindRead PermissionDecisionApproveForSessionApprovalKind = "read"
-	PermissionDecisionApproveForSessionApprovalKindWrite PermissionDecisionApproveForSessionApprovalKind = "write"
+	PermissionDecisionApproveForSessionApprovalKindFactory                   PermissionDecisionApproveForSessionApprovalKind = "factory"
+	PermissionDecisionApproveForSessionApprovalKindMCP                       PermissionDecisionApproveForSessionApprovalKind = "mcp"
+	PermissionDecisionApproveForSessionApprovalKindMCPSampling               PermissionDecisionApproveForSessionApprovalKind = "mcp-sampling"
+	PermissionDecisionApproveForSessionApprovalKindMemory                    PermissionDecisionApproveForSessionApprovalKind = "memory"
+	PermissionDecisionApproveForSessionApprovalKindRead                      PermissionDecisionApproveForSessionApprovalKind = "read"
+	PermissionDecisionApproveForSessionApprovalKindWrite                     PermissionDecisionApproveForSessionApprovalKind = "write"
 )
 
 // Kind discriminator for PermissionDecision.
 type PermissionDecisionKind string
 
 const (
-	PermissionDecisionKindApproved PermissionDecisionKind = "approved"
-	PermissionDecisionKindApprovedForLocation PermissionDecisionKind = "approved-for-location"
-	PermissionDecisionKindApprovedForSession PermissionDecisionKind = "approved-for-session"
-	PermissionDecisionKindApproveForLocation PermissionDecisionKind = "approve-for-location"
-	PermissionDecisionKindApproveForSession PermissionDecisionKind = "approve-for-session"
-	PermissionDecisionKindApproveOnce PermissionDecisionKind = "approve-once"
-	PermissionDecisionKindApprovePermanently PermissionDecisionKind = "approve-permanently"
-	PermissionDecisionKindCancelled PermissionDecisionKind = "cancelled"
-	PermissionDecisionKindDeniedByContentExclusionPolicy PermissionDecisionKind = "denied-by-content-exclusion-policy"
-	PermissionDecisionKindDeniedByPermissionRequestHook PermissionDecisionKind = "denied-by-permission-request-hook"
-	PermissionDecisionKindDeniedByRules PermissionDecisionKind = "denied-by-rules"
-	PermissionDecisionKindDeniedInteractivelyByUser PermissionDecisionKind = "denied-interactively-by-user"
+	PermissionDecisionKindApproved                                       PermissionDecisionKind = "approved"
+	PermissionDecisionKindApprovedForLocation                            PermissionDecisionKind = "approved-for-location"
+	PermissionDecisionKindApprovedForSession                             PermissionDecisionKind = "approved-for-session"
+	PermissionDecisionKindApproveForLocation                             PermissionDecisionKind = "approve-for-location"
+	PermissionDecisionKindApproveForSession                              PermissionDecisionKind = "approve-for-session"
+	PermissionDecisionKindApproveOnce                                    PermissionDecisionKind = "approve-once"
+	PermissionDecisionKindApprovePermanently                             PermissionDecisionKind = "approve-permanently"
+	PermissionDecisionKindCancelled                                      PermissionDecisionKind = "cancelled"
+	PermissionDecisionKindDeniedByContentExclusionPolicy                 PermissionDecisionKind = "denied-by-content-exclusion-policy"
+	PermissionDecisionKindDeniedByPermissionRequestHook                  PermissionDecisionKind = "denied-by-permission-request-hook"
+	PermissionDecisionKindDeniedByRules                                  PermissionDecisionKind = "denied-by-rules"
+	PermissionDecisionKindDeniedInteractivelyByUser                      PermissionDecisionKind = "denied-interactively-by-user"
 	PermissionDecisionKindDeniedNoApprovalRuleAndCouldNotRequestFromUser PermissionDecisionKind = "denied-no-approval-rule-and-could-not-request-from-user"
-	PermissionDecisionKindReject PermissionDecisionKind = "reject"
-	PermissionDecisionKindUserNotAvailable PermissionDecisionKind = "user-not-available"
+	PermissionDecisionKindReject                                         PermissionDecisionKind = "reject"
+	PermissionDecisionKindUserNotAvailable                               PermissionDecisionKind = "user-not-available"
 )
 
 // Whether the location is a git repo or directory
@@ -13981,16 +14155,16 @@ const (
 type PermissionsLocationsAddToolApprovalDetailsKind string
 
 const (
-	PermissionsLocationsAddToolApprovalDetailsKindCommands PermissionsLocationsAddToolApprovalDetailsKind = "commands"
-	PermissionsLocationsAddToolApprovalDetailsKindCustomTool PermissionsLocationsAddToolApprovalDetailsKind = "custom-tool"
-	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
+	PermissionsLocationsAddToolApprovalDetailsKindCommands                  PermissionsLocationsAddToolApprovalDetailsKind = "commands"
+	PermissionsLocationsAddToolApprovalDetailsKindCustomTool                PermissionsLocationsAddToolApprovalDetailsKind = "custom-tool"
+	PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement       PermissionsLocationsAddToolApprovalDetailsKind = "extension-management"
 	PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess PermissionsLocationsAddToolApprovalDetailsKind = "extension-permission-access"
-	PermissionsLocationsAddToolApprovalDetailsKindFactory PermissionsLocationsAddToolApprovalDetailsKind = "factory"
-	PermissionsLocationsAddToolApprovalDetailsKindMCP PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
-	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
-	PermissionsLocationsAddToolApprovalDetailsKindMemory PermissionsLocationsAddToolApprovalDetailsKind = "memory"
-	PermissionsLocationsAddToolApprovalDetailsKindRead PermissionsLocationsAddToolApprovalDetailsKind = "read"
-	PermissionsLocationsAddToolApprovalDetailsKindWrite PermissionsLocationsAddToolApprovalDetailsKind = "write"
+	PermissionsLocationsAddToolApprovalDetailsKindFactory                   PermissionsLocationsAddToolApprovalDetailsKind = "factory"
+	PermissionsLocationsAddToolApprovalDetailsKindMCP                       PermissionsLocationsAddToolApprovalDetailsKind = "mcp"
+	PermissionsLocationsAddToolApprovalDetailsKindMCPSampling               PermissionsLocationsAddToolApprovalDetailsKind = "mcp-sampling"
+	PermissionsLocationsAddToolApprovalDetailsKindMemory                    PermissionsLocationsAddToolApprovalDetailsKind = "memory"
+	PermissionsLocationsAddToolApprovalDetailsKindRead                      PermissionsLocationsAddToolApprovalDetailsKind = "read"
+	PermissionsLocationsAddToolApprovalDetailsKindWrite                     PermissionsLocationsAddToolApprovalDetailsKind = "write"
 )
 
 // Whether the change applies to ephemeral session-scoped rules (cleared at session end) or
@@ -14132,21 +14306,21 @@ const (
 type PushAttachmentType string
 
 const (
-	PushAttachmentTypeBlob PushAttachmentType = "blob"
-	PushAttachmentTypeDirectory PushAttachmentType = "directory"
-	PushAttachmentTypeExtensionContext PushAttachmentType = "extension_context"
-	PushAttachmentTypeFile PushAttachmentType = "file"
-	PushAttachmentTypeGitHubActionsJob PushAttachmentType = "github_actions_job"
-	PushAttachmentTypeGitHubCommit PushAttachmentType = "github_commit"
-	PushAttachmentTypeGitHubFile PushAttachmentType = "github_file"
-	PushAttachmentTypeGitHubFileDiff PushAttachmentType = "github_file_diff"
-	PushAttachmentTypeGitHubReference PushAttachmentType = "github_reference"
-	PushAttachmentTypeGitHubRelease PushAttachmentType = "github_release"
-	PushAttachmentTypeGitHubRepository PushAttachmentType = "github_repository"
-	PushAttachmentTypeGitHubSnippet PushAttachmentType = "github_snippet"
+	PushAttachmentTypeBlob                 PushAttachmentType = "blob"
+	PushAttachmentTypeDirectory            PushAttachmentType = "directory"
+	PushAttachmentTypeExtensionContext     PushAttachmentType = "extension_context"
+	PushAttachmentTypeFile                 PushAttachmentType = "file"
+	PushAttachmentTypeGitHubActionsJob     PushAttachmentType = "github_actions_job"
+	PushAttachmentTypeGitHubCommit         PushAttachmentType = "github_commit"
+	PushAttachmentTypeGitHubFile           PushAttachmentType = "github_file"
+	PushAttachmentTypeGitHubFileDiff       PushAttachmentType = "github_file_diff"
+	PushAttachmentTypeGitHubReference      PushAttachmentType = "github_reference"
+	PushAttachmentTypeGitHubRelease        PushAttachmentType = "github_release"
+	PushAttachmentTypeGitHubRepository     PushAttachmentType = "github_repository"
+	PushAttachmentTypeGitHubSnippet        PushAttachmentType = "github_snippet"
 	PushAttachmentTypeGitHubTreeComparison PushAttachmentType = "github_tree_comparison"
-	PushAttachmentTypeGitHubURL PushAttachmentType = "github_url"
-	PushAttachmentTypeSelection PushAttachmentType = "selection"
+	PushAttachmentTypeGitHubURL            PushAttachmentType = "github_url"
+	PushAttachmentTypeSelection            PushAttachmentType = "selection"
 )
 
 // Whether this item is a queued user message or a queued slash command / model change
@@ -14179,10 +14353,10 @@ const (
 type RemoteControlStatusState string
 
 const (
-	RemoteControlStatusStateActive RemoteControlStatusState = "active"
+	RemoteControlStatusStateActive     RemoteControlStatusState = "active"
 	RemoteControlStatusStateConnecting RemoteControlStatusState = "connecting"
-	RemoteControlStatusStateError RemoteControlStatusState = "error"
-	RemoteControlStatusStateOff RemoteControlStatusState = "off"
+	RemoteControlStatusStateError      RemoteControlStatusState = "error"
+	RemoteControlStatusStateOff        RemoteControlStatusState = "off"
 )
 
 // Whether the remote task originated from CCA or CLI `--remote`.
@@ -14399,7 +14573,7 @@ const (
 type SessionLimitPredictionResultKind string
 
 const (
-	SessionLimitPredictionResultKindAvailable SessionLimitPredictionResultKind = "available"
+	SessionLimitPredictionResultKindAvailable   SessionLimitPredictionResultKind = "available"
 	SessionLimitPredictionResultKindUnavailable SessionLimitPredictionResultKind = "unavailable"
 )
 
@@ -14516,12 +14690,12 @@ const (
 type SessionOpenParamsKind string
 
 const (
-	SessionOpenParamsKindAttach SessionOpenParamsKind = "attach"
-	SessionOpenParamsKindCloud SessionOpenParamsKind = "cloud"
-	SessionOpenParamsKindCreate SessionOpenParamsKind = "create"
-	SessionOpenParamsKindHandoff SessionOpenParamsKind = "handoff"
-	SessionOpenParamsKindRemote SessionOpenParamsKind = "remote"
-	SessionOpenParamsKindResume SessionOpenParamsKind = "resume"
+	SessionOpenParamsKindAttach     SessionOpenParamsKind = "attach"
+	SessionOpenParamsKindCloud      SessionOpenParamsKind = "cloud"
+	SessionOpenParamsKindCreate     SessionOpenParamsKind = "create"
+	SessionOpenParamsKindHandoff    SessionOpenParamsKind = "handoff"
+	SessionOpenParamsKindRemote     SessionOpenParamsKind = "remote"
+	SessionOpenParamsKindResume     SessionOpenParamsKind = "resume"
 	SessionOpenParamsKindResumeLast SessionOpenParamsKind = "resumeLast"
 )
 
@@ -14774,10 +14948,10 @@ const (
 type SlashCommandInvocationResultKind string
 
 const (
-	SlashCommandInvocationResultKindAgentPrompt SlashCommandInvocationResultKind = "agent-prompt"
-	SlashCommandInvocationResultKindCompleted SlashCommandInvocationResultKind = "completed"
+	SlashCommandInvocationResultKindAgentPrompt      SlashCommandInvocationResultKind = "agent-prompt"
+	SlashCommandInvocationResultKindCompleted        SlashCommandInvocationResultKind = "completed"
 	SlashCommandInvocationResultKindSelectSubcommand SlashCommandInvocationResultKind = "select-subcommand"
-	SlashCommandInvocationResultKindText SlashCommandInvocationResultKind = "text"
+	SlashCommandInvocationResultKindText             SlashCommandInvocationResultKind = "text"
 )
 
 // Coarse command category for grouping and behavior: runtime built-in, skill-backed
@@ -14935,11 +15109,11 @@ const (
 type UIElicitationSchemaPropertyType string
 
 const (
-	UIElicitationSchemaPropertyTypeArray UIElicitationSchemaPropertyType = "array"
+	UIElicitationSchemaPropertyTypeArray   UIElicitationSchemaPropertyType = "array"
 	UIElicitationSchemaPropertyTypeBoolean UIElicitationSchemaPropertyType = "boolean"
 	UIElicitationSchemaPropertyTypeInteger UIElicitationSchemaPropertyType = "integer"
-	UIElicitationSchemaPropertyTypeNumber UIElicitationSchemaPropertyType = "number"
-	UIElicitationSchemaPropertyTypeString UIElicitationSchemaPropertyType = "string"
+	UIElicitationSchemaPropertyTypeNumber  UIElicitationSchemaPropertyType = "number"
+	UIElicitationSchemaPropertyTypeString  UIElicitationSchemaPropertyType = "string"
 )
 
 // Schema type indicator (always 'object')
@@ -14986,15 +15160,15 @@ const (
 type UserToolSessionApprovalKind string
 
 const (
-	UserToolSessionApprovalKindCommands UserToolSessionApprovalKind = "commands"
-	UserToolSessionApprovalKindCustomTool UserToolSessionApprovalKind = "custom-tool"
-	UserToolSessionApprovalKindExtensionManagement UserToolSessionApprovalKind = "extension-management"
+	UserToolSessionApprovalKindCommands                  UserToolSessionApprovalKind = "commands"
+	UserToolSessionApprovalKindCustomTool                UserToolSessionApprovalKind = "custom-tool"
+	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
 	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
-	UserToolSessionApprovalKindFactory UserToolSessionApprovalKind = "factory"
-	UserToolSessionApprovalKindMCP UserToolSessionApprovalKind = "mcp"
-	UserToolSessionApprovalKindMemory UserToolSessionApprovalKind = "memory"
-	UserToolSessionApprovalKindRead UserToolSessionApprovalKind = "read"
-	UserToolSessionApprovalKindWrite UserToolSessionApprovalKind = "write"
+	UserToolSessionApprovalKindFactory                   UserToolSessionApprovalKind = "factory"
+	UserToolSessionApprovalKindMCP                       UserToolSessionApprovalKind = "mcp"
+	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
+	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
+	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
 // Output verbosity level for supported models
@@ -16571,7 +16745,7 @@ func (s *ServerUserAPI) Settings() *ServerUserSettingsAPI {
 // ServerRPC provides typed server-scoped RPC methods.
 type ServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common        serverAPI
+	common serverAPI
 
 	Account       *ServerAccountAPI
 	AgentRegistry *ServerAgentRegistryAPI
@@ -16841,7 +17015,7 @@ func (a *InternalServerSessionsAPI) RegisterExtensionToolsOnSession(ctx context.
 // etc.). Not part of the public API.
 type InternalServerRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common   internalServerAPI
+	common internalServerAPI
 
 	Sessions *InternalServerSessionsAPI
 }
@@ -16883,7 +17057,7 @@ func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 }
 
 type sessionAPI struct {
-	client *jsonrpc2.Client
+	client    *jsonrpc2.Client
 	sessionID string
 }
 
@@ -22205,7 +22379,7 @@ func (a *WorkspacesAPI) WriteAutopilotObjective(ctx context.Context, params *Wor
 // SessionRPC provides typed session-scoped RPC methods.
 type SessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common           sessionAPI
+	common sessionAPI
 
 	Agent            *AgentAPI
 	Canvas           *CanvasAPI
@@ -22569,7 +22743,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 }
 
 type internalSessionAPI struct {
-	client *jsonrpc2.Client
+	client    *jsonrpc2.Client
 	sessionID string
 }
 
@@ -23130,7 +23304,7 @@ func (a *InternalSettingsAPI) Snapshot(ctx context.Context) (*SessionSettingsSna
 // etc.). Not part of the public API.
 type InternalSessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
-	common   internalSessionAPI
+	common internalSessionAPI
 
 	MCP      *InternalMCPAPI
 	Queue    *InternalQueueAPI
@@ -23379,10 +23553,10 @@ type SessionFSHandler interface {
 
 // ClientSessionAPIHandlers provides all client session API handler groups for a session.
 type ClientSessionAPIHandlers struct {
-	Canvas CanvasHandler
-	Factory FactoryHandler
+	Canvas        CanvasHandler
+	Factory       FactoryHandler
 	ProviderToken ProviderTokenHandler
-	SessionFS SessionFSHandler
+	SessionFS     SessionFSHandler
 }
 
 func clientSessionHandlerError(err error) *jsonrpc2.Error {
@@ -23829,8 +24003,8 @@ type LlmInferenceHandler interface {
 // key; a single set of handlers serves the entire connection.
 type ClientGlobalAPIHandlers struct {
 	GitHubTelemetry GitHubTelemetryHandler
-	Hooks HooksHandler
-	LlmInference LlmInferenceHandler
+	Hooks           HooksHandler
+	LlmInference    LlmInferenceHandler
 }
 
 func clientGlobalHandlerError(err error) *jsonrpc2.Error {
