@@ -3,7 +3,7 @@
  * Generated from: api.schema.json
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import type { MessageConnection } from "vscode-jsonrpc/node";
 
 import type { AbortReason, Attachment, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerSource, McpServerStatus, ModelChangeSource, PermissionMode, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UserToolSessionApproval, Verbosity } from "./session-events.js";
 

@@ -211,8 +211,7 @@ describe("Session Configuration", async () => {
         request: { messages?: Array<{ role: string; content: unknown }> };
     }): string | undefined {
         const sys = (exchange.request.messages ?? []).find((m) => m.role === "system") as
-            | { content: string }
-            | undefined;
+            { content: string } | undefined;
         return sys?.content;
     }
 
@@ -277,8 +276,7 @@ describe("Session Configuration", async () => {
         );
         expect(taskTool).toBeDefined();
         const parameters = taskTool?.function.parameters as
-            | { properties?: { agent_type?: { enum?: string[] } } }
-            | undefined;
+            { properties?: { agent_type?: { enum?: string[] } } } | undefined;
         const values = parameters?.properties?.agent_type?.enum;
         expect(values).toBeDefined();
         return values ?? [];

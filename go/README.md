@@ -6,7 +6,7 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 
 To use the SDK, you'll need:
 
-- Go 1.24 or later
+- Go 1.25 or later
 - GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
 
 ## Installation
