@@ -27,12 +27,12 @@ jobs:
         shell: bash
         working-directory: ./go
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Run go fmt
         if: runner.os == 'Linux'

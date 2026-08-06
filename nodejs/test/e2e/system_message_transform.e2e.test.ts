@@ -119,7 +119,6 @@ describe("System message transform", async () => {
 
 function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {
     const systemMessage = exchange.request.messages.find((m) => m.role === "system") as
-        | { role: "system"; content: string }
-        | undefined;
+        { role: "system"; content: string } | undefined;
     return systemMessage?.content;
 }

@@ -15,11 +15,11 @@ jobs:
     if: github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install gh-aw CLI
-        uses: github/gh-aw-actions/setup-cli@05205436a78512d71a2d842e46586ed05f4fa058 # v0.82.10
+        uses: github/gh-aw-actions/setup-cli@fd783ac87efde5e0c0e05d593f1906ea25b5d92e # v0.84.2
         with:
-          version: v0.83.1
+          version: v0.84.2
       - name: Recompile workflows
         # Full-repository compile so the diff check below covers all workflows.
         run: gh aw compile

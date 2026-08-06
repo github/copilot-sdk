@@ -1968,7 +1968,10 @@ class CopilotSession:
                             data.static_client_config.client_secret
                         )
                     if data.static_client_config.grant_type is not None:
-                        static_client_config["grantType"] = data.static_client_config.grant_type
+                        static_client_config["grantType"] = cast(
+                            Literal["client_credentials"],
+                            data.static_client_config.grant_type,
+                        )
                     if data.static_client_config.public_client is not None:
                         static_client_config["publicClient"] = (
                             data.static_client_config.public_client
@@ -2071,9 +2074,11 @@ class CopilotSession:
 
             with trace_context(traceparent, tracestate):
                 handler_start = time.perf_counter()
-                result = handler(invocation)
-                if inspect.isawaitable(result):
-                    result = await result
+                pending_result = handler(invocation)
+                if inspect.isawaitable(pending_result):
+                    result = await pending_result
+                else:
+                    result = pending_result
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -2085,8 +2090,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
 
-            tool_result: ToolResult
-            if result is None:
+            resolved_result = cast(ToolResult | None, result)
+            if resolved_result is None:
                 tool_result = ToolResult(
                     text_result_for_llm="Tool returned no result.",
                     result_type="failure",
@@ -2094,7 +2099,7 @@ class CopilotSession:
                     tool_telemetry={},
                 )
             else:
-                tool_result = result  # type: ignore[assignment]
+                tool_result = resolved_result
 
             # Exception-originated failures (from define_tool's exception handler) are
             # sent via the top-level error param so the CLI formats them with its

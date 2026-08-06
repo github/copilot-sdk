@@ -25,7 +25,7 @@ jobs:
       - name: Detect changed paths
         id: filter
         if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         with:
           predicate-quantifier: every
           filters: |

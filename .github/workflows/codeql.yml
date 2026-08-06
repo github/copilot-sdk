@@ -23,9 +23,9 @@ jobs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
       skipped-matrix: ${{ steps.build-matrix.outputs.skipped-matrix }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
-      - uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         id: filter
         if: github.event_name == 'pull_request'
         with:
@@ -109,7 +109,7 @@ jobs:
       matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@a6fd1787519fd23e68309fad43738e41a6ff2a9d # v4

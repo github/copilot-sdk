@@ -77,12 +77,7 @@ declare const factoryHandleBrand: unique symbol;
 
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue =
-    | null
-    | boolean
-    | number
-    | string
-    | JsonValue[]
-    | { [key: string]: JsonValue };
+    null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 /**
  * Conservative JSON shape language accepted for structured factory agent output.
