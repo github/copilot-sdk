@@ -305,7 +305,7 @@ describe("Multi-client broadcast", async () => {
     );
 
     it.skipIf(isInProcessTransport)(
-        "disconnecting a resumed session preserves the owner session and removes its tools",
+        "disconnecting client removes its tools",
         { timeout: 90_000 },
         async () => {
             const toolA = defineTool("stable_tool", {
