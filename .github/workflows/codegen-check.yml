@@ -36,7 +36,8 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.22'
+          go-version: '1.25'
+          cache-dependency-path: "go/go.sum"
 
       # Rust generator runs `cargo fmt` on the output, so we need a toolchain with rustfmt.
       - name: Install Rust toolchain

@@ -4324,7 +4324,7 @@ class CopilotClient:
             def wait(self, timeout=None):
                 pass
 
-        self._process = SocketWrapper(sock_file, sock)  # type: ignore
+        self._process = SocketWrapper(sock_file, sock)
         self._client = JsonRpcClient(self._process)
         self._client.on_close = lambda: setattr(self, "_state", "disconnected")
         self._rpc = ServerRpc(self._client)

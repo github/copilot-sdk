@@ -32,7 +32,8 @@ jobs:
         id: setup-copilot
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.24"
+          go-version: "1.25"
+          cache-dependency-path: "go/go.sum"
 
       - name: Run go fmt
         if: runner.os == 'Linux'

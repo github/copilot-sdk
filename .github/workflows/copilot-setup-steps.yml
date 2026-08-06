@@ -54,7 +54,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.24"
+          go-version: "1.25"
+          cache-dependency-path: "go/go.sum"
 
       # Setup .NET (for .NET SDK)
       - name: Set up .NET
@@ -72,13 +73,13 @@ jobs:
 
       # Install just command runner
       - name: Install just
-        uses: extractions/setup-just@v4
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
         uses: github/gh-aw-actions/setup-cli@fd783ac87efde5e0c0e05d593f1906ea25b5d92e # v0.84.2
         with:
-          version: v0.82.10
+          version: v0.84.2
 
       # Enable repository pre-commit hooks (Spotless checks for Java source changes)
       - name: Enable pre-commit hooks

@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { ResponseError } from "vscode-jsonrpc/node.js";
+import { ResponseError } from "vscode-jsonrpc/node";
 import { CopilotClient } from "../src/client.js";
 import { joinSession } from "../src/extension.js";
 import { CopilotSession } from "../src/session.js";

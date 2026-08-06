@@ -207,8 +207,11 @@ class CopilotWebSocketForwarder(CopilotWebSocketHandler):
         self._receive_task = asyncio.create_task(self._receive_loop())
 
     async def _receive_loop(self) -> None:
+        upstream = self._upstream
+        if upstream is None:
+            return
         try:
-            async for message in self._upstream:  # type: ignore[union-attr]
+            async for message in upstream:
                 await self.send_response_message(message)
             await self.close(CopilotWebSocketCloseStatus.normal_closure())
         except asyncio.CancelledError:
@@ -318,9 +321,11 @@ class CopilotRequestHandler:
                 {client_task, completion}, return_when=asyncio.FIRST_COMPLETED
             )
 
-            if client_task in done and client_task.exception() is not None:
-                handler._suppress_close_on_dispose = True
-                raise client_task.exception()  # type: ignore[misc]
+            if client_task in done:
+                client_error = client_task.exception()
+                if client_error is not None:
+                    handler._suppress_close_on_dispose = True
+                    raise client_error
 
             if client_task in done:
                 await handler.close(CopilotWebSocketCloseStatus.normal_closure())
