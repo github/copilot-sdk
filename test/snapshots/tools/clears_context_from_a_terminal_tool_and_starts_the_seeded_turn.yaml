@@ -1,0 +1,22 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: 'Call clear_context with prompt "Reply with exactly FRESH_CONTEXT." now.'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: clear_context
+              arguments: '{"prompt":"Reply with exactly FRESH_CONTEXT."}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Reply with exactly FRESH_CONTEXT.
+      - role: assistant
+        content: FRESH_CONTEXT
