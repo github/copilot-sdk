@@ -141,11 +141,9 @@ class DataObjectCoverageTest {
 
     @Test
     void permissionRequestPreservesMcpExtensionData() {
-        var request = PermissionRequest.fromJsonValue(java.util.Map.of(
-                "kind", "mcp",
-                "serverName", "playwright",
-                "toolName", "playwright-browser_navigate",
-                "args", java.util.Map.of("url", "http://127.0.0.1:8106/docs/target-app/")));
+        var request = PermissionRequest.fromJsonValue(
+                java.util.Map.of("kind", "mcp", "serverName", "playwright", "toolName", "playwright-browser_navigate",
+                        "args", java.util.Map.of("url", "http://127.0.0.1:8106/docs/target-app/")));
 
         assertEquals("mcp", request.getKind());
         assertEquals("playwright", request.getExtensionData().get("serverName"));
