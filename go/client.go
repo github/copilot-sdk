@@ -750,7 +750,7 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 	return wireConfig, callbacks
 }
 
-func hasManagedSettings(enableManagedSettings *bool, managedSettings *rpc.SessionManagedSettings) bool {
+func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSettings) bool {
 	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
 }
 

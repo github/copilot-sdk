@@ -27,8 +27,8 @@ use crate::types::{
     CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions, CustomAgentConfig,
     DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig, InfiniteSessionConfig,
     LargeToolOutputConfig, McpServerConfig, MemoryConfiguration, NamedProviderConfig,
-    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SessionManagedSettings,
-    SystemMessageConfig, Tool, ToolSearchConfig,
+    ProviderConfig, ProviderModelConfig, SessionId, SessionLimitsConfig, SystemMessageConfig, Tool,
+    ToolSearchConfig,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -185,9 +185,9 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub managed_settings: Option<SessionManagedSettings>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<crate::types::ManagedSettings>,
 }
 
 /// The exact JSON shape sent on the `session.resume` JSON-RPC request.
@@ -336,7 +336,7 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub managed_settings: Option<SessionManagedSettings>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<crate::types::ManagedSettings>,
 }

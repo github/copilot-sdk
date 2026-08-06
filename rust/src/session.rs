@@ -68,7 +68,7 @@ pub(crate) struct SessionHandlers {
 
 fn has_managed_settings(
     enable_managed_settings: Option<bool>,
-    managed_settings: Option<&crate::types::SessionManagedSettings>,
+    managed_settings: Option<&crate::types::ManagedSettings>,
 ) -> bool {
     enable_managed_settings == Some(true) || managed_settings.is_some()
 }
@@ -2563,8 +2563,15 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{notification_permission_payload, permission_request_data};
+    use super::{has_managed_settings, notification_permission_payload, permission_request_data};
     use crate::handler::PermissionResult;
+
+    #[test]
+    fn direct_injection_enables_managed_safeguards() {
+        let settings = crate::types::ManagedSettings::default();
+        assert!(has_managed_settings(None, Some(&settings)));
+        assert!(!has_managed_settings(None, None));
+    }
 
     #[test]
     fn notification_payload_suppresses_no_result() {

@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using GitHub.Copilot.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -480,46 +481,6 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
-    [Fact]
-    public async Task Create_And_Resume_Serialize_ManagedSettings()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await client.StartAsync();
-        var settings = new ManagedSettings
-        {
-            Permissions = new ManagedSettingsPermissions
-            {
-                DisableBypassPermissionsMode = "disable",
-                Deny = ["shell(rm*)"],
-                Ask = [],
-                Allow = []
-            }
-        };
-
-        await using var created = await client.CreateSessionAsync(new SessionConfig
-        {
-            ManagedSettings = settings,
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        });
-        await using var resumed = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
-        {
-            ManagedSettings = settings,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnEvent = _ => { }
-        });
-
-        foreach (var method in new[] { "session.create", "session.resume" })
-        {
-            var request = Assert.Single(server.Requests, request => request.Method == method);
-            Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
-            var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
-            Assert.Equal("disable", permissions.GetProperty("disableBypassPermissionsMode").GetString());
-            Assert.Empty(permissions.GetProperty("ask").EnumerateArray());
-            Assert.Empty(permissions.GetProperty("allow").EnumerateArray());
-        }
-    }
-
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static async Task<WeakReference<CopilotSession>> CreateDroppedSessionAsync(CopilotClient client)
     {
@@ -553,6 +514,94 @@ public sealed class ClientSessionLifetimeTests
             ?? throw new InvalidOperationException($"Field '{fieldName}' does not expose Count.");
 
         return (int)count.GetValue(dictionary)!;
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        var permissionInvocation = new TaskCompletionSource<PermissionInvocation>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    DisableBypassPermissionsMode = DisableBypassPermissionsMode.Disable,
+                    Deny = ["shell(rm*)"],
+                    Ask = ["write"],
+                    Allow = []
+                }
+            },
+            OnPermissionRequest = (_, invocation) =>
+            {
+                permissionInvocation.TrySetResult(invocation);
+                return Task.FromResult(PermissionDecision.NoResult());
+            }
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal("disable", permissions.GetProperty("disableBypassPermissionsMode").GetString());
+        Assert.Equal("shell(rm*)", Assert.Single(permissions.GetProperty("deny").EnumerateArray()).GetString());
+        Assert.Equal("write", Assert.Single(permissions.GetProperty("ask").EnumerateArray()).GetString());
+        Assert.Empty(permissions.GetProperty("allow").EnumerateArray());
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "managed-permission"
+            }
+        });
+        var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(invocation.ManagedSettingsEnabled);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Omits_ManagedSettings_When_Unset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.False(request.Params.TryGetProperty("managedSettings", out _));
+    }
+
+    [Fact]
+    public async Task ResumeSessionAsync_Serializes_ManagedSettings_Permissions()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var session = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    Deny = ["shell(rm*)"]
+                }
+            },
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnEvent = _ => { }
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal("shell(rm*)", Assert.Single(permissions.GetProperty("deny").EnumerateArray()).GetString());
     }
 
     private static void DispatchEvent(CopilotSession session, SessionEvent evt)

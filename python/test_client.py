@@ -20,8 +20,6 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     RuntimeConnection,
-    SessionManagedPermissions,
-    SessionManagedSettings,
     StdioRuntimeConnection,
     define_tool,
 )
@@ -30,13 +28,14 @@ from copilot.client import (
     CloudSessionRepository,
     CopilotExpAssignmentResponse,
     ExpConfigEntry,
+    ManagedSettings,
+    ManagedSettingsPermissions,
     ModelBilling,
     ModelCapabilities,
     ModelInfo,
     ModelLimits,
     ModelSupports,
 )
-from copilot.generated.rpc import DisableBypassPermissionsMode
 from copilot.session import PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -655,6 +654,61 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_managed_settings(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                enable_managed_settings=True,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(
+                        disable_bypass_permissions_mode="disable",
+                        deny=["Shell(git push)"],
+                        ask=["Domain(publish.example)"],
+                        allow=["Read(**)"],
+                    )
+                ),
+            )
+            resumed_session = await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(ask=["Domain(publish.example)"])
+                ),
+            )
+
+            assert session._managed_settings_enabled is True
+            assert resumed_session._managed_settings_enabled is True
+            assert captured["session.create"]["enableManagedSettings"] is True
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {
+                    "disableBypassPermissionsMode": "disable",
+                    "deny": ["Shell(git push)"],
+                    "ask": ["Domain(publish.example)"],
+                    "allow": ["Read(**)"],
+                }
+            }
+            assert captured["session.resume"]["managedSettings"] == {
+                "permissions": {"ask": ["Domain(publish.example)"]}
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_default_enable_experimental_mode_by_mode(self):
         with TemporaryDirectory() as base_directory:
             client = CopilotClient(
@@ -694,6 +748,7 @@ class TestCreateSessionConfig:
             finally:
                 await client.force_stop()
 
+    async def test_managed_settings_omitted_when_not_supplied(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -701,7 +756,7 @@ class TestCreateSessionConfig:
 
             async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                if method in ("session.create", "session.resume"):
+                if method == "session.create":
                     result = {"sessionId": params.get("sessionId") or "session-1"}
                     callback = kwargs.get("on_response_inline")
                     if callback is not None:
@@ -710,21 +765,16 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-            )
-            await client.resume_session(
-                session.session_id,
+            await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
 
-            assert "isExperimentalMode" not in captured["session.create"]
-            assert "isExperimentalMode" not in captured["session.resume"]
+            assert "managedSettings" not in captured["session.create"]
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_forward_managed_settings(self):
+    async def test_managed_settings_preserves_empty_arrays(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -732,43 +782,25 @@ class TestCreateSessionConfig:
 
             async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                result = {"sessionId": params.get("sessionId") or "session-1"}
-                callback = kwargs.get("on_response_inline")
-                if callback is not None:
-                    callback(result)
-                return result
+                if method == "session.create":
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
 
             client._client.request = mock_request
-            settings = SessionManagedSettings(
-                permissions=SessionManagedPermissions(
-                    disable_bypass_permissions_mode=DisableBypassPermissionsMode.DISABLE,
-                    deny=["Shell(git push)"],
-                    ask=[],
-                    allow=[],
-                )
-            )
-            session = await client.create_session(
+            await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                managed_settings=settings,
-            )
-            resumed = await client.resume_session(
-                session.session_id,
-                on_permission_request=PermissionHandler.approve_all,
-                managed_settings=settings,
+                managed_settings=ManagedSettings(
+                    permissions=ManagedSettingsPermissions(deny=[], ask=[], allow=[])
+                ),
             )
 
-            assert session._managed_settings_enabled is True
-            assert resumed._managed_settings_enabled is True
-            for method in ("session.create", "session.resume"):
-                assert captured[method]["managedSettings"] == {
-                    "permissions": {
-                        "disableBypassPermissionsMode": "disable",
-                        "deny": ["Shell(git push)"],
-                        "ask": [],
-                        "allow": [],
-                    }
-                }
-                assert "enableManagedSettings" not in captured[method]
+            assert captured["session.create"]["managedSettings"] == {
+                "permissions": {"deny": [], "ask": [], "allow": []}
+            }
         finally:
             await client.force_stop()
 

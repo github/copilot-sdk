@@ -233,6 +233,7 @@ public final class CreateSessionRequest {
     @JsonProperty("enableManagedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
+
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ManagedSettings managedSettings;

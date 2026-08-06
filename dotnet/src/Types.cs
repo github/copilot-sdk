@@ -3044,27 +3044,67 @@ public sealed class GitHubMcpToolConfig
     public bool? DisableFormDeferral { get; set; }
 }
 
-/// <summary>Enterprise permission policy injected by an SDK host at session startup.</summary>
+/// <summary>
+/// Controls whether bypass-permissions mode is available in a managed session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<DisableBypassPermissionsMode>))]
+public enum DisableBypassPermissionsMode
+{
+    /// <summary>Turn off bypass-permissions mode.</summary>
+    [JsonStringEnumMemberName("disable")]
+    Disable
+}
+
+/// <summary>
+/// Permission rules injected as a managed-settings layer at session bootstrap.
+/// All fields are optional; omitted fields impose no constraint from this layer.
+/// </summary>
+/// <remarks>
+/// This layer composes restrictively with any server- or device-level managed
+/// settings: <see cref="Deny"/> and <see cref="Ask"/> rules are unioned across
+/// layers, every present <see cref="Allow"/> list must admit a tool for it to be
+/// allowed, and <see cref="DisableBypassPermissionsMode"/> is honored if any
+/// layer sets it (deny-wins).
+/// </remarks>
 public sealed class ManagedSettingsPermissions
 {
-    /// <summary>When set to <c>"disable"</c>, prevents bypass permission modes.</summary>
+    /// <summary>
+    /// When set to <c>"disable"</c>, bypass-permissions mode is turned off for the
+    /// session regardless of other layers. Serialized as
+    /// <c>disableBypassPermissionsMode</c>.
+    /// </summary>
     [JsonPropertyName("disableBypassPermissionsMode")]
-    public string? DisableBypassPermissionsMode { get; set; }
+    public DisableBypassPermissionsMode? DisableBypassPermissionsMode { get; set; }
 
-    /// <summary>Permission rules that block matching operations.</summary>
+    /// <summary>Tool-permission patterns that are always denied.</summary>
+    [JsonPropertyName("deny")]
     public IList<string>? Deny { get; set; }
 
-    /// <summary>Permission rules that require explicit approval.</summary>
+    /// <summary>Tool-permission patterns that require an explicit ask.</summary>
+    [JsonPropertyName("ask")]
     public IList<string>? Ask { get; set; }
 
-    /// <summary>Permission rules that allow matching operations.</summary>
+    /// <summary>Tool-permission patterns that are allowed without prompting.</summary>
+    [JsonPropertyName("allow")]
     public IList<string>? Allow { get; set; }
 }
 
-/// <summary>Permissions-only managed settings injected by an SDK host.</summary>
+/// <summary>
+/// Managed-settings layer injected at session startup. Currently carries only a
+/// <see cref="Permissions"/> object.
+/// </summary>
+/// <remarks>
+/// This layer is startup-only and is not persisted with the session. It must be
+/// re-supplied on <see cref="CopilotClient.ResumeSessionAsync"/> to remain in
+/// effect; omitting it on resume clears the previously injected layer. It can be
+/// combined with <see cref="SessionConfigBase.EnableManagedSettings"/>. Older
+/// runtimes may ignore this additive field, so hosts must not rely on injected
+/// policy until they ship a compatible runtime.
+/// </remarks>
 public sealed class ManagedSettings
 {
-    /// <summary>Gets or sets the managed permission policy.</summary>
+    /// <summary>Permission rules for this managed-settings layer.</summary>
+    [JsonPropertyName("permissions")]
     public ManagedSettingsPermissions? Permissions { get; set; }
 }
 
@@ -3627,9 +3667,13 @@ public abstract class SessionConfigBase
     public bool? EnableManagedSettings { get; set; }
 
     /// <summary>
-    /// Gets or sets permissions-only managed settings injected at session
-    /// create or resume. This is independent of <see cref="EnableManagedSettings"/>
-    /// and must be re-supplied on resume because it is not persisted.
+    /// Optional managed-settings layer injected at session bootstrap. Currently
+    /// carries a permissions object that composes restrictively with any
+    /// server- or device-level managed settings. This layer is startup-only and
+    /// is not persisted: it must be re-supplied on resume to remain in effect,
+    /// and omitting it on resume clears the previously injected layer. Can be
+    /// combined with <see cref="EnableManagedSettings"/>. Serialized on the wire
+    /// as <c>managedSettings</c>.
     /// </summary>
     public ManagedSettings? ManagedSettings { get; set; }
 

@@ -2042,15 +2042,23 @@ public class SessionConfig {
         return this;
     }
 
-    /** @return host-injected managed settings, or {@code null} when unset */
+    /**
+     * Gets host-injected managed settings for this session.
+     *
+     * @return the managed settings, or {@code null} when unset
+     */
     public ManagedSettings getManagedSettings() {
         return managedSettings;
     }
 
     /**
+     * Supplies permissions-only managed settings at session startup. The runtime
+     * validates and composes this policy restrictively with self-fetched and device
+     * policy. Re-supply it on resume because it is not persisted.
+     *
      * @param managedSettings
-     *            permissions-only managed settings
-     * @return this config
+     *            the host-injected managed settings
+     * @return this config instance for method chaining
      */
     public SessionConfig setManagedSettings(ManagedSettings managedSettings) {
         this.managedSettings = managedSettings;

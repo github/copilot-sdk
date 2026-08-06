@@ -25,7 +25,6 @@ import type {
     OpenCanvasInstance,
     RemoteSessionMode,
     CurrentToolMetadata,
-    SessionManagedSettings,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
@@ -38,9 +37,6 @@ export type {
 export type {
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
-    DisableBypassPermissionsMode,
-    SessionManagedPermissions,
-    SessionManagedSettings,
 } from "./generated/rpc.js";
 export type SessionEvent =
     | Exclude<GeneratedSessionEvent, { type: "permission.requested" }>
@@ -2093,6 +2089,45 @@ export interface GitHubMcpToolConfig {
 }
 
 /**
+ * Permissions-only managed policy injected by the host via
+ * {@link SessionConfigBase.managedSettings}.
+ *
+ * Rule strings use the same vocabulary the runtime accepts for fetched managed
+ * policy (e.g. `"Read(**)"`, `"Shell(git push *)"`); malformed rules are
+ * rejected at session creation.
+ */
+export interface ManagedSettingsPermissions {
+    /**
+     * When set to `"disable"`, bypass-permissions ("yolo") mode is turned off
+     * for the session. This is deny-wins: it cannot be re-enabled by any other
+     * layer.
+     */
+    disableBypassPermissionsMode?: "disable";
+    /** Operations that must always be denied. Unioned across managed layers. */
+    deny?: string[];
+    /**
+     * Operations that must prompt for approval. Unioned across managed layers.
+     */
+    ask?: string[];
+    /**
+     * Operations permitted without prompting. Every declared `allow` list
+     * (across managed layers) must admit an operation for it to be allowed.
+     */
+    allow?: string[];
+}
+
+/**
+ * Host-injected enterprise managed settings. The first supported contract is
+ * permissions-only; unknown sibling keys are rejected by the runtime.
+ *
+ * @see {@link SessionConfigBase.managedSettings}
+ */
+export interface ManagedSettings {
+    /** Managed permission policy for the session. */
+    permissions?: ManagedSettingsPermissions;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -2591,11 +2626,29 @@ export interface SessionConfigBase {
     enableManagedSettings?: boolean;
 
     /**
-     * Permissions-only enterprise policy injected by the SDK host at session
-     * create or resume. This is independent of {@link enableManagedSettings},
-     * composes restrictively with other managed sources, and is not persisted.
+     * Host-injected enterprise managed settings for this session.
+     *
+     * Unlike {@link SessionConfigBase.enableManagedSettings} — which asks the
+     * runtime to *self-fetch* account/org and device policy — this field lets
+     * the host supply the managed policy directly. The runtime validates it
+     * with the same managed-permission parser it uses for fetched policy and
+     * composes it restrictively with any self-fetched (server) and
+     * device-managed (MDM) layers: `deny`/`ask` rules are unioned, every
+     * declared `allow` list must admit an operation, and
+     * `disableBypassPermissionsMode: "disable"` is deny-wins.
+     *
+     * This is startup-only. It is **not** persisted: it must be re-supplied on
+     * {@link CopilotClient.resumeSession | resume}, where it replaces the prior
+     * injected layer (omitting it clears the layer, so warm and cold resume
+     * behave identically). It may be combined with `enableManagedSettings`;
+     * when both are supplied the injected, server, and device restrictions all
+     * apply.
+     *
+     * Requires a Copilot runtime whose RPC schema includes `managedSettings`.
+     * Older runtimes may ignore this additive field, so hosts must not rely on
+     * injected policy until they ship a compatible runtime.
      */
-    managedSettings?: SessionManagedSettings;
+    managedSettings?: ManagedSettings;
 
     /**
      * When true, skips embedding-based retrieval for this session.

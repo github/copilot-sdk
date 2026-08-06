@@ -1204,8 +1204,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                ManagedSettings: config.ManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
+                ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 
@@ -1425,8 +1425,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                ManagedSettings: config.ManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
+                ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 

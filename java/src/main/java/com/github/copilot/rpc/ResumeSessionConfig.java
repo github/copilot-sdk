@@ -1917,9 +1917,12 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Supplies permissions-only managed settings for this resume. The value
+     * replaces the prior injected layer and is not persisted.
+     *
      * @param managedSettings
-     *            permissions-only managed settings
-     * @return this config
+     *            the host-injected managed settings
+     * @return this config for method chaining
      */
     public ResumeSessionConfig setManagedSettings(ManagedSettings managedSettings) {
         this.managedSettings = managedSettings;
