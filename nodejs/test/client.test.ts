@@ -876,6 +876,36 @@ describe("CopilotClient", () => {
         expect((connectCall![1] as any).enableGitHubTelemetryForwarding).toBeUndefined();
     });
 
+    it("uses session.detach when the server advertises the capability", async () => {
+        const client = new CopilotClient();
+        const sendRequest = vi.fn(async (method: string, params: any) => {
+            if (method === "connect") {
+                return {
+                    ok: true,
+                    protocolVersion: 3,
+                    version: "test",
+                    capabilities: ["session.detach"],
+                };
+            }
+            if (method === "session.create") {
+                return { sessionId: params.sessionId };
+            }
+            if (method === "session.detach") {
+                return { success: true };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        (client as any).connection = { sendRequest };
+
+        await (client as any).verifyProtocolVersion();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await session.disconnect();
+
+        expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+            sessionId: session.sessionId,
+        });
+    });
+
     it("does not opt into GitHub telemetry forwarding without a handler", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -2231,7 +2261,7 @@ describe("CopilotClient", () => {
         });
 
         it("uses legacy destroy when the runtime does not advertise detach", async () => {
-            const sendRequest = vi.fn(async () => ({ success: true }));
+            const sendRequest = vi.fn(async () => undefined);
             const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
 
             await session.disconnect();
@@ -2254,7 +2284,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedProtocolVersion = 4;
+            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -2286,7 +2316,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedProtocolVersion = 4;
+            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             await expect(
                 client.createSession({
@@ -2299,6 +2329,39 @@ describe("CopilotClient", () => {
                 ([method]) => method === "session.create"
             )?.[1].sessionId;
             expect(sendRequest).toHaveBeenCalledWith("session.destroy", { sessionId });
+            expect((client as any).sessions.size).toBe(0);
+            expect((client as any).sessionOwnership.size).toBe(0);
+        });
+
+        it("unregisters a created session when initialization and rollback both fail", async () => {
+            const client = new CopilotClient({
+                mode: "empty",
+                baseDirectory: "/tmp/copilot-test",
+            });
+            const sendRequest = vi.fn(async (method: string, params: any) => {
+                if (method === "session.create") {
+                    return { sessionId: params.sessionId };
+                }
+                if (method === "session.options.update") {
+                    throw new Error("options failed");
+                }
+                if (method === "session.destroy") {
+                    throw new Error("destroy failed");
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+
+            await expect(
+                client.createSession({
+                    onPermissionRequest: approveAll,
+                    availableTools: [],
+                })
+            ).rejects.toThrow(
+                "Session creation failed and the created session could not be destroyed"
+            );
+
             expect((client as any).sessions.size).toBe(0);
             expect((client as any).sessionOwnership.size).toBe(0);
         });
@@ -2322,7 +2385,6 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedProtocolVersion = 4;
 
             await expect(
                 client.createSession({
@@ -2357,7 +2419,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
-            (client as any).negotiatedProtocolVersion = 4;
+            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
 
             await expect(
                 client.resumeSession("test-session", {
@@ -2369,6 +2431,38 @@ describe("CopilotClient", () => {
             expect(sendRequest).toHaveBeenCalledWith("session.detach", {
                 sessionId: "test-session",
             });
+            expect((client as any).sessions.size).toBe(0);
+            expect((client as any).sessionOwnership.size).toBe(0);
+        });
+
+        it("unregisters a resumed session when initialization and detach both fail", async () => {
+            const client = new CopilotClient({
+                mode: "empty",
+                baseDirectory: "/tmp/copilot-test",
+            });
+            const sendRequest = vi.fn(async (method: string) => {
+                if (method === "session.resume") {
+                    return { sessionId: "test-session" };
+                }
+                if (method === "session.options.update") {
+                    throw new Error("options failed");
+                }
+                if (method === "session.detach") {
+                    throw new Error("detach failed");
+                }
+                throw new Error(`unexpected method ${method}`);
+            });
+            (client as any).connection = { sendRequest };
+            (client as any).state = "connected";
+            (client as any).negotiatedCapabilities = new Set(["session.detach"]);
+
+            await expect(
+                client.resumeSession("test-session", {
+                    onPermissionRequest: approveAll,
+                    availableTools: [],
+                })
+            ).rejects.toThrow("Session resume failed and the attachment could not be detached");
+
             expect((client as any).sessions.size).toBe(0);
             expect((client as any).sessionOwnership.size).toBe(0);
         });

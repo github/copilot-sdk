@@ -4,7 +4,7 @@
 //! copilot-agent-runtime server.
 
 /// The SDK protocol version.
-pub const SDK_PROTOCOL_VERSION: u32 = 4;
+pub const SDK_PROTOCOL_VERSION: u32 = 3;
 
 /// Returns the SDK protocol version.
 #[must_use]

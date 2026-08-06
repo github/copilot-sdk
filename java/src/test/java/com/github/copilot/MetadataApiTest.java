@@ -328,7 +328,7 @@ public class MetadataApiTest {
     // ===== Protocol Version Test =====
 
     @Test
-    void testProtocolVersionIsFour() {
-        assertEquals(4, SdkProtocolVersion.get());
+    void testProtocolVersionIsThree() {
+        assertEquals(3, SdkProtocolVersion.get());
     }
 }

@@ -92,7 +92,7 @@ import type { FactoryHandle } from "./factory.js";
  * Servers reporting a version below this are rejected.
  */
 const MIN_PROTOCOL_VERSION = 3;
-const SESSION_DETACH_PROTOCOL_VERSION = 4;
+const SESSION_DETACH_CAPABILITY = "session.detach";
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 /**
@@ -521,6 +521,7 @@ export class CopilotClient {
     private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
+    private negotiatedCapabilities: Set<string> = new Set();
     /** Connection-level session filesystem config, set via constructor option. */
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
@@ -1465,7 +1466,7 @@ export class CopilotClient {
                     mcpAuthHandler: config.onMcpAuthRequest,
                     managedSettingsEnabled: config.enableManagedSettings,
                     supportsSessionDetach:
-                        (this.negotiatedProtocolVersion ?? 0) >= SESSION_DETACH_PROTOCOL_VERSION,
+                        this.negotiatedCapabilities.has(SESSION_DETACH_CAPABILITY),
                     onDisconnected: (disconnectedSession) => {
                         if (this.sessions.get(sessionId) === disconnectedSession) {
                             this.sessions.delete(sessionId);
@@ -1651,31 +1652,32 @@ export class CopilotClient {
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
+            let cleanupFailed = false;
+            let cleanupError: unknown;
             if (createdSessionId !== undefined) {
                 try {
                     if (session?.sessionId === createdSessionId) {
                         await session._destroy();
                     } else {
-                        const response = (await this.connection!.sendRequest("session.destroy", {
+                        await this.connection!.sendRequest("session.destroy", {
                             sessionId: createdSessionId,
-                        })) as { success: boolean; error?: string };
-                        if (!response.success) {
-                            throw new Error(
-                                `Failed to destroy session ${createdSessionId}: ${response.error || "Unknown error"}`
-                            );
-                        }
+                        });
                     }
-                } catch (cleanupError) {
-                    throw new AggregateError(
-                        [e, cleanupError],
-                        "Session creation failed and the created session could not be destroyed",
-                        { cause: e }
-                    );
+                } catch (error) {
+                    cleanupFailed = true;
+                    cleanupError = error;
                 }
             }
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
                 this.sessionOwnership.delete(registeredId);
+            }
+            if (cleanupFailed) {
+                throw new AggregateError(
+                    [e, cleanupError],
+                    "Session creation failed and the created session could not be destroyed",
+                    { cause: e }
+                );
             }
             throw e;
         }
@@ -1739,8 +1741,7 @@ export class CopilotClient {
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
                 managedSettingsEnabled: config.enableManagedSettings,
-                supportsSessionDetach:
-                    (this.negotiatedProtocolVersion ?? 0) >= SESSION_DETACH_PROTOCOL_VERSION,
+                supportsSessionDetach: this.negotiatedCapabilities.has(SESSION_DETACH_CAPABILITY),
                 onDisconnected: (disconnectedSession) => {
                     if (this.sessions.get(sessionId) === disconnectedSession) {
                         this.sessions.delete(sessionId);
@@ -1916,19 +1917,25 @@ export class CopilotClient {
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
+            let cleanupFailed = false;
+            let cleanupError: unknown;
             if (resumedOnServer) {
                 try {
                     await session.disconnect();
-                } catch (cleanupError) {
-                    throw new AggregateError(
-                        [e, cleanupError],
-                        "Session resume failed and the attachment could not be detached",
-                        { cause: e }
-                    );
+                } catch (error) {
+                    cleanupFailed = true;
+                    cleanupError = error;
                 }
             }
             this.sessions.delete(sessionId);
             this.sessionOwnership.delete(sessionId);
+            if (cleanupFailed) {
+                throw new AggregateError(
+                    [e, cleanupError],
+                    "Session resume failed and the attachment could not be detached",
+                    { cause: e }
+                );
+            }
             throw e;
         }
 
@@ -2070,6 +2077,7 @@ export class CopilotClient {
             this.processExitPromise ? Promise.race([p, this.processExitPromise]) : p;
 
         let serverVersion: number | undefined;
+        let serverCapabilities: string[] | undefined;
         try {
             const connectParams: {
                 token?: string;
@@ -2084,6 +2092,8 @@ export class CopilotClient {
             }
             const result = await raceAgainstExit(this.internalRpc.connect(connectParams));
             serverVersion = result.protocolVersion;
+            serverCapabilities = (result as typeof result & { capabilities?: string[] })
+                .capabilities;
         } catch (err) {
             if (
                 err instanceof ResponseError &&
@@ -2113,6 +2123,7 @@ export class CopilotClient {
         }
 
         this.negotiatedProtocolVersion = serverVersion;
+        this.negotiatedCapabilities = new Set(serverCapabilities ?? []);
     }
 
     /**

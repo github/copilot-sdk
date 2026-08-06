@@ -14,7 +14,7 @@ package com.github.copilot;
  */
 public enum SdkProtocolVersion {
 
-    LATEST(4);
+    LATEST(3);
 
     private int versionNumber;
 

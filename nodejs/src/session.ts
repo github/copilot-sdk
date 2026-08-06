@@ -1972,14 +1972,19 @@ export class CopilotSession {
         if (this.disconnected) {
             return;
         }
-        const method = this.supportsSessionDetach ? "session.detach" : "session.destroy";
-        const response = (await this.connection.sendRequest(method, {
-            sessionId: this.sessionId,
-        })) as { success: boolean; error?: string };
-        if (!response.success) {
-            throw new Error(
-                `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
-            );
+        if (this.supportsSessionDetach) {
+            const response = (await this.connection.sendRequest("session.detach", {
+                sessionId: this.sessionId,
+            })) as { success: boolean; error?: string };
+            if (!response.success) {
+                throw new Error(
+                    `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
+                );
+            }
+        } else {
+            await this.connection.sendRequest("session.destroy", {
+                sessionId: this.sessionId,
+            });
         }
         this._markDisconnected();
         this.onDisconnected?.(this);
@@ -1990,14 +1995,9 @@ export class CopilotSession {
         if (this.disconnected) {
             return;
         }
-        const response = (await this.connection.sendRequest("session.destroy", {
+        await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
-        })) as { success: boolean; error?: string };
-        if (!response.success) {
-            throw new Error(
-                `Failed to destroy session ${this.sessionId}: ${response.error || "Unknown error"}`
-            );
-        }
+        });
         this._markDisconnected();
         this.onDisconnected?.(this);
     }
