@@ -55,7 +55,6 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: "1.25"
-          cache-dependency-path: "go/go.sum"
 
       # Setup .NET (for .NET SDK)
       - name: Set up .NET
