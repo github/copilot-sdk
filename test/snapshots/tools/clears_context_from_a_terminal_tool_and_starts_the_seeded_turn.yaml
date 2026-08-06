@@ -5,7 +5,7 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: 'Call clear_context with prompt "Reply with exactly FRESH_CONTEXT." now.'
+        content: Call clear_context with prompt "Reply with exactly FRESH_CONTEXT." now.
       - role: assistant
         tool_calls:
           - id: toolcall_0
