@@ -139,6 +139,27 @@ class DataObjectCoverageTest {
         assertEquals("value", req.getExtensionData().get("key"));
     }
 
+    @Test
+    void permissionRequestPreservesMcpExtensionData() {
+        var request = PermissionRequest.fromJsonValue(
+                java.util.Map.of("kind", "mcp", "serverName", "playwright", "toolName", "playwright-browser_navigate",
+                        "args", java.util.Map.of("url", "http://127.0.0.1:8106/docs/target-app/")));
+
+        assertEquals("mcp", request.getKind());
+        assertEquals("playwright", request.getExtensionData().get("serverName"));
+        assertEquals("playwright-browser_navigate", request.getExtensionData().get("toolName"));
+        @SuppressWarnings("unchecked")
+        var args = (java.util.Map<String, Object>) request.getExtensionData().get("args");
+        assertEquals("http://127.0.0.1:8106/docs/target-app/", args.get("url"));
+    }
+
+    @Test
+    void permissionRequestWithoutExtensionDataPreservesNull() {
+        var request = PermissionRequest.fromJsonValue(java.util.Map.of("kind", "read", "toolCallId", "tool-123"));
+
+        assertNull(request.getExtensionData());
+    }
+
     // ===== SectionOverride setContent =====
 
     @Test

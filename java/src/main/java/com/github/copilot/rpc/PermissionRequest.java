@@ -5,8 +5,10 @@
 package com.github.copilot.rpc;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -44,6 +46,14 @@ public class PermissionRequest {
     private Boolean managedApprovalRequired;
 
     private Map<String, Object> extensionData;
+
+    @JsonAnySetter
+    private void setExtensionDataEntry(String key, Object value) {
+        if (extensionData == null) {
+            extensionData = new LinkedHashMap<>();
+        }
+        extensionData.put(key, value);
+    }
 
     private static final class ManagedApprovalRequiredDeserializer extends JsonDeserializer<Boolean> {
 
