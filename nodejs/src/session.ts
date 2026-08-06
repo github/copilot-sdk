@@ -427,6 +427,7 @@ export class CopilotSession {
     private _capabilities: SessionCapabilities = {};
     private openCanvasInstances: OpenCanvasInstance[] = [];
     private disconnected = false;
+    private readonly supportsSessionDetach: boolean;
     private readonly onDisconnected?: (session: CopilotSession) => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
@@ -610,12 +611,14 @@ export class CopilotSession {
         options?: {
             mcpAuthHandler?: McpAuthHandler;
             managedSettingsEnabled?: boolean;
+            supportsSessionDetach?: boolean;
             onDisconnected?: (session: CopilotSession) => void;
         }
     ) {
         this.traceContextProvider = traceContextProvider;
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
+        this.supportsSessionDetach = options?.supportsSessionDetach === true;
         this.onDisconnected = options?.onDisconnected;
     }
 
@@ -1969,12 +1972,13 @@ export class CopilotSession {
         if (this.disconnected) {
             return;
         }
-        const response = (await this.connection.sendRequest("session.detach", {
+        const method = this.supportsSessionDetach ? "session.detach" : "session.destroy";
+        const response = (await this.connection.sendRequest(method, {
             sessionId: this.sessionId,
         })) as { success: boolean; error?: string };
         if (!response.success) {
             throw new Error(
-                `Failed to detach session ${this.sessionId}: ${response.error || "Unknown error"}`
+                `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
             );
         }
         this._markDisconnected();

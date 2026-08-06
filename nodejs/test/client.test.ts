@@ -2161,6 +2161,7 @@ describe("CopilotClient", () => {
                 undefined,
                 undefined,
                 {
+                    supportsSessionDetach: true,
                     onDisconnected,
                 }
             );
@@ -2194,7 +2195,13 @@ describe("CopilotClient", () => {
                 }
                 throw new Error(`unexpected method ${method}`);
             });
-            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
+            const session = new CopilotSession(
+                "test-session",
+                { sendRequest } as any,
+                undefined,
+                undefined,
+                { supportsSessionDetach: true }
+            );
 
             await expect(session.disconnect()).rejects.toThrow("detach failed");
             await expect(session.getEvents()).resolves.toEqual([]);
@@ -2208,11 +2215,28 @@ describe("CopilotClient", () => {
 
         it("detaches a session when asynchronously disposed", async () => {
             const sendRequest = vi.fn(async () => ({ success: true }));
-            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
+            const session = new CopilotSession(
+                "test-session",
+                { sendRequest } as any,
+                undefined,
+                undefined,
+                { supportsSessionDetach: true }
+            );
 
             await session[Symbol.asyncDispose]();
 
             expect(sendRequest).toHaveBeenCalledWith("session.detach", {
+                sessionId: "test-session",
+            });
+        });
+
+        it("uses legacy destroy when the runtime does not advertise detach", async () => {
+            const sendRequest = vi.fn(async () => ({ success: true }));
+            const session = new CopilotSession("test-session", { sendRequest } as any, undefined);
+
+            await session.disconnect();
+
+            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
                 sessionId: "test-session",
             });
         });
@@ -2230,6 +2254,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
+            (client as any).negotiatedProtocolVersion = 4;
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -2261,6 +2286,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
+            (client as any).negotiatedProtocolVersion = 4;
 
             await expect(
                 client.createSession({
@@ -2296,6 +2322,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
+            (client as any).negotiatedProtocolVersion = 4;
 
             await expect(
                 client.createSession({
@@ -2330,6 +2357,7 @@ describe("CopilotClient", () => {
             });
             (client as any).connection = { sendRequest };
             (client as any).state = "connected";
+            (client as any).negotiatedProtocolVersion = 4;
 
             await expect(
                 client.resumeSession("test-session", {
@@ -3813,7 +3841,9 @@ describe("CopilotClient", () => {
             const resumed = new CopilotSession(
                 "resumed-session",
                 (client as any).connection,
-                undefined
+                undefined,
+                undefined,
+                { supportsSessionDetach: true }
             );
             (client as any).sessions.set(created.sessionId, created);
             (client as any).sessions.set(resumed.sessionId, resumed);

@@ -8,7 +8,7 @@
  * The SDK protocol version.
  * This must match the version expected by the copilot-agent-runtime server.
  */
-export const SDK_PROTOCOL_VERSION = 3;
+export const SDK_PROTOCOL_VERSION = 4;
 
 /**
  * Gets the SDK protocol version.

@@ -92,6 +92,7 @@ import type { FactoryHandle } from "./factory.js";
  * Servers reporting a version below this are rejected.
  */
 const MIN_PROTOCOL_VERSION = 3;
+const SESSION_DETACH_PROTOCOL_VERSION = 4;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 /**
@@ -1463,6 +1464,8 @@ export class CopilotClient {
                 {
                     mcpAuthHandler: config.onMcpAuthRequest,
                     managedSettingsEnabled: config.enableManagedSettings,
+                    supportsSessionDetach:
+                        (this.negotiatedProtocolVersion ?? 0) >= SESSION_DETACH_PROTOCOL_VERSION,
                     onDisconnected: (disconnectedSession) => {
                         if (this.sessions.get(sessionId) === disconnectedSession) {
                             this.sessions.delete(sessionId);
@@ -1736,6 +1739,8 @@ export class CopilotClient {
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
                 managedSettingsEnabled: config.enableManagedSettings,
+                supportsSessionDetach:
+                    (this.negotiatedProtocolVersion ?? 0) >= SESSION_DETACH_PROTOCOL_VERSION,
                 onDisconnected: (disconnectedSession) => {
                     if (this.sessions.get(sessionId) === disconnectedSession) {
                         this.sessions.delete(sessionId);
