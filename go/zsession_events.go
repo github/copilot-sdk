@@ -469,7 +469,9 @@ const (
 	ManagedSettingsEnforcedEscalationAutoApproval                      = rpc.ManagedSettingsEnforcedEscalationAutoApproval
 	ManagedSettingsEnforcedEscalationUnrestrictedPaths                 = rpc.ManagedSettingsEnforcedEscalationUnrestrictedPaths
 	ManagedSettingsEnforcedEscalationUnrestrictedURLs                  = rpc.ManagedSettingsEnforcedEscalationUnrestrictedURLs
+	ManagedSettingsResolvedSourceClient                                = rpc.ManagedSettingsResolvedSourceClient
 	ManagedSettingsResolvedSourceDevice                                = rpc.ManagedSettingsResolvedSourceDevice
+	ManagedSettingsResolvedSourceMixed                                 = rpc.ManagedSettingsResolvedSourceMixed
 	ManagedSettingsResolvedSourceNone                                  = rpc.ManagedSettingsResolvedSourceNone
 	ManagedSettingsResolvedSourceServer                                = rpc.ManagedSettingsResolvedSourceServer
 	MCPHeadersRefreshCompletedOutcomeHeaders                           = rpc.MCPHeadersRefreshCompletedOutcomeHeaders

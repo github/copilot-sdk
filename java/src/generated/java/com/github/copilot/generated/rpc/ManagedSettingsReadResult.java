@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Pending permission request ID and the decision to apply (approve/reject and scope).
+ * Validated device-managed settings discovered before a session exists.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -23,14 +23,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionPermissionsHandlePendingPermissionRequestParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Request ID of the pending permission request */
-    @JsonProperty("requestId") String requestId,
-    /** The client's response to the pending permission prompt */
-    @JsonProperty("result") Object result,
-    /** Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin. */
-    @JsonProperty("decisionContext") PermissionDecisionContext decisionContext
+public record ManagedSettingsReadResult(
+    /** Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation. */
+    @JsonProperty("settingsJson") Object settingsJson,
+    /** Discovery or validation error text when managed settings could not be read safely. */
+    @JsonProperty("errorMessage") String errorMessage
 ) {
 }
