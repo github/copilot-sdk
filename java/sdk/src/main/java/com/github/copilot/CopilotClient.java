@@ -269,6 +269,9 @@ public final class CopilotClient implements AutoCloseable {
                 if (options.getPort() != 0) {
                     return inferConnectionFromOptions(options);
                 }
+                if (!options.isUseStdio() || options.getTcpConnectionToken() != null) {
+                    return inferConnectionFromOptions(options);
+                }
                 return RuntimeConnection.forInProcess();
             }
             if (!"stdio".equalsIgnoreCase(envValue)) {

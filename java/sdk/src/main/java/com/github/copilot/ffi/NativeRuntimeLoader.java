@@ -135,7 +135,19 @@ public final class NativeRuntimeLoader {
      *             if the CLI executable cannot be located
      */
     public static Path resolveEntrypoint() throws IOException {
-        Path runtimePath = resolve();
+        String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
+        return resolveEntrypoint(configuredCli, resolve());
+    }
+
+    static Path resolveEntrypoint(String configuredCli, Path runtimePath) throws IOException {
+        if (configuredCli != null && !configuredCli.isBlank()) {
+            Path configuredPath = Path.of(configuredCli).toAbsolutePath().normalize();
+            if (resolveFromCliPath(configuredCli) != null && Files.isRegularFile(configuredPath)
+                    && Files.size(configuredPath) > 0) {
+                return configuredPath;
+            }
+        }
+
         Path parent = runtimePath.getParent();
         String cliName = isWindows() ? CLI_FILENAME_WINDOWS : CLI_FILENAME;
         Path cliPath = parent.resolve(cliName);

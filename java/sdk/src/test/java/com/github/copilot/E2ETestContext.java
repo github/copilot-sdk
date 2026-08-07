@@ -357,6 +357,8 @@ public class E2ETestContext implements AutoCloseable {
             inProcessEnvGuards.add(guard);
             try {
                 options.setEnvironment(null);
+                options.setCwd(null);
+                options.setCliArgs(null);
                 return new CopilotClient(options, guard::close);
             } catch (RuntimeException e) {
                 guard.close();
@@ -377,8 +379,12 @@ public class E2ETestContext implements AutoCloseable {
 
     private boolean isInProcessMode(CopilotClientOptions options) {
         RuntimeConnection connection = options.getConnection();
-        if (connection instanceof InProcessRuntimeConnection) {
-            return true;
+        if (connection != null) {
+            return connection instanceof InProcessRuntimeConnection;
+        }
+        if (options.getRequestHandler() != null || options.getCliUrl() != null || options.getCliPath() != null
+                || options.getPort() != 0) {
+            return false;
         }
         String defaultConnection = System.getenv("COPILOT_SDK_DEFAULT_CONNECTION");
         return defaultConnection != null && "inprocess".equalsIgnoreCase(defaultConnection.trim());

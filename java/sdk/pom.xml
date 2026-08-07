@@ -243,6 +243,7 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <systemPropertyVariables>
                         <project.build.directory>${project.build.directory}</project.build.directory>
                         <project.build.finalName>${project.build.finalName}</project.build.finalName>
@@ -264,6 +265,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <runOrder>alphabetical</runOrder>
+                    <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
                     <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
                     <!--
