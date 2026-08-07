@@ -38,16 +38,28 @@ type AttributedPermissionResult struct {
 // Experimental: NewAttributedPermissionResult is part of an experimental API
 // and may change or be removed.
 func NewAttributedPermissionResult(result rpc.PermissionDecision, decisionContext *rpc.PermissionDecisionContext) *AttributedPermissionResult {
-	switch attributed := result.(type) {
-	case *AttributedPermissionResult:
-		result = attributed.PermissionDecision
-	case AttributedPermissionResult:
-		result = attributed.PermissionDecision
-	}
+	decision, _ := splitAttribution(result)
 	return &AttributedPermissionResult{
-		PermissionDecision: result,
+		PermissionDecision: decision,
 		DecisionContext:    decisionContext,
 	}
+}
+
+// splitAttribution separates an optionally attributed result into the bare
+// decision and its context, returning a nil context when there is none.
+//
+// Both the pointer and value forms are matched: embedding an interface promotes
+// its methods to the value type too, so an AttributedPermissionResult passed by
+// value also satisfies [rpc.PermissionDecision] and must not slip through
+// unwrapped.
+func splitAttribution(result rpc.PermissionDecision) (rpc.PermissionDecision, *rpc.PermissionDecisionContext) {
+	switch attributed := result.(type) {
+	case *AttributedPermissionResult:
+		return attributed.PermissionDecision, attributed.DecisionContext
+	case AttributedPermissionResult:
+		return attributed.PermissionDecision, attributed.DecisionContext
+	}
+	return result, nil
 }
 
 // PermissionHandler provides pre-built OnPermissionRequest implementations.
