@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.github.copilot.spike</groupId>
+    <artifactId>real-runtime-callback-spike</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Spike — Validate Callback Flow with Real runtime.node</name>
+    <description>
+        Minimal program to debug the InProcess FFI flow against the real
+        runtime.node binary. Calls copilot_runtime_host_start, connection_open,
+        and connection_close with full diagnostic logging and timeouts.
+    </description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jna.version>5.19.1</jna.version>
+        <!--
+            Root of the copilot-sdk monorepo, used to locate
+            nodejs/package-lock.json for the fetch-native.mjs script.
+            Override with -Dcopilot.sdk.root=... if building outside the
+            monorepo tree.
+        -->
+        <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
+        <copilot.native.classifier>linux-x64</copilot.native.classifier>
+        <copilot.native.staging>${project.build.directory}/native-staging</copilot.native.staging>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>${jna.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                Download the real runtime.node using the same fetch-native.mjs
+                script from the copilot-native module. Requires Node.js and npm.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>fetch-native-linux-x64</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>${copilot.sdk.root}/java/copilot-native/scripts/fetch-native.mjs</argument>
+                                <argument>${copilot.sdk.root}</argument>
+                                <argument>${copilot.native.staging}</argument>
+                                <argument>${copilot.native.classifier}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Produce an executable uber-jar with all dependencies -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.github.copilot.spike.RealRuntimeSpikeMain</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -391,7 +391,6 @@ public class E2ETestContext implements AutoCloseable {
             env.putAll(optionEnvironment);
             options.setEnvironment(null);
         }
-        env.put("COPILOT_CLI_PATH", cliPath);
         return env;
     }
 

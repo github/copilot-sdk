@@ -13,7 +13,9 @@
  *   3. Verify the downloaded tarball against the `integrity` value.
  *   4. Extract `package/prebuilds/<classifier>/runtime.node` to
  *      `<staging>/<classifier>/native/<classifier>/runtime.node`.
- *   5. Write `<staging>/<classifier>/native/<classifier>/platform.properties`.
+ *   5. Extract `package/copilot` (or `package/copilot.exe` on Windows) to
+ *      `<staging>/<classifier>/native/<classifier>/copilot`.
+ *   6. Write `<staging>/<classifier>/native/<classifier>/platform.properties`.
  *
  * Usage: node fetch-native.mjs <repoRoot> <stagingDir> <classifier>
  */
@@ -89,6 +91,19 @@ console.log(`Integrity verified (${integrity.slice(0, 20)}...).`);
 const memberPath = `package/prebuilds/${classifier}/runtime.node`;
 execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, memberPath], { stdio: 'inherit' });
 fs.renameSync(path.join(outDir, memberPath), runtimePath);
+
+// Extract the copilot CLI executable (necessary-and-sufficient runtime artifact invariant:
+// host_start needs both runtime.node and the copilot CLI from the same package version).
+const isWindows = classifier.startsWith('win32');
+const cliTarballMember = isWindows ? 'package/copilot.exe' : 'package/copilot';
+const cliFilename = isWindows ? 'copilot.exe' : 'copilot';
+const cliPath = path.join(resourceDir, cliFilename);
+execFileSync('tar', ['-xzf', tarballPath, '-C', outDir, cliTarballMember], { stdio: 'inherit' });
+fs.renameSync(path.join(outDir, cliTarballMember), cliPath);
+if (!isWindows) {
+  fs.chmodSync(cliPath, 0o755);
+}
+
 fs.rmSync(path.join(outDir, 'package'), { recursive: true, force: true });
 fs.rmSync(tarballPath, { force: true });
 

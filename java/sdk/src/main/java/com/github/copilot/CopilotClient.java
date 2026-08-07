@@ -474,25 +474,12 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Resolves the runtime entrypoint handed to the in-process host. Callers do not
-     * configure this: the bundled runtime is used unless an explicit override is
-     * present in the environment.
+     * Resolves the runtime entrypoint handed to the in-process host. The copilot
+     * CLI executable is resolved from the same bundled location as
+     * {@code runtime.node} — no environment variables or PATH search.
      */
     private static String resolveInProcessEntrypoint(CopilotClientOptions options) throws IOException {
-        String envPath = System.getenv(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV);
-        if (envPath != null && !envPath.isBlank()) {
-            return envPath;
-        }
-        String cliPath = options.getCliPath();
-        if (cliPath != null && !cliPath.isBlank()) {
-            return cliPath;
-        }
-        String discovered = NativeRuntimeLoader.findRuntimeOnPath();
-        if (discovered != null) {
-            return discovered;
-        }
-        throw new IOException("The in-process runtime could not be located. Add the runtime artifact for this"
-                + " platform to the classpath, or use a child-process connection.");
+        return NativeRuntimeLoader.resolveEntrypoint().toString();
     }
 
     private static void closeRuntimeHost(AutoCloseable host) {
