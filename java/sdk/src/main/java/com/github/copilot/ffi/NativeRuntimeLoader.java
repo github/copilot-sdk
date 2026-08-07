@@ -37,6 +37,8 @@ import java.util.Properties;
 public final class NativeRuntimeLoader {
 
     static final String RUNTIME_FILENAME = "runtime.node";
+    static final String CLI_FILENAME = "copilot";
+    static final String CLI_FILENAME_WINDOWS = "copilot.exe";
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
@@ -115,6 +117,45 @@ public final class NativeRuntimeLoader {
         String version = readVersion(loader);
         Path cacheBase = defaultCacheBase();
         return resolve(null, findRuntimeOnPath(), cacheBase, loader, classifier, version);
+    }
+
+    /**
+     * Resolves the copilot CLI executable from the same location as the bundled
+     * {@code runtime.node}. The CLI is used as {@code argv[0]} in
+     * {@code copilot_runtime_host_start} — the Rust runtime spawns it as a child
+     * process.
+     *
+     * <p>
+     * This method calls {@link #resolve()} to locate {@code runtime.node}, then
+     * looks for the {@code copilot} executable in the same directory. Both
+     * artifacts are extracted from the classifier JAR together.
+     *
+     * @return absolute path to the {@code copilot} CLI executable
+     * @throws IOException
+     *             if the CLI executable cannot be located
+     */
+    public static Path resolveEntrypoint() throws IOException {
+        String configuredCli = System.getenv(COPILOT_CLI_PATH_ENV);
+        return resolveEntrypoint(configuredCli, resolve());
+    }
+
+    static Path resolveEntrypoint(String configuredCli, Path runtimePath) throws IOException {
+        if (configuredCli != null && !configuredCli.isBlank()) {
+            Path configuredPath = Path.of(configuredCli).toAbsolutePath().normalize();
+            if (resolveFromCliPath(configuredCli) != null && Files.isRegularFile(configuredPath)
+                    && Files.size(configuredPath) > 0) {
+                return configuredPath;
+            }
+        }
+
+        Path parent = runtimePath.getParent();
+        String cliName = isWindows() ? CLI_FILENAME_WINDOWS : CLI_FILENAME;
+        Path cliPath = parent.resolve(cliName);
+        if (Files.isRegularFile(cliPath) && Files.size(cliPath) > 0) {
+            return cliPath;
+        }
+        throw new IOException("Copilot CLI executable not found at " + cliPath
+                + " — the classifier JAR must contain both runtime.node and the copilot binary");
     }
 
     /**
@@ -259,6 +300,7 @@ public final class NativeRuntimeLoader {
 
         // Step 1 — fast path: return an existing valid cache entry.
         if (isValidCachedFile(cached)) {
+            extractCliToCache(cacheDir, loader, classifier, publisher);
             return cached;
         }
 
@@ -281,7 +323,51 @@ public final class NativeRuntimeLoader {
             tryDelete(temp);
         }
 
+        // Step 5 — also extract the copilot CLI executable alongside runtime.node.
+        extractCliToCache(cacheDir, loader, classifier, publisher);
+
         return cached;
+    }
+
+    /**
+     * Extracts the copilot CLI executable from the classpath to the same cache
+     * directory as {@code runtime.node}. Idempotent — skips extraction if already
+     * present and valid.
+     */
+    static void extractCliToCache(Path cacheDir, ClassLoader loader, String classifier, AtomicPublisher publisher)
+            throws IOException {
+        String cliName = isWindows() ? CLI_FILENAME_WINDOWS : CLI_FILENAME;
+        String cliResourcePath = "native/" + classifier + "/" + cliName;
+        Path cachedCli = cacheDir.resolve(cliName);
+
+        if (isValidCachedFile(cachedCli)) {
+            return;
+        }
+
+        URL cliResource = loader.getResource(cliResourcePath);
+        if (cliResource == null) {
+            // CLI not on classpath — this is allowed for the COPILOT_CLI_PATH fallback
+            // path but will fail later in resolveEntrypoint() if InProcess is selected.
+            return;
+        }
+
+        Files.createDirectories(cacheDir);
+        Path temp = Files.createTempFile(cacheDir, "cli-tmp-", "");
+        try {
+            copyResourceToTemp(cliResource, cliResourcePath, temp);
+            publisher.publish(temp, cachedCli);
+        } finally {
+            tryDelete(temp);
+        }
+
+        // Set executable permission on non-Windows systems.
+        if (!isWindows()) {
+            try {
+                cachedCli.toFile().setExecutable(true, false);
+            } catch (SecurityException ignored) {
+                // Best-effort; the file may already be executable from the temp copy.
+            }
+        }
     }
 
     /**

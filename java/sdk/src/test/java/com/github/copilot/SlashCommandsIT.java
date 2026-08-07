@@ -22,6 +22,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.e2e.SkipInProcess;
+
 import com.github.copilot.generated.rpc.SessionCommandsListResult;
 import com.github.copilot.generated.rpc.SessionCommandsInvokeParams;
 import com.github.copilot.generated.rpc.SlashCommandAgentPromptResult;
@@ -41,6 +43,7 @@ import com.github.copilot.rpc.SessionConfig;
  * Requires the CLI to be installed and the user to be signed in. Uses
  * {@link TestUtil#findCliPath()} so the test harness binary is found in CI.
  */
+@SkipInProcess("Requires a live signed-in CLI subprocess and logged-in-user transport behavior rather than the replayed in-process harness")
 class SlashCommandsIT {
 
     private static CopilotClient client;

@@ -83,6 +83,7 @@ public final class InProcessEnvGuard implements AutoCloseable {
      * name -> previous value ({@code null} means the variable was not set before).
      */
     private final List<Map.Entry<String, String>> saved = new ArrayList<>();
+    private boolean closed;
 
     /**
      * Applies {@code applyEnv} to the native process environment block, saving the
@@ -116,7 +117,11 @@ public final class InProcessEnvGuard implements AutoCloseable {
      * before construction.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         List<Map.Entry<String, String>> reversed = new ArrayList<>(saved);
         Collections.reverse(reversed);
         for (Map.Entry<String, String> entry : reversed) {

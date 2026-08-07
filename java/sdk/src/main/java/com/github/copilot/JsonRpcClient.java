@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -59,6 +60,11 @@ class JsonRpcClient implements AutoCloseable {
 
     private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process,
             boolean ownsStreams) {
+        this(inputStream, outputStream, socket, process, ownsStreams, null);
+    }
+
+    private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process,
+            boolean ownsStreams, Consumer<JsonRpcClient> initializer) {
         this.inputStream = inputStream;
         this.outputStream = outputStream;
         this.socket = socket;
@@ -69,6 +75,9 @@ class JsonRpcClient implements AutoCloseable {
             t.setDaemon(true);
             return t;
         });
+        if (initializer != null) {
+            initializer.accept(this);
+        }
         startReader();
     }
 
@@ -98,6 +107,10 @@ class JsonRpcClient implements AutoCloseable {
      */
     public static JsonRpcClient fromSocket(Socket socket) throws IOException {
         return new JsonRpcClient(socket.getInputStream(), socket.getOutputStream(), socket, null);
+    }
+
+    static JsonRpcClient fromSocket(Socket socket, Consumer<JsonRpcClient> initializer) throws IOException {
+        return new JsonRpcClient(socket.getInputStream(), socket.getOutputStream(), socket, null, false, initializer);
     }
 
     /**

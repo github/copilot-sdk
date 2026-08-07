@@ -123,6 +123,7 @@ public final class CopilotClient implements AutoCloseable {
     private final Integer optionsPort;
     private final RuntimeConnection runtimeConnection;
     private final String effectiveConnectionToken;
+    private final Runnable closeHook;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
 
@@ -142,7 +143,12 @@ public final class CopilotClient implements AutoCloseable {
      *             if mutually exclusive options are provided
      */
     public CopilotClient(CopilotClientOptions options) {
+        this(options, null);
+    }
+
+    CopilotClient(CopilotClientOptions options, Runnable closeHook) {
         this.options = options != null ? options : new CopilotClientOptions();
+        this.closeHook = closeHook;
 
         // Resolve the transport: an explicit RuntimeConnection wins; otherwise the
         // COPILOT_SDK_DEFAULT_CONNECTION env var, or the individual transport options.
@@ -253,6 +259,19 @@ public final class CopilotClient implements AutoCloseable {
     static RuntimeConnection resolveDefaultConnection(CopilotClientOptions options, String envValue) {
         if (envValue != null && !envValue.isEmpty()) {
             if ("inprocess".equalsIgnoreCase(envValue)) {
+                // Explicit subprocess options take precedence over the env var default.
+                if (options.getCliUrl() != null && !options.getCliUrl().isEmpty()) {
+                    return inferConnectionFromOptions(options);
+                }
+                if (options.getCliPath() != null && !options.getCliPath().isEmpty()) {
+                    return inferConnectionFromOptions(options);
+                }
+                if (options.getPort() != 0) {
+                    return inferConnectionFromOptions(options);
+                }
+                if (!options.isUseStdio() || options.getTcpConnectionToken() != null) {
+                    return inferConnectionFromOptions(options);
+                }
                 return RuntimeConnection.forInProcess();
             }
             if (!"stdio".equalsIgnoreCase(envValue)) {
@@ -384,7 +403,7 @@ public final class CopilotClient implements AutoCloseable {
             return;
         }
 
-        rejectInProcessOption("Environment", options.getEnvironment() != null,
+        rejectInProcessOption("Environment", options.getEnvironment() != null && !options.getEnvironment().isEmpty(),
                 "set the variables on the host process environment instead");
         rejectInProcessOption("Telemetry", options.getTelemetry() != null,
                 "configure telemetry through the host process environment instead");
@@ -468,25 +487,12 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Resolves the runtime entrypoint handed to the in-process host. Callers do not
-     * configure this: the bundled runtime is used unless an explicit override is
-     * present in the environment.
+     * Resolves the runtime entrypoint handed to the in-process host. The copilot
+     * CLI executable is resolved from the same bundled location as
+     * {@code runtime.node} — no environment variables or PATH search.
      */
     private static String resolveInProcessEntrypoint(CopilotClientOptions options) throws IOException {
-        String envPath = System.getenv(NativeRuntimeLoader.COPILOT_CLI_PATH_ENV);
-        if (envPath != null && !envPath.isBlank()) {
-            return envPath;
-        }
-        String cliPath = options.getCliPath();
-        if (cliPath != null && !cliPath.isBlank()) {
-            return cliPath;
-        }
-        String discovered = NativeRuntimeLoader.findRuntimeOnPath();
-        if (discovered != null) {
-            return discovered;
-        }
-        throw new IOException("The in-process runtime could not be located. Add the runtime artifact for this"
-                + " platform to the classpath, or use a child-process connection.");
+        return NativeRuntimeLoader.resolveEntrypoint().toString();
     }
 
     private static void closeRuntimeHost(AutoCloseable host) {
@@ -1663,6 +1669,9 @@ public final class CopilotClient implements AutoCloseable {
             LOG.log(Level.FINE, "Error during close", e);
         } finally {
             shutdownOwnedExecutor();
+            if (closeHook != null) {
+                closeHook.run();
+            }
         }
     }
 

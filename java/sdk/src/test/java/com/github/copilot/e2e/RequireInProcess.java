@@ -44,7 +44,7 @@ public @interface RequireInProcess {
     /**
      * JUnit 5 execution condition backing {@link RequireInProcess}.
      */
-    final class Condition implements org.junit.jupiter.api.extension.ExecutionCondition {
+    public static final class Condition implements org.junit.jupiter.api.extension.ExecutionCondition {
 
         private static final String DEFAULT_CONNECTION_ENV_VAR = "COPILOT_SDK_DEFAULT_CONNECTION";
 
