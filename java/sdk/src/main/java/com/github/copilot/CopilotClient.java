@@ -478,7 +478,7 @@ public final class CopilotClient implements AutoCloseable {
     private static InProcessTransport openInProcessTransport(CopilotClientOptions options) throws IOException {
         FfiRuntimeHost host = new FfiRuntimeHost();
         try {
-            host.start(resolveInProcessEntrypoint(options), options);
+            host.start(resolveInProcessEntrypoint(), options);
         } catch (RuntimeException | Error e) {
             host.close();
             throw e;
@@ -491,7 +491,7 @@ public final class CopilotClient implements AutoCloseable {
      * CLI executable is resolved from the same bundled location as
      * {@code runtime.node} — no environment variables or PATH search.
      */
-    private static String resolveInProcessEntrypoint(CopilotClientOptions options) throws IOException {
+    private static String resolveInProcessEntrypoint() throws IOException {
         return NativeRuntimeLoader.resolveEntrypoint().toString();
     }
 
