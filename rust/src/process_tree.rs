@@ -351,10 +351,9 @@ mod platform {
 
 #[cfg(windows)]
 mod platform {
-    use std::io;
-    use std::ptr;
     #[cfg(test)]
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::{io, ptr};
 
     use tokio::process::{Child, Command};
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
