@@ -3,14 +3,19 @@
 package copilot
 
 import (
+	"fmt"
 	"os/exec"
 	"syscall"
 )
 
-// configureProcAttr configures platform-specific process attributes.
-// On Windows, this hides the console window to avoid distracting users in GUI apps.
+// configureProcAttr hides the console window on Windows.
 func configureProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 	}
+}
+
+// killProcessTreeByPid terminates the entire process tree via taskkill /T /F.
+func killProcessTreeByPid(pid int) {
+	_ = exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", pid)).Run()
 }

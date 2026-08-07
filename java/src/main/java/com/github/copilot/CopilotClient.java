@@ -480,19 +480,19 @@ public final class CopilotClient implements AutoCloseable {
                 // will never come just wastes time, so terminate the child
                 // immediately and only wait to reap it.
                 if (forceImmediately) {
-                    process.destroyForcibly();
+                    killProcessTree(process);
                     if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                         LOG.fine("Process did not terminate within force kill timeout");
                     }
                     return;
                 }
 
-                process.destroy();
+                killProcessTree(process);
                 if (process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     return;
                 }
 
-                process.destroyForcibly();
+                killProcessTree(process);
                 if (!process.waitFor(FORCE_KILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     LOG.fine("Process did not terminate within force kill timeout");
                 }
@@ -503,6 +503,22 @@ public final class CopilotClient implements AutoCloseable {
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error killing process", e);
         }
+    }
+
+    /**
+     * Terminate the runtime's process tree: snapshot all descendants, destroy
+     * them, then destroy the root.  Uses {@link ProcessHandle#descendants()}
+     * which works cross-platform (Windows, Linux, macOS).
+     */
+    private static void killProcessTree(Process process) {
+        try {
+            process.toHandle().descendants().forEach(ph -> {
+                try { ph.destroyForcibly(); } catch (Exception ignored) {}
+            });
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Error killing process descendants", e);
+        }
+        process.destroyForcibly();
     }
 
     /**
