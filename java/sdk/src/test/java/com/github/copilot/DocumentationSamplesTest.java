@@ -132,7 +132,7 @@ class DocumentationSamplesTest {
     private static List<Path> documentationFiles() throws IOException {
         Path root = Path.of("").toAbsolutePath();
         List<Path> files = new ArrayList<>();
-        files.add(root.resolve("README.md"));
+        files.add(root.resolve("../README.md"));
         files.add(root.resolve("jbang-example.java"));
         return files;
     }
