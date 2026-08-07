@@ -22,6 +22,9 @@ import type {
     PermissionRequest,
     PermissionRequestedData,
     PermissionRequestedEvent,
+    ManagedSettingsResolvedData,
+    ManagedSettingsResolvedEvent,
+    ManagedSettingsResolvedSource,
 
     // *Data payload types from the v0.3.0 generated session-event schema.
     AssistantMessageData,
@@ -163,6 +166,45 @@ describe("Session event type exports (#1156)", () => {
         expect(permissionEvent.data.permissionRequest.managedApprovalRequired).toBe(true);
     });
 
+    it("exposes managed settings client and mixed provenance", () => {
+        const sources: ManagedSettingsResolvedSource[] = [
+            "server",
+            "device",
+            "client",
+            "mixed",
+            "none",
+        ];
+        expect(sources).toEqual(["server", "device", "client", "mixed", "none"]);
+
+        const clientData: ManagedSettingsResolvedData = {
+            bypassPermissionsDisabled: true,
+            clientManaged: true,
+            deviceManaged: false,
+            failClosed: false,
+            managedKeys: ["permissions"],
+            serverManaged: false,
+            source: "client",
+        };
+        const clientEvent: ManagedSettingsResolvedEvent = {
+            ephemeral: true,
+            id: "evt-managed-1",
+            parentId: null,
+            timestamp: "2026-01-01T00:00:00.000Z",
+            type: "session.managed_settings_resolved",
+            data: clientData,
+        };
+        expect(clientEvent.data.source).toBe("client");
+        expect(clientEvent.data.clientManaged).toBe(true);
+
+        const { clientManaged: _, ...withoutClientManaged } = clientData;
+        const mixedData: ManagedSettingsResolvedData = {
+            ...withoutClientManaged,
+            source: "mixed",
+        };
+        expect(mixedData.source).toBe("mixed");
+        expect("clientManaged" in mixedData).toBe(false);
+    });
+
     it("rejects approveAll in managed settings sessions", () => {
         expect(() =>
             approveAll(
@@ -260,6 +302,7 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionStartData>();
         assertImportable<UserMessageData>();
         assertImportable<PermissionRequestedData>();
+        assertImportable<ManagedSettingsResolvedData>();
 
         assertImportable<AssistantMessageEvent>();
         assertImportable<ErrorEvent>();
@@ -270,6 +313,8 @@ describe("Session event type exports (#1156)", () => {
         assertImportable<ToolExecutionStartEvent>();
         assertImportable<UserMessageEvent>();
         assertImportable<PermissionRequestedEvent>();
+        assertImportable<ManagedSettingsResolvedEvent>();
+        assertImportable<ManagedSettingsResolvedSource>();
 
         // Supporting auxiliary types referenced by the *Data shapes — these
         // must round-trip through the package root too, otherwise consumers

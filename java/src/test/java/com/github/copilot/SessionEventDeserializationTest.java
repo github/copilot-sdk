@@ -114,6 +114,54 @@ public class SessionEventDeserializationTest {
     }
 
     @Test
+    void testManagedSettingsResolvedClientProvenance() throws Exception {
+        assertEquals("server", ManagedSettingsResolvedSource.SERVER.getValue());
+        assertEquals("device", ManagedSettingsResolvedSource.DEVICE.getValue());
+        assertEquals("client", ManagedSettingsResolvedSource.CLIENT.getValue());
+        assertEquals("mixed", ManagedSettingsResolvedSource.MIXED.getValue());
+        assertEquals("none", ManagedSettingsResolvedSource.NONE.getValue());
+
+        String clientJson = """
+                {
+                    "type": "session.managed_settings_resolved",
+                    "data": {
+                        "source": "client",
+                        "serverManaged": false,
+                        "deviceManaged": false,
+                        "clientManaged": true,
+                        "failClosed": false,
+                        "bypassPermissionsDisabled": true,
+                        "managedKeys": ["permissions"]
+                    }
+                }
+                """;
+
+        var clientEvent = assertInstanceOf(SessionManagedSettingsResolvedEvent.class, parseJson(clientJson));
+        assertEquals(ManagedSettingsResolvedSource.CLIENT, clientEvent.getData().source());
+        assertEquals(Boolean.TRUE, clientEvent.getData().clientManaged());
+        assertTrue(MAPPER.writeValueAsString(clientEvent).contains("\"clientManaged\":true"));
+
+        String mixedJson = """
+                {
+                    "type": "session.managed_settings_resolved",
+                    "data": {
+                        "source": "mixed",
+                        "serverManaged": true,
+                        "deviceManaged": true,
+                        "failClosed": false,
+                        "bypassPermissionsDisabled": true,
+                        "managedKeys": ["permissions"]
+                    }
+                }
+                """;
+
+        var mixedEvent = assertInstanceOf(SessionManagedSettingsResolvedEvent.class, parseJson(mixedJson));
+        assertEquals(ManagedSettingsResolvedSource.MIXED, mixedEvent.getData().source());
+        assertNull(mixedEvent.getData().clientManaged());
+        assertFalse(MAPPER.writeValueAsString(mixedEvent).contains("\"clientManaged\""));
+    }
+
+    @Test
     void testParseSessionInfoEvent() throws Exception {
         String json = """
                 {
@@ -897,15 +945,16 @@ public class SessionEventDeserializationTest {
     @Test
     void testParseAllEventTypes() throws Exception {
         String[] types = {"session.start", "session.resume", "session.error", "session.idle", "session.info",
-                "session.model_change", "session.mode_changed", "session.plan_changed",
-                "session.workspace_file_changed", "session.handoff", "session.truncation", "session.snapshot_rewind",
-                "session.usage_info", "session.compaction_start", "session.compaction_complete", "user.message",
-                "pending_messages.modified", "assistant.turn_start", "assistant.intent", "assistant.reasoning",
-                "assistant.reasoning_delta", "assistant.message", "assistant.message_delta", "assistant.turn_end",
-                "assistant.usage", "abort", "tool.user_requested", "tool.execution_start",
-                "tool.execution_partial_result", "tool.execution_progress", "tool.execution_complete",
-                "subagent.started", "subagent.completed", "subagent.failed", "subagent.selected", "hook.start",
-                "hook.end", "system.message", "session.shutdown", "skill.invoked"};
+                "session.model_change", "session.mode_changed", "session.managed_settings_resolved",
+                "session.managed_settings_enforced", "session.plan_changed", "session.workspace_file_changed",
+                "session.handoff", "session.truncation", "session.snapshot_rewind", "session.usage_info",
+                "session.compaction_start", "session.compaction_complete", "user.message", "pending_messages.modified",
+                "assistant.turn_start", "assistant.intent", "assistant.reasoning", "assistant.reasoning_delta",
+                "assistant.message", "assistant.message_delta", "assistant.turn_end", "assistant.usage", "abort",
+                "tool.user_requested", "tool.execution_start", "tool.execution_partial_result",
+                "tool.execution_progress", "tool.execution_complete", "subagent.started", "subagent.completed",
+                "subagent.failed", "subagent.selected", "hook.start", "hook.end", "system.message", "session.shutdown",
+                "skill.invoked"};
 
         for (String type : types) {
             String json = """

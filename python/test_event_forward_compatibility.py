@@ -18,10 +18,12 @@ from copilot.session_events import (
     ElicitationCompletedAction,
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
+    ManagedSettingsResolvedSource,
     PermissionPromptRequestMemory,
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionEventType,
+    SessionManagedSettingsResolvedData,
     SessionTaskCompleteData,
     UserMessageAgentMode,
     session_event_from_dict,
@@ -135,6 +137,42 @@ class TestEventForwardCompatibility:
             properties={"answer": {"type": "string"}}, type="object"
         )
         assert schema.to_dict()["type"] == "object"
+
+    def test_managed_settings_client_provenance_round_trips(self):
+        """Managed settings events should preserve truthful client provenance."""
+        assert [source.value for source in ManagedSettingsResolvedSource] == [
+            "server",
+            "device",
+            "client",
+            "mixed",
+            "none",
+        ]
+
+        client = SessionManagedSettingsResolvedData(
+            bypass_permissions_disabled=True,
+            client_managed=True,
+            device_managed=False,
+            fail_closed=False,
+            managed_keys=["permissions"],
+            server_managed=False,
+            source=ManagedSettingsResolvedSource.CLIENT,
+        )
+        serialized = client.to_dict()
+        assert serialized["source"] == "client"
+        assert serialized["clientManaged"] is True
+        assert SessionManagedSettingsResolvedData.from_dict(serialized) == client
+
+        mixed = SessionManagedSettingsResolvedData(
+            bypass_permissions_disabled=True,
+            device_managed=True,
+            fail_closed=False,
+            managed_keys=["permissions"],
+            server_managed=True,
+            source=ManagedSettingsResolvedSource.MIXED,
+        )
+        serialized = mixed.to_dict()
+        assert serialized["source"] == "mixed"
+        assert "clientManaged" not in serialized
 
     def test_data_shim_preserves_raw_mapping_values(self):
         """Compatibility Data should keep arbitrary nested mappings as plain dicts."""

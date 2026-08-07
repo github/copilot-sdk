@@ -234,6 +234,10 @@ public final class CreateSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableManagedSettings;
 
+    @JsonProperty("managedSettings")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private ManagedSettings managedSettings;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -1094,5 +1098,18 @@ public final class CreateSessionRequest {
      */
     public void clearEnableManagedSettings() {
         this.enableManagedSettings = null;
+    }
+
+    /** @return host-injected managed settings, or {@code null} when unset */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * @param managedSettings
+     *            host-injected managed settings
+     */
+    public void setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
     }
 }

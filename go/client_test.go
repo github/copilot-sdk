@@ -3563,3 +3563,162 @@ func TestIsTerminal(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionRequests_ManagedSettings(t *testing.T) {
+	settings := &ManagedSettings{
+		Permissions: &ManagedSettingsPermissions{
+			DisableBypassPermissionsMode: DisableBypassPermissionsModeDisable,
+			Deny:                         []string{"Shell(git push)"},
+			Ask:                          []string{"Domain(publish.example)"},
+			Allow:                        []string{"Read(**)"},
+		},
+	}
+
+	expectedPermissions := map[string]any{
+		"disableBypassPermissionsMode": "disable",
+		"deny":                         []any{"Shell(git push)"},
+		"ask":                          []any{"Domain(publish.example)"},
+		"allow":                        []any{"Read(**)"},
+	}
+
+	t.Run("direct injection enables managed safeguards", func(t *testing.T) {
+		if !hasManagedSettings(nil, settings) {
+			t.Fatal("expected injected managed settings to enable managed safeguards")
+		}
+		if hasManagedSettings(nil, nil) {
+			t.Fatal("expected an ordinary session to remain unmanaged")
+		}
+	})
+
+	t.Run("includes managedSettings on create when set", func(t *testing.T) {
+		req := createSessionRequest{EnableManagedSettings: Bool(true), ManagedSettings: settings}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableManagedSettings"] != true {
+			t.Errorf("Expected enableManagedSettings true, got %v", m["enableManagedSettings"])
+		}
+		ms, ok := m["managedSettings"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+		perms, ok := ms["permissions"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected permissions object, got %v", ms["permissions"])
+		}
+		if !reflect.DeepEqual(perms, expectedPermissions) {
+			t.Errorf("permissions mismatch:\n got: %#v\nwant: %#v", perms, expectedPermissions)
+		}
+	})
+
+	t.Run("includes managedSettings on resume when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["managedSettings"].(map[string]any); !ok {
+			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+	})
+
+	t.Run("omits managedSettings when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["managedSettings"]; ok {
+			t.Error("Expected managedSettings to be omitted when nil")
+		}
+	})
+
+	t.Run("preserves explicit empty permission arrays", func(t *testing.T) {
+		// A non-nil empty allow list is restrictive: it admits no operations.
+		// Preserve field presence while still omitting nil slices.
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				DisableBypassPermissionsMode: DisableBypassPermissionsModeDisable,
+				Deny:                         []string{},
+				Ask:                          []string{},
+				Allow:                        []string{},
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		if perms["disableBypassPermissionsMode"] != "disable" {
+			t.Errorf("Expected disableBypassPermissionsMode preserved, got %v", perms["disableBypassPermissionsMode"])
+		}
+		for _, key := range []string{"deny", "ask", "allow"} {
+			if value, ok := perms[key].([]any); !ok || len(value) != 0 {
+				t.Errorf("Expected %s to be an explicit empty array, got %v", key, perms[key])
+			}
+		}
+	})
+
+	t.Run("distinguishes explicit empty allow from an absent allow", func(t *testing.T) {
+		// Security-critical: a present empty allow list admits nothing, while an
+		// absent allow list imposes no allow restriction. The wire output must
+		// tell these apart per-field, so an explicit empty slice serializes as
+		// `[]` while a nil slice is omitted entirely.
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				Allow: []string{}, // present but empty: admit nothing
+				// Deny and Ask left nil: no such restriction supplied.
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+
+		allow, ok := perms["allow"].([]any)
+		if !ok || len(allow) != 0 {
+			t.Errorf("Expected allow to be an explicit empty array, got %v", perms["allow"])
+		}
+		if _, present := perms["deny"]; present {
+			t.Errorf("Expected deny to be omitted when nil, got %v", perms["deny"])
+		}
+		if _, present := perms["ask"]; present {
+			t.Errorf("Expected ask to be omitted when nil, got %v", perms["ask"])
+		}
+	})
+
+	t.Run("distinguishes explicit empty arrays on resume", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				Deny:  []string{},
+				Ask:   []string{},
+				Allow: []string{},
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		for _, key := range []string{"deny", "ask", "allow"} {
+			if value, ok := perms[key].([]any); !ok || len(value) != 0 {
+				t.Errorf("Expected %s to be an explicit empty array on resume, got %v", key, perms[key])
+			}
+		}
+	})
+}

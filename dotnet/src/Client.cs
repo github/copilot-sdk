@@ -785,7 +785,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(
             config.OnPermissionRequest,
-            config.EnableManagedSettings is true);
+            config.EnableManagedSettings is true || config.ManagedSettings is not null);
         session.RegisterMcpAuthHandler(config.OnMcpAuthRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
@@ -1205,6 +1205,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
+                ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 
@@ -1425,6 +1426,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
+                ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories);
 
@@ -2781,6 +2783,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
+        [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null);
@@ -2895,6 +2898,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
+        [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null);

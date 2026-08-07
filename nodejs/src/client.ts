@@ -1467,7 +1467,9 @@ export class CopilotClient {
                 this.onGetTraceContext,
                 {
                     mcpAuthHandler: config.onMcpAuthRequest,
-                    managedSettingsEnabled: config.enableManagedSettings,
+                    managedSettingsEnabled:
+                        config.enableManagedSettings === true ||
+                        config.managedSettings !== undefined,
                 }
             );
             s.registerTools(config.tools);
@@ -1608,6 +1610,7 @@ export class CopilotClient {
                 cloud: config.cloud,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const {
@@ -1708,7 +1711,8 @@ export class CopilotClient {
             this.onGetTraceContext,
             {
                 mcpAuthHandler: config.onMcpAuthRequest,
-                managedSettingsEnabled: config.enableManagedSettings,
+                managedSettingsEnabled:
+                    config.enableManagedSettings === true || config.managedSettings !== undefined,
             }
         );
         session.registerTools(config.tools);
@@ -1855,6 +1859,7 @@ export class CopilotClient {
                 openCanvases: config.openCanvases,
                 expAssignments: config.expAssignments,
                 enableManagedSettings: config.enableManagedSettings,
+                managedSettings: config.managedSettings,
             });
 
             const { workspacePath, capabilities, openCanvases } = response as {
