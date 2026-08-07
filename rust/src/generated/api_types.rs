@@ -8484,7 +8484,7 @@ pub struct ModelSetReasoningEffortResult {
     pub reasoning_effort: String,
 }
 
-/// Optional GitHub token, working directory, and cache controls used to resolve available models.
+/// Optional GitHub token and working directory used to resolve available models.
 ///
 /// <div class="warning">
 ///
@@ -8501,9 +8501,6 @@ pub struct ModelsListRequest {
     /// GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_hub_token: Option<String>,
-    /// When true, bypasses cached model data and refreshes the available model list.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip_cache: Option<bool>,
 }
 
 /// Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.

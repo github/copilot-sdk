@@ -497,25 +497,16 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
 }
 
 /**
- * Add model listing options until the pinned CLI schema includes the fields.
+ * Add repository scoping to model listing until the pinned CLI schema includes the field.
  */
-export function addModelsListRequestOptions<T extends JSONSchema7>(schema: T): T {
+export function addCwdToModelsListRequest<T extends JSONSchema7>(schema: T): T {
     const cloned = cloneSchemaForCodegen(schema);
-    const properties: Record<string, JSONSchema7> = {
-        cwd: {
-            description:
-                "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
-            type: ["string", "null"],
-        },
-        skipCache: {
-            description:
-                "When true, bypasses cached model data and refreshes the available model list.",
-            type: ["boolean", "null"],
-        },
+    const property: JSONSchema7 = {
+        description:
+            "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
+        type: ["string", "null"],
     };
-    for (const property of Object.values(properties)) {
-        (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
-    }
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
 
     for (const definitions of [cloned.definitions, cloned.$defs]) {
         if (!definitions) continue;
@@ -533,20 +524,13 @@ export function addModelsListRequestOptions<T extends JSONSchema7>(schema: T): T
                 (candidate.type === "object" || candidate.properties !== undefined),
         );
         if (!objectDefinition) continue;
-
-        let patched = false;
-        for (const [name, property] of Object.entries(properties)) {
-            if (objectDefinition.properties?.[name]) continue;
-            objectDefinition.properties = {
-                ...objectDefinition.properties,
-                [name]: cloneSchemaForCodegen(property),
-            };
-            patched = true;
-        }
-        if (patched) {
-            requestDefinition.description =
-                "Optional GitHub token, working directory, and cache controls used to resolve available models.";
-        }
+        if (objectDefinition.properties?.cwd) continue;
+        requestDefinition.description =
+            "Optional GitHub token and working directory used to resolve available models.";
+        objectDefinition.properties = {
+            ...objectDefinition.properties,
+            cwd: cloneSchemaForCodegen(property),
+        };
     }
 
     return cloned;

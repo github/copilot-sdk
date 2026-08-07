@@ -106,19 +106,15 @@ fn permission_event_exposes_managed_approval_required() {
 }
 
 #[test]
-fn models_list_request_serializes_repository_options() {
+fn models_list_request_serializes_repository_cwd() {
     let request = ModelsListRequest {
         cwd: Some("/workspace/repository".to_string()),
         git_hub_token: None,
-        skip_cache: Some(true),
     };
 
     assert_eq!(
         serde_json::to_value(request).unwrap(),
-        serde_json::json!({
-            "cwd": "/workspace/repository",
-            "skipCache": true
-        })
+        serde_json::json!({ "cwd": "/workspace/repository" })
     );
     assert_eq!(
         serde_json::to_value(ModelsListRequest::default()).unwrap(),
