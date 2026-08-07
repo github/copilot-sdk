@@ -4045,7 +4045,7 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
 }
 
 #[tokio::test]
-async fn rpc_namespace_client_models_list_sends_repository_cwd() {
+async fn rpc_namespace_client_models_list_sends_repository_options() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
 
@@ -4057,6 +4057,7 @@ async fn rpc_namespace_client_models_list_sends_repository_cwd() {
             .list_with_params(ModelsListRequest {
                 cwd: Some("/workspace/repository".to_string()),
                 git_hub_token: None,
+                skip_cache: Some(true),
             })
             .await
     });
@@ -4066,7 +4067,8 @@ async fn rpc_namespace_client_models_list_sends_repository_cwd() {
     assert_eq!(
         request["params"],
         serde_json::json!({
-            "cwd": "/workspace/repository"
+            "cwd": "/workspace/repository",
+            "skipCache": true
         })
     );
     server

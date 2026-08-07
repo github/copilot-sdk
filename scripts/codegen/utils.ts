@@ -497,29 +497,56 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
 }
 
 /**
- * Add repository scoping to model listing until the pinned CLI schema includes the field.
+ * Add model listing options until the pinned CLI schema includes the fields.
  */
-export function addCwdToModelsListRequest<T extends JSONSchema7>(schema: T): T {
+export function addModelsListRequestOptions<T extends JSONSchema7>(schema: T): T {
     const cloned = cloneSchemaForCodegen(schema);
-    const property: JSONSchema7 = {
-        description:
-            "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
-        type: ["string", "null"],
+    const properties: Record<string, JSONSchema7> = {
+        cwd: {
+            description:
+                "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
+            type: ["string", "null"],
+        },
+        skipCache: {
+            description:
+                "When true, bypasses cached model data and refreshes the available model list.",
+            type: ["boolean", "null"],
+        },
     };
-    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+    for (const property of Object.values(properties)) {
+        (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+    }
 
     for (const definitions of [cloned.definitions, cloned.$defs]) {
         if (!definitions) continue;
         const definition = definitions.ModelsListRequest;
         if (!definition || typeof definition !== "object") continue;
-        const objectDefinition = definition as JSONSchema7;
-        if (objectDefinition.properties?.cwd) continue;
-        objectDefinition.description =
-            "Optional GitHub token and working directory used to resolve available models.";
-        objectDefinition.properties = {
-            ...objectDefinition.properties,
-            cwd: cloneSchemaForCodegen(property),
-        };
+        const requestDefinition = definition as JSONSchema7;
+        const objectDefinition = [
+            requestDefinition,
+            ...(requestDefinition.anyOf ?? []),
+            ...(requestDefinition.oneOf ?? []),
+        ].find(
+            (candidate): candidate is JSONSchema7 =>
+                typeof candidate === "object" &&
+                candidate !== null &&
+                (candidate.type === "object" || candidate.properties !== undefined),
+        );
+        if (!objectDefinition) continue;
+
+        let patched = false;
+        for (const [name, property] of Object.entries(properties)) {
+            if (objectDefinition.properties?.[name]) continue;
+            objectDefinition.properties = {
+                ...objectDefinition.properties,
+                [name]: cloneSchemaForCodegen(property),
+            };
+            patched = true;
+        }
+        if (patched) {
+            requestDefinition.description =
+                "Optional GitHub token, working directory, and cache controls used to resolve available models.";
+        }
     }
 
     return cloned;
