@@ -342,6 +342,7 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("sess-33", params.sessionId());
         assertEquals("req-1", params.requestId());
         assertEquals("allow", params.result());
+        assertNull(params.decisionContext());
     }
 
     @Test
@@ -711,6 +712,7 @@ class GeneratedRpcRecordsCoverageTest {
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
+        assertEquals("deploy", result.skills().get(0).commandName());
         assertEquals(SkillSource.PROJECT, result.skills().get(0).source());
         assertTrue(result.skills().get(0).enabled());
     }
