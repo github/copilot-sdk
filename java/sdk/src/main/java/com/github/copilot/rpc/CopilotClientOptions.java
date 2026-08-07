@@ -212,6 +212,7 @@ public class CopilotClientOptions {
      *         {@link #isUseStdio()}, {@link #getCliUrl()} and {@link #getCliPath()}
      */
     @JsonIgnore
+    @CopilotExperimental
     public RuntimeConnection getConnection() {
         return connection;
     }
@@ -233,6 +234,7 @@ public class CopilotClientOptions {
      *            individual transport options
      * @return this options instance for method chaining
      */
+    @CopilotExperimental
     public CopilotClientOptions setConnection(RuntimeConnection connection) {
         this.connection = connection;
         return this;
