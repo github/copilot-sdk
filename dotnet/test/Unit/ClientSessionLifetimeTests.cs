@@ -573,13 +573,16 @@ public sealed class ClientSessionLifetimeTests
 
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (_, _) => Task.FromResult(
-                PermissionDecision.ApproveOnce().WithContext(new PermissionDecisionContext
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionApproveOnce
                 {
-                    Outcome = PermissionDecisionOutcome.AutoApproved,
-                    Source = PermissionDecisionSource.HostPolicy,
-                    Surface = PermissionDecisionSurface.Sdk
-                }))
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutoApproved,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
         });
 
         DispatchEvent(session, new PermissionRequestedEvent
@@ -633,7 +636,7 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task PermissionResponse_Uses_Latest_Context_When_WithContext_Called_Twice()
+    public async Task PermissionResponse_Uses_Latest_Context_When_Reassigned()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -641,20 +644,25 @@ public sealed class ClientSessionLifetimeTests
 
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (_, _) => Task.FromResult(
-                PermissionDecision.ApproveOnce()
-                    .WithContext(new PermissionDecisionContext
+            OnPermissionRequest = (_, _) =>
+            {
+                var decision = new PermissionDecisionApproveOnce
+                {
+                    DecisionContext = new PermissionDecisionContext
                     {
                         Outcome = PermissionDecisionOutcome.PromptedUser,
                         Source = PermissionDecisionSource.HumanResponse,
                         Surface = PermissionDecisionSurface.Tui
-                    })
-                    .WithContext(new PermissionDecisionContext
-                    {
-                        Outcome = PermissionDecisionOutcome.AutoApproved,
-                        Source = PermissionDecisionSource.HostPolicy,
-                        Surface = PermissionDecisionSurface.Sdk
-                    }))
+                    }
+                };
+                decision.DecisionContext = new PermissionDecisionContext
+                {
+                    Outcome = PermissionDecisionOutcome.AutoApproved,
+                    Source = PermissionDecisionSource.HostPolicy,
+                    Surface = PermissionDecisionSurface.Sdk
+                };
+                return Task.FromResult<PermissionDecision>(decision);
+            }
         });
 
         DispatchEvent(session, new PermissionRequestedEvent
@@ -687,13 +695,16 @@ public sealed class ClientSessionLifetimeTests
             OnPermissionRequest = (_, _) =>
             {
                 handlerInvoked.TrySetResult();
-                return Task.FromResult(
-                    PermissionDecision.NoResult().WithContext(new PermissionDecisionContext
+                return Task.FromResult<PermissionDecision>(
+                    new PermissionDecisionNoResult
                     {
-                        Outcome = PermissionDecisionOutcome.PromptedUser,
-                        Source = PermissionDecisionSource.HumanResponse,
-                        Surface = PermissionDecisionSurface.Sdk
-                    }));
+                        DecisionContext = new PermissionDecisionContext
+                        {
+                            Outcome = PermissionDecisionOutcome.PromptedUser,
+                            Source = PermissionDecisionSource.HumanResponse,
+                            Surface = PermissionDecisionSurface.Sdk
+                        }
+                    });
             }
         });
 
@@ -722,13 +733,17 @@ public sealed class ClientSessionLifetimeTests
 
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (_, _) => Task.FromResult(
-                PermissionDecision.Reject("denied by policy").WithContext(new PermissionDecisionContext
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(
+                new PermissionDecisionReject
                 {
-                    Outcome = PermissionDecisionOutcome.AutopilotDenied,
-                    Source = PermissionDecisionSource.HostPolicy,
-                    Surface = PermissionDecisionSurface.Sdk
-                }))
+                    Feedback = "denied by policy",
+                    DecisionContext = new PermissionDecisionContext
+                    {
+                        Outcome = PermissionDecisionOutcome.AutopilotDenied,
+                        Source = PermissionDecisionSource.HostPolicy,
+                        Surface = PermissionDecisionSurface.Sdk
+                    }
+                })
         });
 
         DispatchEvent(session, new PermissionRequestedEvent
