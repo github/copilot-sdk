@@ -7,6 +7,8 @@ package com.github.copilot.rpc;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Spawns a runtime child process and communicates over its stdin/stdout.
  * Construct with {@link RuntimeConnection#forStdio()} or
@@ -14,6 +16,7 @@ import java.util.List;
  *
  * @since 1.0.0
  */
+@CopilotExperimental
 public final class StdioRuntimeConnection extends RuntimeConnection {
 
     private String path;

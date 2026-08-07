@@ -7,12 +7,15 @@ package com.github.copilot.rpc;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Spawns a runtime child process listening on a TCP socket and connects to it.
  * Construct with {@link RuntimeConnection#forTcp()}.
  *
  * @since 1.0.0
  */
+@CopilotExperimental
 public final class TcpRuntimeConnection extends RuntimeConnection {
 
     private String path;

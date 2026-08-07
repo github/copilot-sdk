@@ -26,6 +26,7 @@ import com.github.copilot.CopilotExperimental;
  *
  * @since 1.0.0
  */
+@CopilotExperimental
 public abstract sealed class RuntimeConnection
         permits StdioRuntimeConnection, TcpRuntimeConnection, UriRuntimeConnection, InProcessRuntimeConnection {
 

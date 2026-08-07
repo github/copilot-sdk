@@ -4,12 +4,15 @@
 
 package com.github.copilot.rpc;
 
+import com.github.copilot.CopilotExperimental;
+
 /**
  * Connects to an already-running runtime at the configured URL. Construct with
  * {@link RuntimeConnection#forUri(String)}.
  *
  * @since 1.0.0
  */
+@CopilotExperimental
 public final class UriRuntimeConnection extends RuntimeConnection {
 
     private final String url;
