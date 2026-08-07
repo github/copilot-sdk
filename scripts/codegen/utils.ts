@@ -496,6 +496,35 @@ export function addManagedApprovalRequiredToPermissionRequests<T extends JSONSch
     return cloned;
 }
 
+/**
+ * Add repository scoping to model listing until the pinned CLI schema includes the field.
+ */
+export function addCwdToModelsListRequest<T extends JSONSchema7>(schema: T): T {
+    const cloned = cloneSchemaForCodegen(schema);
+    const property: JSONSchema7 = {
+        description:
+            "Working directory used to apply repository model policy. When omitted, model availability is account-global.",
+        type: ["string", "null"],
+    };
+    (property as Record<string, unknown>)["x-copilot-sdk-append-last"] = true;
+
+    for (const definitions of [cloned.definitions, cloned.$defs]) {
+        if (!definitions) continue;
+        const definition = definitions.ModelsListRequest;
+        if (!definition || typeof definition !== "object") continue;
+        const objectDefinition = definition as JSONSchema7;
+        if (objectDefinition.properties?.cwd) continue;
+        objectDefinition.description =
+            "Optional GitHub token and working directory used to resolve available models.";
+        objectDefinition.properties = {
+            ...objectDefinition.properties,
+            cwd: cloneSchemaForCodegen(property),
+        };
+    }
+
+    return cloned;
+}
+
 export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
     if (!schema || typeof schema !== "object") return undefined;
 

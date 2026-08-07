@@ -5,7 +5,8 @@
 
 use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
-    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, TasksStartAgentRequest,
+    ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelsListRequest,
+    TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{PermissionRequest, PermissionRequestedData};
 
@@ -102,6 +103,19 @@ fn permission_event_exposes_managed_approval_required() {
         panic!("expected read permission request");
     };
     assert_eq!(request.managed_approval_required, Some(true));
+}
+
+#[test]
+fn models_list_request_serializes_repository_cwd() {
+    let request = ModelsListRequest {
+        cwd: Some("/workspace/repository".to_string()),
+        git_hub_token: None,
+    };
+
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({ "cwd": "/workspace/repository" })
+    );
 }
 
 fn running_extension(id: &str, name: &str) -> Extension {

@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
+	addCwdToModelsListRequest,
 	addManagedApprovalRequiredToPermissionRequests,
 	type ApiSchema,
 	type DefinitionCollections,
@@ -2219,7 +2220,7 @@ async function generate(): Promise<void> {
 	);
 	const apiSchema = propagateInternalVisibility(
 		postProcessSchema(
-			stripBooleanLiterals(apiRaw) as JSONSchema7,
+			stripBooleanLiterals(addCwdToModelsListRequest(apiRaw)) as JSONSchema7,
 		),
 	) as unknown as ApiSchema;
 
