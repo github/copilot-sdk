@@ -23,9 +23,11 @@ use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
     CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
     ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig, SessionId,
-    SetModelOptions, Tool, ToolInvocation, ToolResult,
+    SetModelOptions, Tool, ToolInvocation, ToolResult, WaitForCanvasOptions,
 };
-use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
+use github_copilot_sdk::{
+    Client, ContextTier, ErrorKind, ProtocolErrorKind, SessionErrorKind, tool,
+};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -75,6 +77,15 @@ fn test_canvas(id: &str) -> CanvasDeclaration {
 
 fn test_canvas_handler() -> Arc<dyn CanvasHandler> {
     Arc::new(TestCanvasHandler)
+}
+
+fn discovered_canvas(canvas_id: &str, extension_id: &str) -> Value {
+    serde_json::json!({
+        "canvasId": canvas_id,
+        "extensionId": extension_id,
+        "displayName": "Test Canvas",
+        "description": "Test canvas description"
+    })
 }
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
@@ -3390,6 +3401,217 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     assert_eq!(open[0].instance_id, "counter-1");
     let caps = session.capabilities();
     assert_eq!(caps.ui.unwrap().canvases, Some(true));
+}
+
+#[tokio::test]
+async fn wait_for_canvas_returns_matching_existing_canvas() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(
+                    WaitForCanvasOptions::new("counter", TIMEOUT)
+                        .with_extension_id("project:counter"),
+                )
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.canvas.list");
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "canvases": [
+                    discovered_canvas("counter", "user:counter"),
+                    discovered_canvas("counter", "project:counter")
+                ]
+            }),
+        )
+        .await;
+
+    let canvas = timeout(TIMEOUT, waiter).await.unwrap().unwrap().unwrap();
+    assert_eq!(canvas.canvas_id, "counter");
+    assert_eq!(canvas.extension_id, "project:counter");
+}
+
+#[tokio::test]
+async fn wait_for_canvas_handles_registration_during_initial_list() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(WaitForCanvasOptions::new("counter", TIMEOUT))
+                .await
+        }
+    });
+
+    let initial_list = server.read_request().await;
+    assert_eq!(initial_list["method"], "session.canvas.list");
+    server
+        .send_event(
+            "session.canvas.registry_changed",
+            serde_json::json!({
+                "canvases": [discovered_canvas("counter", "project:counter")]
+            }),
+        )
+        .await;
+    server
+        .respond(&initial_list, serde_json::json!({ "canvases": [] }))
+        .await;
+
+    let refreshed_list = server.read_request().await;
+    assert_eq!(refreshed_list["method"], "session.canvas.list");
+    server
+        .respond(
+            &refreshed_list,
+            serde_json::json!({
+                "canvases": [discovered_canvas("counter", "project:counter")]
+            }),
+        )
+        .await;
+
+    let canvas = timeout(TIMEOUT, waiter).await.unwrap().unwrap().unwrap();
+    assert_eq!(canvas.extension_id, "project:counter");
+}
+
+#[tokio::test]
+async fn wait_for_canvas_resyncs_after_subscription_lag() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(WaitForCanvasOptions::new("counter", TIMEOUT))
+                .await
+        }
+    });
+
+    let initial_list = server.read_request().await;
+    for sequence in 0..600 {
+        server
+            .send_event("test.event", serde_json::json!({ "sequence": sequence }))
+            .await;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    server
+        .respond(&initial_list, serde_json::json!({ "canvases": [] }))
+        .await;
+
+    let refreshed_list = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(refreshed_list["method"], "session.canvas.list");
+    server
+        .respond(
+            &refreshed_list,
+            serde_json::json!({
+                "canvases": [discovered_canvas("counter", "project:counter")]
+            }),
+        )
+        .await;
+
+    let canvas = timeout(TIMEOUT, waiter).await.unwrap().unwrap().unwrap();
+    assert_eq!(canvas.canvas_id, "counter");
+}
+
+#[tokio::test]
+async fn wait_for_canvas_times_out_without_sending_a_turn() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(WaitForCanvasOptions::new(
+                    "missing",
+                    Duration::from_millis(50),
+                ))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.canvas.list");
+    server
+        .respond(&request, serde_json::json!({ "canvases": [] }))
+        .await;
+
+    let error = timeout(TIMEOUT, waiter)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        ErrorKind::Session(SessionErrorKind::CanvasWaitTimeout { canvas_id, .. })
+            if canvas_id == "missing"
+    ));
+}
+
+#[tokio::test]
+async fn wait_for_canvas_stops_when_session_closes() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(WaitForCanvasOptions::new("missing", TIMEOUT))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.canvas.list");
+    server
+        .respond(&request, serde_json::json!({ "canvases": [] }))
+        .await;
+    session.stop_event_loop().await;
+
+    let error = timeout(TIMEOUT, waiter)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        ErrorKind::Session(SessionErrorKind::CanvasWaitSessionClosed { canvas_id, .. })
+            if canvas_id == "missing"
+    ));
+}
+
+#[tokio::test]
+async fn wait_for_canvas_stops_when_session_closes_during_list() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let waiter = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .wait_for_canvas(WaitForCanvasOptions::new("missing", TIMEOUT))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.canvas.list");
+    session.stop_event_loop().await;
+
+    let error = timeout(TIMEOUT, waiter)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        ErrorKind::Session(SessionErrorKind::CanvasWaitSessionClosed { canvas_id, .. })
+            if canvas_id == "missing"
+    ));
 }
 
 #[tokio::test]

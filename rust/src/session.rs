@@ -12,8 +12,8 @@ use tracing::{Instrument, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, OpenCanvasInstance, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    DiscoveredCanvas, LogRequest, ModelSwitchToRequest, OpenCanvasInstance,
+    RegisterEventInterestParams, ToolsGetCurrentMetadataResult, rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -27,6 +27,7 @@ use crate::handler::{
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
 use crate::session_fs::SessionFsProvider;
+use crate::subscription::RecvErrorKind;
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
@@ -35,7 +36,7 @@ use crate::types::{
     PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
     SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
-    UiInputOptions, ensure_attachment_display_names,
+    UiInputOptions, WaitForCanvasOptions, ensure_attachment_display_names,
 };
 use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
@@ -290,6 +291,108 @@ impl Session {
     /// ```
     pub fn subscribe(&self) -> crate::subscription::EventSubscription {
         crate::subscription::EventSubscription::new(self.event_tx.subscribe())
+    }
+
+    /// Wait for a canvas declaration to become available in this session.
+    ///
+    /// The waiter subscribes before reading the current registry, so a
+    /// declaration registered concurrently with the initial `canvas.list`
+    /// request cannot be missed. Subscription lag triggers another registry
+    /// read rather than failing the wait.
+    ///
+    /// This waits only for the requested canvas. It does not indicate that
+    /// extension initialization or the complete canvas registry has settled.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Dropping this future cancels the wait without changing
+    /// session or canvas state.
+    pub async fn wait_for_canvas(
+        &self,
+        options: WaitForCanvasOptions,
+    ) -> Result<DiscoveredCanvas, Error> {
+        let WaitForCanvasOptions {
+            canvas_id,
+            extension_id,
+            timeout,
+        } = options;
+
+        let wait = async {
+            let mut events = self.subscribe();
+
+            loop {
+                let canvas_rpc = self.rpc().canvas();
+                let canvases = tokio::select! {
+                    biased;
+                    _ = self.shutdown.cancelled() => {
+                        return Err(ErrorKind::Session(
+                            SessionErrorKind::CanvasWaitSessionClosed {
+                                canvas_id: canvas_id.clone(),
+                                extension_id: extension_id.clone(),
+                            },
+                        )
+                        .into());
+                    }
+                    result = canvas_rpc.list() => result?.canvases,
+                };
+                if let Some(canvas) = canvases.into_iter().find(|canvas| {
+                    canvas.canvas_id == canvas_id
+                        && extension_id
+                            .as_ref()
+                            .is_none_or(|id| canvas.extension_id == *id)
+                }) {
+                    return Ok(canvas);
+                }
+
+                loop {
+                    tokio::select! {
+                        biased;
+                        _ = self.shutdown.cancelled() => {
+                            return Err(ErrorKind::Session(
+                                SessionErrorKind::CanvasWaitSessionClosed {
+                                    canvas_id: canvas_id.clone(),
+                                    extension_id: extension_id.clone(),
+                                },
+                            )
+                            .into());
+                        }
+                        result = events.recv() => {
+                            match result {
+                                Ok(event)
+                                    if event.parsed_type()
+                                        == SessionEventType::SessionCanvasRegistryChanged =>
+                                {
+                                    break;
+                                }
+                                Ok(_) => {}
+                                Err(error) => match error.kind() {
+                                    RecvErrorKind::Lagged(_) => break,
+                                    RecvErrorKind::Closed => {
+                                        return Err(ErrorKind::Session(
+                                            SessionErrorKind::CanvasWaitSessionClosed {
+                                                canvas_id: canvas_id.clone(),
+                                                extension_id: extension_id.clone(),
+                                            },
+                                        )
+                                        .into());
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        match tokio::time::timeout(timeout, wait).await {
+            Ok(result) => result,
+            Err(_) => Err(ErrorKind::Session(SessionErrorKind::CanvasWaitTimeout {
+                canvas_id,
+                extension_id,
+                timeout,
+            })
+            .into()),
+        }
     }
 
     /// The underlying Client (for advanced use cases).

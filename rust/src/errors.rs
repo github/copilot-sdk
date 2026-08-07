@@ -131,6 +131,24 @@ pub enum SessionErrorKind {
     /// The session event loop exited before a pending `send_and_wait` completed.
     EventLoopClosed,
 
+    /// A requested canvas did not become available before the wait timeout.
+    CanvasWaitTimeout {
+        /// Provider-local canvas identifier.
+        canvas_id: String,
+        /// Owning provider identifier, when the wait was provider-specific.
+        extension_id: Option<String>,
+        /// Configured wait timeout.
+        timeout: Duration,
+    },
+
+    /// The session shut down while waiting for a canvas.
+    CanvasWaitSessionClosed {
+        /// Provider-local canvas identifier.
+        canvas_id: String,
+        /// Owning provider identifier, when the wait was provider-specific.
+        extension_id: Option<String>,
+    },
+
     /// Elicitation is not supported by the host.
     /// Check `session.capabilities().ui.elicitation` before calling UI methods.
     ElicitationNotSupported,
@@ -165,6 +183,36 @@ impl fmt::Display for SessionErrorKind {
             }
             SessionErrorKind::EventLoopClosed => {
                 write!(f, "event loop closed before session reached idle")
+            }
+            SessionErrorKind::CanvasWaitTimeout {
+                canvas_id,
+                extension_id,
+                timeout,
+            } => {
+                if let Some(extension_id) = extension_id {
+                    write!(
+                        f,
+                        "timed out after {timeout:?} waiting for canvas {extension_id}:{canvas_id}"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "timed out after {timeout:?} waiting for canvas {canvas_id}"
+                    )
+                }
+            }
+            SessionErrorKind::CanvasWaitSessionClosed {
+                canvas_id,
+                extension_id,
+            } => {
+                if let Some(extension_id) = extension_id {
+                    write!(
+                        f,
+                        "session closed while waiting for canvas {extension_id}:{canvas_id}"
+                    )
+                } else {
+                    write!(f, "session closed while waiting for canvas {canvas_id}")
+                }
             }
             SessionErrorKind::ElicitationNotSupported => write!(
                 f,

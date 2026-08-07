@@ -4487,6 +4487,35 @@ impl SetModelOptions {
     }
 }
 
+/// Options for [`Session::wait_for_canvas`](crate::session::Session::wait_for_canvas).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct WaitForCanvasOptions {
+    /// Provider-local canvas identifier to wait for.
+    pub canvas_id: String,
+    /// Owning provider identifier used to disambiguate canvases with the same ID.
+    pub extension_id: Option<String>,
+    /// Maximum time to wait for the canvas to become available.
+    pub timeout: Duration,
+}
+
+impl WaitForCanvasOptions {
+    /// Wait for a canvas with the given provider-local ID.
+    pub fn new(canvas_id: impl Into<String>, timeout: Duration) -> Self {
+        Self {
+            canvas_id: canvas_id.into(),
+            extension_id: None,
+            timeout,
+        }
+    }
+
+    /// Require the canvas to belong to the given provider.
+    pub fn with_extension_id(mut self, extension_id: impl Into<String>) -> Self {
+        self.extension_id = Some(extension_id.into());
+        self
+    }
+}
+
 /// Response from the top-level `ping` RPC.
 ///
 /// The `protocol_version` field is the most commonly-inspected piece —
