@@ -259,6 +259,16 @@ public final class CopilotClient implements AutoCloseable {
     static RuntimeConnection resolveDefaultConnection(CopilotClientOptions options, String envValue) {
         if (envValue != null && !envValue.isEmpty()) {
             if ("inprocess".equalsIgnoreCase(envValue)) {
+                // Explicit subprocess options take precedence over the env var default.
+                if (options.getCliUrl() != null && !options.getCliUrl().isEmpty()) {
+                    return inferConnectionFromOptions(options);
+                }
+                if (options.getCliPath() != null && !options.getCliPath().isEmpty()) {
+                    return inferConnectionFromOptions(options);
+                }
+                if (options.getPort() != 0) {
+                    return inferConnectionFromOptions(options);
+                }
                 return RuntimeConnection.forInProcess();
             }
             if (!"stdio".equalsIgnoreCase(envValue)) {
@@ -390,7 +400,7 @@ public final class CopilotClient implements AutoCloseable {
             return;
         }
 
-        rejectInProcessOption("Environment", options.getEnvironment() != null,
+        rejectInProcessOption("Environment", options.getEnvironment() != null && !options.getEnvironment().isEmpty(),
                 "set the variables on the host process environment instead");
         rejectInProcessOption("Telemetry", options.getTelemetry() != null,
                 "configure telemetry through the host process environment instead");
