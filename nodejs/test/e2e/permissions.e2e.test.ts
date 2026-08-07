@@ -5,14 +5,15 @@
 import { realpathSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type {
+    PermissionDecisionContext,
     PermissionRequest,
     PermissionRequestResult,
     ToolResultObject,
 } from "../../src/index.js";
-import { approveAll, defineTool } from "../../src/index.js";
+import { approveAll, defineTool, withDecisionContext } from "../../src/index.js";
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
@@ -86,6 +87,60 @@ describe("Permission callbacks", async () => {
         // Verify the file was NOT modified
         const content = await readFile(testFile, "utf-8");
         expect(content).toBe(originalContent);
+
+        await session.disconnect();
+    });
+
+    it("should honor a decision annotated with decisionContext", async () => {
+        // End-to-end proof that decisionContext survives the real permission flow.
+        // The runtime only emits its auto_approval_decision telemetry when its own
+        // auto-approval judge metadata is also present (feature-flagged and model
+        // backed), so that event is not observable here. Instead we assert the exact
+        // params handed to the CLI: decisionContext must be a top-level sibling of
+        // `result`, never nested inside it. The CLI tolerates a nested key silently,
+        // so asserting the params shape is what actually gives this test teeth.
+        const decisionContext: PermissionDecisionContext = {
+            outcome: "prompted_user",
+            source: "human_response",
+            surface: "sdk",
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: () => withDecisionContext({ kind: "reject" }, decisionContext),
+        });
+
+        // Spies preserve the original implementation, so the decision still reaches
+        // the CLI and the assertions below observe a real, honored round-trip.
+        const respondSpy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        let userRejectedToolCall = false;
+        session.on((event) => {
+            if (
+                event.type === "tool.execution_complete" &&
+                !event.data.success &&
+                event.data.error?.message.toLowerCase().includes("user rejected")
+            ) {
+                userRejectedToolCall = true;
+            }
+        });
+
+        const originalContent = "protected content";
+        const testFile = join(workDir, "protected.txt");
+        await writeFile(testFile, originalContent);
+
+        await session.sendAndWait({
+            prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
+        });
+
+        // The decision was applied by the CLI, not merely sent.
+        expect(userRejectedToolCall).toBe(true);
+        expect(await readFile(testFile, "utf-8")).toBe(originalContent);
+
+        expect(respondSpy).toHaveBeenCalled();
+        const params = respondSpy.mock.calls[0]![0];
+        expect(params.decisionContext).toEqual(decisionContext);
+        expect(params.result).toEqual({ kind: "reject" });
+        expect(Object.keys(params).sort()).toEqual(["decisionContext", "requestId", "result"]);
 
         await session.disconnect();
     });

@@ -43,4 +43,30 @@ public partial class PermissionDecision
     /// connected client to answer instead.
     /// </summary>
     public static PermissionDecision NoResult() => new PermissionDecisionNoResult();
+
+    /// <summary>
+    /// Optional provenance describing how and where this decision was made.
+    /// This is never serialized as part of the decision itself: the SDK forwards
+    /// it to the runtime as a sibling of <c>result</c> so that auto-approval
+    /// telemetry can be attributed correctly.
+    /// </summary>
+    [JsonIgnore]
+    public PermissionDecisionContext? DecisionContext { get; set; }
+
+    /// <summary>
+    /// Attaches provenance to this decision so the runtime can attribute
+    /// auto-approval telemetry. Returns the same instance mutated in place;
+    /// because the static factories (<see cref="ApproveOnce"/>, <see cref="Reject"/>,
+    /// etc.) return a fresh instance on every call, mutating is safe and keeps
+    /// the fluent call site concise. Calling this more than once replaces the
+    /// previously attached context rather than nesting it.
+    /// </summary>
+    /// <param name="context">The provenance to attach.</param>
+    /// <returns>This decision, for fluent chaining.</returns>
+    public PermissionDecision WithContext(PermissionDecisionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        DecisionContext = context;
+        return this;
+    }
 }

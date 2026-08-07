@@ -44,6 +44,7 @@ from .generated.rpc import (
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
+    PermissionDecisionContext,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
     ProviderTokenAcquireRequest,
@@ -367,6 +368,43 @@ class PermissionNoResult:
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
+@dataclass
+class AttributedPermissionResult:
+    """A permission result annotated with the context describing how it was reached.
+
+    The Copilot runtime emits an ``auto_approval_decision`` telemetry event only
+    when a client supplies an explicit :class:`PermissionDecisionContext` alongside
+    its permission reply. Wrapping a :data:`PermissionRequestResult` with this class
+    forwards that context to the runtime as a sibling of the decision on the wire.
+
+    The context is informational only — it never changes permission behavior. Build
+    instances via :func:`with_decision_context` rather than constructing directly, so
+    re-attributing an already-wrapped result replaces the context instead of nesting.
+    """
+
+    result: PermissionRequestResult
+    """The underlying permission decision (or :class:`PermissionNoResult`)."""
+
+    decision_context: PermissionDecisionContext
+    """Context describing how and where the decision was reached."""
+
+
+def with_decision_context(
+    result: PermissionRequestResult | AttributedPermissionResult,
+    decision_context: PermissionDecisionContext,
+) -> AttributedPermissionResult:
+    """Annotate a permission result with the context describing how it was reached.
+
+    Returns an :class:`AttributedPermissionResult` carrying ``result`` and
+    ``decision_context`` as siblings. If ``result`` is already an
+    :class:`AttributedPermissionResult`, its underlying decision is preserved and the
+    context is *replaced* — attribution never nests.
+    """
+    if isinstance(result, AttributedPermissionResult):
+        result = result.result
+    return AttributedPermissionResult(result=result, decision_context=decision_context)
+
+
 class PermissionInvocation(TypedDict, total=False):
     session_id: Required[str]
     managed_settings_enabled: NotRequired[bool]
@@ -374,7 +412,9 @@ class PermissionInvocation(TypedDict, total=False):
 
 _PermissionHandlerFn = Callable[
     [PermissionRequest, PermissionInvocation],
-    PermissionRequestResult | Awaitable[PermissionRequestResult],
+    PermissionRequestResult
+    | AttributedPermissionResult
+    | Awaitable[PermissionRequestResult | AttributedPermissionResult],
 ]
 
 
@@ -2174,7 +2214,11 @@ class CopilotSession:
                 request_id=request_id,
             )
 
-            result = cast(PermissionRequestResult, result)
+            result = cast("PermissionRequestResult | AttributedPermissionResult", result)
+            decision_context: PermissionDecisionContext | None = None
+            if isinstance(result, AttributedPermissionResult):
+                decision_context = result.decision_context
+                result = result.result
             if isinstance(result, PermissionNoResult):
                 return
 
@@ -2183,6 +2227,7 @@ class CopilotSession:
                 PermissionDecisionRequest(
                     request_id=request_id,
                     result=result,
+                    decision_context=decision_context,
                 )
             )
             log_timing(

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
+    withDecisionContext,
     CopilotClient,
     createCanvas,
     RuntimeConnection,
@@ -81,6 +82,87 @@ describe("CopilotClient", () => {
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
 
         expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("forwards decisionContext as a top-level sibling of result", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            withDecisionContext({ kind: "approve-once" }, decisionContext)
+        );
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({
+            requestId: "request-1",
+            result: { kind: "approve-once" },
+            decisionContext,
+        });
+        // decisionContext is a sibling of result, never nested inside it.
+        expect(params.result.decisionContext).toBeUndefined();
+    });
+
+    it("emits exactly requestId and result with no decisionContext key when unattributed", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "approve-once" }));
+        const spy = vi
+            .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
+            .mockResolvedValue({ kind: "approve-once" } as any);
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).toHaveBeenCalledOnce();
+        const params = spy.mock.calls[0][0] as any;
+        expect(params).toEqual({ requestId: "request-1", result: { kind: "approve-once" } });
+        expect(Object.keys(params).sort()).toEqual(["requestId", "result"]);
+        expect("decisionContext" in params).toBe(false);
+    });
+
+    it("does not respond when a no-result decision is wrapped with a context", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const decisionContext = {
+            outcome: "auto_approved" as const,
+            source: "host_policy" as const,
+            surface: "sdk" as const,
+        };
+        session.registerPermissionHandler(() =>
+            withDecisionContext({ kind: "no-result" }, decisionContext)
+        );
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("replaces the context when withDecisionContext is applied twice", () => {
+        const first = {
+            outcome: "auto_approved" as const,
+            source: "judge_recommendation" as const,
+            surface: "sdk" as const,
+        };
+        const second = {
+            outcome: "prompted_user" as const,
+            source: "human_response" as const,
+            surface: "tui" as const,
+        };
+
+        const once = withDecisionContext({ kind: "approve-once" }, first);
+        const twice = withDecisionContext(once, second);
+
+        expect(twice).toEqual({ result: { kind: "approve-once" }, decisionContext: second });
+        // The result stays unwrapped rather than nesting an AttributedPermissionResult.
+        expect((twice.result as any).result).toBeUndefined();
+        expect((twice.result as any).decisionContext).toBeUndefined();
     });
 
     it("responds to MCP OAuth requests with host token data", async () => {

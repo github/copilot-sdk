@@ -87,6 +87,10 @@ from .generated.rpc import (
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
 )
 from .generated.session_events import (
     PermissionRequest,
@@ -97,6 +101,7 @@ from .session import (
     AgentStopHandler,
     AgentStopHookInput,
     AgentStopHookOutput,
+    AttributedPermissionResult,
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -178,6 +183,7 @@ from .session import (
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
+    with_decision_context,
 )
 from .session_fs_provider import (
     SessionFsFileInfo,
@@ -209,6 +215,7 @@ __all__ = [
     "AgentStopHandler",
     "AgentStopHookInput",
     "AgentStopHookOutput",
+    "AttributedPermissionResult",
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
@@ -295,6 +302,10 @@ __all__ = [
     "PermissionNoResult",
     "PermissionRequest",
     "PermissionRequestResult",
+    "PermissionDecisionContext",
+    "PermissionDecisionOutcome",
+    "PermissionDecisionSource",
+    "PermissionDecisionSurface",
     "PingResponse",
     "PostToolUseHandler",
     "PostToolUseFailureHandler",
@@ -372,6 +383,7 @@ __all__ = [
     "UserPromptTransformedHandler",
     "UserPromptTransformedHookInput",
     "UserPromptTransformedHookOutput",
+    "with_decision_context",
     "convert_mcp_call_tool_result",
     "create_session_fs_adapter",
     "define_tool",

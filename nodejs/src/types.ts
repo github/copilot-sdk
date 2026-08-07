@@ -52,6 +52,12 @@ export type { SessionFsSqliteStatement } from "./sessionFsProvider.js";
 export type { SessionFsSqliteTransactionErrorClass } from "./sessionFsProvider.js";
 export { SessionFsSqliteTransactionFailure } from "./sessionFsProvider.js";
 export type { LlmInferenceHeaders } from "./generated/rpc.js";
+export type {
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+} from "./generated/rpc.js";
 export type { CopilotRequestContext } from "./copilotRequestHandler.js";
 export {
     CopilotRequestHandler,
@@ -1112,7 +1118,7 @@ export type SystemMessageConfig =
     | SystemMessageReplaceConfig
     | SystemMessageCustomizeConfig;
 
-import type { PermissionDecisionRequest } from "./generated/rpc.js";
+import type { PermissionDecisionRequest, PermissionDecisionContext } from "./generated/rpc.js";
 
 /**
  * Permission request types from the server. This is the generated
@@ -1148,10 +1154,54 @@ export type PermissionRequestedEvent = Omit<GeneratedPermissionRequestedEvent, "
  */
 export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
 
+/**
+ * A {@link PermissionRequestResult} annotated with the
+ * {@link PermissionDecisionContext} describing how and where the decision was
+ * reached. The context is informational only — it never changes permission
+ * behavior. Supplying it lets the runtime attribute auto-approval telemetry to
+ * the responding surface.
+ */
+export interface AttributedPermissionResult {
+    result: PermissionRequestResult;
+    decisionContext: PermissionDecisionContext;
+}
+
+/**
+ * Narrows a {@link PermissionHandler} return value to an attributed result.
+ *
+ * Every {@link PermissionRequestResult} is a `kind`-discriminated decision and
+ * never carries `decisionContext`, so its presence unambiguously identifies the
+ * attributed wrapper.
+ */
+export function isAttributedPermissionResult(
+    result: PermissionRequestResult | AttributedPermissionResult
+): result is AttributedPermissionResult {
+    return "decisionContext" in result;
+}
+
+/**
+ * Attach provenance describing how and where a permission decision was made, so
+ * the runtime can attribute auto-approval telemetry.
+ *
+ * Applying this to an already-attributed result replaces the previous context
+ * rather than nesting it. The context is informational only and never changes
+ * permission behavior.
+ */
+export function withDecisionContext(
+    result: PermissionRequestResult | AttributedPermissionResult,
+    decisionContext: PermissionDecisionContext
+): AttributedPermissionResult {
+    const inner = isAttributedPermissionResult(result) ? result.result : result;
+    return { result: inner, decisionContext };
+}
+
 export type PermissionHandler = (
     request: PermissionRequest,
     invocation: { sessionId: string; managedSettingsEnabled?: boolean }
-) => Promise<PermissionRequestResult> | PermissionRequestResult;
+) =>
+    | Promise<PermissionRequestResult | AttributedPermissionResult>
+    | PermissionRequestResult
+    | AttributedPermissionResult;
 
 /**
  * Approves permission requests when managed settings are disabled.
