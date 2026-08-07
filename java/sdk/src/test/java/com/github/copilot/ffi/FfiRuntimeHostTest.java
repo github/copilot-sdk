@@ -272,6 +272,51 @@ class FfiRuntimeHostTest {
     }
 
     @Test
+    void failedConnectionOpenReleasesHostForSequentialStartup() {
+        AtomicInteger starts = new AtomicInteger();
+        AtomicInteger shutdowns = new AtomicInteger();
+        NativeBinding binding = new NativeBinding() {
+            @Override
+            public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
+                return starts.incrementAndGet();
+            }
+
+            @Override
+            public boolean hostShutdown(int serverId) {
+                shutdowns.incrementAndGet();
+                return true;
+            }
+
+            @Override
+            public int connectionOpen(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
+                    int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen) {
+                return serverId == 1 ? 0 : 22;
+            }
+
+            @Override
+            public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
+                return true;
+            }
+
+            @Override
+            public boolean connectionClose(int connectionId) {
+                return true;
+            }
+        };
+
+        try (FfiRuntimeHost failedHost = new FfiRuntimeHost(binding, "test-lib")) {
+            assertThrows(IllegalStateException.class,
+                    () -> failedHost.start("/tmp/entrypoint", new CopilotClientOptions()));
+        }
+        assertEquals(1, shutdowns.get(), "failed connection startup must release its native host");
+
+        try (FfiRuntimeHost nextHost = new FfiRuntimeHost(binding, "test-lib")) {
+            assertDoesNotThrow(() -> nextHost.start("/tmp/entrypoint", new CopilotClientOptions()));
+        }
+        assertEquals(2, shutdowns.get(), "the sequential host must also shut down cleanly");
+    }
+
+    @Test
     void writeAndCloseAreSerializedByOperationLock() throws Exception {
         CountDownLatch writeStarted = new CountDownLatch(1);
         CountDownLatch allowWriteToFinish = new CountDownLatch(1);

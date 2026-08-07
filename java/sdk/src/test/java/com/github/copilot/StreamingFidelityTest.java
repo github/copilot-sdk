@@ -249,33 +249,37 @@ public class StreamingFidelityTest {
      */
     @Test
     void testShouldEmitStreamingDeltasWithReasoningEffortConfigured() throws Exception {
-        ctx.configureForTest("streaming_fidelity", "should_emit_streaming_deltas_with_reasoning_effort_configured");
+        try (E2ETestContext isolatedContext = E2ETestContext.create()) {
+            isolatedContext.configureForTest("streaming_fidelity",
+                    "should_emit_streaming_deltas_with_reasoning_effort_configured");
 
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setModel("gpt-5.4").setStreaming(true).setReasoningEffort("high"))
-                    .get();
+            try (CopilotClient client = isolatedContext.createClient()) {
+                CopilotSession session = client
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                .setModel("gpt-5.4").setStreaming(true).setReasoningEffort("high"))
+                        .get();
 
-            List<SessionEvent> events = new ArrayList<>();
-            session.on(events::add);
+                List<SessionEvent> events = new ArrayList<>();
+                session.on(events::add);
 
-            session.sendAndWait(new MessageOptions().setPrompt("What is 15 * 17?")).get(60, TimeUnit.SECONDS);
+                session.sendAndWait(new MessageOptions().setPrompt("What is 15 * 17?")).get(60, TimeUnit.SECONDS);
 
-            // With streaming + reasoning effort, we should still get content deltas
-            List<AssistantMessageDeltaEvent> deltaEvents = events.stream()
-                    .filter(e -> e instanceof AssistantMessageDeltaEvent).map(e -> (AssistantMessageDeltaEvent) e)
-                    .toList();
-            assertFalse(deltaEvents.isEmpty(), "Should have received delta events with reasoning effort configured");
+                // With streaming + reasoning effort, we should still get content deltas
+                List<AssistantMessageDeltaEvent> deltaEvents = events.stream()
+                        .filter(e -> e instanceof AssistantMessageDeltaEvent).map(e -> (AssistantMessageDeltaEvent) e)
+                        .toList();
+                assertFalse(deltaEvents.isEmpty(),
+                        "Should have received delta events with reasoning effort configured");
 
-            // And a final assistant.message with the answer
-            List<AssistantMessageEvent> assistantEvents = events.stream()
-                    .filter(e -> e instanceof AssistantMessageEvent).map(e -> (AssistantMessageEvent) e).toList();
-            assertFalse(assistantEvents.isEmpty(), "Should have received assistant message events");
-            assertTrue(assistantEvents.get(assistantEvents.size() - 1).getData().content().contains("255"),
-                    "Response should contain 255");
+                // And a final assistant.message with the answer
+                List<AssistantMessageEvent> assistantEvents = events.stream()
+                        .filter(e -> e instanceof AssistantMessageEvent).map(e -> (AssistantMessageEvent) e).toList();
+                assertFalse(assistantEvents.isEmpty(), "Should have received assistant message events");
+                assertTrue(assistantEvents.get(assistantEvents.size() - 1).getData().content().contains("255"),
+                        "Response should contain 255");
 
-            session.close();
+                session.close();
+            }
         }
     }
 }

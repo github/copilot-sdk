@@ -384,6 +384,15 @@ class ConfigCloneTest {
     }
 
     @Test
+    void copilotClientOptionsSetCwdNullClearsExisting() {
+        CopilotClientOptions opts = new CopilotClientOptions().setCwd("/tmp");
+
+        opts.setCwd(null);
+
+        assertNull(opts.getCwd());
+    }
+
+    @Test
     @SuppressWarnings("deprecation")
     void copilotClientOptionsDeprecatedGithubToken() {
         CopilotClientOptions opts = new CopilotClientOptions();

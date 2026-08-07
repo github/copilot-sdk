@@ -72,7 +72,8 @@ final class CopilotRequestTestSupport {
                 env.put(entry.substring(0, eq), entry.substring(eq + 1));
             }
         }
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(handler));
+        return ctx.createClient(
+                new CopilotClientOptions().setCliPath(ctx.getCliPath()).setEnvironment(env).setRequestHandler(handler));
     }
 
     /**

@@ -137,6 +137,16 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void resolveEntrypointUsesConfiguredCliWhenRuntimeIsInPrebuilds(@TempDir Path tempDir) throws Exception {
+        Path cli = Files.writeString(tempDir.resolve("copilot"), "fake cli");
+        Path runtimeDir = tempDir.resolve("prebuilds").resolve(PlatformDetector.detectClassifier());
+        Files.createDirectories(runtimeDir);
+        Path runtime = Files.write(runtimeDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), FAKE_BINARY_CONTENT);
+
+        assertEquals(cli, NativeRuntimeLoader.resolveEntrypoint(cli.toString(), runtime));
+    }
+
+    @Test
     void resolveFromCliPathReturnsAbsolutePathForRelativeCliPath(@TempDir Path tempDir) throws Exception {
         Path workingDirectory = Path.of("").toAbsolutePath();
         Path fakeCliDir = tempDir.resolve("cli-dir");
