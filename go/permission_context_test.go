@@ -208,3 +208,53 @@ func TestAttributedNoResultStillSuppressesResponse(t *testing.T) {
 		t.Fatalf("expected no response to be sent for an attributed no-result decision, got frame: %s", frame)
 	}
 }
+
+// A handler may dereference the wrapper and return it by value. The embedded
+// interface promotes its methods to the value type, so the value form also
+// satisfies rpc.PermissionDecision and must be unwrapped identically to the
+// pointer form -- otherwise the wrapper itself is sent as result and the
+// context is silently dropped.
+func TestValueFormAttributedResultIsUnwrapped(t *testing.T) {
+	frame, sent := runPermissionExchange(t, func(PermissionRequest, PermissionInvocation) (rpc.PermissionDecision, error) {
+		return *WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, sampleDecisionContext()), nil
+	})
+	if !sent {
+		t.Fatal("expected a permission response to be sent")
+	}
+
+	params := paramsOf(t, frame)
+
+	if _, ok := params["decisionContext"]; !ok {
+		t.Fatal("expected decisionContext to be forwarded for a value-form attributed result")
+	}
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(params["result"], &result); err != nil {
+		t.Fatalf("failed to unmarshal result: %v", err)
+	}
+	if _, nested := result["decisionContext"]; nested {
+		t.Fatal("decisionContext must not be nested inside result")
+	}
+	if _, leaked := result["PermissionDecision"]; leaked {
+		t.Fatal("the wrapper leaked into result instead of being unwrapped")
+	}
+}
+
+func TestWithDecisionContextReplacesContextOnValueForm(t *testing.T) {
+	first := sampleDecisionContext()
+	second := &rpc.PermissionDecisionContext{
+		Outcome: PermissionDecisionOutcomePromptedUser,
+		Source:  PermissionDecisionSourceHumanResponse,
+		Surface: PermissionDecisionSurfaceTui,
+	}
+
+	valueForm := *WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, first)
+	replaced := WithDecisionContext(valueForm, second)
+
+	if replaced.DecisionContext != second {
+		t.Fatal("expected the second context to replace the first")
+	}
+	if _, nested := replaced.PermissionDecision.(AttributedPermissionResult); nested {
+		t.Fatal("value-form attribution must be replaced, not nested")
+	}
+}

@@ -37,7 +37,10 @@ type AttributedPermissionResult struct {
 // Experimental: WithDecisionContext is part of an experimental API and may
 // change or be removed.
 func WithDecisionContext(result rpc.PermissionDecision, decisionContext *rpc.PermissionDecisionContext) *AttributedPermissionResult {
-	if attributed, ok := result.(*AttributedPermissionResult); ok {
+	switch attributed := result.(type) {
+	case *AttributedPermissionResult:
+		result = attributed.PermissionDecision
+	case AttributedPermissionResult:
 		result = attributed.PermissionDecision
 	}
 	return &AttributedPermissionResult{

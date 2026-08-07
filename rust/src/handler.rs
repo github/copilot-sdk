@@ -38,6 +38,7 @@ use crate::types::{
 /// approve-for-session, approve-permanently, user-not-available, …) or
 /// [`PermissionResult::NoResult`], which tells the SDK to suppress its
 /// response so another connected client can answer instead.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum PermissionResult {
     /// Send a permission decision on the wire.

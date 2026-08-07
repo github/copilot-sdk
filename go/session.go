@@ -1650,7 +1650,11 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 	// not nested inside it. The suppression and send logic below operates on the
 	// underlying decision.
 	var decisionContext *rpc.PermissionDecisionContext
-	if attributed, ok := decision.(*AttributedPermissionResult); ok {
+	switch attributed := decision.(type) {
+	case *AttributedPermissionResult:
+		decisionContext = attributed.DecisionContext
+		decision = attributed.PermissionDecision
+	case AttributedPermissionResult:
 		decisionContext = attributed.DecisionContext
 		decision = attributed.PermissionDecision
 	}
