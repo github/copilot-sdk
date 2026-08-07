@@ -8484,7 +8484,7 @@ pub struct ModelSetReasoningEffortResult {
     pub reasoning_effort: String,
 }
 
-/// Optional GitHub token used to list models for a specific user instead of the global auth context.
+/// Optional GitHub token and working directory used to resolve available models.
 ///
 /// <div class="warning">
 ///
@@ -8495,6 +8495,9 @@ pub struct ModelSetReasoningEffortResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelsListRequest {
+    /// Working directory used to apply repository model policy. When omitted, model availability is account-global.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
     /// GitHub token for per-user model listing. When provided, resolves this token to determine the user's Copilot plan and available models instead of using the global auth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_hub_token: Option<String>,

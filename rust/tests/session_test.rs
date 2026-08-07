@@ -14,7 +14,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    ModelsListRequest, OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -4036,6 +4036,39 @@ async fn rpc_namespace_client_models_list_dispatches_correctly() {
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "models.list");
+    server
+        .respond(&request, serde_json::json!({ "models": [] }))
+        .await;
+
+    let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert!(result.models.is_empty());
+}
+
+#[tokio::test]
+async fn rpc_namespace_client_models_list_sends_repository_cwd() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let client = session.client().clone();
+    let handle = tokio::spawn(async move {
+        client
+            .rpc()
+            .models()
+            .list_with_params(ModelsListRequest {
+                cwd: Some("/workspace/repository".to_string()),
+                git_hub_token: None,
+            })
+            .await
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "models.list");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "cwd": "/workspace/repository"
+        })
+    );
     server
         .respond(&request, serde_json::json!({ "models": [] }))
         .await;
