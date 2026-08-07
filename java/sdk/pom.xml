@@ -243,6 +243,7 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <systemPropertyVariables>
                         <project.build.directory>${project.build.directory}</project.build.directory>
                         <project.build.finalName>${project.build.finalName}</project.build.finalName>
@@ -264,8 +265,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <runOrder>alphabetical</runOrder>
+                    <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
-                    <argLine>${testExecutionAgentArgs} ${surefire.jvm.args}</argLine>
+                    <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
                     <!--
                         Automatically retry tests that fail on the first attempt.
                         This handles intermittent failures in E2E tests (e.g.,
@@ -616,8 +618,12 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                            <!-- Leave Surefire on its standard transport; only Failsafe ITs use InProcess -->
                             <skipTests>false</skipTests>
+                            <forkCount>1</forkCount>
+                            <parallel>none</parallel>
+                            <environmentVariables>
+                                <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
+                            </environmentVariables>
                         </configuration>
                     </plugin>
                     <plugin>
@@ -626,9 +632,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <configuration>
                             <forkCount>1</forkCount>
                             <parallel>none</parallel>
-                            <includes>
-                                <include>**/InProcessTransportIT.java</include>
-                            </includes>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>

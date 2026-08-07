@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.github.copilot.spike</groupId>
+  <artifactId>real-runtime-callback-spike</artifactId>
+  <name>Spike — Validate Callback Flow with Real runtime.node</name>
+  <version>0.1.0</version>
+  <description>Minimal program to debug the InProcess FFI flow against the real
+        runtime.node binary. Calls copilot_runtime_host_start, connection_open,
+        and connection_close with full diagnostic logging and timeouts.</description>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>fetch-native-linux-x64</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>node</executable>
+              <arguments>
+                <argument>${copilot.sdk.root}/java/copilot-native/scripts/fetch-native.mjs</argument>
+                <argument>${copilot.sdk.root}</argument>
+                <argument>${copilot.native.staging}</argument>
+                <argument>${copilot.native.classifier}</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <transformer>
+                  <mainClass>com.github.copilot.spike.RealRuntimeSpikeMain</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <properties>
+    <copilot.native.staging>${project.build.directory}/native-staging</copilot.native.staging>
+    <maven.compiler.target>17</maven.compiler.target>
+    <copilot.sdk.root>${project.basedir}/../..</copilot.sdk.root>
+    <maven.compiler.source>17</maven.compiler.source>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jna.version>5.19.1</jna.version>
+    <copilot.native.classifier>linux-x64</copilot.native.classifier>
+  </properties>
+</project>

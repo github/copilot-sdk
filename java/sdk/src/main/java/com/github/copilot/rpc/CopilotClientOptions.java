@@ -282,13 +282,11 @@ public class CopilotClientOptions {
      * Sets the working directory for the CLI process.
      *
      * @param cwd
-     *            the working directory path (must not be {@code null} or empty)
+     *            the working directory path, or {@code null} to clear
      * @return this options instance for method chaining
-     * @throws IllegalArgumentException
-     *             if {@code cwd} is {@code null} or empty
      */
     public CopilotClientOptions setCwd(String cwd) {
-        this.cwd = Objects.requireNonNull(cwd, "cwd must not be null");
+        this.cwd = cwd;
         return this;
     }
 

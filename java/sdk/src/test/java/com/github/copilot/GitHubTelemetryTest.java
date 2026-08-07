@@ -259,23 +259,24 @@ class GitHubTelemetryTest {
         private void acceptLoop() {
             try {
                 Socket socket = serverSocket.accept();
-                JsonRpcClient server = JsonRpcClient.fromSocket(socket);
-                server.registerMethodHandler("connect", (id, params) -> {
-                    connectParams.complete(params);
-                    respond(server, id, Map.of("protocolVersion", 2));
+                JsonRpcClient server = JsonRpcClient.fromSocket(socket, rpc -> {
+                    rpc.registerMethodHandler("connect", (id, params) -> {
+                        connectParams.complete(params);
+                        respond(rpc, id, Map.of("protocolVersion", 2));
+                    });
+                    rpc.registerMethodHandler("session.create", (id, params) -> {
+                        createParams.complete(params);
+                        respond(rpc, id, Map.of("sessionId", params.path("sessionId").asText("created"),
+                                "workspacePath", "/workspace"));
+                    });
+                    rpc.registerMethodHandler("session.resume", (id, params) -> {
+                        resumeParams.complete(params);
+                        respond(rpc, id, Map.of("sessionId", params.path("sessionId").asText("resume-1"),
+                                "workspacePath", "/workspace"));
+                    });
+                    rpc.registerMethodHandler("session.destroy", (id, params) -> respond(rpc, id, Map.of()));
+                    rpc.registerMethodHandler("runtime.shutdown", (id, params) -> respond(rpc, id, Map.of()));
                 });
-                server.registerMethodHandler("session.create", (id, params) -> {
-                    createParams.complete(params);
-                    respond(server, id, Map.of("sessionId", params.path("sessionId").asText("created"), "workspacePath",
-                            "/workspace"));
-                });
-                server.registerMethodHandler("session.resume", (id, params) -> {
-                    resumeParams.complete(params);
-                    respond(server, id, Map.of("sessionId", params.path("sessionId").asText("resume-1"),
-                            "workspacePath", "/workspace"));
-                });
-                server.registerMethodHandler("session.destroy", (id, params) -> respond(server, id, Map.of()));
-                server.registerMethodHandler("runtime.shutdown", (id, params) -> respond(server, id, Map.of()));
                 ready.complete(server);
             } catch (IOException e) {
                 ready.completeExceptionally(e);

@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -46,15 +45,6 @@ import com.github.copilot.rpc.UriRuntimeConnection;
 @AllowCopilotExperimental
 class CopilotClientTransportTest {
 
-    /**
-     * These tests assert the transport the client resolves, so they only hold when
-     * the ambient environment does not override the default connection.
-     */
-    private static void assumeNoDefaultConnectionOverride() {
-        assumeTrue(System.getenv(CopilotClient.DEFAULT_CONNECTION_ENV_VAR) == null,
-                CopilotClient.DEFAULT_CONNECTION_ENV_VAR + " is set in the environment");
-    }
-
     // ===== In-process routing =====
 
     @Test
@@ -87,7 +77,6 @@ class CopilotClientTransportTest {
 
     @Test
     void cliTransportDoesNotUseTheInProcessRuntime() throws Exception {
-        assumeNoDefaultConnectionOverride();
         var options = new CopilotClientOptions().setCliUrl("127.0.0.1:1");
         try (var client = new CopilotClient(options)) {
             client.setInProcessTransportFactory(opts -> {
@@ -117,6 +106,8 @@ class CopilotClientTransportTest {
                 CopilotClient.resolveDefaultConnection(new CopilotClientOptions(), null));
         assertInstanceOf(TcpRuntimeConnection.class,
                 CopilotClient.resolveDefaultConnection(new CopilotClientOptions().setUseStdio(false), ""));
+        assertInstanceOf(TcpRuntimeConnection.class, CopilotClient.resolveDefaultConnection(
+                new CopilotClientOptions().setUseStdio(false).setTcpConnectionToken("secret"), "inprocess"));
     }
 
     @Test
@@ -130,7 +121,6 @@ class CopilotClientTransportTest {
 
     @Test
     void legacyStdioOptionsInferStdioConnection() {
-        assumeNoDefaultConnectionOverride();
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath("/usr/local/bin/copilot"))) {
             var connection = assertInstanceOf(StdioRuntimeConnection.class, client.getRuntimeConnection());
             assertEquals("/usr/local/bin/copilot", connection.getPath());
@@ -139,7 +129,6 @@ class CopilotClientTransportTest {
 
     @Test
     void legacyTcpOptionsInferTcpConnection() {
-        assumeNoDefaultConnectionOverride();
         var options = new CopilotClientOptions().setUseStdio(false).setPort(4321).setTcpConnectionToken("secret");
         try (var client = new CopilotClient(options)) {
             var connection = assertInstanceOf(TcpRuntimeConnection.class, client.getRuntimeConnection());
@@ -150,7 +139,6 @@ class CopilotClientTransportTest {
 
     @Test
     void legacyCliUrlInfersUriConnection() {
-        assumeNoDefaultConnectionOverride();
         try (var client = new CopilotClient(new CopilotClientOptions().setCliUrl("localhost:3000"))) {
             var connection = assertInstanceOf(UriRuntimeConnection.class, client.getRuntimeConnection());
             assertEquals("localhost:3000", connection.getUrl());
@@ -224,6 +212,22 @@ class CopilotClientTransportTest {
         assertInProcessRejected(new CopilotClientOptions().setTelemetry(new TelemetryConfig()), "Telemetry");
         assertInProcessRejected(new CopilotClientOptions().setCwd("/tmp"), "Cwd");
         assertInProcessRejected(new CopilotClientOptions().setCliArgs(new String[]{"--extra"}), "CliArgs");
+    }
+
+    @Test
+    void e2eContextClearsInProcessIncompatibleOptions() throws Exception {
+        try (var context = E2ETestContext.create()) {
+            var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())
+                    .setEnvironment(Map.of("TEST_KEY", "test-value")).setCwd(context.getWorkDir().toString())
+                    .setCliArgs(new String[]{"--subprocess-only"});
+
+            try (var client = context.createClient(options)) {
+                assertInstanceOf(InProcessRuntimeConnection.class, client.getRuntimeConnection());
+                assertTrue(options.getEnvironment() == null || options.getEnvironment().isEmpty());
+                assertEquals(null, options.getCwd());
+                assertTrue(options.getCliArgs() == null || options.getCliArgs().length == 0);
+            }
+        }
     }
 
     private static void assertInProcessRejected(CopilotClientOptions options, String optionName) {
