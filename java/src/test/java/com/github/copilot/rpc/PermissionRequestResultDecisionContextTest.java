@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -84,5 +85,13 @@ class PermissionRequestResultDecisionContextTest {
         assertFalse(resultJson.has("decisionContext"),
                 "@JsonIgnore must keep decisionContext out of the serialized result");
         assertEquals(PermissionRequestResultKind.APPROVED.getValue(), resultJson.get("kind").asText());
+    }
+
+    @Test
+    void withContextRejectsNull() {
+        var result = PermissionRequestResult.approveOnce();
+
+        assertThrows(NullPointerException.class, () -> result.withContext(null),
+                "withContext must reject null rather than silently dropping the context");
     }
 }

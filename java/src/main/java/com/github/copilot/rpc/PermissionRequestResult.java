@@ -5,6 +5,7 @@
 package com.github.copilot.rpc;
 
 import java.util.List;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -202,12 +203,14 @@ public final class PermissionRequestResult {
      * sibling of {@code result}.
      *
      * @param context
-     *            the decision context, or {@code null} to clear it
+     *            the decision context; must not be {@code null}
      * @return this result for method chaining
+     * @throws NullPointerException
+     *             if {@code context} is {@code null}
      * @since 1.3.0
      */
     public PermissionRequestResult withContext(PermissionDecisionContext context) {
-        this.decisionContext = context;
+        this.decisionContext = Objects.requireNonNull(context, "context must not be null");
         return this;
     }
 }
