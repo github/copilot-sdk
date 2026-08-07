@@ -183,7 +183,7 @@ from .session import (
     UserPromptTransformedHandler,
     UserPromptTransformedHookInput,
     UserPromptTransformedHookOutput,
-    with_decision_context,
+    create_attributed_permission_result,
 )
 from .session_fs_provider import (
     SessionFsFileInfo,
@@ -383,8 +383,8 @@ __all__ = [
     "UserPromptTransformedHandler",
     "UserPromptTransformedHookInput",
     "UserPromptTransformedHookOutput",
-    "with_decision_context",
     "convert_mcp_call_tool_result",
+    "create_attributed_permission_result",
     "create_session_fs_adapter",
     "define_tool",
 ]

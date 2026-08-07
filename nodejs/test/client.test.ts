@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
     approveAll,
-    withDecisionContext,
+    createAttributedPermissionResult,
     CopilotClient,
     createCanvas,
     RuntimeConnection,
@@ -92,7 +92,7 @@ describe("CopilotClient", () => {
             surface: "sdk" as const,
         };
         session.registerPermissionHandler(() =>
-            withDecisionContext({ kind: "approve-once" }, decisionContext)
+            createAttributedPermissionResult({ kind: "approve-once" }, decisionContext)
         );
         const spy = vi
             .spyOn(session.rpc.permissions, "handlePendingPermissionRequest")
@@ -135,7 +135,7 @@ describe("CopilotClient", () => {
             surface: "sdk" as const,
         };
         session.registerPermissionHandler(() =>
-            withDecisionContext({ kind: "no-result" }, decisionContext)
+            createAttributedPermissionResult({ kind: "no-result" }, decisionContext)
         );
         const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
 
@@ -144,7 +144,7 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalled();
     });
 
-    it("replaces the context when withDecisionContext is applied twice", () => {
+    it("replaces the context when applied twice", () => {
         const first = {
             outcome: "auto_approved" as const,
             source: "judge_recommendation" as const,
@@ -156,10 +156,14 @@ describe("CopilotClient", () => {
             surface: "tui" as const,
         };
 
-        const once = withDecisionContext({ kind: "approve-once" }, first);
-        const twice = withDecisionContext(once, second);
+        const once = createAttributedPermissionResult({ kind: "approve-once" }, first);
+        const twice = createAttributedPermissionResult(once, second);
 
-        expect(twice).toEqual({ result: { kind: "approve-once" }, decisionContext: second });
+        expect(twice).toEqual({
+            kind: "attributed",
+            result: { kind: "approve-once" },
+            decisionContext: second,
+        });
         // The result stays unwrapped rather than nesting an AttributedPermissionResult.
         expect((twice.result as any).result).toBeUndefined();
         expect((twice.result as any).decisionContext).toBeUndefined();

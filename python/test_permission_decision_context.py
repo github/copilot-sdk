@@ -11,7 +11,7 @@ from copilot.session import (
     AttributedPermissionResult,
     CopilotSession,
     PermissionNoResult,
-    with_decision_context,
+    create_attributed_permission_result,
 )
 from copilot.session_events import PermissionRequestRead
 
@@ -38,7 +38,7 @@ async def test_decision_context_serialized_as_sibling_of_result() -> None:
     request = PermissionRequestRead(intention="Read", path="/workspace/file.txt")
 
     def handler(_request, _invocation):
-        return with_decision_context(PermissionDecisionApproveOnce(), _context())
+        return create_attributed_permission_result(PermissionDecisionApproveOnce(), _context())
 
     await session._execute_permission_and_respond("permission-1", request, handler)
 
@@ -71,7 +71,7 @@ async def test_no_context_omits_decision_context_key() -> None:
     assert params["result"]["kind"] == "approve-once"
 
 
-def test_with_decision_context_replaces_rather_than_nests() -> None:
+def test_attributed_result_replaces_rather_than_nests() -> None:
     first = PermissionDecisionContext(
         outcome=PermissionDecisionOutcome.PROMPTED_USER,
         source=PermissionDecisionSource.HUMAN_RESPONSE,
@@ -79,8 +79,8 @@ def test_with_decision_context_replaces_rather_than_nests() -> None:
     )
     second = _context()
 
-    once_wrapped = with_decision_context(PermissionDecisionApproveOnce(), first)
-    twice_wrapped = with_decision_context(once_wrapped, second)
+    once_wrapped = create_attributed_permission_result(PermissionDecisionApproveOnce(), first)
+    twice_wrapped = create_attributed_permission_result(once_wrapped, second)
 
     assert isinstance(twice_wrapped, AttributedPermissionResult)
     assert isinstance(twice_wrapped.result, PermissionDecisionApproveOnce)
@@ -92,7 +92,7 @@ async def test_no_result_with_context_still_suppresses_response() -> None:
     request = PermissionRequestRead(intention="Read", path="/workspace/file.txt")
 
     def handler(_request, _invocation):
-        return with_decision_context(PermissionNoResult(), _context())
+        return create_attributed_permission_result(PermissionNoResult(), _context())
 
     await session._execute_permission_and_respond("permission-1", request, handler)
 

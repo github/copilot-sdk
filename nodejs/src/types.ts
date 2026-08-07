@@ -1162,37 +1162,34 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
  * the responding surface.
  */
 export interface AttributedPermissionResult {
+    kind: "attributed";
     result: PermissionRequestResult;
     decisionContext: PermissionDecisionContext;
 }
 
 /**
  * Narrows a {@link PermissionHandler} return value to an attributed result.
- *
- * Every {@link PermissionRequestResult} is a `kind`-discriminated decision and
- * never carries `decisionContext`, so its presence unambiguously identifies the
- * attributed wrapper.
  */
 export function isAttributedPermissionResult(
     result: PermissionRequestResult | AttributedPermissionResult
 ): result is AttributedPermissionResult {
-    return "decisionContext" in result;
+    return result.kind === "attributed";
 }
 
 /**
- * Attach provenance describing how and where a permission decision was made, so
- * the runtime can attribute auto-approval telemetry.
+ * Pair a permission decision with the context describing how and where it was
+ * made, so the runtime can attribute auto-approval telemetry.
  *
- * Applying this to an already-attributed result replaces the previous context
- * rather than nesting it. The context is informational only and never changes
+ * Passing an already-attributed result replaces the previous context rather
+ * than nesting it. The context is informational only and never changes
  * permission behavior.
  */
-export function withDecisionContext(
+export function createAttributedPermissionResult(
     result: PermissionRequestResult | AttributedPermissionResult,
     decisionContext: PermissionDecisionContext
 ): AttributedPermissionResult {
     const inner = isAttributedPermissionResult(result) ? result.result : result;
-    return { result: inner, decisionContext };
+    return { kind: "attributed", result: inner, decisionContext };
 }
 
 export type PermissionHandler = (

@@ -378,8 +378,9 @@ class AttributedPermissionResult:
     forwards that context to the runtime as a sibling of the decision on the wire.
 
     The context is informational only — it never changes permission behavior. Build
-    instances via :func:`with_decision_context` rather than constructing directly, so
-    re-attributing an already-wrapped result replaces the context instead of nesting.
+    instances via :func:`create_attributed_permission_result` rather than constructing
+    directly, so re-attributing an already-wrapped result replaces the context instead
+    of nesting.
     """
 
     result: PermissionRequestResult
@@ -389,7 +390,7 @@ class AttributedPermissionResult:
     """Context describing how and where the decision was reached."""
 
 
-def with_decision_context(
+def create_attributed_permission_result(
     result: PermissionRequestResult | AttributedPermissionResult,
     decision_context: PermissionDecisionContext,
 ) -> AttributedPermissionResult:

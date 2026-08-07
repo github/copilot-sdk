@@ -13,7 +13,7 @@ import type {
     PermissionRequestResult,
     ToolResultObject,
 } from "../../src/index.js";
-import { approveAll, defineTool, withDecisionContext } from "../../src/index.js";
+import { approveAll, defineTool, createAttributedPermissionResult } from "../../src/index.js";
 import { createSdkTestContext, isInProcessTransport } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
@@ -106,7 +106,8 @@ describe("Permission callbacks", async () => {
         };
 
         const session = await client.createSession({
-            onPermissionRequest: () => withDecisionContext({ kind: "reject" }, decisionContext),
+            onPermissionRequest: () =>
+                createAttributedPermissionResult({ kind: "reject" }, decisionContext),
         });
 
         // Spies preserve the original implementation, so the decision still reaches

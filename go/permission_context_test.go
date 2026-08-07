@@ -108,7 +108,7 @@ func sampleDecisionContext() *rpc.PermissionDecisionContext {
 
 func TestPermissionDecisionContextForwardedAsSiblingOfResult(t *testing.T) {
 	frame, sent := runPermissionExchange(t, func(PermissionRequest, PermissionInvocation) (rpc.PermissionDecision, error) {
-		return WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, sampleDecisionContext()), nil
+		return NewAttributedPermissionResult(&rpc.PermissionDecisionApproveOnce{}, sampleDecisionContext()), nil
 	})
 	if !sent {
 		t.Fatal("expected a permission response to be sent")
@@ -162,7 +162,7 @@ func TestPermissionDecisionContextOmittedWithoutAttribution(t *testing.T) {
 	}
 }
 
-func TestWithDecisionContextReplacesRatherThanNests(t *testing.T) {
+func TestAttributedResultReplacesRatherThanNests(t *testing.T) {
 	first := &rpc.PermissionDecisionContext{
 		Outcome: PermissionDecisionOutcomePromptedUser,
 		Source:  PermissionDecisionSourceHumanResponse,
@@ -170,7 +170,7 @@ func TestWithDecisionContextReplacesRatherThanNests(t *testing.T) {
 	}
 	second := sampleDecisionContext()
 
-	wrapped := WithDecisionContext(WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, first), second)
+	wrapped := NewAttributedPermissionResult(NewAttributedPermissionResult(&rpc.PermissionDecisionApproveOnce{}, first), second)
 
 	if wrapped.DecisionContext != second {
 		t.Fatalf("expected the second context to replace the first, got %#v", wrapped.DecisionContext)
@@ -202,7 +202,7 @@ func TestWithDecisionContextReplacesRatherThanNests(t *testing.T) {
 
 func TestAttributedNoResultStillSuppressesResponse(t *testing.T) {
 	frame, sent := runPermissionExchange(t, func(PermissionRequest, PermissionInvocation) (rpc.PermissionDecision, error) {
-		return WithDecisionContext(&rpc.PermissionDecisionNoResult{}, sampleDecisionContext()), nil
+		return NewAttributedPermissionResult(&rpc.PermissionDecisionNoResult{}, sampleDecisionContext()), nil
 	})
 	if sent {
 		t.Fatalf("expected no response to be sent for an attributed no-result decision, got frame: %s", frame)
@@ -216,7 +216,7 @@ func TestAttributedNoResultStillSuppressesResponse(t *testing.T) {
 // context is silently dropped.
 func TestValueFormAttributedResultIsUnwrapped(t *testing.T) {
 	frame, sent := runPermissionExchange(t, func(PermissionRequest, PermissionInvocation) (rpc.PermissionDecision, error) {
-		return *WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, sampleDecisionContext()), nil
+		return *NewAttributedPermissionResult(&rpc.PermissionDecisionApproveOnce{}, sampleDecisionContext()), nil
 	})
 	if !sent {
 		t.Fatal("expected a permission response to be sent")
@@ -240,7 +240,7 @@ func TestValueFormAttributedResultIsUnwrapped(t *testing.T) {
 	}
 }
 
-func TestWithDecisionContextReplacesContextOnValueForm(t *testing.T) {
+func TestAttributedResultReplacesContextOnValueForm(t *testing.T) {
 	first := sampleDecisionContext()
 	second := &rpc.PermissionDecisionContext{
 		Outcome: PermissionDecisionOutcomePromptedUser,
@@ -248,8 +248,8 @@ func TestWithDecisionContextReplacesContextOnValueForm(t *testing.T) {
 		Surface: PermissionDecisionSurfaceTui,
 	}
 
-	valueForm := *WithDecisionContext(&rpc.PermissionDecisionApproveOnce{}, first)
-	replaced := WithDecisionContext(valueForm, second)
+	valueForm := *NewAttributedPermissionResult(&rpc.PermissionDecisionApproveOnce{}, first)
+	replaced := NewAttributedPermissionResult(valueForm, second)
 
 	if replaced.DecisionContext != second {
 		t.Fatal("expected the second context to replace the first")

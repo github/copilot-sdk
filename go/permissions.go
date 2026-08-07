@@ -14,7 +14,7 @@ import (
 // DecisionContext is informational only and never changes permission behavior.
 // It satisfies [rpc.PermissionDecision] itself, so a [PermissionHandlerFunc]
 // can return it wherever a plain decision is expected. Prefer constructing it
-// through [WithDecisionContext] rather than by hand.
+// through [NewAttributedPermissionResult] rather than by hand.
 //
 // Experimental: AttributedPermissionResult is part of an experimental API and
 // may change or be removed.
@@ -25,18 +25,19 @@ type AttributedPermissionResult struct {
 	DecisionContext *rpc.PermissionDecisionContext
 }
 
-// WithDecisionContext attaches provenance to a permission decision so the
-// runtime can attribute auto-approval telemetry to the responding surface.
+// NewAttributedPermissionResult pairs a permission decision with the context
+// describing how it was reached, so the runtime can attribute auto-approval
+// telemetry to the responding surface.
 //
 // The returned value satisfies [rpc.PermissionDecision], so a
-// [PermissionHandlerFunc] can return it directly. Applying WithDecisionContext
-// to an already-attributed result replaces the previous context rather than
-// nesting it. If result is a [rpc.PermissionDecisionNoResult] (attributed or
-// not), the SDK still suppresses the response.
+// [PermissionHandlerFunc] can return it directly. Passing an already-attributed
+// result replaces the previous context rather than nesting it. If result is a
+// [rpc.PermissionDecisionNoResult] (attributed or not), the SDK still
+// suppresses the response.
 //
-// Experimental: WithDecisionContext is part of an experimental API and may
-// change or be removed.
-func WithDecisionContext(result rpc.PermissionDecision, decisionContext *rpc.PermissionDecisionContext) *AttributedPermissionResult {
+// Experimental: NewAttributedPermissionResult is part of an experimental API
+// and may change or be removed.
+func NewAttributedPermissionResult(result rpc.PermissionDecision, decisionContext *rpc.PermissionDecisionContext) *AttributedPermissionResult {
 	switch attributed := result.(type) {
 	case *AttributedPermissionResult:
 		result = attributed.PermissionDecision

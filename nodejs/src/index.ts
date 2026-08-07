@@ -27,7 +27,7 @@ export {
 export {
     defineTool,
     approveAll,
-    withDecisionContext,
+    createAttributedPermissionResult,
     convertMcpCallToolResult,
     createSessionFsAdapter,
     CopilotRequestHandler,

@@ -380,7 +380,7 @@ type PermissionInvocation struct {
 }
 
 // PermissionDecisionContext describes how and where a permission decision was
-// reached. Attach it to a decision with [WithDecisionContext] so the runtime
+// reached. Attach it to a decision with [NewAttributedPermissionResult] so the runtime
 // can attribute auto-approval telemetry to the responding surface. It is
 // informational only and never changes permission behavior.
 //
