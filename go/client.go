@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"regexp"
@@ -385,6 +386,10 @@ func parseCLIURL(url string) (string, int) {
 		host, portStr, err := net.SplitHostPort(cleanURL)
 		if err != nil {
 			panic(fmt.Sprintf("Invalid port in URIConnection: %s", url))
+		}
+		addr, err := netip.ParseAddr(host)
+		if err != nil || !addr.Is6() {
+			panic(fmt.Sprintf("Invalid URIConnection format: %s", url))
 		}
 		port, err := strconv.Atoi(portStr)
 		if err != nil || port <= 0 || port > 65535 {

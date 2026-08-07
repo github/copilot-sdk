@@ -2199,6 +2199,15 @@ describe("CopilotClient", () => {
             expect((client as any).isExternalServer).toBe(true);
         });
 
+        it("should reject a bracketed non-IPv6 host", () => {
+            expect(() => {
+                new CopilotClient({
+                    connection: RuntimeConnection.forUri("[not-ipv6]:1234"),
+                    logLevel: "error",
+                });
+            }).toThrow(/Invalid cliUrl format/);
+        });
+
         it("should parse https://host:port URL format", () => {
             const client = new CopilotClient({
                 connection: RuntimeConnection.forUri("https://example.com:443"),

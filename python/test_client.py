@@ -1214,6 +1214,10 @@ class TestURLParsing:
         assert client._actual_host == "::1"
         assert client._is_external_server
 
+    def test_reject_bracketed_non_ipv6_host(self):
+        with pytest.raises(ValueError, match="Invalid cli_url format"):
+            CopilotClient(connection=RuntimeConnection.for_uri("[not-ipv6]:1234"))
+
     def test_parse_https_url(self):
         client = CopilotClient(connection=RuntimeConnection.for_uri("https://example.com:443"))
         assert client._runtime_port == 443

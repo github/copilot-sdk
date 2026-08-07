@@ -15,7 +15,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { Socket } from "node:net";
+import { isIPv6, Socket } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -780,11 +780,16 @@ export class CopilotClient {
         // the existing parser behavior for other inputs.
         const ipv6Match = cleanUrl.match(/^\[([^\]]+)\]:(\d+)$/);
         if (ipv6Match) {
+            const host = ipv6Match[1];
+            if (!isIPv6(host)) {
+                throw new Error(`Invalid cliUrl format: ${url}`);
+            }
+
             const port = parseInt(ipv6Match[2], 10);
             if (isNaN(port) || port <= 0 || port > 65535) {
                 throw new Error(`Invalid port in cliUrl: ${url}`);
             }
-            return { host: ipv6Match[1], port };
+            return { host, port };
         }
 
         // Parse host:port format

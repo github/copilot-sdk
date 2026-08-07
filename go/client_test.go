@@ -76,6 +76,15 @@ func TestClient_URLParsing(t *testing.T) {
 		}
 	})
 
+	t.Run("should panic for bracketed non-IPv6 host", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for invalid bracketed host")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "[not-ipv6]:1234"}})
+	})
+
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "https://example.com:443"},

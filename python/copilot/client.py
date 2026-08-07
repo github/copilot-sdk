@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import inspect
 import logging
 import os
@@ -1655,6 +1656,10 @@ class CopilotClient:
         if ipv6_match:
             host = ipv6_match.group(1)
             port_text = ipv6_match.group(2)
+            try:
+                ipaddress.IPv6Address(host)
+            except ValueError as e:
+                raise ValueError(f"Invalid cli_url format: {url}") from e
         else:
             # Parse host:port format
             parts = clean_url.split(":")
