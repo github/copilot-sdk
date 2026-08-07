@@ -29,6 +29,7 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
+mod process_tree;
 /// BYOK bearer-token provider callbacks.
 pub mod provider_token;
 mod provider_token_dispatch;
@@ -101,7 +102,7 @@ pub mod test_support {
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use tokio::net::TcpStream;
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{Instrument, debug, error, info, warn};
 pub use types::*;
@@ -971,7 +972,7 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
 /// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
 ///
 /// Cheaply cloneable — cloning shares the underlying connection.
-/// The child process (if any) is killed when the last clone drops.
+/// The SDK-owned process tree (if any) is terminated when the last clone drops.
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<ClientInner>,
@@ -987,7 +988,7 @@ impl std::fmt::Debug for Client {
 }
 
 struct ClientInner {
-    child: parking_lot::Mutex<Option<Child>>,
+    child: parking_lot::Mutex<Option<process_tree::ManagedChild>>,
     #[cfg(feature = "bundled-in-process")]
     /// In-process FFI runtime host, set only for [`Transport::InProcess`].
     /// Closing it tears down the native runtime connection.
@@ -1241,8 +1242,8 @@ impl Client {
                 let (mut child, spawn_elapsed) =
                     Self::spawn_stdio(&program, &options, &working_directory)?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
-                let stdin = child.stdin.take().expect("stdin is piped");
-                let stdout = child.stdout.take().expect("stdout is piped");
+                let stdin = child.child_mut().stdin.take().expect("stdin is piped");
+                let stdout = child.child_mut().stdout.take().expect("stdout is piped");
                 Self::drain_stderr(&mut child);
                 Self::from_transport(
                     stdout,
@@ -1525,7 +1526,7 @@ impl Client {
     fn from_transport(
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
-        child: Option<Child>,
+        child: Option<process_tree::ManagedChild>,
         cwd: PathBuf,
         on_list_models: Option<Arc<dyn ListModelsHandler>>,
         session_fs_configured: bool,
@@ -1586,8 +1587,8 @@ impl Client {
     /// notifications via [`ClientInner::lifecycle_tx`] to subscribers
     /// returned by [`Self::subscribe_lifecycle`].
     fn spawn_lifecycle_dispatcher(&self) {
-        let inner = Arc::clone(&self.inner);
-        let mut notif_rx = inner.notification_tx.subscribe();
+        let mut notif_rx = self.inner.notification_tx.subscribe();
+        let lifecycle_tx = self.inner.lifecycle_tx.clone();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
@@ -1611,7 +1612,7 @@ impl Client {
                             };
                         // `send` only errors when there are no subscribers — that's
                         // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = inner.lifecycle_tx.send(event);
+                        let _ = lifecycle_tx.send(event);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!(missed = n, "lifecycle dispatcher lagged");
@@ -1684,13 +1685,6 @@ impl Client {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            command.as_std_mut().creation_flags(CREATE_NO_WINDOW);
-        }
-
         command
     }
 
@@ -1747,7 +1741,7 @@ impl Client {
         program: &Path,
         options: &ClientOptions,
         working_directory: &Path,
-    ) -> Result<(Child, Duration)> {
+    ) -> Result<(process_tree::ManagedChild, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -1759,7 +1753,7 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
-        let child = command.spawn()?;
+        let child = process_tree::ManagedChild::spawn(command)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
@@ -1773,7 +1767,7 @@ impl Client {
         options: &ClientOptions,
         working_directory: &Path,
         port: u16,
-    ) -> Result<(Child, u16, Duration, Duration)> {
+    ) -> Result<(process_tree::ManagedChild, u16, Duration, Duration)> {
         info!(cwd = ?working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options, working_directory);
         command
@@ -1785,13 +1779,13 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
-        let mut child = command.spawn()?;
+        let mut child = process_tree::ManagedChild::spawn(command)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_tcp subprocess spawned"
         );
-        let stdout = child.stdout.take().expect("stdout is piped");
+        let stdout = child.child_mut().stdout.take().expect("stdout is piped");
 
         let (port_tx, port_rx) = oneshot::channel::<u16>();
         let span = tracing::error_span!("copilot_cli_port_scan");
@@ -1835,8 +1829,8 @@ impl Client {
         Ok((child, actual_port, spawn_elapsed, port_wait_elapsed))
     }
 
-    fn drain_stderr(child: &mut Child) {
-        if let Some(stderr) = child.stderr.take() {
+    fn drain_stderr(child: &mut process_tree::ManagedChild) {
+        if let Some(stderr) = child.child_mut().stderr.take() {
             let span = tracing::error_span!("copilot_cli");
             tokio::spawn(
                 async move {
@@ -2342,21 +2336,26 @@ impl Client {
 
     /// Return the OS process ID of the CLI child process, if one was spawned.
     pub fn pid(&self) -> Option<u32> {
-        self.inner.child.lock().as_ref().and_then(|c| c.id())
+        self.inner
+            .child
+            .lock()
+            .as_ref()
+            .and_then(process_tree::ManagedChild::id)
     }
 
-    /// Cooperatively shut down the client and the CLI child process.
+    /// Cooperatively shut down the client and its SDK-owned process tree.
     ///
     /// Walks every still-registered session and sends `session.destroy`
-    /// for each one, asks SDK-owned runtimes to shut down, then kills the
-    /// CLI child. Errors from per-session destroys, runtime shutdown, and
-    /// the final child-kill are collected into
+    /// for each one, asks SDK-owned runtimes to shut down, then terminates and
+    /// reaps the complete spawned process tree. Errors from per-session
+    /// destroys, runtime shutdown, tree termination, and process reaping are
+    /// collected into
     /// [`StopErrors`] rather than short-circuiting on the first failure
     /// — so callers see the full picture of teardown.
     ///
     /// If you have already called [`Session::disconnect`] on every
     /// session this client created, the per-session destroy step is a
-    /// no-op (the router map is empty); only the child-kill remains.
+    /// no-op (the router map is empty); only process-tree teardown remains.
     ///
     /// [`Session::disconnect`]: crate::session::Session::disconnect
     ///
@@ -2442,20 +2441,17 @@ impl Client {
         *self.inner.state.lock() = ConnectionState::Disconnected;
         *self.inner.models_cache.lock() = Arc::new(tokio::sync::OnceCell::new());
         if let Some(mut child) = child {
-            match child.try_wait() {
-                Ok(Some(_status)) => {}
-                Ok(None) => {
-                    // The runtime completes all cleanup before responding to
-                    // runtime.shutdown and then leaves termination to us; it
-                    // deliberately keeps its JSON-RPC server alive to send the
-                    // response and never self-exits. Waiting for a self-exit
-                    // that will never come just wastes time, so terminate the
-                    // child immediately.
-                    if let Err(e) = child.kill().await {
-                        errors.push(e.into());
-                    }
-                }
-                Err(e) => errors.push(e.into()),
+            // The runtime completes all cleanup before responding to
+            // runtime.shutdown and deliberately leaves process termination to
+            // its owner so it can send the response first.
+            if let Err(e) = child.terminate() {
+                errors.push(e.into());
+            }
+            if let Err(e) = child.wait().await {
+                errors.push(e.into());
+            }
+            if let Err(e) = child.wait_for_tree_exit(RUNTIME_SHUTDOWN_TIMEOUT).await {
+                errors.push(e.into());
             }
         }
 
@@ -2477,14 +2473,14 @@ impl Client {
         }
     }
 
-    /// Forcibly stop the CLI process without waiting for it to exit.
+    /// Forcibly stop the CLI process tree.
     ///
     /// Synchronous fallback when [`stop`](Self::stop) is unsuitable — for
     /// example when the awaiting tokio runtime is shutting down or the
-    /// process is wedged on I/O. Sends a kill signal without awaiting
-    /// reaper completion and immediately drops all per-session router
-    /// state so dependent tasks observe a closed channel rather than a
-    /// hang.
+    /// process is wedged on I/O. Terminates the complete tree, briefly polls
+    /// the direct child for exit, and transfers any slow exit to a dedicated
+    /// finite reaper thread. It immediately drops all per-session router state
+    /// so dependent tasks observe a closed channel rather than a hang.
     ///
     /// # Cancel safety
     ///
@@ -2510,9 +2506,9 @@ impl Client {
         let pid = self.pid();
         info!(pid = ?pid, "force-stopping CLI process");
         if let Some(mut child) = self.inner.child.lock().take()
-            && let Err(e) = child.start_kill()
+            && let Err(e) = child.terminate()
         {
-            error!(pid = ?pid, error = %e, "failed to send kill signal");
+            error!(pid = ?pid, error = %e, "failed to terminate CLI process tree");
         }
         self.inner.rpc.force_close();
         #[cfg(feature = "bundled-in-process")]
@@ -2569,12 +2565,12 @@ impl Client {
 
 impl Drop for ClientInner {
     fn drop(&mut self) {
-        if let Some(ref mut child) = *self.child.lock() {
+        if let Some(mut child) = self.child.lock().take() {
             let pid = child.id();
-            if let Err(e) = child.start_kill() {
-                error!(pid = ?pid, error = %e, "failed to kill CLI process on drop");
+            if let Err(e) = child.terminate() {
+                error!(pid = ?pid, error = %e, "failed to terminate CLI process tree on drop");
             } else {
-                info!(pid = ?pid, "kill signal sent for CLI process on drop");
+                info!(pid = ?pid, "CLI process tree terminated on drop");
             }
         }
         #[cfg(feature = "bundled-in-process")]
@@ -2589,6 +2585,13 @@ impl Drop for ClientInner {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    use serial_test::serial;
+    use tempfile::{TempDir, tempdir};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
+
     use super::*;
 
     #[test]
@@ -3213,6 +3216,217 @@ mod tests {
 
         assert!(client.inner.router.session_ids().is_empty());
         client.force_stop();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn client_process_tree_stop_reaps_grandchild() {
+        let baseline = process_tree::active_tree_count();
+        let (client, direct_pid, grandchild_pid, _temp, mut server_read, mut server_write) =
+            managed_test_client().await;
+        let server = tokio::spawn(async move {
+            let request = read_framed_json(&mut server_read).await;
+            assert_eq!(request["method"], "runtime.shutdown");
+            let response = serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": null,
+            });
+            write_framed_json(&mut server_write, &response).await;
+        });
+
+        client.stop().await.expect("stop client");
+        server.await.expect("runtime shutdown server");
+
+        assert_test_tree_gone(direct_pid, grandchild_pid, baseline).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn client_process_tree_force_stop_reaps_grandchild() {
+        let baseline = process_tree::active_tree_count();
+        let (client, direct_pid, grandchild_pid, _temp, _server_read, _server_write) =
+            managed_test_client().await;
+
+        client.force_stop();
+
+        assert_test_tree_gone(direct_pid, grandchild_pid, baseline).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn client_process_tree_drop_reaps_grandchild() {
+        let baseline = process_tree::active_tree_count();
+        let (client, direct_pid, grandchild_pid, _temp, _server_read, _server_write) =
+            managed_test_client().await;
+
+        drop(client);
+
+        assert_test_tree_gone(direct_pid, grandchild_pid, baseline).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn client_process_tree_tcp_startup_failure_reaps_tree() {
+        let baseline = process_tree::active_tree_count();
+        let temp = tempdir().expect("create temp directory");
+        let pid_file = temp.path().join("startup.pids");
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("reserve port");
+        let unused_port = listener.local_addr().expect("reserved address").port();
+        drop(listener);
+        let script = executable_script(
+            &temp,
+            "fake-tcp-cli.sh",
+            "#!/bin/sh\nsleep 60 </dev/null >/dev/null 2>&1 &\necho \"$$ $!\" > \"$PID_FILE\"\necho \"listening on port $FAKE_PORT\"\nwait\n",
+        );
+        let options = ClientOptions::new()
+            .with_program(CliProgram::Path(script))
+            .with_transport(Transport::Tcp {
+                port: 0,
+                connection_token: None,
+            })
+            .with_env([
+                ("PID_FILE", pid_file.as_os_str()),
+                ("FAKE_PORT", std::ffi::OsStr::new(&unused_port.to_string())),
+            ]);
+
+        Client::start(options)
+            .await
+            .expect_err("TCP connect should fail");
+        let (direct_pid, grandchild_pid) = read_test_pids(&pid_file).await;
+
+        assert_test_tree_gone(direct_pid, grandchild_pid, baseline).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn client_process_tree_handshake_failure_reaps_tree() {
+        let baseline = process_tree::active_tree_count();
+        let temp = tempdir().expect("create temp directory");
+        let pid_file = temp.path().join("startup.pids");
+        let script = executable_script(
+            &temp,
+            "fake-stdio-cli.sh",
+            "#!/bin/sh\nsleep 60 </dev/null >/dev/null 2>&1 &\necho \"$$ $!\" > \"$PID_FILE\"\nsleep 0.1\nexit 0\n",
+        );
+        let options = ClientOptions::new()
+            .with_program(CliProgram::Path(script))
+            .with_env([("PID_FILE", pid_file.as_os_str())]);
+
+        Client::start(options)
+            .await
+            .expect_err("protocol handshake should fail");
+        let (direct_pid, grandchild_pid) = read_test_pids(&pid_file).await;
+
+        assert_test_tree_gone(direct_pid, grandchild_pid, baseline).await;
+    }
+
+    async fn managed_test_client() -> (Client, u32, u32, TempDir, DuplexStream, DuplexStream) {
+        let temp = tempdir().expect("create temp directory");
+        let pid_file = temp.path().join("grandchild.pid");
+        let child = process_tree::ManagedChild::spawn(process_tree::test_tree_command(&pid_file))
+            .expect("spawn managed process tree");
+        let direct_pid = child.id().expect("direct child pid");
+        let grandchild_pid = process_tree::wait_for_test_pid(&pid_file).await;
+        let (client_write, server_read) = tokio::io::duplex(8192);
+        let (server_write, client_read) = tokio::io::duplex(8192);
+        let client = Client::from_transport(
+            client_read,
+            client_write,
+            Some(child),
+            temp.path().to_path_buf(),
+            None,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ClientMode::default(),
+        )
+        .expect("create client");
+        (
+            client,
+            direct_pid,
+            grandchild_pid,
+            temp,
+            server_read,
+            server_write,
+        )
+    }
+
+    async fn assert_test_tree_gone(direct_pid: u32, grandchild_pid: u32, baseline: usize) {
+        assert!(
+            process_tree::wait_for_test_condition(Duration::from_secs(10), || {
+                !process_tree::test_process_exists(direct_pid)
+                    && !process_tree::test_process_exists(grandchild_pid)
+                    && process_tree::active_tree_count() == baseline
+            })
+            .await,
+            "managed process tree or guard survived teardown"
+        );
+    }
+
+    #[cfg(unix)]
+    fn executable_script(temp: &TempDir, name: &str, contents: &str) -> PathBuf {
+        let path = temp.path().join(name);
+        std::fs::write(&path, contents).expect("write test script");
+        let mut permissions = std::fs::metadata(&path)
+            .expect("read test script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).expect("make test script executable");
+        path
+    }
+
+    #[cfg(unix)]
+    async fn read_test_pids(path: &Path) -> (u32, u32) {
+        let found =
+            process_tree::wait_for_test_condition(Duration::from_secs(10), || path.exists()).await;
+        assert!(found, "startup helper pid file was not created");
+        let contents = std::fs::read_to_string(path).expect("read startup helper pids");
+        let mut pids = contents.split_whitespace().map(|value| {
+            value
+                .parse::<u32>()
+                .expect("startup helper pid should be numeric")
+        });
+        (
+            pids.next().expect("direct child pid"),
+            pids.next().expect("grandchild pid"),
+        )
+    }
+
+    async fn read_framed_json(reader: &mut DuplexStream) -> serde_json::Value {
+        let mut header = Vec::new();
+        while !header.ends_with(b"\r\n\r\n") {
+            let mut byte = [0u8; 1];
+            reader
+                .read_exact(&mut byte)
+                .await
+                .expect("read frame header");
+            header.push(byte[0]);
+        }
+        let header = String::from_utf8(header).expect("frame header is UTF-8");
+        let length = header
+            .lines()
+            .find_map(|line| line.strip_prefix("Content-Length: "))
+            .expect("content length header")
+            .parse::<usize>()
+            .expect("content length is numeric");
+        let mut body = vec![0u8; length];
+        reader.read_exact(&mut body).await.expect("read frame body");
+        serde_json::from_slice(&body).expect("parse framed JSON")
+    }
+
+    async fn write_framed_json(writer: &mut DuplexStream, value: &serde_json::Value) {
+        let body = serde_json::to_vec(value).expect("serialize framed JSON");
+        writer
+            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+            .await
+            .expect("write frame header");
+        writer.write_all(&body).await.expect("write frame body");
+        writer.flush().await.expect("flush frame");
     }
 
     fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
