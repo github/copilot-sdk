@@ -70,6 +70,46 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 implementation 'com.github:copilot-sdk-java:1.0.11-preview.0-SNAPSHOT'
 ```
 
+## In-process mode (experimental)
+
+The SDK supports running the Copilot runtime **in-process** as a native library instead of spawning a separate CLI process. This eliminates process management overhead and simplifies deployment. In-process mode is currently experimental and only supported on **linux-x64**.
+
+Because in-process mode is experimental, see the [Using experimental APIs](#using-experimental-apis) section for how to opt in.
+
+### Additional dependency
+
+Add both the SDK and the platform-specific native runtime to your project:
+
+```xml
+<dependencies>
+    <!-- Pure-Java SDK (~1.5 MB) -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java</artifactId>
+        <version>${copilot.version}</version>
+    </dependency>
+    <!-- Native runtime for linux-x64 (~20-26 MB) -->
+    <dependency>
+        <groupId>com.github</groupId>
+        <artifactId>copilot-sdk-java-runtime</artifactId>
+        <version>${copilot.version}</version>
+        <classifier>linux-x64</classifier>
+    </dependency>
+</dependencies>
+```
+
+### Usage
+
+Configure the client to use the in-process connection:
+
+```java
+CopilotClientOptions options = new CopilotClientOptions()
+    .setConnection(RuntimeConnection.forInProcess());
+
+CopilotClient client = new CopilotClient(options);
+client.start().get();
+```
+
 ## Quick Start
 
 ```java
@@ -156,7 +196,7 @@ PermissionHandler handler = (request, invocation) -> {
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
 
-See the full source of [`jbang-example.java`](jbang-example.java) for a complete example with more features like session idle handling and usage info events.
+See the full source of [`jbang-example.java`](sdk/jbang-example.java) for a complete example with more features like session idle handling and usage info events.
 
 Or run it directly from the repository:
 
@@ -262,7 +302,7 @@ Chain fluent modifiers to set tool options:
 - `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
-For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
+For design context and decision rationale, see [ADR-006](sdk/docs/adr/adr-006-tool-definition-inline.md).
 
 ## Session Store
 
@@ -386,7 +426,7 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 | Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
 | Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
-In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](sdk/docs/adr/adr-004-copilotexperimental.md) for the design rationale.
 
 ### Example
 
@@ -443,4 +483,4 @@ mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](sdk/LICENSE) for details.
