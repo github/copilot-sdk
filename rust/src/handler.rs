@@ -49,7 +49,12 @@ pub enum PermissionResult {
     ///
     /// The context is informational only — it never changes permission
     /// behavior.
-    AttributedDecision(PermissionDecision, PermissionDecisionContext),
+    AttributedDecision {
+        /// The decision to send on the wire.
+        decision: PermissionDecision,
+        /// Context describing how and where the decision was reached.
+        context: PermissionDecisionContext,
+    },
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
@@ -105,8 +110,8 @@ impl PermissionResult {
     /// ```
     pub fn with_context(self, context: PermissionDecisionContext) -> Self {
         match self {
-            Self::Decision(decision) | Self::AttributedDecision(decision, _) => {
-                Self::AttributedDecision(decision, context)
+            Self::Decision(decision) | Self::AttributedDecision { decision, .. } => {
+                Self::AttributedDecision { decision, context }
             }
             Self::NoResult => Self::NoResult,
         }

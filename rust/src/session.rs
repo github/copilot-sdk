@@ -1581,7 +1581,7 @@ fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
         PermissionResult::NoResult => None,
         PermissionResult::Decision(decision)
-        | PermissionResult::AttributedDecision(decision, _) => Some(
+        | PermissionResult::AttributedDecision { decision, .. } => Some(
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
     }
@@ -1605,7 +1605,7 @@ fn permission_response_params(
         "requestId": request_id,
         "result": result_value,
     });
-    if let PermissionResult::AttributedDecision(_, context) = result {
+    if let PermissionResult::AttributedDecision { context, .. } = result {
         params["decisionContext"] =
             serde_json::to_value(context).expect("serializing decision context should succeed");
     }
