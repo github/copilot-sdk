@@ -24,6 +24,7 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { isAttributedPermissionResult } from "./types.js";
 import type {
     CommandHandler,
     AutoModeSwitchHandler,
@@ -43,6 +44,7 @@ import type {
     McpAuthRequest,
     PermissionHandler,
     PermissionRequest,
+    PermissionRequestResult,
     ContextTier,
     ReasoningEffort,
     ReasoningSummary,
@@ -1124,17 +1126,26 @@ export class CopilotSession {
         permissionRequest: PermissionRequest
     ): Promise<void> {
         try {
-            const result = await this.permissionHandler!(permissionRequest, {
+            const handlerResult = await this.permissionHandler!(permissionRequest, {
                 sessionId: this.sessionId,
                 managedSettingsEnabled: this.managedSettingsEnabled,
             });
+            const isAttributed = isAttributedPermissionResult(handlerResult);
+            const result: PermissionRequestResult = isAttributed
+                ? handlerResult.result
+                : handlerResult;
+            const decisionContext = isAttributed ? handlerResult.decisionContext : undefined;
             if (result.kind === "no-result") {
                 return;
             }
             if (this.disconnected) {
                 return;
             }
-            await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
+            await this.rpc.permissions.handlePendingPermissionRequest(
+                decisionContext === undefined
+                    ? { requestId, result }
+                    : { requestId, result, decisionContext }
+            );
         } catch (error) {
             if (this.disconnected) {
                 return;

@@ -5,7 +5,9 @@ use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
 use github_copilot_sdk::rpc::PermissionsSetApproveAllRequest;
 use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::{
-    PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
+    PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+    PermissionDecisionSurface, PermissionRequestData, RequestId, ResumeSessionConfig,
+    SessionConfig, SessionId,
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -97,6 +99,69 @@ async fn should_deny_permission_when_handler_returns_denied() {
                 // ("The user rejected this tool call.") for the reject decision,
                 // which lets us assert the decision was honored — not merely that
                 // the operation didn't happen.
+                let events = session.subscribe();
+
+                session
+                    .send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
+                    .await
+                    .expect("send");
+
+                wait_for_event(events, "user-rejected tool completion", |event| {
+                    is_user_rejected_tool_completion(event)
+                })
+                .await;
+
+                let content = std::fs::read_to_string(&test_file).expect("read protected file");
+                assert_eq!(content, "protected content");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_honor_a_decision_annotated_with_decisioncontext() {
+    // End-to-end proof that a decision carrying provenance still round-trips through
+    // the real CLI and is honored. Shares the Node snapshot of the same name.
+    //
+    // Scope note: the runtime only emits its `auto_approval_decision` telemetry when
+    // its own auto-approval judge metadata is present (feature-flagged and model
+    // backed), and it otherwise accepts `decisionContext` without validating it — so
+    // the CLI exposes no observable signal for the field's shape. The exact wire
+    // shape (top-level sibling of `result`, omitted entirely when absent) is asserted
+    // by the `permission_response_params` unit tests in `src/session.rs`. What this
+    // test covers is that attaching context does not disturb the live permission
+    // round-trip: the reject decision must still be applied by the CLI.
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "permissions",
+        "should_honor_a_decision_annotated_with_decisioncontext",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let test_file = ctx.work_dir().join("protected.txt");
+                std::fs::write(&test_file, "protected content").expect("write protected file");
+                let client = ctx.start_client().await;
+
+                let decision_context = PermissionDecisionContext {
+                    outcome: PermissionDecisionOutcome::PromptedUser,
+                    source: PermissionDecisionSource::HumanResponse,
+                    surface: PermissionDecisionSurface::Sdk,
+                };
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(Arc::new(StaticPermissionHandler::new(
+                                PermissionResult::reject(None).with_context(decision_context),
+                            ))),
+                    )
+                    .await
+                    .expect("create session");
+
                 let events = session.subscribe();
 
                 session

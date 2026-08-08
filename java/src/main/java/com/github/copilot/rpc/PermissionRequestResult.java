@@ -6,8 +6,10 @@ package com.github.copilot.rpc;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.generated.rpc.PermissionDecisionContext;
 
 /**
  * Result of a permission request decision.
@@ -41,6 +43,15 @@ public final class PermissionRequestResult {
 
     @JsonProperty("feedback")
     private String feedback;
+
+    /**
+     * Optional provenance describing how and where this decision was made. Never
+     * serialized inside the result — the SDK forwards it as a sibling of
+     * {@code result} so the runtime can attribute {@code auto_approval_decision}
+     * telemetry.
+     */
+    @JsonIgnore
+    private PermissionDecisionContext decisionContext;
 
     /**
      * Creates a result that approves this single request.
@@ -166,6 +177,37 @@ public final class PermissionRequestResult {
      */
     public PermissionRequestResult setFeedback(String feedback) {
         this.feedback = feedback;
+        return this;
+    }
+
+    /**
+     * Gets the optional provenance describing how and where this decision was made.
+     * <p>
+     * This value is never serialized inside the result JSON; the SDK forwards it as
+     * a sibling of {@code result} when responding to the runtime.
+     *
+     * @return the decision context, or {@code null} if none was attached
+     * @since 1.3.0
+     */
+    public PermissionDecisionContext getDecisionContext() {
+        return decisionContext;
+    }
+
+    /**
+     * Sets provenance describing how and where this decision was made, so the
+     * runtime can attribute {@code auto_approval_decision} telemetry.
+     * <p>
+     * Calling this method more than once replaces any previously set context. The
+     * context is never serialized inside the result; the SDK forwards it as a
+     * sibling of {@code result}.
+     *
+     * @param decisionContext
+     *            the decision context, or {@code null} to attach none
+     * @return this result for method chaining
+     * @since 1.3.0
+     */
+    public PermissionRequestResult setDecisionContext(PermissionDecisionContext decisionContext) {
+        this.decisionContext = decisionContext;
         return this;
     }
 }

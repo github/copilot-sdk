@@ -379,6 +379,47 @@ type PermissionInvocation struct {
 	ManagedSettingsEnabled bool
 }
 
+// PermissionDecisionContext describes how and where a permission decision was
+// reached. Attach it to a decision with [NewAttributedPermissionResult] so the runtime
+// can attribute auto-approval telemetry to the responding surface. It is
+// informational only and never changes permission behavior.
+//
+// Experimental: PermissionDecisionContext is part of an experimental API and
+// may change or be removed.
+type PermissionDecisionContext = rpc.PermissionDecisionContext
+
+// PermissionDecisionOutcome describes the disposition of a permission request
+// as observed by the responding client.
+type PermissionDecisionOutcome = rpc.PermissionDecisionOutcome
+
+const (
+	PermissionDecisionOutcomeAutoApproved    = rpc.PermissionDecisionOutcomeAutoApproved
+	PermissionDecisionOutcomeAutopilotDenied = rpc.PermissionDecisionOutcomeAutopilotDenied
+	PermissionDecisionOutcomePromptedUser    = rpc.PermissionDecisionOutcomePromptedUser
+)
+
+// PermissionDecisionSource identifies the controlled reason or actor
+// responsible for a permission response.
+type PermissionDecisionSource = rpc.PermissionDecisionSource
+
+const (
+	PermissionDecisionSourceHostPolicy          = rpc.PermissionDecisionSourceHostPolicy
+	PermissionDecisionSourceHumanResponse       = rpc.PermissionDecisionSourceHumanResponse
+	PermissionDecisionSourceJudgeRecommendation = rpc.PermissionDecisionSourceJudgeRecommendation
+	PermissionDecisionSourceUnattendedFallback  = rpc.PermissionDecisionSourceUnattendedFallback
+)
+
+// PermissionDecisionSurface identifies the client surface that submitted a
+// permission response.
+type PermissionDecisionSurface = rpc.PermissionDecisionSurface
+
+const (
+	PermissionDecisionSurfaceCopilotApp = rpc.PermissionDecisionSurfaceCopilotApp
+	PermissionDecisionSurfacePromptMode = rpc.PermissionDecisionSurfacePromptMode
+	PermissionDecisionSurfaceSDK        = rpc.PermissionDecisionSurfaceSDK
+	PermissionDecisionSurfaceTui        = rpc.PermissionDecisionSurfaceTui
+)
+
 // MCPAuthWwwAuthenticateParams contains parsed parameters from an MCP server's WWW-Authenticate response.
 type MCPAuthWwwAuthenticateParams struct {
 	ResourceMetadataURL *string `json:"resourceMetadataUrl,omitempty"`

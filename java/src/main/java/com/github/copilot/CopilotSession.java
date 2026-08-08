@@ -1026,7 +1026,7 @@ public final class CopilotSession implements AutoCloseable {
                         }
                         getRpc().permissions.handlePendingPermissionRequest(
                                 new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, result,
-                                        null));
+                                        result.getDecisionContext()));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }

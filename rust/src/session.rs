@@ -1580,10 +1580,36 @@ fn permission_request_data(
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
         PermissionResult::NoResult => None,
-        PermissionResult::Decision(decision) => Some(
+        PermissionResult::Decision(decision)
+        | PermissionResult::AttributedDecision { decision, .. } => Some(
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
     }
+}
+
+/// Build the full `session.permissions.handlePendingPermissionRequest`
+/// params for a [`PermissionResult`].
+///
+/// `decisionContext` is a sibling of `result` and is only present when the
+/// handler attributed the decision — omitting it preserves legacy behavior.
+///
+/// Returns `None` when the SDK must not send a response.
+fn permission_response_params(
+    session_id: &SessionId,
+    request_id: &RequestId,
+    result: &PermissionResult,
+) -> Option<Value> {
+    let result_value = notification_permission_payload(result)?;
+    let mut params = serde_json::json!({
+        "sessionId": session_id,
+        "requestId": request_id,
+        "result": result_value,
+    });
+    if let PermissionResult::AttributedDecision { context, .. } = result {
+        params["decisionContext"] =
+            serde_json::to_value(context).expect("serializing decision context should succeed");
+    }
+    Some(params)
 }
 
 async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> Result<(), Error> {
@@ -1779,7 +1805,8 @@ async fn handle_notification(
                         request_id = %request_id,
                         "PermissionHandler::handle dispatch"
                     );
-                    let Some(result_value) = notification_permission_payload(&result) else {
+                    let Some(params) = permission_response_params(&sid, &request_id, &result)
+                    else {
                         // Handler returned Deferred / NoResult — it will
                         // call handlePendingPermissionRequest itself (or
                         // leave the request unanswered).
@@ -1789,11 +1816,7 @@ async fn handle_notification(
                     let _ = client
                         .call(
                             "session.permissions.handlePendingPermissionRequest",
-                            Some(serde_json::json!({
-                                "sessionId": sid,
-                                "requestId": request_id,
-                                "result": result_value,
-                            })),
+                            Some(params),
                         )
                         .await;
                     tracing::debug!(
@@ -2563,8 +2586,15 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{has_managed_settings, notification_permission_payload, permission_request_data};
+    use super::{
+        has_managed_settings, notification_permission_payload, permission_request_data,
+        permission_response_params,
+    };
     use crate::handler::PermissionResult;
+    use crate::types::{
+        PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+        PermissionDecisionSurface, RequestId, SessionId,
+    };
 
     #[test]
     fn direct_injection_enables_managed_safeguards() {
@@ -2595,6 +2625,103 @@ mod tests {
         assert_eq!(
             notification_permission_payload(&PermissionResult::user_not_available()),
             Some(json!({ "kind": "user-not-available" }))
+        );
+    }
+
+    fn attribution_context() -> PermissionDecisionContext {
+        PermissionDecisionContext {
+            outcome: PermissionDecisionOutcome::AutoApproved,
+            source: PermissionDecisionSource::JudgeRecommendation,
+            surface: PermissionDecisionSurface::CopilotApp,
+        }
+    }
+
+    #[test]
+    fn response_params_omit_decision_context_without_attribution() {
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &PermissionResult::approve_once(),
+        )
+        .unwrap();
+        assert_eq!(
+            params,
+            json!({
+                "sessionId": "session-1",
+                "requestId": "permission-1",
+                "result": { "kind": "approve-once" },
+            })
+        );
+        assert!(params.get("decisionContext").is_none());
+    }
+
+    #[test]
+    fn response_params_forward_decision_context_alongside_result() {
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &PermissionResult::approve_once().with_context(attribution_context()),
+        )
+        .unwrap();
+        assert_eq!(
+            params,
+            json!({
+                "sessionId": "session-1",
+                "requestId": "permission-1",
+                "result": { "kind": "approve-once" },
+                "decisionContext": {
+                    "outcome": "auto_approved",
+                    "source": "judge_recommendation",
+                    "surface": "copilot_app",
+                },
+            })
+        );
+        // The context is a sibling of `result`, never nested inside it.
+        assert!(params["result"].get("decisionContext").is_none());
+    }
+
+    #[test]
+    fn response_params_suppressed_for_no_result() {
+        assert!(
+            permission_response_params(
+                &SessionId::from("session-1"),
+                &RequestId::from("permission-1"),
+                &PermissionResult::NoResult,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn with_context_is_a_no_op_on_no_result() {
+        assert!(matches!(
+            PermissionResult::no_result().with_context(attribution_context()),
+            PermissionResult::NoResult
+        ));
+    }
+
+    #[test]
+    fn with_context_replaces_rather_than_nests() {
+        let result = PermissionResult::approve_once()
+            .with_context(attribution_context())
+            .with_context(PermissionDecisionContext {
+                outcome: PermissionDecisionOutcome::PromptedUser,
+                source: PermissionDecisionSource::HumanResponse,
+                surface: PermissionDecisionSurface::Sdk,
+            });
+        let params = permission_response_params(
+            &SessionId::from("session-1"),
+            &RequestId::from("permission-1"),
+            &result,
+        )
+        .unwrap();
+        assert_eq!(
+            params["decisionContext"],
+            json!({
+                "outcome": "prompted_user",
+                "source": "human_response",
+                "surface": "sdk",
+            })
         );
     }
 

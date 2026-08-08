@@ -5740,7 +5740,9 @@ pub use crate::generated::api_types::{
     Model, ModelBilling, ModelBillingTokenPrices, ModelBillingTokenPricesLongContext,
     ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
     ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
-    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    PermissionDecisionApproveOnce, PermissionDecisionContext, PermissionDecisionOutcome,
+    PermissionDecisionReject, PermissionDecisionSource, PermissionDecisionSurface,
+    PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.

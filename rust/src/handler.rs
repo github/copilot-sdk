@@ -22,7 +22,7 @@ use crate::generated::api_types::{
     McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
     McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseToken,
     McpOauthPendingRequestResponseTokenKind, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionReject, PermissionDecisionUserNotAvailable,
+    PermissionDecisionContext, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 use crate::session_events::{
     McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
@@ -38,10 +38,23 @@ use crate::types::{
 /// approve-for-session, approve-permanently, user-not-available, …) or
 /// [`PermissionResult::NoResult`], which tells the SDK to suppress its
 /// response so another connected client can answer instead.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum PermissionResult {
     /// Send a permission decision on the wire.
     Decision(PermissionDecision),
+    /// Send a permission decision annotated with the context describing how
+    /// and where it was reached, so the runtime can attribute
+    /// auto-approval telemetry to the responding surface.
+    ///
+    /// The context is informational only — it never changes permission
+    /// behavior.
+    AttributedDecision {
+        /// The decision to send on the wire.
+        decision: PermissionDecision,
+        /// Context describing how and where the decision was reached.
+        context: PermissionDecisionContext,
+    },
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
@@ -74,6 +87,34 @@ impl PermissionResult {
     /// instead.
     pub fn no_result() -> Self {
         Self::NoResult
+    }
+
+    /// Attach provenance describing how and where this decision was made,
+    /// so the runtime can attribute auto-approval telemetry.
+    ///
+    /// Applying this to an already-attributed decision replaces the
+    /// previous context. It is a no-op on [`PermissionResult::NoResult`].
+    ///
+    /// ```rust,no_run
+    /// # use github_copilot_sdk::handler::PermissionResult;
+    /// # use github_copilot_sdk::{
+    /// #     PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+    /// #     PermissionDecisionSurface,
+    /// # };
+    ///
+    /// let result = PermissionResult::approve_once().with_context(PermissionDecisionContext {
+    ///     outcome: PermissionDecisionOutcome::AutoApproved,
+    ///     source: PermissionDecisionSource::HostPolicy,
+    ///     surface: PermissionDecisionSurface::Sdk,
+    /// });
+    /// ```
+    pub fn with_context(self, context: PermissionDecisionContext) -> Self {
+        match self {
+            Self::Decision(decision) | Self::AttributedDecision { decision, .. } => {
+                Self::AttributedDecision { decision, context }
+            }
+            Self::NoResult => Self::NoResult,
+        }
     }
 }
 
