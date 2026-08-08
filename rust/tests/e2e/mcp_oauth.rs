@@ -514,15 +514,23 @@ impl OAuthMcpServer {
     }
 
     async fn requests(&self) -> Vec<OAuthMcpRequest> {
-        let text = reqwest::get(format!("{}/__requests", self.url))
+        let uri: hyper::Uri = format!("{}/__requests", self.url)
+            .parse()
+            .expect("valid OAuth MCP requests URL");
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http::<http_body_util::Full<bytes::Bytes>>();
+        let response = client.get(uri).await.expect("fetch OAuth MCP requests");
+        assert!(
+            response.status().is_success(),
+            "OAuth MCP request status: {}",
+            response.status()
+        );
+        let body = http_body_util::BodyExt::collect(response.into_body())
             .await
-            .expect("fetch OAuth MCP requests")
-            .error_for_status()
-            .expect("OAuth MCP request status")
-            .text()
-            .await
-            .expect("read OAuth MCP requests");
-        serde_json::from_str(&text).expect("decode OAuth MCP requests")
+            .expect("read OAuth MCP requests")
+            .to_bytes();
+        serde_json::from_slice(&body).expect("decode OAuth MCP requests")
     }
 
     async fn stop(&mut self) {

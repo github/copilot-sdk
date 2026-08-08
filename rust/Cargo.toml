@@ -65,7 +65,11 @@ base64 = "0.22"
 bytes = "1"
 http = "1"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["stream", "http2", "default-tls"] }
+hyper = { version = "1", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "http2", "tokio"] }
+hyper-tls = "0.6"
+http-body-util = "0.1"
+native-tls = { version = "0.2", features = ["alpn"] }
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
