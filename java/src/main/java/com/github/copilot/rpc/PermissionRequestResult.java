@@ -5,7 +5,6 @@
 package com.github.copilot.rpc;
 
 import java.util.List;
-import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -195,22 +194,20 @@ public final class PermissionRequestResult {
     }
 
     /**
-     * Attaches provenance describing how and where this decision was made, so the
+     * Sets provenance describing how and where this decision was made, so the
      * runtime can attribute {@code auto_approval_decision} telemetry.
      * <p>
-     * Calling this method more than once replaces any previously attached context.
-     * The context is never serialized inside the result; the SDK forwards it as a
+     * Calling this method more than once replaces any previously set context. The
+     * context is never serialized inside the result; the SDK forwards it as a
      * sibling of {@code result}.
      *
-     * @param context
-     *            the decision context; must not be {@code null}
+     * @param decisionContext
+     *            the decision context, or {@code null} to attach none
      * @return this result for method chaining
-     * @throws NullPointerException
-     *             if {@code context} is {@code null}
      * @since 1.3.0
      */
-    public PermissionRequestResult withContext(PermissionDecisionContext context) {
-        this.decisionContext = Objects.requireNonNull(context, "context must not be null");
+    public PermissionRequestResult setDecisionContext(PermissionDecisionContext decisionContext) {
+        this.decisionContext = decisionContext;
         return this;
     }
 }

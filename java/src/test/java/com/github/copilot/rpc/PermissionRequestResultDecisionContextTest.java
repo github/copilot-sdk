@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,8 +35,8 @@ class PermissionRequestResultDecisionContextTest {
     }
 
     @Test
-    void withContextForwardsDecisionContextAsSiblingOfResult() throws Exception {
-        var result = PermissionRequestResult.approveOnce().withContext(sampleContext());
+    void setDecisionContextForwardsContextAsSiblingOfResult() throws Exception {
+        var result = PermissionRequestResult.approveOnce().setDecisionContext(sampleContext());
         var params = new SessionPermissionsHandlePendingPermissionRequestParams("session-1", "req-1", result,
                 result.getDecisionContext());
 
@@ -66,19 +65,19 @@ class PermissionRequestResultDecisionContextTest {
     }
 
     @Test
-    void withContextTwiceReplacesRatherThanNests() {
+    void setDecisionContextTwiceReplacesRatherThanNests() {
         var first = sampleContext();
         var second = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
                 PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI);
 
-        var result = PermissionRequestResult.approveOnce().withContext(first).withContext(second);
+        var result = PermissionRequestResult.approveOnce().setDecisionContext(first).setDecisionContext(second);
 
-        assertSame(second, result.getDecisionContext(), "second withContext must replace the first, not nest");
+        assertSame(second, result.getDecisionContext(), "second setDecisionContext must replace the first, not nest");
     }
 
     @Test
     void serializingResultWithContextDoesNotEmitContextInsideResult() throws Exception {
-        var result = PermissionRequestResult.approveOnce().withContext(sampleContext());
+        var result = PermissionRequestResult.approveOnce().setDecisionContext(sampleContext());
 
         JsonNode resultJson = MAPPER.valueToTree(result);
 
@@ -88,10 +87,11 @@ class PermissionRequestResultDecisionContextTest {
     }
 
     @Test
-    void withContextRejectsNull() {
-        var result = PermissionRequestResult.approveOnce();
+    void setDecisionContextAcceptsNullAsNoContext() {
+        var result = PermissionRequestResult.approveOnce().setDecisionContext(sampleContext());
 
-        assertThrows(NullPointerException.class, () -> result.withContext(null),
-                "withContext must reject null rather than silently dropping the context");
+        result.setDecisionContext(null);
+
+        assertNull(result.getDecisionContext(), "null must clear the context rather than throwing");
     }
 }
