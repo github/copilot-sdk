@@ -2563,11 +2563,52 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>, 
     return lines;
 }
 
-function generateRpcCode(
+export function generateRpcCode(
     schema: ApiSchema,
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
     externalValueTypes: Set<string> = new Set()
 ): string {
+    schema = cloneSchemaForCodegen(schema);
+    const filterInProcessProperties = (value: unknown): void => {
+        if (!value || typeof value !== "object") {
+            return;
+        }
+        if (Array.isArray(value)) {
+            value.forEach(filterInProcessProperties);
+            return;
+        }
+
+        const object = value as Record<string, unknown>;
+        if (object["x-opaque-in-process"] === true) {
+            throw new Error(
+                "C# codegen: x-opaque-in-process is only supported on properties."
+            );
+        }
+
+        const properties = object.properties as Record<string, unknown> | undefined;
+        if (properties) {
+            for (const [name, property] of Object.entries(properties)) {
+                const propertySchema = property as Record<string, unknown>;
+                if (propertySchema?.["x-opaque-in-process"] === true) {
+                    if (propertySchema.visibility !== "internal") {
+                        throw new Error(
+                            'C# codegen: x-opaque-in-process properties must have visibility "internal".'
+                        );
+                    }
+                    delete properties[name];
+                } else {
+                    filterInProcessProperties(property);
+                }
+            }
+        }
+
+        for (const [name, child] of Object.entries(object)) {
+            if (name !== "properties") {
+                filterInProcessProperties(child);
+            }
+        }
+    };
+    filterInProcessProperties(schema);
     emittedRpcClassSchemas.clear();
     emittedRpcEnumResultTypes.clear();
     experimentalRpcTypes.clear();
