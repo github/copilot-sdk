@@ -7836,6 +7836,7 @@ class SubagentCompletedData:
     agent_display_name: str
     agent_name: str
     tool_call_id: str
+    cancelled: bool | None = None
     duration: timedelta | None = None
     model: str | None = None
     total_tokens: int | None = None
@@ -7847,6 +7848,7 @@ class SubagentCompletedData:
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
         tool_call_id = from_str(obj.get("toolCallId"))
+        cancelled = from_union([from_none, from_bool], obj.get("cancelled"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
         total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
@@ -7855,6 +7857,7 @@ class SubagentCompletedData:
             agent_display_name=agent_display_name,
             agent_name=agent_name,
             tool_call_id=tool_call_id,
+            cancelled=cancelled,
             duration=duration,
             model=model,
             total_tokens=total_tokens,
@@ -7866,6 +7869,8 @@ class SubagentCompletedData:
         result["agentDisplayName"] = from_str(self.agent_display_name)
         result["agentName"] = from_str(self.agent_name)
         result["toolCallId"] = from_str(self.tool_call_id)
+        if self.cancelled is not None:
+            result["cancelled"] = from_union([from_none, from_bool], self.cancelled)
         if self.duration is not None:
             result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.model is not None:

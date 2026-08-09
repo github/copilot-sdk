@@ -1075,6 +1075,12 @@ func unmarshalFactoryRunFailure(data []byte) (FactoryRunFailure, error) {
 	}
 
 	switch raw.Type {
+	case FactoryRunFailureTypeFactoryAccountingIncomplete:
+		var d FactoryRunFailureFactoryAccountingIncomplete
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case FactoryRunFailureTypeFactoryDurableFailure:
 		var d FactoryRunFailureFactoryDurableFailure
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1106,6 +1112,17 @@ func (r RawFactoryRunFailureData) MarshalJSON() ([]byte, error) {
 		Type FactoryRunFailureType `json:"type"`
 	}{
 		Type: r.Discriminator,
+	})
+}
+
+func (r FactoryRunFailureFactoryAccountingIncomplete) MarshalJSON() ([]byte, error) {
+	type alias FactoryRunFailureFactoryAccountingIncomplete
+	return json.Marshal(struct {
+		Type FactoryRunFailureType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
 	})
 }
 

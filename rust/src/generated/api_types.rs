@@ -4093,12 +4093,21 @@ pub struct FactoryAckResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryAgentOptions {
+    /// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Optional context tier for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ContextTier>,
     /// Optional label distinguishing otherwise identical memoized agent calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Optional model identifier for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Optional JSON Schema for structured agent output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<serde_json::Value>,
@@ -4362,7 +4371,7 @@ pub struct FactoryJournalPutRequest {
     pub run_id: String,
 }
 
-/// Empty parameters for listing factory runs.
+/// Parameters for paging factory runs.
 ///
 /// <div class="warning">
 ///
@@ -4372,7 +4381,17 @@ pub struct FactoryJournalPutRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryListRunsRequest {}
+pub struct FactoryListRunsRequest {
+    /// Exclusive forward cursor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<i64>,
+    /// Exclusive backward cursor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_seq: Option<i64>,
+    /// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i32>,
+}
 
 /// Durable factory resource consumption.
 ///
@@ -4443,7 +4462,7 @@ pub struct FactoryRunSummary {
     pub updated_at: i64,
 }
 
-/// Factory runs in durable creation order.
+/// A page of factory runs in durable creation order.
 ///
 /// <div class="warning">
 ///
@@ -4454,6 +4473,18 @@ pub struct FactoryRunSummary {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryListRunsResult {
+    /// Whether terminal runs newer than this page exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more_newer: Option<bool>,
+    /// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_seq: Option<i64>,
+    /// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_seq: Option<i64>,
+    /// Number of terminal runs older than this page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_older: Option<i64>,
     pub runs: Vec<FactoryRunSummary>,
 }
 
@@ -12317,6 +12348,25 @@ pub struct RemoteSessionRepository {
     pub owner: String,
 }
 
+/// Credential-injection capability flags applied while the sandbox is enabled.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxConfigAuth {
+    /// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gh: Option<bool>,
+    /// Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git: Option<bool>,
+}
+
 /// macOS seatbelt experimental options.
 ///
 /// <div class="warning">
@@ -12475,14 +12525,11 @@ pub struct SandboxConfig {
     /// Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_dev_tool_access: Option<bool>,
+    /// Credential-injection capability flags.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<SandboxConfigAuth>,
     /// Whether sandboxing is enabled for the session.
     pub enabled: bool,
-    /// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gh_auth: Option<bool>,
-    /// Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub git_auth: Option<bool>,
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_policy: Option<SandboxConfigUserPolicy>,
@@ -19359,7 +19406,7 @@ pub struct SessionFactoryGetRunResult {
     pub status: FactoryRunStatus,
 }
 
-/// Factory runs in durable creation order.
+/// A page of factory runs in durable creation order.
 ///
 /// <div class="warning">
 ///
@@ -19370,6 +19417,18 @@ pub struct SessionFactoryGetRunResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryListRunsResult {
+    /// Whether terminal runs newer than this page exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more_newer: Option<bool>,
+    /// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_seq: Option<i64>,
+    /// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_seq: Option<i64>,
+    /// Number of terminal runs older than this page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_older: Option<i64>,
     pub runs: Vec<FactoryRunSummary>,
 }
 

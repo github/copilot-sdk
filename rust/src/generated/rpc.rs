@@ -4511,9 +4511,13 @@ impl<'a> SessionRpcFactory<'a> {
     ///
     /// Wire method: `session.factory.listRuns`.
     ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for paging factory runs.
+    ///
     /// # Returns
     ///
-    /// Factory runs in durable creation order.
+    /// A page of factory runs in durable creation order.
     ///
     /// <div class="warning">
     ///
@@ -4522,8 +4526,12 @@ impl<'a> SessionRpcFactory<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn list_runs(&self) -> Result<FactoryListRunsResult, Error> {
-        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+    pub async fn list_runs(
+        &self,
+        params: FactoryListRunsRequest,
+    ) -> Result<FactoryListRunsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
             .session
             .client()

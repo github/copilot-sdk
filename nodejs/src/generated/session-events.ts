@@ -5562,6 +5562,10 @@ export interface SubagentCompletedData {
    */
   agentName: string;
   /**
+   * Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.
+   */
+  cancelled?: boolean;
+  /**
    * Wall-clock duration of the sub-agent execution in milliseconds
    */
   durationMs?: number;

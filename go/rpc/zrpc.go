@@ -2452,10 +2452,16 @@ type FactoryAckResult struct {
 // Experimental: FactoryAgentOptions is part of an experimental API and may change or be
 // removed.
 type FactoryAgentOptions struct {
+	// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+	Agent *string `json:"agent,omitempty"`
+	// Optional context tier for the subagent. This field is accepted but not yet honored.
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Optional label distinguishing otherwise identical memoized agent calls.
 	Label *string `json:"label,omitempty"`
 	// Optional model identifier for the subagent.
 	Model *string `json:"model,omitempty"`
+	// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Optional JSON Schema for structured agent output.
 	Schema any `json:"schema,omitempty"`
 }
@@ -2611,17 +2617,31 @@ type FactoryJournalPutRequest struct {
 	RunID string `json:"runId"`
 }
 
-// Empty parameters for listing factory runs.
+// Parameters for paging factory runs.
 // Experimental: FactoryListRunsRequest is part of an experimental API and may change or be
 // removed.
 type FactoryListRunsRequest struct {
+	// Exclusive forward cursor.
+	AfterSeq *int64 `json:"afterSeq,omitempty"`
+	// Exclusive backward cursor.
+	BeforeSeq *int64 `json:"beforeSeq,omitempty"`
+	// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+	Limit *int32 `json:"limit,omitempty"`
 }
 
-// Factory runs in durable creation order.
+// A page of factory runs in durable creation order.
 // Experimental: FactoryListRunsResult is part of an experimental API and may change or be
 // removed.
 type FactoryListRunsResult struct {
-	Runs []FactoryRunSummary `json:"runs"`
+	// Whether terminal runs newer than this page exist.
+	HasMoreNewer *bool `json:"hasMoreNewer,omitempty"`
+	// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+	NewestSeq *int64 `json:"newestSeq,omitempty"`
+	// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+	OldestSeq *int64 `json:"oldestSeq,omitempty"`
+	// Number of terminal runs older than this page.
+	OmittedOlder *int64              `json:"omittedOlder,omitempty"`
+	Runs         []FactoryRunSummary `json:"runs"`
 }
 
 // One ordered factory progress line.
@@ -2770,6 +2790,19 @@ type RawFactoryRunFailureData struct {
 func (RawFactoryRunFailureData) factoryRunFailure() {}
 func (r RawFactoryRunFailureData) Type() FactoryRunFailureType {
 	return r.Discriminator
+}
+
+// The run stopped because its usage accounting could not be completed.
+type FactoryRunFailureFactoryAccountingIncomplete struct {
+	// Confirmed usage in nano-AIU, representing the floor of what the run spent.
+	DrainedNanoAiu int64 `json:"drainedNanoAiu"`
+	// Factory run identifier.
+	RunID string `json:"runId"`
+}
+
+func (FactoryRunFailureFactoryAccountingIncomplete) factoryRunFailure() {}
+func (FactoryRunFailureFactoryAccountingIncomplete) Type() FactoryRunFailureType {
+	return FactoryRunFailureTypeFactoryAccountingIncomplete
 }
 
 type FactoryRunFailureFactoryDurableFailure struct {
@@ -8208,17 +8241,27 @@ type SandboxConfig struct {
 	// Cargo lock files granted read-write. Default: true (enabled by default; set to false to
 	// opt out).
 	AllowDevToolAccess *bool `json:"allowDevToolAccess,omitempty"`
+	// Credential-injection capability flags.
+	Auth *SandboxConfigAuth `json:"auth,omitempty"`
 	// Whether sandboxing is enabled for the session.
 	Enabled bool `json:"enabled"`
-	// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the
-	// OS keyring the sandbox blocks. Default: false (opt-in).
-	GhAuth *bool `json:"ghAuth,omitempty"`
-	// Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so
-	// authenticated HTTPS git works inside the sandbox without the shell-based credential
-	// helper the sandbox blocks. Default: false (opt-in).
-	GitAuth *bool `json:"gitAuth,omitempty"`
 	// User-managed sandbox policy fragment merged into the auto-discovered base policy.
 	UserPolicy *SandboxConfigUserPolicy `json:"userPolicy,omitempty"`
+}
+
+// Credential-injection capability flags applied while the sandbox is enabled.
+// Experimental: SandboxConfigAuth is part of an experimental API and may change or be
+// removed.
+type SandboxConfigAuth struct {
+	// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the
+	// OS keyring the sandbox blocks. Default: false (opt-in).
+	Gh *bool `json:"gh,omitempty"`
+	// Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS
+	// git works inside the sandbox without the shell-based credential helper the sandbox
+	// blocks. github.com is served by the Copilot token; every other forge (Azure DevOps,
+	// GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's
+	// own helper before the sandbox is applied. Default: false (opt-in).
+	Git *bool `json:"git,omitempty"`
 }
 
 // User-managed sandbox policy fragment merged into the auto-discovered base policy.
@@ -13525,9 +13568,10 @@ const (
 type FactoryRunFailureType string
 
 const (
-	FactoryRunFailureTypeFactoryDurableFailure FactoryRunFailureType = "factory_durable_failure"
-	FactoryRunFailureTypeFactoryLimitReached   FactoryRunFailureType = "factory_limit_reached"
-	FactoryRunFailureTypeFactoryResumeDeclined FactoryRunFailureType = "factory_resume_declined"
+	FactoryRunFailureTypeFactoryAccountingIncomplete FactoryRunFailureType = "factory_accounting_incomplete"
+	FactoryRunFailureTypeFactoryDurableFailure       FactoryRunFailureType = "factory_durable_failure"
+	FactoryRunFailureTypeFactoryLimitReached         FactoryRunFailureType = "factory_limit_reached"
+	FactoryRunFailureTypeFactoryResumeDeclined       FactoryRunFailureType = "factory_resume_declined"
 )
 
 // Current or terminal state of a factory run.
@@ -18218,9 +18262,22 @@ func (a *FactoryAPI) GetRunProgress(ctx context.Context, params *FactoryGetRunPr
 //
 // RPC method: session.factory.listRuns.
 //
-// Returns: Factory runs in durable creation order.
-func (a *FactoryAPI) ListRuns(ctx context.Context) (*FactoryListRunsResult, error) {
+// Parameters: Parameters for paging factory runs.
+//
+// Returns: A page of factory runs in durable creation order.
+func (a *FactoryAPI) ListRuns(ctx context.Context, params *FactoryListRunsRequest) (*FactoryListRunsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AfterSeq != nil {
+			req["afterSeq"] = *params.AfterSeq
+		}
+		if params.BeforeSeq != nil {
+			req["beforeSeq"] = *params.BeforeSeq
+		}
+		if params.Limit != nil {
+			req["limit"] = *params.Limit
+		}
+	}
 	raw, err := a.client.Request(ctx, "session.factory.listRuns", req)
 	if err != nil {
 		return nil, err
