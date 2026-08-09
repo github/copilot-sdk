@@ -74,7 +74,7 @@ When a pull request modifies any SDK client code, review it to ensure:
 - **Python**: `python/copilot/`
 - **Go**: `go/`
 - **.NET**: `dotnet/src/`
-- **Java**: `java/src/main/java/`
+- **Java**: `java/sdk/src/main/java/`
 - **Rust**: `rust/src/`
 
 ## Review Process
