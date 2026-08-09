@@ -2598,7 +2598,7 @@ function emitClientGlobalApiRegistration(clientSchema: Record<string, unknown>, 
     return lines;
 }
 
-function generateRpcCode(
+export function generateRpcCode(
     schema: ApiSchema,
     externalJsonSerializableRefs: Map<string, Set<string>> = new Map(),
     externalValueTypes: Set<string> = new Set()
