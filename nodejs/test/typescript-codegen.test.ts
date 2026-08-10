@@ -48,6 +48,128 @@ describe("typescript schema codegen", () => {
         );
         expect(code).toContain('inlineMode: /** Use a direct value. */ "direct" | "indirect";');
     });
+
+    it("maps bare opaque properties to their marker aliases", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "OpaqueProperty",
+                type: "object",
+                properties: {
+                    json: { "x-opaque-json": true },
+                    inProcess: { "x-opaque-in-process": true },
+                },
+                required: ["json", "inProcess"],
+            }),
+            "OpaqueProperty",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("json: JsonValue;");
+        expect(code).toContain("inProcess: OpaqueInProcessValue;");
+    });
+
+    it("maps a bare opaque JSON additional property to JsonValue", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "OpaqueMap",
+                type: "object",
+                additionalProperties: { "x-opaque-json": true },
+            }),
+            "OpaqueMap",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("[k: string]: JsonValue;");
+    });
+
+    it("maps a bare opaque JSON array item to JsonValue", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "OpaqueArray",
+                type: "object",
+                properties: { values: { type: "array", items: { "x-opaque-json": true } } },
+                required: ["values"],
+            }),
+            "OpaqueArray",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("values: JsonValue[];");
+    });
+
+    it("maps a bare opaque JSON definition to a named alias", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "OpaqueDefinitionRoot",
+                type: "object",
+                properties: { value: { $ref: "#/definitions/OpaqueDefinition" } },
+                definitions: { OpaqueDefinition: { "x-opaque-json": true } },
+            }),
+            "OpaqueDefinitionRoot",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("export type OpaqueDefinition = JsonValue;");
+    });
+
+    it("keeps an opaque JSON node with anyOf as a union", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "ConstrainedUnion",
+                "x-opaque-json": true,
+                anyOf: [{ type: "string" }, { type: "number" }],
+            }),
+            "ConstrainedUnion",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("export type ConstrainedUnion = string | number;");
+        expect(code).not.toContain("JsonValue");
+    });
+
+    it("keeps an opaque JSON node with object constraints as an object", async () => {
+        const code = await compile(
+            normalizeSchemaForTypeScript({
+                title: "ConstrainedObject",
+                type: "object",
+                "x-opaque-json": true,
+                properties: { name: { type: "string" } },
+                required: ["name"],
+            }),
+            "ConstrainedObject",
+            { bannerComment: "", style: { semi: true, singleQuote: false } }
+        );
+
+        expect(code).toContain("export interface ConstrainedObject {");
+        expect(code).toContain("name: string;");
+        expect(code).not.toContain("JsonValue");
+    });
+
+    it("removes both opaque markers from every normalized schema node", () => {
+        const normalized = normalizeSchemaForTypeScript({
+            type: "object",
+            "x-opaque-json": true,
+            properties: {
+                json: { "x-opaque-json": true },
+                inProcess: { "x-opaque-in-process": true },
+            },
+            additionalProperties: { "x-opaque-in-process": true },
+        }) as Record<string, unknown>;
+
+        const assertMarkersRemoved = (value: unknown): void => {
+            if (Array.isArray(value)) {
+                value.forEach(assertMarkersRemoved);
+            } else if (value && typeof value === "object") {
+                for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+                    expect(key).not.toBe("x-opaque-json");
+                    expect(key).not.toBe("x-opaque-in-process");
+                    assertMarkersRemoved(child);
+                }
+            }
+        };
+
+        assertMarkersRemoved(normalized);
+    });
 });
 
 describe("filterPublicSessionEventVariants", () => {

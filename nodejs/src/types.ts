@@ -19,6 +19,7 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
+import type { JsonValue } from "./factory.js";
 import type {
     GitHubTelemetryNotification,
     ModelBillingTokenPrices,
@@ -451,7 +452,7 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
-export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
+export type ToolTelemetry = Record<string, Record<string, JsonValue> | undefined>;
 
 export type ToolResultObject = {
     textResultForLlm: string;
