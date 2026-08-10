@@ -83,14 +83,19 @@ public final class SessionFactoryApi {
     }
 
     /**
-     * Empty parameters for listing factory runs.
+     * Parameters for paging factory runs.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
-    public CompletableFuture<SessionFactoryListRunsResult> listRuns() {
-        return caller.invoke("session.factory.listRuns", java.util.Map.of("sessionId", this.sessionId), SessionFactoryListRunsResult.class);
+    public CompletableFuture<SessionFactoryListRunsResult> listRuns(SessionFactoryListRunsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.factory.listRuns", _p, SessionFactoryListRunsResult.class);
     }
 
     /**

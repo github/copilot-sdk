@@ -47,7 +47,9 @@ public final class SubagentCompletedEvent extends SessionEvent {
         /** Total tokens (input + output) consumed by the sub-agent */
         @JsonProperty("totalTokens") Long totalTokens,
         /** Wall-clock duration of the sub-agent execution in milliseconds */
-        @JsonProperty("durationMs") Long durationMs
+        @JsonProperty("durationMs") Long durationMs,
+        /** Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end. */
+        @JsonProperty("cancelled") Boolean cancelled
     ) {
     }
 }

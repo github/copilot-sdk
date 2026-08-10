@@ -15,7 +15,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Factory runs in durable creation order.
+ * A page of factory runs in durable creation order.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,14 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFactoryListRunsResult(
-    @JsonProperty("runs") List<FactoryRunSummary> runs
+    @JsonProperty("runs") List<FactoryRunSummary> runs,
+    /** Oldest terminal-run cursor in this page, or null when the terminal window is empty. */
+    @JsonProperty("oldestSeq") Long oldestSeq,
+    /** Newest terminal-run cursor in this page, or null when the terminal window is empty. */
+    @JsonProperty("newestSeq") Long newestSeq,
+    /** Whether terminal runs newer than this page exist. */
+    @JsonProperty("hasMoreNewer") Boolean hasMoreNewer,
+    /** Number of terminal runs older than this page. */
+    @JsonProperty("omittedOlder") Long omittedOlder
 ) {
 }
