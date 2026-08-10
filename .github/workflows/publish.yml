@@ -379,7 +379,8 @@ jobs:
       needs.publish-nodejs.result == 'success' &&
       needs.publish-dotnet.result == 'success' &&
       needs.publish-python.result == 'success' &&
-      needs.publish-rust.result == 'success'
+      needs.publish-rust.result == 'success' &&
+      needs.publish-java.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -434,11 +435,9 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Tag Rust SDK and create Rust GitHub Release
-        # Rust gets its own version-scoped GitHub Release with notes
-        # derived from PR titles since the previous Rust tag. The
-        # cross-language `vX.Y.Z` release above still exists; this one
-        # is the canonical reference for Rust users.
+      - name: Tag Rust SDK
+        # Keep a language-scoped source tag for traceability. Rust is
+        # included in the cross-language `vX.Y.Z` GitHub Release.
         if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
           set -e
@@ -453,26 +452,5 @@ jobs:
           else
             echo "Tag $TAG_NAME already exists, skipping tag push"
           fi
-          # Find the previous Rust tag for note generation. Prefer rust/v*,
-          # fall back to the historical rust-v* tags from the release-plz era.
-          PREV_TAG=$(git tag --list 'rust/v*' --sort=-v:refname | grep -vFx "$TAG_NAME" | head -n1)
-          if [ -z "$PREV_TAG" ]; then
-            PREV_TAG=$(git tag --list 'rust-v*' --sort=-v:refname | head -n1)
-          fi
-          NOTES_FLAG=""
-          if [ -n "$PREV_TAG" ]; then
-            NOTES_FLAG="--notes-start-tag $PREV_TAG"
-            echo "Generating notes from $PREV_TAG..$TAG_NAME"
-          else
-            echo "No previous Rust tag found; generating notes from full history"
-          fi
-          PRERELEASE_FLAG=""
-          if [ "${{ github.event.inputs.dist-tag }}" = "prerelease" ]; then
-            PRERELEASE_FLAG="--prerelease"
-          fi
-          gh release create "$TAG_NAME" \
-            --title "$TAG_NAME" \
-            --generate-notes $NOTES_FLAG $PRERELEASE_FLAG \
-            --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

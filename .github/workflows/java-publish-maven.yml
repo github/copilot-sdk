@@ -80,39 +80,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_TOKEN }}
 
-      - name: Verify JAVA_RELEASE_GITHUB_TOKEN can trigger workflows
-        run: |
-          # JAVA_RELEASE_GITHUB_TOKEN is used for:
-          #   - gh workflow run release-changelog.lock.yml (requires actions:write)
-          # Check the token's OAuth scopes for 'workflow' (classic PAT) or
-          # attempt a workflow dispatch with a non-existent ref to verify write access
-          # (fine-grained PAT — these don't expose scopes via X-OAuth-Scopes).
-          SCOPES=$(gh api -i user 2>&1 | grep -i '^x-oauth-scopes:' | tr '[:upper:]' '[:lower:]' || true)
-          if echo "$SCOPES" | grep -q 'workflow'; then
-            echo "JAVA_RELEASE_GITHUB_TOKEN has 'workflow' scope (classic PAT)"
-          elif [ -z "$SCOPES" ]; then
-            # Fine-grained PAT: no X-OAuth-Scopes header returned.
-            # Attempt a workflow dispatch against a non-existent ref. If the token
-            # has actions:write, the API returns 422 (validation failed on ref).
-            # If it lacks the permission, the API returns 403.
-            HTTP_CODE=$(gh api -X POST \
-              "repos/${{ github.repository }}/actions/workflows/release-changelog.lock.yml/dispatches" \
-              -f ref="preflight-check-nonexistent-ref" \
-              -f 'inputs[tag]=preflight-check' \
-              --silent -i 2>&1 | head -1 | grep -oE '[0-9]{3}' || echo "000")
-            if [ "$HTTP_CODE" = "403" ] || [ "$HTTP_CODE" = "000" ]; then
-              echo "::error::JAVA_RELEASE_GITHUB_TOKEN lacks actions:write permission on ${{ github.repository }}. It cannot trigger the changelog generation workflow."
-              exit 1
-            fi
-            # 422 = has write access but ref doesn't exist (expected), 204 would mean it dispatched (shouldn't happen with fake ref)
-            echo "JAVA_RELEASE_GITHUB_TOKEN actions:write access OK (fine-grained PAT, dispatch returned HTTP ${HTTP_CODE})"
-          else
-            echo "::error::JAVA_RELEASE_GITHUB_TOKEN lacks 'workflow' scope. Found scopes: ${SCOPES}. It needs this scope to trigger changelog generation via gh workflow run."
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
-
   publish-maven:
     name: Publish Java SDK to Maven Central
     needs: preflight
@@ -248,68 +215,9 @@ jobs:
           # Also run Maven release:rollback to clean up any partial release state
           mvn -B release:rollback || true
 
-  github-release:
-    name: Create GitHub Release
-    needs: [preflight, publish-maven]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./java
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Create GitHub Release
-        run: |
-          VERSION="${{ needs.publish-maven.outputs.version }}"
-          GROUP_ID="com.github"
-          ARTIFACT_ID="copilot-sdk-java"
-          CURRENT_TAG="java/v${VERSION}"
-
-          if gh release view "${CURRENT_TAG}" >/dev/null 2>&1; then
-            echo "Release ${CURRENT_TAG} already exists. Skipping creation."
-            exit 0
-          fi
-
-          # Generate release notes from template
-          export VERSION GROUP_ID ARTIFACT_ID
-          RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/java.notes.template)
-
-          # Get the previous tag for generating notes
-          # grep returns exit 1 when no lines match (first release), so
-          # append "|| true" to prevent pipefail from aborting the script.
-          PREV_TAG=$(git tag --list 'java/v*' --sort=-version:refname \
-            | grep -Fxv "${CURRENT_TAG}" \
-            | head -n 1 || true)
-
-          echo "Current tag: ${CURRENT_TAG}"
-          echo "Previous tag: ${PREV_TAG}"
-
-          # Build the gh release command
-          GH_ARGS=("${CURRENT_TAG}")
-          GH_ARGS+=("--title" "GitHub Copilot SDK for Java ${VERSION}")
-          GH_ARGS+=("--notes" "${RELEASE_NOTES}")
-          GH_ARGS+=("--generate-notes")
-
-          if [ -n "$PREV_TAG" ]; then
-            GH_ARGS+=("--notes-start-tag" "$PREV_TAG")
-          fi
-
-          ${{ inputs.prerelease == true && 'GH_ARGS+=("--prerelease")' || '' }}
-
-          gh release create "${GH_ARGS[@]}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Trigger changelog generation
-        run: gh workflow run release-changelog.lock.yml -f tag="java/v${{ needs.publish-maven.outputs.version }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}
-
   deploy-site:
     name: Deploy Documentation Site
-    needs: [preflight, publish-maven, github-release]
+    needs: [preflight, publish-maven]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
