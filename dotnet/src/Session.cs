@@ -1924,8 +1924,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 "session.detach", [new SessionDetachRequest() { SessionId = SessionId }], CancellationToken.None);
             if (!response.Success)
             {
-                throw new InvalidOperationException(
-                    $"Failed to detach session {SessionId}: {response.Error ?? "unknown error"}");
+                LogSessionDetachFailed(SessionId, response.Error ?? "unknown error");
             }
         }
         catch (ObjectDisposedException)
@@ -1960,6 +1959,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to fetch tool metadata for {toolName}")]
     private partial void LogToolMetadataFetchFailed(Exception exception, string toolName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to detach session {sessionId}: {error}")]
+    private partial void LogSessionDetachFailed(string sessionId, string error);
 
     internal record SendMessageRequest
     {

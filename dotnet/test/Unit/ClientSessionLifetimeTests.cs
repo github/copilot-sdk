@@ -119,6 +119,23 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task DisposeAsync_Does_Not_Throw_When_Detach_Fails()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.FailDetach();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        await session.DisposeAsync();
+
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
     public async Task Disposing_Session_Remains_Rooted_Until_Destroy_Completes()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -692,6 +709,7 @@ public sealed class ClientSessionLifetimeTests
         private readonly object _requestsLock = new();
         private string? _lastSessionId;
         private bool _delayDestroy;
+        private bool _failDetach;
         private bool _failRuntimeShutdown;
 
         private FakeCopilotServer(TcpListener listener)
@@ -752,6 +770,11 @@ public sealed class ClientSessionLifetimeTests
         public void FailRuntimeShutdown()
         {
             _failRuntimeShutdown = true;
+        }
+
+        public void FailDetach()
+        {
+            _failDetach = true;
         }
 
         public async ValueTask DisposeAsync()
@@ -892,7 +915,9 @@ public sealed class ClientSessionLifetimeTests
                 await _allowDestroy.Task.WaitAsync(cancellationToken);
             }
 
-            return new Dictionary<string, object?> { ["success"] = true };
+            return _failDetach
+                ? new Dictionary<string, object?> { ["success"] = false, ["error"] = "detach failed" }
+                : new Dictionary<string, object?> { ["success"] = true };
         }
 
         private Dictionary<string, object?> HandleRuntimeShutdown()
