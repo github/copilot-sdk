@@ -78,6 +78,21 @@ const parked = defineFactory({
     },
 });
 
+const failsOnce = defineFactory({
+    meta: {
+        name: "fails-once",
+        description: "Fails its first attempt and succeeds when resumed.",
+        phases: [],
+    },
+    run: async () => {
+        if (!existsSync(marker("fails-once-attempted"))) {
+            writeFileSync(marker("fails-once-attempted"), "attempted");
+            throw new Error("first attempt failed");
+        }
+        return "resumed";
+    },
+});
+
 session = await joinSession({
     factories: [
         argumentEcho,
@@ -85,6 +100,7 @@ session = await joinSession({
         startsFromContextSession,
         startsFromModuleSession,
         parked,
+        failsOnce,
     ],
 });
 

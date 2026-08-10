@@ -1863,8 +1863,11 @@ describe("factories", () => {
         "not_found",
         "non_resumable",
         "already_active",
-        "reapproval_declined",
-        "no_approval_provider",
+        "factory_already_running",
+        "factory_limits_invalid",
+        "factory_session_disposed",
+        "factory_storage_unavailable",
+        "factory_storage_corrupt",
     ] as const)(
         "throws FactoryResumeError with code %s for pre-execution failures",
         async (code) => {
@@ -1881,6 +1884,21 @@ describe("factories", () => {
             expect((error as FactoryResumeError).code).toBe(code);
         }
     );
+
+    it("leaves an unreachable permission_denied response as a raw ResponseError", async () => {
+        const session = new CopilotSession("session-resume-permission-denied", {
+            sendRequest: vi.fn(async () => {
+                throw new ResponseError(-32602, "resume failed: permission_denied", {
+                    code: "permission_denied",
+                });
+            }),
+        } as never);
+
+        const error = await session.factory.resume("run-error").catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(ResponseError);
+        expect(error).not.toBeInstanceOf(FactoryResumeError);
+        expect((error as ResponseError<{ code: string }>).data.code).toBe("permission_denied");
+    });
 
     it("returns resumed execution failures as envelopes", async () => {
         const envelope = {

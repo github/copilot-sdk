@@ -82,8 +82,11 @@ function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCo
         value === "not_found" ||
         value === "non_resumable" ||
         value === "already_active" ||
-        value === "reapproval_declined" ||
-        value === "no_approval_provider"
+        value === "factory_already_running" ||
+        value === "factory_limits_invalid" ||
+        value === "factory_session_disposed" ||
+        value === "factory_storage_unavailable" ||
+        value === "factory_storage_corrupt"
     );
 }
 

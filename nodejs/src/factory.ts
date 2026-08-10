@@ -251,8 +251,11 @@ export type FactoryResumeErrorCode =
     | "not_found"
     | "non_resumable"
     | "already_active"
-    | "reapproval_declined"
-    | "no_approval_provider";
+    | "factory_already_running"
+    | "factory_limits_invalid"
+    | "factory_session_disposed"
+    | "factory_storage_unavailable"
+    | "factory_storage_corrupt";
 
 /**
  * Friendly factory API exposed on a session.

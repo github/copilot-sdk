@@ -3,8 +3,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
-import { approveAll } from "../../src/index.js";
+import { expect, it, vi } from "vitest";
+import { approveAll, FactoryResumeError } from "../../src/index.js";
 import {
     createSdkTestContext,
     DEFAULT_GITHUB_TOKEN,
@@ -23,7 +23,7 @@ const factoryTestContext = isInProcessTransport
           },
       });
 
-async function setupFactoryExtension(workDir: string) {
+async function setupFactoryExtension(workDir: string, onPermissionRequest = approveAll) {
     if (!factoryTestContext) {
         throw new Error("Factory E2E requires the stdio transport");
     }
@@ -54,7 +54,7 @@ async function setupFactoryExtension(workDir: string) {
     const session = await copilotClient.createSession({
         requestExtensions: true,
         extensionSdkPath: resolve(__dirname, "..", "..", "dist"),
-        onPermissionRequest: approveAll,
+        onPermissionRequest,
         onElicitationRequest: async () => ({
             action: "accept",
             content: { action: "approve" },
@@ -90,6 +90,81 @@ it.skipIf(isInProcessTransport)(
             status: "completed",
             result: { source: "sdk-e2e", count: 11 },
         });
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "throws FactoryResumeError with not_found for an unknown run",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const error = await session.factory
+            .resume("00000000-0000-0000-0000-000000000000")
+            .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(FactoryResumeError);
+        expect((error as FactoryResumeError).code).toBe("not_found");
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "throws FactoryResumeError with non_resumable for a completed run",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const run = await session.factory.run("argument-echo");
+        const error = await session.factory.resume(run.runId).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(FactoryResumeError);
+        expect((error as FactoryResumeError).code).toBe("non_resumable");
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "runs a factory when its session denies every permission request",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        const denyPermissions = vi.fn(() => ({ kind: "reject" as const }));
+        await using session = await setupFactoryExtension(workDir, denyPermissions);
+
+        await expect(session.factory.run("argument-echo")).resolves.toMatchObject({
+            status: "completed",
+        });
+        expect(denyPermissions).not.toHaveBeenCalled();
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "resumes a failed factory when its session denies every permission request",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        const denyPermissions = vi.fn(() => ({ kind: "reject" as const }));
+        await using session = await setupFactoryExtension(workDir, denyPermissions);
+
+        const failedRun = await session.factory.run("fails-once");
+        expect(failedRun).toMatchObject({
+            status: "error",
+        });
+
+        await expect(session.factory.resume(failedRun.runId)).resolves.toMatchObject({
+            status: "completed",
+            result: "resumed",
+        });
+        expect(denyPermissions).not.toHaveBeenCalled();
     }
 );
 
