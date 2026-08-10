@@ -15,6 +15,8 @@
 //! [`Tool::with_handler`](crate::types::Tool::with_handler) on entries passed to
 //! [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -38,26 +40,33 @@ use crate::types::{
 /// approve-for-session, approve-permanently, user-not-available, …) or
 /// [`PermissionResult::NoResult`], which tells the SDK to suppress its
 /// response so another connected client can answer instead.
-#[non_exhaustive]
+///
+/// ```
+/// use github_copilot_sdk::handler::PermissionResult;
+///
+/// fn is_decision(result: PermissionResult) -> bool {
+///     match result {
+///         PermissionResult::Decision(_) => true,
+///         PermissionResult::NoResult => false,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub enum PermissionResult {
     /// Send a permission decision on the wire.
     Decision(PermissionDecision),
-    /// Send a permission decision annotated with the context describing how
-    /// and where it was reached, so the runtime can attribute
-    /// auto-approval telemetry to the responding surface.
-    ///
-    /// The context is informational only — it never changes permission
-    /// behavior.
-    AttributedDecision {
-        /// The decision to send on the wire.
-        decision: PermissionDecision,
-        /// Context describing how and where the decision was reached.
-        context: PermissionDecisionContext,
-    },
     /// Decline to respond to this request, allowing another connected
     /// client to answer instead. The SDK suppresses the response.
     NoResult,
+}
+
+/// A permission result with optional context describing how it was reached.
+#[derive(Debug, Clone)]
+pub struct AttributedPermissionResult {
+    /// The permission result.
+    pub result: PermissionResult,
+    /// Context describing how and where the decision was reached.
+    pub context: Option<PermissionDecisionContext>,
 }
 
 impl PermissionResult {
@@ -92,8 +101,7 @@ impl PermissionResult {
     /// Attach provenance describing how and where this decision was made,
     /// so the runtime can attribute auto-approval telemetry.
     ///
-    /// Applying this to an already-attributed decision replaces the
-    /// previous context. It is a no-op on [`PermissionResult::NoResult`].
+    /// It is a no-op on [`PermissionResult::NoResult`].
     ///
     /// ```rust,no_run
     /// # use github_copilot_sdk::handler::PermissionResult;
@@ -108,14 +116,69 @@ impl PermissionResult {
     ///     surface: PermissionDecisionSurface::Sdk,
     /// });
     /// ```
-    pub fn with_context(self, context: PermissionDecisionContext) -> Self {
-        match self {
-            Self::Decision(decision) | Self::AttributedDecision { decision, .. } => {
-                Self::AttributedDecision { decision, context }
-            }
-            Self::NoResult => Self::NoResult,
+    pub fn with_context(self, context: PermissionDecisionContext) -> AttributedPermissionResult {
+        let context = match self {
+            Self::Decision(_) => Some(context),
+            Self::NoResult => None,
+        };
+        AttributedPermissionResult {
+            result: self,
+            context,
         }
     }
+}
+
+impl AttributedPermissionResult {
+    /// Replace the context describing how this decision was reached.
+    pub fn with_context(mut self, context: PermissionDecisionContext) -> Self {
+        if matches!(self.result, PermissionResult::Decision(_)) {
+            self.context = Some(context);
+        }
+        self
+    }
+}
+
+impl From<PermissionResult> for AttributedPermissionResult {
+    fn from(result: PermissionResult) -> Self {
+        Self {
+            result,
+            context: None,
+        }
+    }
+}
+
+/// Handler for permission requests that also reports how the decision was made.
+#[async_trait]
+pub trait AttributedPermissionHandler: Send + Sync + 'static {
+    /// Resolve a permission request and report how it was decided.
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        data: PermissionRequestData,
+    ) -> AttributedPermissionResult;
+}
+
+struct UnattributedHandler(Arc<dyn PermissionHandler>);
+
+#[async_trait]
+impl AttributedPermissionHandler for UnattributedHandler {
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        data: PermissionRequestData,
+    ) -> AttributedPermissionResult {
+        PermissionHandler::handle(&*self.0, session_id, request_id, data)
+            .await
+            .into()
+    }
+}
+
+pub(crate) fn attributed(
+    handler: Arc<dyn PermissionHandler>,
+) -> Arc<dyn AttributedPermissionHandler> {
+    Arc::new(UnattributedHandler(handler))
 }
 
 impl From<PermissionDecision> for PermissionResult {

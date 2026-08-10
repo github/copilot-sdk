@@ -25,8 +25,8 @@ use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::handler::{
-    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
-    PermissionHandler, UserInputHandler,
+    AttributedPermissionHandler, AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler,
+    McpAuthHandler, PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
@@ -2166,6 +2166,8 @@ pub struct SessionConfig {
     /// `requestPermission: false` on the wire so the runtime does not
     /// emit `permission.requested` broadcasts to this client.
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional context-aware permission-request handler.
+    pub attributed_permission_handler: Option<Arc<dyn AttributedPermissionHandler>>,
     /// Optional elicitation-request handler. When `None`,
     /// `requestElicitation: false` goes on the wire.
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
@@ -2418,6 +2420,7 @@ impl Default for SessionConfig {
             managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
+            attributed_permission_handler: None,
             elicitation_handler: None,
             mcp_auth_handler: None,
             user_input_handler: None,
@@ -2442,6 +2445,7 @@ impl Default for SessionConfig {
 /// stays a pure data shape.
 pub(crate) struct SessionConfigRuntime {
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    pub attributed_permission_handler: Option<Arc<dyn AttributedPermissionHandler>>,
     pub permission_policy: Option<crate::permission::Policy>,
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     pub mcp_auth_handler: Option<Arc<dyn McpAuthHandler>>,
@@ -2473,8 +2477,9 @@ impl SessionConfig {
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
-        let permission_active =
-            self.permission_handler.is_some() || self.permission_policy.is_some();
+        let permission_active = self.permission_handler.is_some()
+            || self.attributed_permission_handler.is_some()
+            || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
@@ -2586,6 +2591,7 @@ impl SessionConfig {
 
         let runtime = SessionConfigRuntime {
             permission_handler: self.permission_handler,
+            attributed_permission_handler: self.attributed_permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
             mcp_auth_handler: self.mcp_auth_handler,
@@ -2609,6 +2615,17 @@ impl SessionConfig {
     /// short-circuits permission prompts for this client.
     pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
         self.permission_handler = Some(handler);
+        self.attributed_permission_handler = None;
+        self
+    }
+
+    /// Install a context-aware permission handler for this session.
+    pub fn with_attributed_permission_handler(
+        mut self,
+        handler: Arc<dyn AttributedPermissionHandler>,
+    ) -> Self {
+        self.attributed_permission_handler = Some(handler);
+        self.permission_handler = None;
         self
     }
 
@@ -3431,6 +3448,8 @@ pub struct ResumeSessionConfig {
     /// Optional permission-request handler. See
     /// [`SessionConfig::permission_handler`].
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional context-aware permission handler.
+    pub attributed_permission_handler: Option<Arc<dyn AttributedPermissionHandler>>,
     /// Optional elicitation handler. See
     /// [`SessionConfig::elicitation_handler`].
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
@@ -3601,8 +3620,9 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
-        let permission_active =
-            self.permission_handler.is_some() || self.permission_policy.is_some();
+        let permission_active = self.permission_handler.is_some()
+            || self.attributed_permission_handler.is_some()
+            || self.permission_policy.is_some();
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
@@ -3716,6 +3736,7 @@ impl ResumeSessionConfig {
 
         let runtime = SessionConfigRuntime {
             permission_handler: self.permission_handler,
+            attributed_permission_handler: self.attributed_permission_handler,
             permission_policy: self.permission_policy,
             elicitation_handler: self.elicitation_handler,
             mcp_auth_handler: self.mcp_auth_handler,
@@ -3808,6 +3829,7 @@ impl ResumeSessionConfig {
             suppress_resume_event: None,
             continue_pending_work: None,
             permission_handler: None,
+            attributed_permission_handler: None,
             elicitation_handler: None,
             mcp_auth_handler: None,
             user_input_handler: None,
@@ -3827,6 +3849,17 @@ impl ResumeSessionConfig {
     /// Install a [`PermissionHandler`] for the resumed session.
     pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
         self.permission_handler = Some(handler);
+        self.attributed_permission_handler = None;
+        self
+    }
+
+    /// Install a context-aware permission handler for the resumed session.
+    pub fn with_attributed_permission_handler(
+        mut self,
+        handler: Arc<dyn AttributedPermissionHandler>,
+    ) -> Self {
+        self.attributed_permission_handler = Some(handler);
+        self.permission_handler = None;
         self
     }
 
@@ -7536,7 +7569,7 @@ mod tests {
 mod permission_builder_tests {
     use std::sync::Arc;
 
-    use crate::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+    use crate::handler::{ApproveAllHandler, AttributedPermissionHandler, PermissionResult};
     use crate::permission;
     use crate::types::{
         PermissionDecision, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig,
@@ -7552,18 +7585,29 @@ mod permission_builder_tests {
 
     /// Apply the same policy-resolution logic that `Client::create_session`
     /// uses, so tests exercise the effective handler.
-    fn resolve_create(mut cfg: SessionConfig) -> Option<Arc<dyn PermissionHandler>> {
-        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    fn resolve_create(mut cfg: SessionConfig) -> Option<Arc<dyn AttributedPermissionHandler>> {
+        permission::resolve_handler(
+            cfg.permission_handler.take(),
+            cfg.attributed_permission_handler.take(),
+            cfg.permission_policy.take(),
+        )
     }
 
-    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Option<Arc<dyn PermissionHandler>> {
-        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    fn resolve_resume(
+        mut cfg: ResumeSessionConfig,
+    ) -> Option<Arc<dyn AttributedPermissionHandler>> {
+        permission::resolve_handler(
+            cfg.permission_handler.take(),
+            cfg.attributed_permission_handler.take(),
+            cfg.permission_policy.take(),
+        )
     }
 
-    async fn dispatch(handler: &Arc<dyn PermissionHandler>) -> PermissionResult {
+    async fn dispatch(handler: &Arc<dyn AttributedPermissionHandler>) -> PermissionResult {
         handler
             .handle(SessionId::from("s1"), RequestId::new("1"), data())
             .await
+            .result
     }
 
     #[tokio::test]

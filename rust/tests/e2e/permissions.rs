@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
+use github_copilot_sdk::handler::{
+    AttributedPermissionHandler, AttributedPermissionResult, PermissionHandler, PermissionResult,
+};
 use github_copilot_sdk::rpc::PermissionsSetApproveAllRequest;
 use github_copilot_sdk::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::{
@@ -155,9 +157,10 @@ async fn should_honor_a_decision_annotated_with_decisioncontext() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::reject(None).with_context(decision_context),
-                            ))),
+                            .with_attributed_permission_handler(Arc::new(
+                                StaticPermissionHandler::new(PermissionResult::reject(None))
+                                    .with_context(decision_context),
+                            )),
                     )
                     .await
                     .expect("create session");
@@ -699,11 +702,20 @@ fn permission_request_tool_call_id(request: &PermissionRequestData) -> Option<&s
 #[derive(Clone)]
 struct StaticPermissionHandler {
     result: PermissionResult,
+    context: Option<PermissionDecisionContext>,
 }
 
 impl StaticPermissionHandler {
     fn new(result: PermissionResult) -> Self {
-        Self { result }
+        Self {
+            result,
+            context: None,
+        }
+    }
+
+    fn with_context(mut self, context: PermissionDecisionContext) -> Self {
+        self.context = Some(context);
+        self
     }
 }
 
@@ -716,6 +728,21 @@ impl PermissionHandler for StaticPermissionHandler {
         _data: PermissionRequestData,
     ) -> PermissionResult {
         self.result.clone()
+    }
+}
+
+#[async_trait]
+impl AttributedPermissionHandler for StaticPermissionHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: PermissionRequestData,
+    ) -> AttributedPermissionResult {
+        match &self.context {
+            Some(context) => self.result.clone().with_context(context.clone()),
+            None => self.result.clone().into(),
+        }
     }
 }
 
