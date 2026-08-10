@@ -10,6 +10,7 @@ import type {
     FactoryRunStatus,
     FactoryRunSummary,
 } from "./generated/rpc.js";
+import type { ContextTier } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { FactoryLimits, FactoryMeta } from "./types.js";
 
@@ -91,7 +92,19 @@ export interface FactoryAgentOptions {
     label?: string;
     schema?: FactoryJsonSchema;
     model?: string;
+    reasoningEffort?: string;
+    contextTier?: ContextTier;
+    agent?: string;
 }
+
+export const FACTORY_AGENT_OPTION_KEYS = [
+    "label",
+    "schema",
+    "model",
+    "reasoningEffort",
+    "contextTier",
+    "agent",
+] as const;
 
 /**
  * Options for a durable factory step.

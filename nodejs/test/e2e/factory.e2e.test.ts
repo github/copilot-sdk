@@ -94,6 +94,24 @@ it.skipIf(isInProcessTransport)(
 );
 
 it.skipIf(isInProcessTransport)(
+    "forwards every declared subagent option to the runtime",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const result = await session.factory.run("forwards-subagent-options");
+
+        expect(result).toMatchObject({
+            status: "completed",
+            result: { didThrow: false },
+        });
+    }
+);
+
+it.skipIf(isInProcessTransport)(
     "throws FactoryResumeError with not_found for an unknown run",
     async () => {
         if (!factoryTestContext) {

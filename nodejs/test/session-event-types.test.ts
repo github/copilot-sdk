@@ -16,6 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../src/index.js";
+import { FACTORY_AGENT_OPTION_KEYS } from "../src/factory.js";
+import type { FactoryAgentOptions as WireFactoryAgentOptions } from "../src/generated/rpc.js";
 import type {
     // The aggregate union; must still resolve via the package root.
     SessionEvent,
@@ -59,6 +61,7 @@ import type {
     WorkingDirectoryContextHostType,
     FactoryContext,
     FactoryDefinition,
+    FactoryAgentOptions,
     FactoryRunResult,
     JsonValue,
 } from "../src/index.js";
@@ -103,6 +106,16 @@ type _FactoryRunResultIsJsonValueOrUndefined = _AssertEqual<
     JsonValue | undefined
 >;
 const _factoryRunResultCheck: _FactoryRunResultIsJsonValueOrUndefined = true;
+type _FactoryAgentOptionKeysMatchPublicInterface = _AssertEqual<
+    (typeof FACTORY_AGENT_OPTION_KEYS)[number],
+    keyof FactoryAgentOptions
+>;
+const _factoryAgentOptionKeysCheck: _FactoryAgentOptionKeysMatchPublicInterface = true;
+type _PublicFactoryAgentOptionsMatchWire = _AssertEqual<
+    keyof FactoryAgentOptions,
+    keyof WireFactoryAgentOptions
+>;
+const _publicFactoryAgentOptionsCheck: _PublicFactoryAgentOptionsMatchWire = true;
 // @ts-expect-error Factory arguments must be representable on the JSON wire.
 type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
 // @ts-expect-error Factory results must be JSON values or top-level void.

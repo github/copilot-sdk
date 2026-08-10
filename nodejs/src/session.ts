@@ -64,11 +64,13 @@ import type {
     UserInputResponse,
 } from "./types.js";
 import {
+    FACTORY_AGENT_OPTION_KEYS,
     getFactoryDefinition,
     FactoryResumeError,
     isFactoryRunTerminal,
     type FactoryResumeErrorCode,
     type FactoryRunResult,
+    type FactoryAgentOptions,
     type RunOptions,
     type SessionFactoryApi,
     type FactoryContext,
@@ -88,6 +90,17 @@ function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCo
         value === "factory_storage_unavailable" ||
         value === "factory_storage_corrupt"
     );
+}
+
+function copyDefinedFactoryAgentOption<TKey extends keyof FactoryAgentOptions>(
+    source: FactoryAgentOptions,
+    target: FactoryAgentOptions,
+    key: TKey
+): void {
+    const value = source[key];
+    if (value !== undefined) {
+        target[key] = value;
+    }
 }
 
 const factoryExecutionStore = new AsyncLocalStorage<{ active: boolean }>();
@@ -1385,17 +1398,17 @@ export class CopilotSession {
                         },
                         agent: async (prompt, options = {}) => {
                             await progress.flush();
+                            const opts: FactoryAgentOptions = {};
+                            for (const key of FACTORY_AGENT_OPTION_KEYS) {
+                                copyDefinedFactoryAgentOption(options, opts, key);
+                            }
                             const response = await awaitFactoryOperation(
                                 () =>
                                     self.rpc.factory.agent({
                                         factoryRunId: params.runId,
                                         executionToken: params.executionToken,
                                         prompt,
-                                        opts: {
-                                            label: options.label,
-                                            schema: options.schema,
-                                            model: options.model,
-                                        },
+                                        opts,
                                     }),
                                 controller.signal
                             );

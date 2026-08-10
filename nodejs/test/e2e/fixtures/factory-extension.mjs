@@ -31,6 +31,26 @@ const arrayResult = defineFactory({
     run: async () => [1, "two", false],
 });
 
+const forwardsSubagentOptions = defineFactory({
+    meta: {
+        name: "forwards-subagent-options",
+        description: "Send every declared subagent option to the runtime.",
+        phases: [],
+    },
+    run: async ({ agent }) => {
+        try {
+            await agent("Confirm that this request is accepted.", {
+                agent: "reviewer",
+                reasoningEffort: "high",
+                contextTier: "long_context",
+            });
+            return { didThrow: false };
+        } catch {
+            return { didThrow: true };
+        }
+    },
+});
+
 const startsFromContextSession = defineFactory({
     meta: {
         name: "starts-from-context-session",
@@ -97,6 +117,7 @@ session = await joinSession({
     factories: [
         argumentEcho,
         arrayResult,
+        forwardsSubagentOptions,
         startsFromContextSession,
         startsFromModuleSession,
         parked,

@@ -780,6 +780,95 @@ describe("factories", () => {
         });
     });
 
+    it("forwards every declared factory.agent option", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return { result: "pong" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-agent-options", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "agent-options",
+                description: "Agent option forwarding test",
+                phases: [],
+            },
+            run: async ({ agent }) =>
+                agent("Reply with pong", {
+                    label: "Pong helper",
+                    model: "gpt-test",
+                    schema: { type: "string" },
+                    agent: "reviewer",
+                    reasoningEffort: "high",
+                    contextTier: "long_context",
+                }),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "agent-options",
+                runId: "run-agent-options",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "pong" });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
+            sessionId: session.sessionId,
+            factoryRunId: "run-agent-options",
+            executionToken: "execution-token",
+            prompt: "Reply with pong",
+            opts: {
+                label: "Pong helper",
+                model: "gpt-test",
+                schema: { type: "string" },
+                agent: "reviewer",
+                reasoningEffort: "high",
+                contextTier: "long_context",
+            },
+        });
+    });
+
+    it("sends empty factory.agent options when none are supplied", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.agent") {
+                return { result: "pong" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-empty-agent-options", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "empty-agent-options",
+                description: "Empty agent option forwarding test",
+                phases: [],
+            },
+            run: async ({ agent }) => agent("Reply with pong"),
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "empty-agent-options",
+                runId: "run-empty-agent-options",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "pong" });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.agent", {
+            sessionId: session.sessionId,
+            factoryRunId: "run-empty-agent-options",
+            executionToken: "execution-token",
+            prompt: "Reply with pong",
+            opts: {},
+        });
+    });
+
     it("keeps each execution token on callbacks from overlapping contexts with the same run id", async () => {
         const sendRequest = vi.fn(async (method: string) => {
             if (method === "session.factory.agent") {
