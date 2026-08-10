@@ -64,7 +64,7 @@ public class TimeoutEdgeCaseTest {
      * completed by a stale timeout.
      * <p>
      * Contract: {@code close()} shuts down the timeout scheduler before the
-     * blocking {@code session.destroy} RPC call, so any pending timeout task is
+     * blocking {@code session.detach} RPC call, so any pending timeout task is
      * cancelled and the future remains incomplete (not exceptionally completed with
      * {@code TimeoutException}).
      */
@@ -79,7 +79,7 @@ public class TimeoutEdgeCaseTest {
 
                 assertFalse(result.isDone(), "Future should be pending before timeout fires");
 
-                // close() blocks up to 5s on session.destroy RPC. The 2s timeout
+                // close() blocks up to 5s on session.detach RPC. The 2s timeout
                 // fires during that window with the current per-call scheduler.
                 session.close();
 

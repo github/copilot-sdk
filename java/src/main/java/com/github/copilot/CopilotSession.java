@@ -2286,9 +2286,10 @@ public final class CopilotSession implements AutoCloseable {
     /**
      * Disposes the session and releases all associated resources.
      * <p>
-     * This destroys the session on the server, clears all event handlers, and
-     * releases tool and permission handlers. After calling this method, the session
-     * cannot be used again. Subsequent calls to this method have no effect.
+     * This detaches the session from this client, clears all event handlers, and
+     * releases tool and permission handlers. Persisted session state remains
+     * resumable. After calling this method, the session cannot be used again.
+     * Subsequent calls to this method have no effect.
      */
     @Override
     public void close() {
@@ -2302,9 +2303,18 @@ public final class CopilotSession implements AutoCloseable {
         timeoutScheduler.shutdownNow();
 
         try {
-            rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
+            SessionDetachResponse response = rpc
+                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                    .get(5, TimeUnit.SECONDS);
+            if (response == null || !response.success()) {
+                LOG.log(Level.FINE, "Failed to detach session {0}: {1}",
+                        new Object[] {
+                                sessionId,
+                                response != null && response.error() != null ? response.error() : "unknown error"
+                        });
+            }
         } catch (Exception e) {
-            LOG.log(Level.FINE, "Error destroying session", e);
+            LOG.log(Level.FINE, "Error detaching session", e);
         }
 
         eventHandlers.clear();
@@ -2319,6 +2329,11 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     // ===== Internal response types for agent API =====
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SessionDetachResponse(@JsonProperty("success") boolean success,
+            @JsonProperty("error") String error) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record AgentListResponse(@JsonProperty("agents") List<AgentInfo> agents) {

@@ -1716,9 +1716,19 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
-	_, err := s.client.Request(context.Background(), "session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
+	}
+	var response sessionDetachResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return fmt.Errorf("failed to decode session detach response: %w", err)
+	}
+	if !response.Success {
+		if response.Error == "" {
+			response.Error = "unknown error"
+		}
+		return fmt.Errorf("failed to disconnect session: %s", response.Error)
 	}
 
 	s.closeOnce.Do(func() { close(s.eventCh) })

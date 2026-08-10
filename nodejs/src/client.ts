@@ -484,7 +484,6 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
-    private sessionOwnership: Map<string, "created" | "resumed"> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -964,17 +963,12 @@ export class CopilotClient {
         }
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
-            const ownership = this.sessionOwnership.get(sessionId);
             let lastError: Error | null = null;
 
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    if (ownership === "created") {
-                        await session._destroy();
-                    } else {
-                        await session.disconnect();
-                    }
+                    await session.disconnect();
                     lastError = null;
                     break; // Success
                 } catch (error) {
@@ -1000,7 +994,6 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
-        this.sessionOwnership.clear();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1183,7 +1176,6 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
-        this.sessionOwnership.clear();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1468,7 +1460,6 @@ export class CopilotClient {
                     onDisconnected: (disconnectedSession) => {
                         if (this.sessions.get(sessionId) === disconnectedSession) {
                             this.sessions.delete(sessionId);
-                            this.sessionOwnership.delete(sessionId);
                         }
                     },
                 }
@@ -1502,7 +1493,6 @@ export class CopilotClient {
                 s.on(config.onEvent);
             }
             this.sessions.set(sessionId, s);
-            this.sessionOwnership.set(sessionId, "created");
             this.setupSessionFs(s, config);
             return s;
         };
@@ -1656,11 +1646,16 @@ export class CopilotClient {
             if (createdSessionId !== undefined) {
                 try {
                     if (session?.sessionId === createdSessionId) {
-                        await session._destroy();
+                        await session.disconnect();
                     } else {
-                        await this.connection!.sendRequest("session.destroy", {
+                        const response = (await this.connection!.sendRequest("session.detach", {
                             sessionId: createdSessionId,
-                        });
+                        })) as { success: boolean; error?: string };
+                        if (!response.success) {
+                            throw new Error(
+                                `Failed to detach session ${createdSessionId}: ${response.error ?? "unknown error"}`
+                            );
+                        }
                     }
                 } catch (error) {
                     cleanupFailed = true;
@@ -1669,12 +1664,11 @@ export class CopilotClient {
             }
             if (registeredId !== undefined) {
                 this.sessions.delete(registeredId);
-                this.sessionOwnership.delete(registeredId);
             }
             if (cleanupFailed) {
                 throw new AggregateError(
                     [e, cleanupError],
-                    "Session creation failed and the created session could not be destroyed",
+                    "Session creation failed and the created session could not be detached",
                     { cause: e }
                 );
             }
@@ -1744,7 +1738,6 @@ export class CopilotClient {
                 onDisconnected: (disconnectedSession) => {
                     if (this.sessions.get(sessionId) === disconnectedSession) {
                         this.sessions.delete(sessionId);
-                        this.sessionOwnership.delete(sessionId);
                     }
                 },
             }
@@ -1794,7 +1787,6 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
-        this.sessionOwnership.set(sessionId, "resumed");
 
         let resumedOnServer = false;
 
@@ -1928,7 +1920,6 @@ export class CopilotClient {
                 }
             }
             this.sessions.delete(sessionId);
-            this.sessionOwnership.delete(sessionId);
             if (cleanupFailed) {
                 throw new AggregateError(
                     [e, cleanupError],
@@ -2180,7 +2171,6 @@ export class CopilotClient {
 
         // Remove from local sessions map if present
         this.sessions.delete(sessionId);
-        this.sessionOwnership.delete(sessionId);
     }
 
     /**

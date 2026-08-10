@@ -1981,18 +1981,6 @@ export class CopilotSession {
         this.onDisconnected?.(this);
     }
 
-    /** @internal */
-    async _destroy(): Promise<void> {
-        if (this.disconnected) {
-            return;
-        }
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
-        this._markDisconnected();
-        this.onDisconnected?.(this);
-    }
-
     /** Enables `await using session = ...` syntax for automatic cleanup. */
     async [Symbol.asyncDispose](): Promise<void> {
         return this.disconnect();

@@ -2244,10 +2244,9 @@ describe("CopilotClient", () => {
             await session.disconnect();
 
             expect((client as any).sessions.has(session.sessionId)).toBe(false);
-            expect((client as any).sessionOwnership.has(session.sessionId)).toBe(false);
         });
 
-        it("destroys a newly created session when initialization fails", async () => {
+        it("detaches a newly created session when initialization fails", async () => {
             const client = new CopilotClient({
                 mode: "empty",
                 baseDirectory: "/tmp/copilot-test",
@@ -2259,7 +2258,7 @@ describe("CopilotClient", () => {
                 if (method === "session.options.update") {
                     throw new Error("options failed");
                 }
-                if (method === "session.destroy") {
+                if (method === "session.detach") {
                     return { success: true };
                 }
                 throw new Error(`unexpected method ${method}`);
@@ -2277,9 +2276,8 @@ describe("CopilotClient", () => {
             const sessionId = sendRequest.mock.calls.find(
                 ([method]) => method === "session.create"
             )?.[1].sessionId;
-            expect(sendRequest).toHaveBeenCalledWith("session.destroy", { sessionId });
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", { sessionId });
             expect((client as any).sessions.size).toBe(0);
-            expect((client as any).sessionOwnership.size).toBe(0);
         });
 
         it("unregisters a created session when initialization and rollback both fail", async () => {
@@ -2294,8 +2292,8 @@ describe("CopilotClient", () => {
                 if (method === "session.options.update") {
                     throw new Error("options failed");
                 }
-                if (method === "session.destroy") {
-                    throw new Error("destroy failed");
+                if (method === "session.detach") {
+                    throw new Error("detach failed");
                 }
                 throw new Error(`unexpected method ${method}`);
             });
@@ -2308,14 +2306,13 @@ describe("CopilotClient", () => {
                     availableTools: [],
                 })
             ).rejects.toThrow(
-                "Session creation failed and the created session could not be destroyed"
+                "Session creation failed and the created session could not be detached"
             );
 
             expect((client as any).sessions.size).toBe(0);
-            expect((client as any).sessionOwnership.size).toBe(0);
         });
 
-        it("destroys a cloud session when session filesystem initialization fails", async () => {
+        it("detaches a cloud session when session filesystem initialization fails", async () => {
             const client = new CopilotClient({
                 sessionFs: {
                     initialCwd: "/",
@@ -2327,7 +2324,7 @@ describe("CopilotClient", () => {
                 if (method === "session.create") {
                     return { sessionId: "cloud-session" };
                 }
-                if (method === "session.destroy") {
+                if (method === "session.detach") {
                     return { success: true };
                 }
                 throw new Error(`unexpected method ${method}`);
@@ -2342,11 +2339,10 @@ describe("CopilotClient", () => {
                 })
             ).rejects.toThrow("createSessionFsProvider is required");
 
-            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
                 sessionId: "cloud-session",
             });
             expect((client as any).sessions.size).toBe(0);
-            expect((client as any).sessionOwnership.size).toBe(0);
         });
 
         it("detaches a resumed session when initialization fails", async () => {
@@ -2380,7 +2376,6 @@ describe("CopilotClient", () => {
                 sessionId: "test-session",
             });
             expect((client as any).sessions.size).toBe(0);
-            expect((client as any).sessionOwnership.size).toBe(0);
         });
 
         it("unregisters a resumed session when initialization and detach both fail", async () => {
@@ -2409,9 +2404,8 @@ describe("CopilotClient", () => {
                     availableTools: [],
                 })
             ).rejects.toThrow("Session resume failed and the attachment could not be detached");
-
             expect((client as any).sessions.size).toBe(0);
-            expect((client as any).sessionOwnership.size).toBe(0);
+            expect((client as any).sessions.size).toBe(0);
         });
     });
 
@@ -3859,10 +3853,10 @@ describe("CopilotClient", () => {
     });
 
     describe("shutdown", () => {
-        it("destroys created sessions and detaches resumed sessions", async () => {
+        it("detaches all active sessions", async () => {
             const client = new CopilotClient();
             const sendRequest = vi.fn(async (method: string) => {
-                if (method === "session.destroy" || method === "session.detach") {
+                if (method === "session.detach") {
                     return { success: true };
                 }
                 throw new Error(`unexpected method ${method}`);
@@ -3886,12 +3880,10 @@ describe("CopilotClient", () => {
             );
             (client as any).sessions.set(created.sessionId, created);
             (client as any).sessions.set(resumed.sessionId, resumed);
-            (client as any).sessionOwnership.set(created.sessionId, "created");
-            (client as any).sessionOwnership.set(resumed.sessionId, "resumed");
 
             await expect(client.stop()).resolves.toEqual([]);
 
-            expect(sendRequest).toHaveBeenCalledWith("session.destroy", {
+            expect(sendRequest).toHaveBeenCalledWith("session.detach", {
                 sessionId: created.sessionId,
             });
             expect(sendRequest).toHaveBeenCalledWith("session.detach", {

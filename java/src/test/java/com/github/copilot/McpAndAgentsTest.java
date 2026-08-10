@@ -452,11 +452,7 @@ public class McpAndAgentsTest {
 
             assertNotNull(session.getSessionId());
             String sessionId = session.getSessionId();
-            // Do not call session.close() here — that invokes session.destroy on the
-            // server,
-            // which removes the session and causes the subsequent resumeSession to fail
-            // with "Session not found". The session handle is simply abandoned and the
-            // server-side session remains alive for the resume call below.
+            // Keep the original attachment alive while testing a concurrent resume.
 
             CopilotSession resumedSession = client.resumeSession(sessionId,
                     new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)

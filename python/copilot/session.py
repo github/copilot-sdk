@@ -2917,31 +2917,30 @@ class CopilotSession:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        # Ensure that the check and update of _destroyed are atomic so that
-        # only the first caller proceeds to send the destroy RPC.
         with self._event_handlers_lock:
             if self._destroyed:
                 return
-            self._destroyed = True
 
-        try:
-            await self._client.request("session.destroy", {"sessionId": self.session_id})
-        finally:
-            # Clear handlers even if the request fails.
-            with self._event_handlers_lock:
-                self._event_handlers.clear()
-            with self._tool_handlers_lock:
-                self._tool_handlers.clear()
-            with self._permission_handler_lock:
-                self._permission_handler = None
-            with self._command_handlers_lock:
-                self._command_handlers.clear()
-            with self._elicitation_handler_lock:
-                self._elicitation_handler = None
-            with self._exit_plan_mode_handler_lock:
-                self._exit_plan_mode_handler = None
-            with self._auto_mode_switch_handler_lock:
-                self._auto_mode_switch_handler = None
+        response = await self._client.request("session.detach", {"sessionId": self.session_id})
+        if not response.get("success"):
+            detail = response.get("error") or "unknown error"
+            raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
+
+        with self._event_handlers_lock:
+            self._destroyed = True
+            self._event_handlers.clear()
+        with self._tool_handlers_lock:
+            self._tool_handlers.clear()
+        with self._permission_handler_lock:
+            self._permission_handler = None
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = None
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = None
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = None
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""

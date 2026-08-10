@@ -1920,8 +1920,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         try
         {
-            await InvokeRpcAsync<object>(
-                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+            var response = await InvokeRpcAsync<SessionDetachResponse>(
+                "session.detach", [new SessionDetachRequest() { SessionId = SessionId }], CancellationToken.None);
+            if (!response.Success)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to detach session {SessionId}: {response.Error ?? "unknown error"}");
+            }
         }
         catch (ObjectDisposedException)
         {
@@ -1991,9 +1996,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
-    internal record SessionDestroyRequest
+    internal record SessionDetachRequest
     {
         public string SessionId { get; init; } = string.Empty;
+    }
+
+    internal record SessionDetachResponse
+    {
+        public bool Success { get; init; }
+        public string? Error { get; init; }
     }
 
     internal void ThrowIfDisposed()
@@ -2028,7 +2039,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
-    [JsonSerializable(typeof(SessionDestroyRequest))]
+    [JsonSerializable(typeof(SessionDetachRequest))]
+    [JsonSerializable(typeof(SessionDetachResponse))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]
     [JsonSerializable(typeof(SessionStartHookInput))]
