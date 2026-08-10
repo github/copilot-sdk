@@ -308,7 +308,7 @@ Chain fluent modifiers to set tool options:
 - `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
 
-For design context and decision rationale, see [ADR-006](sdk/docs/adr/adr-006-tool-definition-inline.md).
+For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
 ## Session Store
 
@@ -432,7 +432,7 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 | Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
 | Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
-In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](sdk/docs/adr/adr-004-copilotexperimental.md) for the design rationale.
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
 
 ### Example
 

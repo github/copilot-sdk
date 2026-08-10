@@ -20,7 +20,7 @@ import com.sun.jna.Native;
  * This class uses {@link Native#SIZE_T_SIZE} so JNA marshals the correct width
  * on every platform.
  */
-final class SizeT extends IntegerType {
+public final class SizeT extends IntegerType {
 
     /** Zero-valued instance; required by JNA for return-type instantiation. */
     public SizeT() {
