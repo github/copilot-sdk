@@ -380,7 +380,7 @@ jobs:
       needs.publish-dotnet.result == 'success' &&
       needs.publish-python.result == 'success' &&
       needs.publish-rust.result == 'success' &&
-      needs.publish-java.result == 'success'
+      needs.publish-java.outputs.mavenPublished == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: write

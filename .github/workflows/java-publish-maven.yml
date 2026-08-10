@@ -37,6 +37,10 @@ on:
         type: boolean
         required: false
         default: false
+    outputs:
+      mavenPublished:
+        description: "Whether the Java package was published to Maven Central"
+        value: ${{ jobs.publish-maven.outputs.published }}
     secrets:
       JAVA_RELEASE_TOKEN:
         required: true
@@ -90,6 +94,7 @@ jobs:
         working-directory: ./java
     outputs:
       version: ${{ steps.versions.outputs.release_version }}
+      published: ${{ steps.publish-maven.outcome == 'success' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -194,6 +199,7 @@ jobs:
           JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
 
       - name: Perform Release and Deploy to Maven Central
+        id: publish-maven
         working-directory: ./java
         run: |
           mvn -B release:perform \
