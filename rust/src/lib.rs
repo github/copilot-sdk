@@ -114,7 +114,6 @@ pub use subscription::{EventSubscription, LifecycleSubscription};
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
-const MANAGED_SETTINGS_READ_METHOD: &str = "managedSettings.read";
 
 fn record_optional_millis(span: &tracing::Span, field: &'static str, value: Option<u64>) {
     match value {
@@ -2320,7 +2319,7 @@ impl Client {
     /// runtime discovery failures are reported through `error_message`.
     pub async fn read_managed_settings(&self) -> Result<ManagedSettingsReadResult> {
         let result = self
-            .call(MANAGED_SETTINGS_READ_METHOD, Some(serde_json::json!({})))
+            .call("managedSettings.read", Some(serde_json::json!({})))
             .await?;
         Ok(serde_json::from_value(result)?)
     }
