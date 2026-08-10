@@ -20,3 +20,4 @@ java/.classpath
 java/.project
 java/.settings
 java/scripts/codegen/node_modules/
+.flattened-pom.xml
