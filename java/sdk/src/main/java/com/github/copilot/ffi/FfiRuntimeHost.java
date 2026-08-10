@@ -224,10 +224,11 @@ public final class FfiRuntimeHost implements AutoCloseable {
             }
             activeCallbacks.incrementAndGet();
             try {
-                if (closing.get() || data == null || len <= 0) {
+                int length = len.intValue();
+                if (closing.get() || data == null || length <= 0) {
                     return;
                 }
-                byte[] bytes = data.getByteArray(0, len);
+                byte[] bytes = data.getByteArray(0, length);
                 if (!closing.get()) {
                     receiveStream.enqueue(bytes);
                 }

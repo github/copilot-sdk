@@ -59,9 +59,9 @@ class JnaNativeBindingTest {
         OutboundCallback lastCallback;
 
         @Override
-        public int copilot_runtime_host_start(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
+        public int copilot_runtime_host_start(byte[] argvJson, SizeT argvJsonLen, byte[] envJson, SizeT envJsonLen) {
             lastArgvJson = argvJson;
-            lastArgvJsonLen = argvJsonLen;
+            lastArgvJsonLen = argvJsonLen.intValue();
             return hostStartReturn;
         }
 
@@ -73,15 +73,15 @@ class JnaNativeBindingTest {
 
         @Override
         public int copilot_runtime_connection_open(int serverId, OutboundCallback callback, Pointer userData,
-                byte[] extSource, int extSourceLen, byte[] extName, int extNameLen, byte[] connToken,
-                int connTokenLen) {
+                byte[] extSource, SizeT extSourceLen, byte[] extName, SizeT extNameLen, byte[] connToken,
+                SizeT connTokenLen) {
             lastServerId = serverId;
             lastCallback = callback;
             return connectionOpenReturn;
         }
 
         @Override
-        public byte copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen) {
+        public byte copilot_runtime_connection_write(int connectionId, byte[] data, SizeT dataLen) {
             lastConnectionId = connectionId;
             return connectionWriteReturn;
         }
@@ -295,7 +295,7 @@ class JnaNativeBindingTest {
 
         // The stub captured the tracked wrapper — invoke it to trigger tracking
         assertNotNull(stub.lastCallback, "Stub must have captured the tracked callback");
-        stub.lastCallback.invoke(Pointer.NULL, Pointer.NULL, 0);
+        stub.lastCallback.invoke(Pointer.NULL, Pointer.NULL, new SizeT(0));
 
         assertEquals(1, observedDuringCallback.get(), "binding.activeCallbacks must be 1 during callback execution");
         assertEquals(0, binding.activeCallbacks.get(),

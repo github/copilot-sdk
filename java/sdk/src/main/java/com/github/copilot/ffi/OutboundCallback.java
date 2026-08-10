@@ -42,5 +42,5 @@ interface OutboundCallback extends Callback {
      * @param len
      *            byte length of the buffer pointed to by {@code data}
      */
-    void invoke(Pointer userData, Pointer data, int len);
+    void invoke(Pointer userData, Pointer data, SizeT len);
 }

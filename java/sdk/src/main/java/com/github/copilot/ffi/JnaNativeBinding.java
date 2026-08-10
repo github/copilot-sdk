@@ -58,7 +58,7 @@ final class JnaNativeBinding implements NativeBinding {
      */
     interface CopilotRuntimeLibrary extends Library {
         /** Corresponds to {@code copilot_runtime_host_start}. */
-        int copilot_runtime_host_start(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen);
+        int copilot_runtime_host_start(byte[] argvJson, SizeT argvJsonLen, byte[] envJson, SizeT envJsonLen);
 
         /**
          * Corresponds to {@code copilot_runtime_host_shutdown}.
@@ -72,14 +72,14 @@ final class JnaNativeBinding implements NativeBinding {
 
         /** Corresponds to {@code copilot_runtime_connection_open}. */
         int copilot_runtime_connection_open(int serverId, OutboundCallback callback, Pointer userData, byte[] extSource,
-                int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen);
+                SizeT extSourceLen, byte[] extName, SizeT extNameLen, byte[] connToken, SizeT connTokenLen);
 
         /**
          * Corresponds to {@code copilot_runtime_connection_write}.
          *
          * @see #copilot_runtime_host_shutdown for why this returns {@code byte}
          */
-        byte copilot_runtime_connection_write(int connectionId, byte[] data, int dataLen);
+        byte copilot_runtime_connection_write(int connectionId, byte[] data, SizeT dataLen);
 
         /**
          * Corresponds to {@code copilot_runtime_connection_close}.
@@ -188,7 +188,7 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public int hostStart(byte[] argvJson, int argvJsonLen, byte[] envJson, int envJsonLen) {
-        return lib.copilot_runtime_host_start(argvJson, argvJsonLen, envJson, envJsonLen);
+        return lib.copilot_runtime_host_start(argvJson, new SizeT(argvJsonLen), envJson, new SizeT(envJsonLen));
     }
 
     @Override
@@ -208,8 +208,8 @@ final class JnaNativeBinding implements NativeBinding {
                 activeCallbacks.decrementAndGet();
             }
         };
-        int connectionId = lib.copilot_runtime_connection_open(serverId, tracked, userData, extSource, extSourceLen,
-                extName, extNameLen, connToken, connTokenLen);
+        int connectionId = lib.copilot_runtime_connection_open(serverId, tracked, userData, extSource,
+                new SizeT(extSourceLen), extName, new SizeT(extNameLen), connToken, new SizeT(connTokenLen));
         if (connectionId != 0) {
             // Hold a strong reference to prevent GC of the JNA function pointer.
             trackedCallbacks.put(connectionId, tracked);
@@ -219,7 +219,7 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean connectionWrite(int connectionId, byte[] data, int dataLen) {
-        return lib.copilot_runtime_connection_write(connectionId, data, dataLen) != 0;
+        return lib.copilot_runtime_connection_write(connectionId, data, new SizeT(dataLen)) != 0;
     }
 
     @Override

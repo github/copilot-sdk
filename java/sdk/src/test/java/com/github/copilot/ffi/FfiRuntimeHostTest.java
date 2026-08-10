@@ -118,7 +118,7 @@ class FfiRuntimeHostTest {
                     int extSourceLen, byte[] extName, int extNameLen, byte[] connToken, int connTokenLen) {
                 Memory mem = new Memory(5);
                 mem.write(0, "hello".getBytes(StandardCharsets.UTF_8), 0, 5);
-                callback.invoke(Pointer.NULL, mem, 5);
+                callback.invoke(Pointer.NULL, mem, new SizeT(5));
                 callbackReturned.set(true);
                 return 2;
             }
@@ -347,7 +347,7 @@ class FfiRuntimeHostTest {
         CompletableFuture<Void> callbackFuture = CompletableFuture.runAsync(() -> {
             Memory mem = new Memory(1);
             mem.setByte(0, (byte) 'x');
-            callbackRef.get().invoke(Pointer.NULL, mem, 1);
+            callbackRef.get().invoke(Pointer.NULL, mem, new SizeT(1));
         });
 
         assertTrue(callbackEntered.await(2, TimeUnit.SECONDS));
