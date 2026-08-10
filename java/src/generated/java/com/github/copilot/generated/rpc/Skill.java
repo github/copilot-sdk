@@ -23,6 +23,8 @@ import javax.annotation.processing.Generated;
 public record Skill(
     /** Unique identifier for the skill */
     @JsonProperty("name") String name,
+    /** Canonical slash command name used to invoke the skill, without the leading '/' */
+    @JsonProperty("commandName") String commandName,
     /** Description of what the skill does */
     @JsonProperty("description") String description,
     /** Source location type (e.g., project, personal-copilot, plugin, builtin) */

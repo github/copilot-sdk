@@ -62,6 +62,8 @@ pub mod rpc_methods {
     pub const EXTENSIONS_ENABLE: &str = "extensions.enable";
     /// `extensions.disable`
     pub const EXTENSIONS_DISABLE: &str = "extensions.disable";
+    /// `registerExtensionLaunchProvider`
+    pub const REGISTEREXTENSIONLAUNCHPROVIDER: &str = "registerExtensionLaunchProvider";
     /// `plugins.list`
     pub const PLUGINS_LIST: &str = "plugins.list";
     /// `plugins.install`
@@ -108,6 +110,8 @@ pub mod rpc_methods {
     pub const USER_SETTINGS_GET: &str = "user.settings.get";
     /// `user.settings.set`
     pub const USER_SETTINGS_SET: &str = "user.settings.set";
+    /// `managedSettings.read`
+    pub const MANAGEDSETTINGS_READ: &str = "managedSettings.read";
     /// `runtime.shutdown`
     pub const RUNTIME_SHUTDOWN: &str = "runtime.shutdown";
     /// `sessionFs.setProvider`
@@ -3706,6 +3710,62 @@ pub struct ExtensionContextPushInput {
     pub r#type: ExtensionContextPushInputType,
 }
 
+/// Opaque integrator-owned process launch profile for one extension entrypoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionLaunchProfile {
+    /// Opaque integrator-defined arguments passed to the executable. The runtime does not append the extension entrypoint.
+    pub args: Vec<String>,
+    /// Opaque integrator-defined environment variables. Runtime-owned COPILOT_SDK_PATH, SESSION_ID, and COPILOT_EXTENSION_PARENT_PID values take precedence.
+    pub env: HashMap<String, String>,
+    /// Executable used to launch the extension entrypoint.
+    pub executable: String,
+}
+
+/// A discovered extension entrypoint that the registered integrator may classify and resolve to an opaque launch profile.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionLaunchProviderResolveRequest {
+    /// Source-qualified extension identifier.
+    pub id: String,
+    /// Absolute path to the discovered extension entrypoint.
+    pub module_path: String,
+    /// Human-readable extension name.
+    pub name: String,
+    /// Discovery source for the extension entrypoint.
+    pub source: ExtensionSource,
+}
+
+/// The launch profile for a supported entrypoint. Omit launch when the provider does not support the entrypoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionLaunchProviderResolveResult {
+    /// Opaque launch profile, omitted when this provider does not support the entrypoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launch: Option<ExtensionLaunchProfile>,
+}
+
 /// Extensions discovered for the session, with their current status.
 ///
 /// <div class="warning">
@@ -4033,12 +4093,21 @@ pub struct FactoryAckResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryAgentOptions {
+    /// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Optional context tier for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ContextTier>,
     /// Optional label distinguishing otherwise identical memoized agent calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Optional model identifier for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
     /// Optional JSON Schema for structured agent output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<serde_json::Value>,
@@ -4302,7 +4371,7 @@ pub struct FactoryJournalPutRequest {
     pub run_id: String,
 }
 
-/// Empty parameters for listing factory runs.
+/// Parameters for paging factory runs.
 ///
 /// <div class="warning">
 ///
@@ -4312,7 +4381,17 @@ pub struct FactoryJournalPutRequest {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryListRunsRequest {}
+pub struct FactoryListRunsRequest {
+    /// Exclusive forward cursor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_seq: Option<i64>,
+    /// Exclusive backward cursor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_seq: Option<i64>,
+    /// Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i32>,
+}
 
 /// Durable factory resource consumption.
 ///
@@ -4383,7 +4462,7 @@ pub struct FactoryRunSummary {
     pub updated_at: i64,
 }
 
-/// Factory runs in durable creation order.
+/// A page of factory runs in durable creation order.
 ///
 /// <div class="warning">
 ///
@@ -4394,6 +4473,18 @@ pub struct FactoryRunSummary {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryListRunsResult {
+    /// Whether terminal runs newer than this page exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more_newer: Option<bool>,
+    /// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_seq: Option<i64>,
+    /// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_seq: Option<i64>,
+    /// Number of terminal runs older than this page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_older: Option<i64>,
     pub runs: Vec<FactoryRunSummary>,
 }
 
@@ -5902,6 +5993,25 @@ pub struct LspInitializeRequest {
     /// Working directory used to load project-level LSP configs. Defaults to the session working directory when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
+}
+
+/// Validated device-managed settings discovered before a session exists.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedSettingsReadResult {
+    /// Discovery or validation error text when managed settings could not be read safely.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// Validated, canonical managed-settings JSON. Omitted when no managed settings were discovered or when discovered settings failed validation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings_json: Option<serde_json::Value>,
 }
 
 /// Result of registering a new marketplace.
@@ -7605,6 +7715,26 @@ pub struct MemoryConfiguration {
     pub enabled: bool,
 }
 
+/// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextAttributionResultContextAttributionCategories {
+    /// Output reserve plus post-blocking-threshold buffer.
+    pub buffer: i64,
+    /// Custom-instructions tokens (0 when none are configured).
+    pub custom_instructions: i64,
+    /// Remaining unused window capacity (clamped at 0).
+    pub free_space: i64,
+    /// MCP tool-definition tokens.
+    pub mcp_tools: i64,
+    /// Conversation (user/assistant/tool) message tokens.
+    pub messages: i64,
+    /// System prompt tokens, excluding custom instructions.
+    pub system_prompt: i64,
+    /// Non-MCP tool-definition tokens.
+    pub system_tools: i64,
+}
+
 /// Successful compaction history for the session.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -7636,10 +7766,24 @@ pub struct MetadataContextAttributionResultContextAttributionEntriesItem {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetadataContextAttributionResultContextAttribution {
+    /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
+    pub buffer_tokens: i64,
+    /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+    pub categories: MetadataContextAttributionResultContextAttributionCategories,
     /// Successful compaction history for the session.
     pub compactions: MetadataContextAttributionResultContextAttributionCompactions,
+    /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
+    pub compaction_threshold: i64,
     /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
     pub entries: Vec<MetadataContextAttributionResultContextAttributionEntriesItem>,
+    /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
+    pub limit: i64,
+    /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
+    pub model_id: String,
+    /// How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
+    pub model_source: String,
+    /// Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
+    pub prompt_token_limit: i64,
     /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
     pub total_tokens: i64,
 }
@@ -9262,6 +9406,25 @@ pub struct PermissionDecisionDeniedByPermissionRequestHook {
     pub message: Option<String>,
 }
 
+/// Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionDecisionContext {
+    /// Disposition of the permission request as observed by the responding client.
+    pub outcome: PermissionDecisionOutcome,
+    /// Controlled reason or actor responsible for the response.
+    pub source: PermissionDecisionSource,
+    /// Client surface that submitted the response.
+    pub surface: PermissionDecisionSurface,
+}
+
 /// Pending permission request ID and the decision to apply (approve/reject and scope).
 ///
 /// <div class="warning">
@@ -9273,6 +9436,9 @@ pub struct PermissionDecisionDeniedByPermissionRequestHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionRequest {
+    /// Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_context: Option<PermissionDecisionContext>,
     /// Request ID of the pending permission request
     pub request_id: RequestId,
     /// The client's response to the pending permission prompt
@@ -12182,6 +12348,25 @@ pub struct RemoteSessionRepository {
     pub owner: String,
 }
 
+/// Credential-injection capability flags applied while the sandbox is enabled.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxConfigAuth {
+    /// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gh: Option<bool>,
+    /// Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git: Option<bool>,
+}
+
 /// macOS seatbelt experimental options.
 ///
 /// <div class="warning">
@@ -12337,17 +12522,14 @@ pub struct SandboxConfig {
     /// Whether to auto-add the current working directory to readwritePaths. Default: true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub add_current_working_directory: Option<bool>,
-    /// Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without exporting CARGO_HOME/GOPATH/etc. Default: true (enabled by default; set to false to opt out).
+    /// Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_dev_tool_caches: Option<bool>,
+    pub allow_dev_tool_access: Option<bool>,
+    /// Credential-injection capability flags.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<SandboxConfigAuth>,
     /// Whether sandboxing is enabled for the session.
     pub enabled: bool,
-    /// Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gh_auth: Option<bool>,
-    /// Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub git_auth: Option<bool>,
     /// User-managed sandbox policy fragment merged into the auto-discovered base policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_policy: Option<SandboxConfigUserPolicy>,
@@ -12842,6 +13024,9 @@ pub struct ServerSkill {
     /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub argument_hint: Option<String>,
+    /// Canonical slash command name used to invoke the skill, without the leading '/'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_name: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled (based on global config)
@@ -12940,6 +13125,26 @@ pub struct SessionBulkDeleteResult {
     pub freed_bytes: HashMap<String, i64>,
 }
 
+/// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextAttributionCategories {
+    /// Output reserve plus post-blocking-threshold buffer.
+    pub buffer: i64,
+    /// Custom-instructions tokens (0 when none are configured).
+    pub custom_instructions: i64,
+    /// Remaining unused window capacity (clamped at 0).
+    pub free_space: i64,
+    /// MCP tool-definition tokens.
+    pub mcp_tools: i64,
+    /// Conversation (user/assistant/tool) message tokens.
+    pub messages: i64,
+    /// System prompt tokens, excluding custom instructions.
+    pub system_prompt: i64,
+    /// Non-MCP tool-definition tokens.
+    pub system_tools: i64,
+}
+
 /// Successful compaction history for the session.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12978,10 +13183,24 @@ pub struct SessionContextAttributionEntriesItem {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionContextAttribution {
+    /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
+    pub buffer_tokens: i64,
+    /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+    pub categories: SessionContextAttributionCategories,
     /// Successful compaction history for the session.
     pub compactions: SessionContextAttributionCompactions,
+    /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
+    pub compaction_threshold: i64,
     /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
     pub entries: Vec<SessionContextAttributionEntriesItem>,
+    /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
+    pub limit: i64,
+    /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
+    pub model_id: String,
+    /// How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
+    pub model_source: String,
+    /// Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
+    pub prompt_token_limit: i64,
     /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
     pub total_tokens: i64,
 }
@@ -13793,6 +14012,46 @@ pub struct SessionLoadDeferredRepoHooksResult {
     pub startup_prompts: Vec<String>,
 }
 
+/// Enterprise permission policy expressed with the runtime's managed permission-rule syntax.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedPermissions {
+    /// Permission rules that allow matching operations unless another managed source, deny, or ask rule restricts them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow: Option<Vec<String>>,
+    /// Permission rules that require explicit human approval.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ask: Option<Vec<String>>,
+    /// Permission rules that block matching operations. Deny has highest precedence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deny: Option<Vec<String>>,
+    /// When set to `disable`, prevents bypass/allow-all permission modes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+}
+
+/// Managed settings an SDK host may inject at session startup. Only permissions are accepted in this initial contract.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagedSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<SessionManagedPermissions>,
+}
+
 /// Public-facing projection of workspace metadata for SDK / TUI consumers
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14087,6 +14346,9 @@ pub struct SessionOpenOptions {
     /// Instruction source IDs disabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_instruction_sources: Option<Vec<String>>,
+    /// MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Skill IDs disabled for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
@@ -14155,6 +14417,9 @@ pub struct SessionOpenOptions {
     /// Identifier sent to LSP-style integrations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lsp_client_name: Option<String>,
+    /// Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_settings: Option<SessionManagedSettings>,
     /// Maximum decoded byte size of a single inline model-facing binary tool result persisted in session events (default 10 MB).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_inline_binary_bytes: Option<i64>,
@@ -15751,6 +16016,9 @@ pub struct Skill {
     /// Optional freeform hint describing the skill's expected arguments, from the `argument-hint` frontmatter field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub argument_hint: Option<String>,
+    /// Canonical slash command name used to invoke the skill, without the leading '/'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_name: Option<String>,
     /// Description of what the skill does
     pub description: String,
     /// Whether the skill is currently enabled
@@ -19138,7 +19406,7 @@ pub struct SessionFactoryGetRunResult {
     pub status: FactoryRunStatus,
 }
 
-/// Factory runs in durable creation order.
+/// A page of factory runs in durable creation order.
 ///
 /// <div class="warning">
 ///
@@ -19149,6 +19417,18 @@ pub struct SessionFactoryGetRunResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFactoryListRunsResult {
+    /// Whether terminal runs newer than this page exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more_newer: Option<bool>,
+    /// Newest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_seq: Option<i64>,
+    /// Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_seq: Option<i64>,
+    /// Number of terminal runs older than this page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub omitted_older: Option<i64>,
     pub runs: Vec<FactoryRunSummary>,
 }
 
@@ -22068,6 +22348,26 @@ pub struct SessionMetadataGetContextAttributionParams {
     pub session_id: SessionId,
 }
 
+/// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMetadataGetContextAttributionResultContextAttributionCategories {
+    /// Output reserve plus post-blocking-threshold buffer.
+    pub buffer: i64,
+    /// Custom-instructions tokens (0 when none are configured).
+    pub custom_instructions: i64,
+    /// Remaining unused window capacity (clamped at 0).
+    pub free_space: i64,
+    /// MCP tool-definition tokens.
+    pub mcp_tools: i64,
+    /// Conversation (user/assistant/tool) message tokens.
+    pub messages: i64,
+    /// System prompt tokens, excluding custom instructions.
+    pub system_prompt: i64,
+    /// Non-MCP tool-definition tokens.
+    pub system_tools: i64,
+}
+
 /// Successful compaction history for the session.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22099,10 +22399,24 @@ pub struct SessionMetadataGetContextAttributionResultContextAttributionEntriesIt
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadataGetContextAttributionResultContextAttribution {
+    /// Output reserve plus the tokens past the buffer-exhaustion blocking threshold. Mirrors `SessionContextInfo.bufferTokens`.
+    pub buffer_tokens: i64,
+    /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
+    pub categories: SessionMetadataGetContextAttributionResultContextAttributionCategories,
     /// Successful compaction history for the session.
     pub compactions: SessionMetadataGetContextAttributionResultContextAttributionCompactions,
+    /// Token count at which background compaction starts. Mirrors `SessionContextInfo.compactionThreshold`.
+    pub compaction_threshold: i64,
     /// Flat list of per-source attribution entries. Group by `kind` and render unrecognized kinds generically. Nesting and rollups are expressed via `parentId`.
     pub entries: Vec<SessionMetadataGetContextAttributionResultContextAttributionEntriesItem>,
+    /// Prompt limit plus the model's output reserve: the full context window `categories.freeSpace` and `categories.buffer` are measured against. Mirrors `SessionContextInfo.limit`.
+    pub limit: i64,
+    /// The concrete model id the entire breakdown was tokenized against (feeds the per-model token multiplier). Under `Auto` (Free/Student) this is the resolved model, not the literal `auto` sentinel, so totals are not undercounted. A single-model approximation of a potentially multi-model Auto session.
+    pub model_id: String,
+    /// How `modelId` was chosen. Not a closed set — tolerate unknown values. Known values today: `autoResolved` (the model Auto resolved to), `selected` (the user's explicitly selected model), `default` (a fallback before any model is known).
+    pub model_source: String,
+    /// Maximum prompt tokens the resolved model accepts — the denominator for a `##k/###k` context-usage display. Mirrors `SessionContextInfo.promptTokenLimit`.
+    pub prompt_token_limit: i64,
     /// Total token count of the current context window the entries are measured against (system message + conversation messages + tool definitions — the same total reported by /context). Divide an entry's `tokens` by this to derive its share.
     pub total_tokens: i64,
 }
@@ -24223,6 +24537,23 @@ pub enum DebugCollectLogsResultKind {
     Unknown,
 }
 
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DisableBypassPermissionsMode {
+    #[serde(rename = "disable")]
+    Disable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Persisted extension discovery source
 ///
 /// <div class="warning">
@@ -26222,6 +26553,87 @@ pub enum PermissionDecision {
     DeniedInteractivelyByUser(PermissionDecisionDeniedInteractivelyByUser),
     DeniedByContentExclusionPolicy(PermissionDecisionDeniedByContentExclusionPolicy),
     DeniedByPermissionRequestHook(PermissionDecisionDeniedByPermissionRequestHook),
+}
+
+/// Disposition of a permission request as observed by the responding client.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionOutcome {
+    /// The request was approved automatically without a new human decision.
+    #[serde(rename = "auto_approved")]
+    AutoApproved,
+    /// The request was denied without an interactive user decision; source records why.
+    #[serde(rename = "autopilot_denied")]
+    AutopilotDenied,
+    /// The response came from an interactive user prompt.
+    #[serde(rename = "prompted_user")]
+    PromptedUser,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controlled reason or actor responsible for a permission response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionSource {
+    /// The response followed the auto-approval judge recommendation.
+    #[serde(rename = "judge_recommendation")]
+    JudgeRecommendation,
+    /// A human supplied the response through an interactive prompt.
+    #[serde(rename = "human_response")]
+    HumanResponse,
+    /// The host applied a standing policy or override rather than a judge recommendation or human decision.
+    #[serde(rename = "host_policy")]
+    HostPolicy,
+    /// The host denied the request because no interactive user response was available.
+    #[serde(rename = "unattended_fallback")]
+    UnattendedFallback,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Client surface that submitted a permission response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionDecisionSurface {
+    /// The interactive Copilot CLI terminal UI.
+    #[serde(rename = "tui")]
+    Tui,
+    /// The non-interactive Copilot CLI prompt mode.
+    #[serde(rename = "prompt_mode")]
+    PromptMode,
+    /// The Copilot App client.
+    #[serde(rename = "copilot_app")]
+    CopilotApp,
+    /// A generic Copilot SDK client.
+    #[serde(rename = "sdk")]
+    Sdk,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Approval scoped to specific command identifiers.

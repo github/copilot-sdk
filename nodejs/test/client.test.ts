@@ -3971,3 +3971,101 @@ describe("CopilotClient", () => {
         });
     });
 });
+
+describe("managedSettings serialization", () => {
+    async function captureCreateParams(config: Record<string, unknown>): Promise<any> {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, ...config });
+        const call = spy.mock.calls.find(([method]) => method === "session.create");
+        return call![1];
+    }
+
+    it("forwards the full permissions object on session.create", async () => {
+        const params = await captureCreateParams({
+            managedSettings: {
+                permissions: {
+                    disableBypassPermissionsMode: "disable",
+                    deny: ["Shell(git push)"],
+                    ask: ["Domain(publish.example)"],
+                    allow: ["Read(**)"],
+                },
+            },
+        });
+        expect(params.managedSettings).toEqual({
+            permissions: {
+                disableBypassPermissionsMode: "disable",
+                deny: ["Shell(git push)"],
+                ask: ["Domain(publish.example)"],
+                allow: ["Read(**)"],
+            },
+        });
+    });
+
+    it("marks directly injected sessions as managed", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            managedSettings: { permissions: { deny: ["Edit(/secrets/**)"] } },
+        });
+
+        expect((session as any).managedSettingsEnabled).toBe(true);
+    });
+
+    it("omits managedSettings when not supplied", async () => {
+        const params = await captureCreateParams({});
+        expect(params.managedSettings).toBeUndefined();
+    });
+
+    it("coexists with enableManagedSettings", async () => {
+        const params = await captureCreateParams({
+            enableManagedSettings: true,
+            managedSettings: { permissions: { deny: ["Edit(/secrets/**)"] } },
+        });
+        expect(params.enableManagedSettings).toBe(true);
+        expect(params.managedSettings).toEqual({ permissions: { deny: ["Edit(/secrets/**)"] } });
+    });
+
+    it("preserves empty arrays in the permissions object", async () => {
+        const params = await captureCreateParams({
+            managedSettings: { permissions: { deny: [], ask: [], allow: [] } },
+        });
+        expect(params.managedSettings).toEqual({ permissions: { deny: [], ask: [], allow: [] } });
+    });
+
+    it("forwards managedSettings on session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => stopClient(client));
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.resumeSession("session-1", {
+            onPermissionRequest: approveAll,
+            managedSettings: { permissions: { ask: ["Domain(publish.example)"] } },
+        });
+        const call = spy.mock.calls.find(([method]) => method === "session.resume");
+        expect(call![1].managedSettings).toEqual({
+            permissions: { ask: ["Domain(publish.example)"] },
+        });
+    });
+});

@@ -488,7 +488,7 @@ export class CopilotSession {
         }) as SessionFactoryApi["resume"],
         getRun: async (runId) => toPublicFactoryRunResult(await this.rpc.factory.getRun({ runId })),
         waitForRun: (runId, options) => this.waitForFactoryRun(runId, options?.signal),
-        listRuns: async () => (await this.rpc.factory.listRuns()).runs,
+        listRuns: async () => (await this.rpc.factory.listRuns({})).runs,
         getRunDetail: (runId) => this.rpc.factory.getRunDetail({ runId }),
         getRunProgress: (runId, options = {}) =>
             this.rpc.factory.getRunProgress({ runId, ...options }),

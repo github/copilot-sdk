@@ -1763,6 +1763,99 @@ pub struct CopilotExpAssignmentResponse {
     pub assignment_context: String,
 }
 
+/// Controls whether bypass-permissions mode is available in a managed session.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum DisableBypassPermissionsMode {
+    /// Turn off bypass-permissions mode.
+    Disable,
+}
+
+/// Permission rules injected as a managed-settings layer at session bootstrap.
+///
+/// All fields are optional; an omitted field imposes no constraint from this
+/// layer. This layer composes restrictively with any server- or device-level
+/// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
+/// unioned across layers, every present [`allow`](Self::allow) list must admit a
+/// tool for it to be allowed, and
+/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
+/// honored if any layer sets it (deny-wins).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ManagedSettingsPermissions {
+    /// When set to `"disable"`, bypass-permissions mode is turned off for the
+    /// session regardless of other layers. Serialized as
+    /// `disableBypassPermissionsMode`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    /// Tool-permission patterns that are always denied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deny: Option<Vec<String>>,
+    /// Tool-permission patterns that require an explicit ask.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ask: Option<Vec<String>>,
+    /// Tool-permission patterns that are allowed without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow: Option<Vec<String>>,
+}
+
+impl ManagedSettingsPermissions {
+    /// Sets the bypass-permissions policy for this managed layer.
+    pub fn with_disable_bypass_permissions_mode(
+        mut self,
+        value: DisableBypassPermissionsMode,
+    ) -> Self {
+        self.disable_bypass_permissions_mode = Some(value);
+        self
+    }
+
+    /// Sets the rules that are always denied.
+    pub fn with_deny(mut self, rules: Vec<String>) -> Self {
+        self.deny = Some(rules);
+        self
+    }
+
+    /// Sets the rules that require explicit approval.
+    pub fn with_ask(mut self, rules: Vec<String>) -> Self {
+        self.ask = Some(rules);
+        self
+    }
+
+    /// Sets the rules that are allowed without prompting.
+    pub fn with_allow(mut self, rules: Vec<String>) -> Self {
+        self.allow = Some(rules);
+        self
+    }
+}
+
+/// Managed-settings layer injected at session startup. Currently carries only a
+/// [`permissions`](Self::permissions) object.
+///
+/// This layer is startup-only and is not persisted with the session. It must be
+/// re-supplied on resume to remain in effect; omitting it on resume clears the
+/// previously injected layer. It can be combined with
+/// [`SessionConfig::enable_managed_settings`]. Older runtimes may ignore this
+/// additive field, so hosts must not rely on injected policy until they ship a
+/// compatible runtime.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ManagedSettings {
+    /// Permission rules for this managed-settings layer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<ManagedSettingsPermissions>,
+}
+
+impl ManagedSettings {
+    /// Sets the permissions-only managed policy.
+    pub fn with_permissions(mut self, permissions: ManagedSettingsPermissions) -> Self {
+        self.permissions = Some(permissions);
+        self
+    }
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -2055,6 +2148,15 @@ pub struct SessionConfig {
     /// (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Optional managed-settings layer injected at session bootstrap. Currently
+    /// carries a [`permissions`](ManagedSettingsPermissions) object that composes
+    /// restrictively with any server- or device-level managed settings. This
+    /// layer is startup-only and is not persisted: it must be re-supplied on
+    /// resume to remain in effect. Can be combined with
+    /// [`enable_managed_settings`](Self::enable_managed_settings). Serialized on
+    /// the wire as `managedSettings`. Set via
+    /// [`with_managed_settings`](Self::with_managed_settings).
+    pub managed_settings: Option<ManagedSettings>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -2201,6 +2303,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
+            .field("managed_settings", &self.managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2312,6 +2415,7 @@ impl Default for SessionConfig {
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2477,6 +2581,7 @@ impl SessionConfig {
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
+            managed_settings: self.managed_settings,
         };
 
         let runtime = SessionConfigRuntime {
@@ -3100,6 +3205,15 @@ impl SessionConfig {
         self.enable_managed_settings = Some(enabled);
         self
     }
+
+    /// Inject a managed-settings layer (currently permission rules) at session
+    /// bootstrap. This layer is startup-only and is not persisted, so it must be
+    /// re-supplied on resume to remain in effect. Can be combined with
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub fn with_managed_settings(mut self, managed_settings: ManagedSettings) -> Self {
+        self.managed_settings = Some(managed_settings);
+        self
+    }
 }
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
@@ -3292,6 +3406,12 @@ pub struct ResumeSessionConfig {
     /// process restart. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Optional managed-settings layer injected on resume. See
+    /// [`SessionConfig::managed_settings`]. This layer is not persisted, so it
+    /// must be re-supplied on resume to remain in effect; omitting it clears the
+    /// previously injected layer. Serialized on the wire as `managedSettings`.
+    /// Set via [`with_managed_settings`](Self::with_managed_settings).
+    pub managed_settings: Option<ManagedSettings>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -3431,6 +3551,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
+            .field("managed_settings", &self.managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -3588,6 +3709,7 @@ impl ResumeSessionConfig {
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             is_experimental_mode: self.enable_experimental_mode,
+            managed_settings: self.managed_settings,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -3681,6 +3803,7 @@ impl ResumeSessionConfig {
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -4283,6 +4406,14 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_enable_managed_settings`].
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
+        self
+    }
+
+    /// Inject a managed-settings layer (currently permission rules) on resume.
+    /// See [`SessionConfig::with_managed_settings`]. Must be re-supplied on
+    /// resume; omitting it clears the previously injected layer.
+    pub fn with_managed_settings(mut self, managed_settings: ManagedSettings) -> Self {
+        self.managed_settings = Some(managed_settings);
         self
     }
 }

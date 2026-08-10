@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.
+ * Session event "session.managed_settings_resolved". Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -35,17 +35,19 @@ public final class SessionManagedSettingsResolvedEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionManagedSettingsResolvedEventData(
-        /** Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force */
+        /** Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance. */
         @JsonProperty("source") ManagedSettingsResolvedSource source,
         /** Whether the server (account/org) managed-settings layer was present */
         @JsonProperty("serverManaged") Boolean serverManaged,
-        /** Whether the device (MDM/plist/registry/file) managed-settings layer was present */
+        /** Whether an actual device MDM/plist/registry/file managed-settings layer was present */
         @JsonProperty("deviceManaged") Boolean deviceManaged,
+        /** Whether a session-local permissions layer injected by the SDK host was present */
+        @JsonProperty("clientManaged") Boolean clientManaged,
         /** Whether managed policy could not be determined (e.g. a failed server fetch) and the session fell back to the fail-closed restriction. When true, restrictions such as disabling bypass-permissions are enforced even though `settings` may be absent. */
         @JsonProperty("failClosed") Boolean failClosed,
         /** Whether enterprise policy disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers, and forced on when `failClosed` is true. */
         @JsonProperty("bypassPermissionsDisabled") Boolean bypassPermissionsDisabled,
-        /** Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`. */
+        /** Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`. */
         @JsonProperty("permissionsAllowIntersected") Boolean permissionsAllowIntersected,
         /** The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force. */
         @JsonProperty("managedKeys") List<String> managedKeys,

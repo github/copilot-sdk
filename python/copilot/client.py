@@ -247,6 +247,63 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     return wire
 
 
+@dataclass
+class ManagedSettingsPermissions:
+    """Permissions-only managed policy injected via :class:`ManagedSettings`.
+
+    Rule strings use the same vocabulary the runtime accepts for fetched
+    managed policy (e.g. ``"Read(**)"``, ``"Shell(git push *)"``); malformed
+    rules are rejected by the runtime at session creation.
+    """
+
+    disable_bypass_permissions_mode: Literal["disable"] | None = None
+    """When ``"disable"``, turns off bypass-permissions ("yolo") mode for the
+    session. Deny-wins: no other layer can re-enable it. Sent on the wire as
+    ``disableBypassPermissionsMode``."""
+    deny: list[str] | None = None
+    """Operations that must always be denied. Unioned across managed layers."""
+    ask: list[str] | None = None
+    """Operations that must prompt for approval. Unioned across managed layers."""
+    allow: list[str] | None = None
+    """Operations permitted without prompting. Every declared ``allow`` list
+    across managed layers must admit an operation for it to be allowed."""
+
+
+@dataclass
+class ManagedSettings:
+    """Host-injected enterprise managed settings for a session.
+
+    Unlike ``enable_managed_settings`` — which asks the runtime to *self-fetch*
+    account/org and device policy — this supplies the managed policy directly.
+    The runtime validates it with the same managed-permission parser it uses
+    for fetched policy and composes it restrictively with any self-fetched
+    (server) and device-managed (MDM) layers.
+
+    The first supported contract is permissions-only; unknown sibling keys are
+    rejected by the runtime. Serialized on the wire as ``managedSettings``.
+    """
+
+    permissions: ManagedSettingsPermissions | None = None
+    """Managed permission policy for the session."""
+
+
+def _managed_settings_to_dict(settings: ManagedSettings) -> dict[str, Any]:
+    wire: dict[str, Any] = {}
+    permissions = settings.permissions
+    if permissions is not None:
+        perms: dict[str, Any] = {}
+        if permissions.disable_bypass_permissions_mode is not None:
+            perms["disableBypassPermissionsMode"] = permissions.disable_bypass_permissions_mode
+        if permissions.deny is not None:
+            perms["deny"] = list(permissions.deny)
+        if permissions.ask is not None:
+            perms["ask"] = list(permissions.ask)
+        if permissions.allow is not None:
+            perms["allow"] = list(permissions.allow)
+        wire["permissions"] = perms
+    return wire
+
+
 # Implicit provider name for the singular, whole-session ``provider`` config.
 # Named providers are keyed by their own ``name``.
 _DEFAULT_BEARER_TOKEN_PROVIDER_NAME = "default"
@@ -2090,6 +2147,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: ManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -2241,6 +2299,15 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Host-injected enterprise managed settings for the
+                session. Supplies managed policy directly instead of
+                self-fetching; the runtime validates it and composes it
+                restrictively with any self-fetched (server) and device-managed
+                layers. Startup-only and not persisted: re-supply on
+                :meth:`resume_session` (omitting it clears the injected layer).
+                May be combined with ``enable_managed_settings``. Requires a
+                runtime whose RPC schema includes ``managedSettings``. Sent on
+                the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2388,6 +2455,10 @@ class CopilotClient:
         # Opt the runtime into self-fetching enterprise managed settings
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
+
+        # Host-injected managed settings (permissions-only contract)
+        if managed_settings is not None:
+            payload["managedSettings"] = _managed_settings_to_dict(managed_settings)
 
         # Add working directory if provided
         if working_directory:
@@ -2575,7 +2646,8 @@ class CopilotClient:
                 sid,
                 self._client,
                 workspace_path=None,
-                managed_settings_enabled=enable_managed_settings is True,
+                managed_settings_enabled=enable_managed_settings is True
+                or managed_settings is not None,
             )
             if self._session_fs_config:
                 if create_session_fs_handler is None:
@@ -2799,6 +2871,7 @@ class CopilotClient:
         exp_assignments: CopilotExpAssignmentResponse | None = None,
         enable_managed_settings: bool | None = None,
         github_mcp_tool_config: GitHubMcpToolConfig | None = None,
+        managed_settings: ManagedSettings | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2951,6 +3024,11 @@ class CopilotClient:
                 expected to reject session creation (fail-closed). When unset,
                 behaves exactly as before. Sent on the wire as
                 ``enableManagedSettings``.
+            managed_settings: Host-injected enterprise managed settings for the
+                session. Must be re-supplied on resume; it replaces the prior
+                injected layer, and omitting it clears that layer so warm and
+                cold resume behave identically. See :meth:`create_session`. Sent
+                on the wire as ``managedSettings``.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -3122,6 +3200,10 @@ class CopilotClient:
         if enable_managed_settings is not None:
             payload["enableManagedSettings"] = enable_managed_settings
 
+        # Host-injected managed settings (permissions-only contract)
+        if managed_settings is not None:
+            payload["managedSettings"] = _managed_settings_to_dict(managed_settings)
+
         if working_directory:
             payload["workingDirectory"] = working_directory
         if additional_directories:
@@ -3234,7 +3316,8 @@ class CopilotClient:
             session_id,
             self._client,
             workspace_path=None,
-            managed_settings_enabled=enable_managed_settings is True,
+            managed_settings_enabled=enable_managed_settings is True
+            or managed_settings is not None,
         )
         if self._session_fs_config:
             if create_session_fs_handler is None:

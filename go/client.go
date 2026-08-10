@@ -750,6 +750,10 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 	return wireConfig, callbacks
 }
 
+func hasManagedSettings(enableManagedSettings *bool, managedSettings *ManagedSettings) bool {
+	return (enableManagedSettings != nil && *enableManagedSettings) || managedSettings != nil
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
@@ -833,6 +837,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -917,7 +922,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			sessionID,
 			c.client,
 			"",
-			config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+			hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 		)
 
 		s.registerTools(config.Tools)
@@ -1215,6 +1220,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ExtensionInfo = config.ExtensionInfo
 	req.ExpAssignments = config.ExpAssignments
 	req.EnableManagedSettings = config.EnableManagedSettings
+	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1250,7 +1256,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		sessionID,
 		c.client,
 		"",
-		config.EnableManagedSettings != nil && *config.EnableManagedSettings,
+		hasManagedSettings(config.EnableManagedSettings, config.ManagedSettings),
 	)
 
 	session.registerTools(config.Tools)

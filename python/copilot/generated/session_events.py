@@ -1208,13 +1208,14 @@ class SessionManagedSettingsEnforcedData:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionManagedSettingsResolvedData:
-    "Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server > device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes."
+    "Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes."
     bypass_permissions_disabled: bool
     device_managed: bool
     fail_closed: bool
     managed_keys: list[str]
     server_managed: bool
     source: ManagedSettingsResolvedSource
+    client_managed: bool | None = None
     permissions_allow_intersected: bool | None = None
     settings: Any = None
 
@@ -1227,6 +1228,7 @@ class SessionManagedSettingsResolvedData:
         managed_keys = from_list(from_str, obj.get("managedKeys"))
         server_managed = from_bool(obj.get("serverManaged"))
         source = parse_enum(ManagedSettingsResolvedSource, obj.get("source"))
+        client_managed = from_union([from_none, from_bool], obj.get("clientManaged"))
         permissions_allow_intersected = from_union([from_none, from_bool], obj.get("permissionsAllowIntersected"))
         settings = obj.get("settings")
         return SessionManagedSettingsResolvedData(
@@ -1236,6 +1238,7 @@ class SessionManagedSettingsResolvedData:
             managed_keys=managed_keys,
             server_managed=server_managed,
             source=source,
+            client_managed=client_managed,
             permissions_allow_intersected=permissions_allow_intersected,
             settings=settings,
         )
@@ -1248,6 +1251,8 @@ class SessionManagedSettingsResolvedData:
         result["managedKeys"] = from_list(from_str, self.managed_keys)
         result["serverManaged"] = from_bool(self.server_managed)
         result["source"] = to_enum(ManagedSettingsResolvedSource, self.source)
+        if self.client_managed is not None:
+            result["clientManaged"] = from_union([from_none, from_bool], self.client_managed)
         if self.permissions_allow_intersected is not None:
             result["permissionsAllowIntersected"] = from_union([from_none, from_bool], self.permissions_allow_intersected)
         if self.settings is not None:
@@ -7784,6 +7789,7 @@ class SkillsLoadedSkill:
     source: SkillSource
     user_invocable: bool
     argument_hint: str | None = None
+    command_name: str | None = None
     path: str | None = None
 
     @staticmethod
@@ -7795,6 +7801,7 @@ class SkillsLoadedSkill:
         source = parse_enum(SkillSource, obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         argument_hint = from_union([from_none, from_str], obj.get("argumentHint"))
+        command_name = from_union([from_none, from_str], obj.get("commandName"))
         path = from_union([from_none, from_str], obj.get("path"))
         return SkillsLoadedSkill(
             description=description,
@@ -7803,6 +7810,7 @@ class SkillsLoadedSkill:
             source=source,
             user_invocable=user_invocable,
             argument_hint=argument_hint,
+            command_name=command_name,
             path=path,
         )
 
@@ -7815,6 +7823,8 @@ class SkillsLoadedSkill:
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.argument_hint is not None:
             result["argumentHint"] = from_union([from_none, from_str], self.argument_hint)
+        if self.command_name is not None:
+            result["commandName"] = from_union([from_none, from_str], self.command_name)
         if self.path is not None:
             result["path"] = from_union([from_none, from_str], self.path)
         return result
@@ -7826,6 +7836,7 @@ class SubagentCompletedData:
     agent_display_name: str
     agent_name: str
     tool_call_id: str
+    cancelled: bool | None = None
     duration: timedelta | None = None
     model: str | None = None
     total_tokens: int | None = None
@@ -7837,6 +7848,7 @@ class SubagentCompletedData:
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
         tool_call_id = from_str(obj.get("toolCallId"))
+        cancelled = from_union([from_none, from_bool], obj.get("cancelled"))
         duration = from_union([from_none, from_timedelta], obj.get("durationMs"))
         model = from_union([from_none, from_str], obj.get("model"))
         total_tokens = from_union([from_none, from_int], obj.get("totalTokens"))
@@ -7845,6 +7857,7 @@ class SubagentCompletedData:
             agent_display_name=agent_display_name,
             agent_name=agent_name,
             tool_call_id=tool_call_id,
+            cancelled=cancelled,
             duration=duration,
             model=model,
             total_tokens=total_tokens,
@@ -7856,6 +7869,8 @@ class SubagentCompletedData:
         result["agentDisplayName"] = from_str(self.agent_display_name)
         result["agentName"] = from_str(self.agent_name)
         result["toolCallId"] = from_str(self.tool_call_id)
+        if self.cancelled is not None:
+            result["cancelled"] = from_union([from_none, from_bool], self.cancelled)
         if self.duration is not None:
             result["durationMs"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.model is not None:
@@ -10134,12 +10149,16 @@ class ManagedSettingsEnforcedEscalation(Enum):
 
 
 class ManagedSettingsResolvedSource(Enum):
-    "Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale)"
-    # Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).
+    "Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance."
+    # Only the server/account channel contributed.
     SERVER = "server"
-    # Device-level MDM policy discovered from plist/registry/file (lower authority).
+    # Only the device MDM/plist/registry/file channel contributed.
     DEVICE = "device"
-    # No managed policy is in force (no layer contributed).
+    # Only session-local SDK-host injection contributed.
+    CLIENT = "client"
+    # More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.
+    MIXED = "mixed"
+    # No managed policy is in force (no channel contributed).
     NONE = "none"
 
 

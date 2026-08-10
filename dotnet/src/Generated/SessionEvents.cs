@@ -1353,7 +1353,7 @@ public sealed partial class SessionAutoModeResolvedEvent : SessionEvent
     public required SessionAutoModeResolvedData Data { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server &gt; device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 /// <remarks>Represents the <c>session.managed_settings_resolved</c> event.</remarks>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedEvent : SessionEvent
@@ -3553,6 +3553,11 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
+    /// <summary>Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cancelled")]
+    public bool? Cancelled { get; set; }
+
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4278,7 +4283,7 @@ public sealed partial class SessionAutoModeResolvedData
     public bool? StickyOverride { get; set; }
 }
 
-/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and where they came from, so SDK clients can show users what is enterprise-managed and by which authority. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted; for a session-independent pull, use the SDK `getManagedSettings()` API, which returns the identical payload. Managed settings have a single authoritative source, so the highest-authority present layer (server &gt; device) wins wholesale; `bypassPermissionsDisabled` is deny-wins across layers. Marked experimental while the managed-settings surface stabilizes.</summary>
+/// <summary>Enterprise managed-settings resolution: the effective managed settings the session applied and which channels contributed, so SDK clients can show users what is enterprise-managed. Fires whenever managed policy is (re)applied — at session start, on resume, and on account switch. This is an ephemeral live snapshot (delivered to subscribers but not persisted to the session event log), because at session start it resolves before `session.start` is emitted. Device values take precedence over server values per ordinary key, while permissions compose restrictively across device, server, and SDK-client layers. The account-scoped `getManagedSettings()` API does not include session-local client injection. Marked experimental while the managed-settings surface stabilizes.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed partial class SessionManagedSettingsResolvedData
 {
@@ -4286,7 +4291,12 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("bypassPermissionsDisabled")]
     public required bool BypassPermissionsDisabled { get; set; }
 
-    /// <summary>Whether the device (MDM/plist/registry/file) managed-settings layer was present.</summary>
+    /// <summary>Whether a session-local permissions layer injected by the SDK host was present.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientManaged")]
+    public bool? ClientManaged { get; set; }
+
+    /// <summary>Whether an actual device MDM/plist/registry/file managed-settings layer was present.</summary>
     [JsonPropertyName("deviceManaged")]
     public required bool DeviceManaged { get; set; }
 
@@ -4298,7 +4308,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("managedKeys")]
     public required string[] ManagedKeys { get; set; }
 
-    /// <summary>Whether server and device each supplied a permission allowlist, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.</summary>
+    /// <summary>Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("permissionsAllowIntersected")]
     public bool? PermissionsAllowIntersected { get; set; }
@@ -4312,7 +4322,7 @@ public sealed partial class SessionManagedSettingsResolvedData
     [JsonPropertyName("settings")]
     public JsonElement? Settings { get; set; }
 
-    /// <summary>Which channel supplied the effective managed settings (the winning layer), or `none` when no policy is in force.</summary>
+    /// <summary>Channel summary: `server`, `device`, or `client` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.</summary>
     [JsonPropertyName("source")]
     public required ManagedSettingsResolvedSource Source { get; set; }
 }
@@ -8564,6 +8574,11 @@ public sealed partial class SkillsLoadedSkill
     [JsonPropertyName("argumentHint")]
     public string? ArgumentHint { get; set; }
 
+    /// <summary>Canonical slash command name used to invoke the skill, without the leading '/'.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("commandName")]
+    public string? CommandName { get; set; }
+
     /// <summary>Description of what the skill does.</summary>
     [JsonPropertyName("description")]
     public required string Description { get; set; }
@@ -12142,7 +12157,7 @@ public readonly struct AutoModeResolvedReasoningBucket : IEquatable<AutoModeReso
     }
 }
 
-/// <summary>Which channel supplied the effective enterprise managed settings (highest-authority present layer wins wholesale).</summary>
+/// <summary>Summary of which managed-settings channels contributed to the effective session policy. Use the per-channel booleans for exact provenance.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSettingsResolvedSource>
@@ -12161,13 +12176,19 @@ public readonly struct ManagedSettingsResolvedSource : IEquatable<ManagedSetting
     /// <summary>Gets the value associated with this <see cref="ManagedSettingsResolvedSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Account/org policy self-fetched from the GitHub managed-settings endpoint (higher authority).</summary>
+    /// <summary>Only the server/account channel contributed.</summary>
     public static ManagedSettingsResolvedSource Server { get; } = new("server");
 
-    /// <summary>Device-level MDM policy discovered from plist/registry/file (lower authority).</summary>
+    /// <summary>Only the device MDM/plist/registry/file channel contributed.</summary>
     public static ManagedSettingsResolvedSource Device { get; } = new("device");
 
-    /// <summary>No managed policy is in force (no layer contributed).</summary>
+    /// <summary>Only session-local SDK-host injection contributed.</summary>
+    public static ManagedSettingsResolvedSource Client { get; } = new("client");
+
+    /// <summary>More than one channel contributed. Ordinary keys resolve device over server per key, while permissions compose restrictively across all present layers.</summary>
+    public static ManagedSettingsResolvedSource Mixed { get; } = new("mixed");
+
+    /// <summary>No managed policy is in force (no channel contributed).</summary>
     public static ManagedSettingsResolvedSource None { get; } = new("none");
 
     /// <summary>Returns a value indicating whether two <see cref="ManagedSettingsResolvedSource"/> instances are equivalent.</summary>

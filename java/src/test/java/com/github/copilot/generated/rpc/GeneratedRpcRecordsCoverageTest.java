@@ -338,10 +338,11 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPermissionsHandlePendingPermissionRequestParams_record() {
-        var params = new SessionPermissionsHandlePendingPermissionRequestParams("sess-33", "req-1", "allow");
+        var params = new SessionPermissionsHandlePendingPermissionRequestParams("sess-33", "req-1", "allow", null);
         assertEquals("sess-33", params.sessionId());
         assertEquals("req-1", params.requestId());
         assertEquals("allow", params.result());
+        assertNull(params.decisionContext());
     }
 
     @Test
@@ -706,11 +707,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null,
-                null);
+        var item = new Skill("deploy", "deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md",
+                null, null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
+        assertEquals("deploy", result.skills().get(0).commandName());
         assertEquals(SkillSource.PROJECT, result.skills().get(0).source());
         assertTrue(result.skills().get(0).enabled());
     }

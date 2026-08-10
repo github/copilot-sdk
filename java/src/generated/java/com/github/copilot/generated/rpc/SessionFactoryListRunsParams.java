@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Empty parameters for listing factory runs.
+ * Parameters for paging factory runs.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,12 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionFactoryListRunsParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Exclusive forward cursor. */
+    @JsonProperty("afterSeq") Long afterSeq,
+    /** Exclusive backward cursor. */
+    @JsonProperty("beforeSeq") Long beforeSeq,
+    /** Maximum terminal runs to return. Defaults to 200 and is capped at 500. */
+    @JsonProperty("limit") Long limit
 ) {
 }
