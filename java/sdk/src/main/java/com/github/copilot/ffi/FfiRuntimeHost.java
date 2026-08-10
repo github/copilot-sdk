@@ -29,8 +29,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.sun.jna.Callback;
-import com.sun.jna.Native;
+
 import com.sun.jna.Pointer;
 
 /**
@@ -74,8 +73,6 @@ public final class FfiRuntimeHost implements AutoCloseable {
         this.receiveStream = Objects.requireNonNull(receiveStream, "receiveStream must not be null");
         this.sendStream = new FfiOutputStream(this.nativeBinding, this.connectionId, this.closing, this.operationLock);
         this.libraryPath = libraryPath;
-        Native.setCallbackExceptionHandler((Callback callback, Throwable throwable) -> LOG.log(Level.WARNING,
-                "Unhandled exception in FFI callback", throwable));
     }
 
     private FfiRuntimeHost(Path libraryPath, NativeBinding nativeBinding, QueueInputStream receiveStream) {
