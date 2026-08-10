@@ -224,11 +224,12 @@ final class JnaNativeBinding implements NativeBinding {
 
     @Override
     public boolean connectionClose(int connectionId) {
-        try {
-            return lib.copilot_runtime_connection_close(connectionId) != 0;
-        } finally {
+        boolean closed = lib.copilot_runtime_connection_close(connectionId) != 0;
+        if (closed) {
+            // Native side has released ownership; safe to drop our GC root.
             trackedCallbacks.remove(connectionId);
         }
+        return closed;
     }
 
     // -------------------------------------------------------------------------
