@@ -13,7 +13,7 @@ conversations:
             function:
               name: exit_plan_mode
               arguments: '{"summary":"Greeting file implementation
-                plan","actions":["interactive","autopilot","exit_only"],"recommendedAction":"interactive"}'
+                plan","actions":["autopilot","interactive","exit_only"],"recommendedAction":"interactive"}'
       - role: tool
         tool_call_id: toolcall_0
         content: >-

@@ -166,6 +166,7 @@ public class CanvasTests
                 ExtensionName = "Counter Provider",
                 InstanceId = "counter-1",
                 Title = "Counter",
+                Icon = "beaker",
                 Status = "ready",
                 Url = "https://example.test/counter",
                 Input = JsonDocument.Parse("""{"seed":1}""").RootElement.Clone(),
@@ -200,6 +201,7 @@ public class CanvasTests
                 ExtensionName = "Counter Provider",
                 InstanceId = "counter-1",
                 Title = "Counter Updated",
+                Icon = "beaker-filled",
                 Status = "reconnected",
                 Url = "https://example.test/counter-updated",
                 Input = JsonDocument.Parse("""{"seed":2}""").RootElement.Clone(),
@@ -212,6 +214,7 @@ public class CanvasTests
             {
                 Assert.Equal("counter-1", canvas.InstanceId);
                 Assert.Equal("Counter Updated", canvas.Title);
+                Assert.Equal("beaker-filled", canvas.Icon);
                 Assert.Equal("reconnected", canvas.Status);
                 Assert.Equal("https://example.test/counter-updated", canvas.Url);
                 Assert.Equal(2, canvas.Input!.Value.GetProperty("seed").GetInt32());

@@ -35,6 +35,8 @@ public final class ServerRpc {
     public final ServerSecretsApi secrets;
     /** API methods for the {@code mcp} namespace. */
     public final ServerMcpApi mcp;
+    /** API methods for the {@code extensions} namespace. */
+    public final ServerExtensionsApi extensions;
     /** API methods for the {@code plugins} namespace. */
     public final ServerPluginsApi plugins;
     /** API methods for the {@code skills} namespace. */
@@ -47,6 +49,8 @@ public final class ServerRpc {
     public final ServerCommandsApi commands;
     /** API methods for the {@code user} namespace. */
     public final ServerUserApi user;
+    /** API methods for the {@code managedSettings} namespace. */
+    public final ServerManagedSettingsApi managedSettings;
     /** API methods for the {@code runtime} namespace. */
     public final ServerRuntimeApi runtime;
     /** API methods for the {@code sessionFs} namespace. */
@@ -70,12 +74,14 @@ public final class ServerRpc {
         this.account = new ServerAccountApi(caller);
         this.secrets = new ServerSecretsApi(caller);
         this.mcp = new ServerMcpApi(caller);
+        this.extensions = new ServerExtensionsApi(caller);
         this.plugins = new ServerPluginsApi(caller);
         this.skills = new ServerSkillsApi(caller);
         this.agents = new ServerAgentsApi(caller);
         this.instructions = new ServerInstructionsApi(caller);
         this.commands = new ServerCommandsApi(caller);
         this.user = new ServerUserApi(caller);
+        this.managedSettings = new ServerManagedSettingsApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
@@ -103,6 +109,17 @@ public final class ServerRpc {
     @CopilotExperimental
     public CompletableFuture<ConnectResult> connect(ConnectParams params) {
         return caller.invoke("connect", params, ConnectResult.class);
+    }
+
+    /**
+     * Invokes {@code registerExtensionLaunchProvider}.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> registerExtensionLaunchProvider() {
+        return caller.invoke("registerExtensionLaunchProvider", java.util.Map.of(), Void.class);
     }
 
 }

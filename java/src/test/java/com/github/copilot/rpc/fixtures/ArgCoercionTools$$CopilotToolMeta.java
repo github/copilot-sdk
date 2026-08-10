@@ -45,6 +45,6 @@ public final class ArgCoercionTools$$CopilotToolMeta implements CopilotToolMetad
                             boolean flag = (Boolean) args.get("flag");
                             ArgCoercionTools.Color color = ArgCoercionTools.Color.valueOf((String) args.get("color"));
                             return CompletableFuture.completedFuture(instance.mixedArgs(text, count, flag, color));
-                        }, null, null, null));
+                        }, null, null, null, null));
     }
 }

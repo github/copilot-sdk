@@ -1,17 +1,20 @@
 use std::path::Path;
+use std::time::Duration;
 
 use github_copilot_sdk::rpc::{ShellExecRequest, ShellKillRequest, ShellKillSignal};
 
-use super::support::{wait_for_condition, with_e2e_context};
+use super::support::wait_for_condition;
 
 #[tokio::test]
 async fn shell_exec_with_timeout_kills_long_running_command() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_timeout_kills_long_running_command",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
+                let timeout = shell_timeout();
                 let started_path = ctx.work_dir().join("shell-timeout-started.txt");
                 let marker_path = ctx.work_dir().join("shell-timeout-marker.txt");
                 let client = ctx.start_client().await;
@@ -26,13 +29,20 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
                     .exec(ShellExecRequest {
                         command: delayed_write_command(&started_path, &marker_path),
                         cwd: Some(ctx.work_dir().display().to_string()),
-                        timeout: Some(200),
+                        timeout: Some(
+                            timeout
+                                .as_millis()
+                                .try_into()
+                                .expect("shell timeout fits in i64"),
+                        ),
                     })
                     .await
                     .expect("execute timed command");
                 assert!(!result.process_id.trim().is_empty());
 
                 wait_for_exists(&started_path).await;
+                // The cleanup probe should not terminate a process before its timeout expires.
+                tokio::time::sleep(timeout).await;
                 wait_for_process_cleanup(&session, result.process_id, "timed-out command").await;
                 assert!(
                     !marker_path.exists(),
@@ -49,7 +59,8 @@ async fn shell_exec_with_timeout_kills_long_running_command() {
 
 #[tokio::test]
 async fn shell_exec_with_custom_cwd_honors_override() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_custom_cwd_honors_override",
         |ctx| {
@@ -88,7 +99,8 @@ async fn shell_exec_with_custom_cwd_honors_override() {
 
 #[tokio::test]
 async fn shell_exec_with_nonexistent_command_returns_processid_and_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_nonexistent_command_returns_processid_and_cleans_up",
         |ctx| {
@@ -124,7 +136,8 @@ async fn shell_exec_with_nonexistent_command_returns_processid_and_cleans_up() {
 
 #[tokio::test]
 async fn shell_kill_unknown_processid_returns_false() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_kill_unknown_processid_returns_false",
         |ctx| {
@@ -158,7 +171,8 @@ async fn shell_kill_unknown_processid_returns_false() {
 
 #[tokio::test]
 async fn shell_kill_cleans_up_after_terminating_signal() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_kill_cleans_up_after_terminating_signal",
         |ctx| {
@@ -203,7 +217,8 @@ async fn shell_kill_cleans_up_after_terminating_signal() {
 
 #[tokio::test]
 async fn shell_exec_with_stderr_output_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_stderr_output_cleans_up",
         |ctx| {
@@ -240,7 +255,8 @@ async fn shell_exec_with_stderr_output_cleans_up() {
 
 #[tokio::test]
 async fn shell_exec_with_large_stdout_cleans_up() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_shell_edge_cases",
         "shell_exec_with_large_stdout_cleans_up",
         |ctx| {
@@ -316,6 +332,11 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
     )
 }
 
+#[cfg(windows)]
+fn shell_timeout() -> Duration {
+    Duration::from_secs(2)
+}
+
 #[cfg(not(windows))]
 fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
     format!(
@@ -323,6 +344,11 @@ fn delayed_write_command(started_path: &Path, marker_path: &Path) -> String {
         started_path.display(),
         marker_path.display()
     )
+}
+
+#[cfg(not(windows))]
+fn shell_timeout() -> Duration {
+    Duration::from_millis(200)
 }
 
 #[cfg(windows)]
@@ -388,3 +414,5 @@ fn large_stdout_command(marker_path: &Path) -> String {
         marker_path.display()
     )
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_shell_edge_cases", 7);

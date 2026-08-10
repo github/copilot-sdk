@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.Test.Harness;
 
-public sealed partial class CapiProxy : IAsyncDisposable
+public sealed partial class ReplayProxy : IAsyncDisposable
 {
     private Process? _process;
     private Task<string>? _startupTask;
@@ -76,7 +76,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
                 {
                     var metadata = JsonSerializer.Deserialize(
                         match.Groups["metadata"].Value,
-                        CapiProxyJsonContext.Default.ProxyStartupMetadata);
+                        ReplayProxyJsonContext.Default.ProxyStartupMetadata);
                     ConnectProxyUrl = metadata?.ConnectProxyUrl;
                     CaFilePath = metadata?.CaFilePath;
                 }
@@ -150,16 +150,19 @@ public sealed partial class CapiProxy : IAsyncDisposable
         _startupTask = null;
     }
 
-    public async Task ConfigureAsync(string filePath, string workDir)
+    public async Task ConfigureAsync(string filePath, string workDir, string backend)
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        var response = await client.PostAsJsonAsync($"{url}/config", new ConfigureRequest(filePath, workDir), CapiProxyJsonContext.Default.ConfigureRequest);
+        var response = await client.PostAsJsonAsync(
+            $"{url}/config",
+            new ConfigureRequest(filePath, workDir, backend),
+            ReplayProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
 
-    private record ConfigureRequest(string FilePath, string WorkDir);
+    private record ConfigureRequest(string FilePath, string WorkDir, string Backend);
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 
@@ -168,7 +171,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        return await client.GetFromJsonAsync($"{url}/exchanges", CapiProxyJsonContext.Default.ListParsedHttpExchange)
+        return await client.GetFromJsonAsync($"{url}/exchanges", ReplayProxyJsonContext.Default.ListParsedHttpExchange)
                ?? [];
     }
 
@@ -178,7 +181,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
 
         using var client = new HttpClient();
         var payload = new CopilotUserByTokenRequest(token, response);
-        var resp = await client.PostAsJsonAsync($"{url}/copilot-user-config", payload, CapiProxyJsonContext.Default.CopilotUserByTokenRequest);
+        var resp = await client.PostAsJsonAsync($"{url}/copilot-user-config", payload, ReplayProxyJsonContext.Default.CopilotUserByTokenRequest);
         resp.EnsureSuccessStatusCode();
     }
 
@@ -205,7 +208,7 @@ public sealed partial class CapiProxy : IAsyncDisposable
     [JsonSerializable(typeof(CopilotUserByTokenRequest))]
     [JsonSerializable(typeof(Dictionary<string, CopilotUserQuotaSnapshot>))]
     [JsonSerializable(typeof(ProxyStartupMetadata))]
-    private partial class CapiProxyJsonContext : JsonSerializerContext;
+    private partial class ReplayProxyJsonContext : JsonSerializerContext;
 }
 
 public record CopilotUserByTokenRequest(string Token, CopilotUserConfig Response);

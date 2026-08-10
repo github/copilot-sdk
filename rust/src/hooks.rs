@@ -27,8 +27,8 @@ pub struct HookContext {
 pub struct PreToolUseInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -65,8 +65,8 @@ pub struct PreToolUseOutput {
 pub struct PreMcpToolCallInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -104,8 +104,8 @@ pub struct PreMcpToolCallOutput {
 pub struct PostToolUseInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -144,8 +144,8 @@ pub struct PostToolUseOutput {
 pub struct PostToolUseFailureInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -175,8 +175,8 @@ pub struct PostToolUseFailureOutput {
 pub struct UserPromptSubmittedInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -199,14 +199,40 @@ pub struct UserPromptSubmittedOutput {
     pub suppress_output: Option<bool>,
 }
 
+/// Input for the `userPromptTransformed` hook.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPromptTransformedInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp in ms.
+    pub timestamp: f64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// The prompt after any `userPromptSubmitted` hooks have run.
+    pub prompt: String,
+    /// The model-facing prompt after runtime transformations.
+    pub transformed_prompt: String,
+}
+
+/// Output for the `userPromptTransformed` hook.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPromptTransformedOutput {
+    /// Replacement model-facing prompt to persist and send to the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_transformed_prompt: Option<String>,
+}
+
 /// Input for the `sessionStart` hook.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStartInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -235,8 +261,8 @@ pub struct SessionStartOutput {
 pub struct SessionEndInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -271,8 +297,8 @@ pub struct SessionEndOutput {
 pub struct ErrorOccurredInput {
     /// The runtime session ID of the session that triggered the hook.
     pub session_id: String,
-    /// Unix timestamp (ms).
-    pub timestamp: i64,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
     /// Working directory.
     #[serde(rename = "cwd")]
     pub working_directory: PathBuf,
@@ -300,6 +326,40 @@ pub struct ErrorOccurredOutput {
     /// Message to show the user.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_notification: Option<String>,
+}
+
+/// Input for the `agentStop` hook, received when the top-level agent reaches a natural stop.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStopInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp in ms (the runtime serializes this as a JSON float).
+    pub timestamp: f64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Reason the agent stopped.
+    #[serde(default)]
+    pub stop_reason: Option<String>,
+    /// Path to the on-disk session transcript.
+    #[serde(default)]
+    pub transcript_path: Option<PathBuf>,
+    /// Whether this stop follows a previous block decision from the hook.
+    #[serde(default, rename = "stop_hook_active")]
+    pub stop_hook_active: Option<bool>,
+}
+
+/// Output for the `agentStop` hook.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStopOutput {
+    /// Set to `"block"` to keep the agent running.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// Follow-up instruction supplied when the stop is blocked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Events dispatched to [`SessionHooks::on_hook`] at CLI lifecycle points.
@@ -347,6 +407,13 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired after the runtime transforms a submitted prompt.
+    UserPromptTransformed {
+        /// Typed input data.
+        input: UserPromptTransformedInput,
+        /// Session context.
+        ctx: HookContext,
+    },
     /// Fired at session creation or resume.
     SessionStart {
         /// Typed input data.
@@ -365,6 +432,13 @@ pub enum HookEvent {
     ErrorOccurred {
         /// Typed input data.
         input: ErrorOccurredInput,
+        /// Session context.
+        ctx: HookContext,
+    },
+    /// Fired when the top-level agent reaches a natural stop.
+    AgentStop {
+        /// Typed input data.
+        input: AgentStopInput,
         /// Session context.
         ctx: HookContext,
     },
@@ -389,12 +463,16 @@ pub enum HookOutput {
     PostToolUseFailure(PostToolUseFailureOutput),
     /// Response for a user-prompt-submitted hook.
     UserPromptSubmitted(UserPromptSubmittedOutput),
+    /// Response for a user-prompt-transformed hook.
+    UserPromptTransformed(UserPromptTransformedOutput),
     /// Response for a session-start hook.
     SessionStart(SessionStartOutput),
     /// Response for a session-end hook.
     SessionEnd(SessionEndOutput),
     /// Response for an error-occurred hook.
     ErrorOccurred(ErrorOccurredOutput),
+    /// Response for an agent-stop hook.
+    AgentStop(AgentStopOutput),
 }
 
 impl HookOutput {
@@ -406,9 +484,11 @@ impl HookOutput {
             Self::PostToolUse(_) => "PostToolUse",
             Self::PostToolUseFailure(_) => "PostToolUseFailure",
             Self::UserPromptSubmitted(_) => "UserPromptSubmitted",
+            Self::UserPromptTransformed(_) => "UserPromptTransformed",
             Self::SessionStart(_) => "SessionStart",
             Self::SessionEnd(_) => "SessionEnd",
             Self::ErrorOccurred(_) => "ErrorOccurred",
+            Self::AgentStop(_) => "AgentStop",
         }
     }
 }
@@ -462,6 +542,11 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .await
                 .map(HookOutput::UserPromptSubmitted)
                 .unwrap_or(HookOutput::None),
+            HookEvent::UserPromptTransformed { input, ctx } => self
+                .on_user_prompt_transformed(input, ctx)
+                .await
+                .map(HookOutput::UserPromptTransformed)
+                .unwrap_or(HookOutput::None),
             HookEvent::SessionStart { input, ctx } => self
                 .on_session_start(input, ctx)
                 .await
@@ -476,6 +561,11 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .on_error_occurred(input, ctx)
                 .await
                 .map(HookOutput::ErrorOccurred)
+                .unwrap_or(HookOutput::None),
+            HookEvent::AgentStop { input, ctx } => self
+                .on_agent_stop(input, ctx)
+                .await
+                .map(HookOutput::AgentStop)
                 .unwrap_or(HookOutput::None),
         }
     }
@@ -534,6 +624,16 @@ pub trait SessionHooks: Send + Sync + 'static {
         None
     }
 
+    /// Called after the runtime transforms a submitted prompt. Return
+    /// `Some(output)` to replace the model-facing content before it is stored.
+    async fn on_user_prompt_transformed(
+        &self,
+        _input: UserPromptTransformedInput,
+        _ctx: HookContext,
+    ) -> Option<UserPromptTransformedOutput> {
+        None
+    }
+
     /// Called at session creation or resume. Return `Some(output)` to
     /// inject startup context.
     async fn on_session_start(
@@ -561,6 +661,16 @@ pub trait SessionHooks: Send + Sync + 'static {
         _input: ErrorOccurredInput,
         _ctx: HookContext,
     ) -> Option<ErrorOccurredOutput> {
+        None
+    }
+
+    /// Called when the top-level agent reaches a natural stop. Return a block
+    /// decision to keep the agent running with a follow-up instruction.
+    async fn on_agent_stop(
+        &self,
+        _input: AgentStopInput,
+        _ctx: HookContext,
+    ) -> Option<AgentStopOutput> {
         None
     }
 }
@@ -601,6 +711,10 @@ pub(crate) async fn dispatch_hook(
             let input: UserPromptSubmittedInput = serde_json::from_value(raw_input)?;
             HookEvent::UserPromptSubmitted { input, ctx }
         }
+        "userPromptTransformed" => {
+            let input: UserPromptTransformedInput = serde_json::from_value(raw_input)?;
+            HookEvent::UserPromptTransformed { input, ctx }
+        }
         "sessionStart" => {
             let input: SessionStartInput = serde_json::from_value(raw_input)?;
             HookEvent::SessionStart { input, ctx }
@@ -612,6 +726,10 @@ pub(crate) async fn dispatch_hook(
         "errorOccurred" => {
             let input: ErrorOccurredInput = serde_json::from_value(raw_input)?;
             HookEvent::ErrorOccurred { input, ctx }
+        }
+        "agentStop" => {
+            let input: AgentStopInput = serde_json::from_value(raw_input)?;
+            HookEvent::AgentStop { input, ctx }
         }
         _ => {
             tracing::warn!(
@@ -645,9 +763,13 @@ pub(crate) async fn dispatch_hook(
         ("userPromptSubmitted", HookOutput::UserPromptSubmitted(o)) => {
             Some(serde_json::to_value(o)?)
         }
+        ("userPromptTransformed", HookOutput::UserPromptTransformed(o)) => {
+            Some(serde_json::to_value(o)?)
+        }
         ("sessionStart", HookOutput::SessionStart(o)) => Some(serde_json::to_value(o)?),
         ("sessionEnd", HookOutput::SessionEnd(o)) => Some(serde_json::to_value(o)?),
         ("errorOccurred", HookOutput::ErrorOccurred(o)) => Some(serde_json::to_value(o)?),
+        ("agentStop", HookOutput::AgentStop(o)) => Some(serde_json::to_value(o)?),
         _ => {
             tracing::warn!(
                 hook_type = hook_type,
@@ -687,6 +809,14 @@ mod tests {
                     HookOutput::UserPromptSubmitted(UserPromptSubmittedOutput {
                         modified_prompt: Some(format!("[prefixed] {}", input.prompt)),
                         ..Default::default()
+                    })
+                }
+                HookEvent::UserPromptTransformed { input, .. } => {
+                    HookOutput::UserPromptTransformed(UserPromptTransformedOutput {
+                        modified_transformed_prompt: Some(format!(
+                            "[transformed] {}",
+                            input.transformed_prompt
+                        )),
                     })
                 }
                 _ => HookOutput::None,
@@ -747,6 +877,30 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result["output"]["modifiedPrompt"], "[prefixed] hello world");
+    }
+
+    #[tokio::test]
+    async fn dispatch_user_prompt_transformed() {
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "prompt": "hello world",
+            "transformedPrompt": "<current_datetime>now</current_datetime>\nhello world"
+        });
+        let result = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "userPromptTransformed",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result["output"]["modifiedTransformedPrompt"],
+            "[transformed] <current_datetime>now</current_datetime>\nhello world"
+        );
     }
 
     #[tokio::test]
@@ -980,5 +1134,51 @@ mod tests {
             .unwrap();
         assert_eq!(result["output"]["errorHandling"], "retry");
         assert_eq!(result["output"]["retryCount"], 3);
+    }
+
+    #[tokio::test]
+    async fn dispatch_agent_stop_block() {
+        struct AgentStopHooks;
+        #[async_trait]
+        impl SessionHooks for AgentStopHooks {
+            async fn on_agent_stop(
+                &self,
+                input: AgentStopInput,
+                ctx: HookContext,
+            ) -> Option<AgentStopOutput> {
+                assert_eq!(ctx.session_id, SessionId::new("sess-1"));
+                assert_eq!(input.session_id, "sess-1");
+                assert_eq!(input.stop_reason.as_deref(), Some("end_turn"));
+                assert_eq!(
+                    input.transcript_path,
+                    Some(PathBuf::from("/tmp/transcript.jsonl"))
+                );
+                assert_eq!(input.stop_hook_active, Some(true));
+                Some(AgentStopOutput {
+                    decision: Some("block".to_string()),
+                    reason: Some("finish the remaining work".to_string()),
+                })
+            }
+        }
+
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "stopReason": "end_turn",
+            "transcriptPath": "/tmp/transcript.jsonl",
+            "stop_hook_active": true
+        });
+        let result = dispatch_hook(
+            &AgentStopHooks,
+            &SessionId::new("sess-1"),
+            "agentStop",
+            input,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["output"]["decision"], "block");
+        assert_eq!(result["output"]["reason"], "finish the remaining work");
     }
 }

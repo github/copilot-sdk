@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
+using System.Text.Json.Nodes;
 
 namespace GitHub.Copilot;
 
@@ -17,8 +18,14 @@ public static class CopilotTool
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a tool can execute without a permission prompt.</summary>
     internal const string SkipPermissionKey = "skip_permission";
 
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a successful call to the tool ends the agent turn.</summary>
+    internal const string IsTerminalKey = "is_terminal";
+
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="CopilotToolDefer"/> deferral mode.</summary>
     internal const string DeferKey = "defer";
+
+    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's opaque host-defined metadata.</summary>
+    internal const string MetadataKey = "metadata";
 
     /// <summary>
     /// Defines a tool for use in a <see cref="CopilotSession"/>.
@@ -87,7 +94,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.Defer is not null))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Defer is not null || toolOptions.Metadata is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -108,9 +115,19 @@ public static class CopilotTool
                     additionalProperties[SkipPermissionKey] = true;
                 }
 
+                if (toolOptions.IsTerminal)
+                {
+                    additionalProperties[IsTerminalKey] = true;
+                }
+
                 if (toolOptions.Defer is { } defer)
                 {
                     additionalProperties[DeferKey] = defer;
+                }
+
+                if (toolOptions.Metadata is { } metadata)
+                {
+                    additionalProperties[MetadataKey] = metadata;
                 }
 
                 factoryOptions.AdditionalProperties = additionalProperties;
@@ -144,6 +161,16 @@ public sealed class CopilotToolOptions
     public bool SkipPermission { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether a successful call to this tool ends the agent turn.
+    /// </summary>
+    /// <remarks>
+    /// When true, the runtime's tool phase halts after a successful call instead of feeding the result back to the
+    /// model for another round. A failed call leaves the loop running so the model can read the error and retry.
+    /// The resulting <see cref="AIFunction"/> includes "is_terminal": true in its <see cref="AITool.AdditionalProperties"/>.
+    /// </remarks>
+    public bool IsTerminal { get; set; }
+
+    /// <summary>
     /// Gets or sets a value controlling whether this tool may be deferred (loaded lazily via tool search) rather than always pre-loaded.
     /// </summary>
     /// <remarks>
@@ -151,6 +178,11 @@ public sealed class CopilotToolOptions
     /// SDK forwards it to the CLI as the tool's <c>defer</c> mode. Defaults to "auto".
     /// </remarks>
     public CopilotToolDefer? Defer { get; set; }
+
+    /// <summary>
+    /// Gets or sets opaque, host-defined metadata associated with the tool definition.
+    /// </summary>
+    public IDictionary<string, JsonNode?>? Metadata { get; set; }
 }
 
 /// <summary>

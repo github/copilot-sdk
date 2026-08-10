@@ -30,7 +30,7 @@ public record SessionPermissionsSetAllowAllParams(
     @JsonProperty("mode") PermissionsAllowAllMode mode,
     /** Legacy full allow-all toggle. Prefer `mode`; when `mode` is omitted, `enabled: true` is treated as `mode: "on"` and any other value is treated as `mode: "off"`. */
     @JsonProperty("enabled") Boolean enabled,
-    /** Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session's active model is used. */
+    /** Optional model id for the `auto` mode auto-approval LLM judging. Only meaningful when `mode` is `auto`; ignored otherwise. When omitted, the session resolves a default judge model: `gpt-5.5` for CAPI sessions and the session's active model for BYOK sessions. */
     @JsonProperty("model") String model,
     /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
     @JsonProperty("source") PermissionsSetAllowAllSource source

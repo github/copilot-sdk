@@ -9,8 +9,13 @@ namespace GitHub.Copilot.Test.E2E;
 
 // These tests bypass E2ETestBase because they are about how the CLI subprocess is started
 // Other test classes should instead inherit from E2ETestBase
-public class ClientE2ETests
+public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixture>
 {
+    private const string FailingCliScript =
+        "process.stderr.write('nonexistent test flag on stderr\\n'); process.exit(1);";
+
+    private E2ETestContext Ctx => fixture.Ctx;
+
     [Theory]
     [InlineData(true)]   // stdio transport
     [InlineData(false)]  // TCP transport
@@ -66,7 +71,7 @@ public class ClientE2ETests
     {
         using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
-        await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+        await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
     }
 
@@ -165,7 +170,7 @@ public class ClientE2ETests
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
-        await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
     }
@@ -175,11 +180,14 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start(bool useStdio)
     {
+        var cliPath = Path.Join(Ctx.WorkDir, $"failing-cli-{Guid.NewGuid():N}.js");
+        await File.WriteAllTextAsync(cliPath, FailingCliScript);
+
         var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio
-                ? RuntimeConnection.ForStdio(args: ["--nonexistent-flag-for-testing"])
-                : RuntimeConnection.ForTcp(args: ["--nonexistent-flag-for-testing"])
+                ? RuntimeConnection.ForStdio(path: cliPath)
+                : RuntimeConnection.ForTcp(path: cliPath)
         });
 
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
@@ -201,7 +209,7 @@ public class ClientE2ETests
         // Verify subsequent calls also fail (don't hang)
         var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+            var session = await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
             await session.SendAsync(new MessageOptions { Prompt = "test" });
         });
         Assert.True(
@@ -219,7 +227,7 @@ public class ClientE2ETests
     public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig());
 
         Assert.NotNull(session.SessionId);
     }
@@ -234,7 +242,7 @@ public class ClientE2ETests
         {
             Connection = RuntimeConnection.ForTcp(connectionToken: connectionToken),
         });
-        await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
+        await using var originalSession = await ctx.CreateSessionAsync(client, new SessionConfig());
 
         var port = client.RuntimePort
             ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
@@ -243,7 +251,7 @@ public class ClientE2ETests
         {
             Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: connectionToken),
         });
-        await using var resumedSession = await resumeClient.ResumeSessionAsync(originalSession.SessionId, new());
+        await using var resumedSession = await ctx.ResumeSessionAsync(resumeClient, originalSession.SessionId, new());
 
         Assert.Equal(originalSession.SessionId, resumedSession.SessionId);
     }

@@ -8,7 +8,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.generated.PermissionRequestedEvent;
 import com.github.copilot.rpc.PermissionRequestResult;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionInvocation;
+import com.github.copilot.rpc.PermissionRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -69,5 +73,93 @@ public class PermissionRequestResultTest {
         var result = PermissionRequestResult.approveOnce();
         var json = MAPPER.writeValueAsString(result);
         assertFalse(json.contains("feedback"));
+    }
+
+    @Test
+    void testPermissionRequestExposesManagedApprovalRequired() throws Exception {
+        var request = MAPPER.readValue("""
+                {
+                    "kind": "read",
+                    "path": "/workspace/file.txt",
+                    "managedApprovalRequired": true
+                }
+                """, PermissionRequest.class);
+
+        assertTrue(request.getManagedApprovalRequired());
+    }
+
+    @Test
+    void testMalformedManagedApprovalRequiredFailsClosed() throws Exception {
+        var request = MAPPER.readValue("""
+                {
+                    "kind": "read",
+                    "managedApprovalRequired": 0
+                }
+                """, PermissionRequest.class);
+
+        assertTrue(request.getManagedApprovalRequired());
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+        assertEquals("no-result", result.getKind());
+    }
+
+    @Test
+    void testManagedApprovalRequiredPreservesFalse() throws Exception {
+        var request = MAPPER.readValue("""
+                {
+                    "kind": "read",
+                    "managedApprovalRequired": false
+                }
+                """, PermissionRequest.class);
+
+        assertFalse(request.getManagedApprovalRequired());
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+        assertEquals("approve-once", result.getKind());
+    }
+
+    @Test
+    void testPermissionEventValueConvertsToTypedRequest() {
+        var event = MAPPER
+                .convertValue(
+                        java.util.Map.of("type", "permission.requested", "data",
+                                java.util.Map.of("requestId", "permission-1", "permissionRequest", java.util.Map.of(
+                                        "kind", "url", "managedApprovalRequired", true, "url", "https://example.com"))),
+                        PermissionRequestedEvent.class);
+        var request = PermissionRequest.fromJsonValue(event.getData().permissionRequest());
+
+        assertTrue(request.getManagedApprovalRequired());
+    }
+
+    @Test
+    void testApproveAllFailsWhenManagedSettingsEnabled() {
+        var request = new PermissionRequest();
+        request.setKind("read");
+        request.setManagedApprovalRequired(true);
+
+        var invocation = new PermissionInvocation().setManagedSettingsEnabled(true);
+        var error = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> PermissionHandler.APPROVE_ALL.handle(request, invocation).join());
+
+        assertTrue(error.getCause() instanceof IllegalStateException);
+    }
+
+    @Test
+    void testApproveAllApprovesOrdinaryRequest() {
+        var request = new PermissionRequest();
+        request.setKind("read");
+
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+
+        assertEquals("approve-once", result.getKind());
+    }
+
+    @Test
+    void testApproveAllLeavesManagedRequestPendingWhenSessionFlagIsAbsent() {
+        var request = new PermissionRequest();
+        request.setKind("read");
+        request.setManagedApprovalRequired(true);
+
+        var result = PermissionHandler.APPROVE_ALL.handle(request, new PermissionInvocation()).join();
+
+        assertEquals("no-result", result.getKind());
     }
 }

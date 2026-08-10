@@ -6,11 +6,10 @@ use github_copilot_sdk::rpc::{
     WorkspacesReadCheckpointRequest, WorkspacesReadFileRequest, WorkspacesSaveLargePasteRequest,
 };
 
-use super::support::with_e2e_context;
-
 #[tokio::test]
 async fn should_list_no_checkpoints_for_fresh_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_workspace_checkpoints",
         "should_list_no_checkpoints_for_fresh_session",
         |ctx| {
@@ -40,13 +39,16 @@ async fn should_list_no_checkpoints_for_fresh_session() {
 
 #[tokio::test]
 async fn should_return_null_or_empty_content_for_unknown_checkpoint() {
-    // In-process, session.workspaces.readCheckpoint is answered by the native runtime,
-    // which decodes the checkpoint number as a u32 and rejects the i64::MAX sentinel this
-    // test uses. Covered by the default (stdio) transport. See issue #1934.
-    if super::support::skip_inprocess("readCheckpoint decodes the id as u32 in-process") {
+    if super::support::skip_shared_e2e_inprocess(
+        &E2E,
+        "readCheckpoint decodes the id as u32 in-process",
+    )
+    .await
+    {
         return;
     }
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_workspace_checkpoints",
         "should_return_null_or_empty_content_for_unknown_checkpoint",
         |ctx| {
@@ -76,7 +78,8 @@ async fn should_return_null_or_empty_content_for_unknown_checkpoint() {
 
 #[tokio::test]
 async fn should_return_typed_workspace_diff_result() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_workspace_checkpoints",
         "should_return_typed_workspace_diff_result",
         |ctx| {
@@ -128,7 +131,8 @@ async fn should_return_typed_workspace_diff_result() {
 
 #[tokio::test]
 async fn should_save_large_paste_and_expose_readable_content() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "rpc_workspace_checkpoints",
         "should_save_large_paste_and_expose_readable_content",
         |ctx| {
@@ -188,3 +192,5 @@ fn init_git_repository(path: &Path) {
         .expect("run git init");
     assert!(status.success(), "git init should succeed");
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("rpc_workspace_checkpoints", 4);

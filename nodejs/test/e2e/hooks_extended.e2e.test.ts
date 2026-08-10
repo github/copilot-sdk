@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type {
+    AgentStopHookInput,
     ErrorOccurredHookInput,
     PostToolUseFailureHookInput,
     PostToolUseHookInput,
@@ -13,6 +14,7 @@ import type {
     SessionEndHookInput,
     SessionStartHookInput,
     UserPromptSubmittedHookInput,
+    UserPromptTransformedHookInput,
 } from "../../src/types.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -168,6 +170,36 @@ describe("Extended session hooks", async () => {
         await session.disconnect();
     });
 
+    it("should invoke userPromptTransformed hook and modify transformed prompt", async () => {
+        const inputs: UserPromptTransformedHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onUserPromptTransformed: async (input, invocation) => {
+                    inputs.push(input);
+                    expect(invocation.sessionId).toBeTruthy();
+                    return {
+                        modifiedTransformedPrompt: "Reply with exactly: HOOKED_TRANSFORMED_PROMPT",
+                    };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Answer the request above.",
+        });
+
+        expect(inputs.length).toBeGreaterThan(0);
+        expect(inputs[0].prompt).toContain("Answer the request above.");
+        expect(inputs[0].transformedPrompt).toContain("Answer the request above.");
+        expect(inputs[0].transformedPrompt).toContain("<current_datetime>");
+        expect(inputs[0].timestamp).toBeInstanceOf(Date);
+        expect(inputs[0].workingDirectory).toBeDefined();
+        expect(response?.data.content ?? "").toContain("HOOKED_TRANSFORMED_PROMPT");
+
+        await session.disconnect();
+    });
+
     it("should invoke sessionStart hook", async () => {
         const inputs: SessionStartHookInput[] = [];
         const invocationSessionIds: string[] = [];
@@ -256,6 +288,38 @@ describe("Extended session hooks", async () => {
         expect(inputs.length).toBe(0);
         expect(invocationSessionIds).toHaveLength(0);
         expect(session.sessionId).toBeTruthy();
+
+        await session.disconnect();
+    });
+
+    it("should invoke agentStop hook and apply block response", async () => {
+        const inputs: AgentStopHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            hooks: {
+                onAgentStop: async (input, invocation) => {
+                    expect(invocation.sessionId).toBe(session.sessionId);
+                    inputs.push(input);
+                    if (inputs.length === 1) {
+                        return {
+                            decision: "block",
+                            reason: "Reply with exactly: AGENT_STOP_CONTINUED",
+                        };
+                    }
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Reply with exactly: AGENT_STOP_INITIAL",
+        });
+
+        expect(inputs).toHaveLength(2);
+        expect(inputs[0].stopHookActive).not.toBe(true);
+        expect(inputs[1].stopHookActive).toBe(true);
+        expect(inputs[0].stopReason).toBe("end_turn");
+        expect(inputs[0].transcriptPath).toBeTruthy();
+        expect(response?.data.content ?? "").toContain("AGENT_STOP_CONTINUED");
 
         await session.disconnect();
     });

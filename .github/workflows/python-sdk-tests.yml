@@ -7,24 +7,8 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'python/**'
-      - 'test/**'
-      - 'nodejs/package.json'
-      - '.github/workflows/python-sdk-tests.yml'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
   workflow_dispatch:
-  merge_group:
+  workflow_call:
 
 permissions:
   contents: read
@@ -95,4 +79,6 @@ jobs:
       - name: Run Python SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-        run: uv run pytest -v -s
+        # Keep each module's shared E2E client and proxy on one process while
+        # running independent modules concurrently in isolated workers.
+        run: uv run pytest -v -s -n 2 --dist=loadfile

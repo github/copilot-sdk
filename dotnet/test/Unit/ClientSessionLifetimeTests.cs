@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using GitHub.Copilot.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -183,6 +184,27 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ForceStopAsync_Unblocks_StopAsync_When_Session_Destroy_Hangs()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.DelayDestroy();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        _ = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var stopTask = client.StopAsync();
+        await server.DestroyStarted;
+
+        await client.ForceStopAsync();
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
     public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -202,6 +224,122 @@ public sealed class ClientSessionLifetimeTests
         }));
         Assert.Contains(sessionId, exception.Message);
         AssertSessionCount(client, sessions: 1);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_CustomAgent_ReasoningEffort()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents =
+            [
+                new CustomAgentConfig
+                {
+                    Name = "reasoning-agent",
+                    Prompt = "Think carefully.",
+                    ReasoningEffort = "high"
+                }
+            ],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var agent = Assert.Single(request.Params.GetProperty("customAgents").EnumerateArray());
+        Assert.Equal("high", agent.GetProperty("reasoningEffort").GetString());
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Omits_CustomAgent_ReasoningEffort_When_Unset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents =
+            [
+                new CustomAgentConfig
+                {
+                    Name = "default-agent",
+                    Prompt = "Use runtime defaults."
+                }
+            ],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var agent = Assert.Single(request.Params.GetProperty("customAgents").EnumerateArray());
+        Assert.False(agent.TryGetProperty("reasoningEffort", out _));
+    }
+
+    [Fact]
+    public async Task SessionRequests_Serialize_AdditionalDirectories()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            AdditionalDirectories = ["/repo/shared", "/repo/generated"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var createRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.Collection(
+            createRequest.Params.GetProperty("additionalDirectories").EnumerateArray(),
+            value => Assert.Equal("/repo/shared", value.GetString()),
+            value => Assert.Equal("/repo/generated", value.GetString()));
+
+        server.ClearRequests();
+
+        await using var resumed = await client.ResumeSessionAsync("resume-with-additional-directories", new ResumeSessionConfig
+        {
+            AdditionalDirectories = ["/repo/resumed"],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.Collection(
+            resumeRequest.Params.GetProperty("additionalDirectories").EnumerateArray(),
+            value => Assert.Equal("/repo/resumed", value.GetString()));
+    }
+
+    [Fact]
+    public async Task SessionRequests_Serialize_Terminal_Tools()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var terminalTool = CopilotTool.DefineTool(
+            (Func<string>)(() => "done"),
+            new CopilotToolOptions { IsTerminal = true });
+        var plainTool = CopilotTool.DefineTool((Func<string>)(() => "continue"));
+
+        await using var created = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [terminalTool, plainTool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var createRequest = Assert.Single(server.Requests, request => request.Method == "session.create");
+        var createTools = createRequest.Params.GetProperty("tools");
+        Assert.True(createTools[0].GetProperty("isTerminal").GetBoolean());
+        Assert.False(createTools[1].TryGetProperty("isTerminal", out _));
+
+        server.ClearRequests();
+
+        await using var resumed = await client.ResumeSessionAsync("resume-with-terminal-tool", new ResumeSessionConfig
+        {
+            Tools = [terminalTool],
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("isTerminal").GetBoolean());
     }
 
     [Fact]
@@ -397,6 +535,94 @@ public sealed class ClientSessionLifetimeTests
             ?? throw new InvalidOperationException($"Field '{fieldName}' does not expose Count.");
 
         return (int)count.GetValue(dictionary)!;
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        var permissionInvocation = new TaskCompletionSource<PermissionInvocation>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    DisableBypassPermissionsMode = DisableBypassPermissionsMode.Disable,
+                    Deny = ["shell(rm*)"],
+                    Ask = ["write"],
+                    Allow = []
+                }
+            },
+            OnPermissionRequest = (_, invocation) =>
+            {
+                permissionInvocation.TrySetResult(invocation);
+                return Task.FromResult(PermissionDecision.NoResult());
+            }
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal("disable", permissions.GetProperty("disableBypassPermissionsMode").GetString());
+        Assert.Equal("shell(rm*)", Assert.Single(permissions.GetProperty("deny").EnumerateArray()).GetString());
+        Assert.Equal("write", Assert.Single(permissions.GetProperty("ask").EnumerateArray()).GetString());
+        Assert.Empty(permissions.GetProperty("allow").EnumerateArray());
+
+        DispatchEvent(session, new PermissionRequestedEvent
+        {
+            Data = new PermissionRequestedData
+            {
+                PermissionRequest = new PermissionRequest { Kind = "read" },
+                RequestId = "managed-permission"
+            }
+        });
+        var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(invocation.ManagedSettingsEnabled);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_Omits_ManagedSettings_When_Unset()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.create");
+        Assert.False(request.Params.TryGetProperty("managedSettings", out _));
+    }
+
+    [Fact]
+    public async Task ResumeSessionAsync_Serializes_ManagedSettings_Permissions()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+
+        await using var session = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
+        {
+            ManagedSettings = new ManagedSettings
+            {
+                Permissions = new ManagedSettingsPermissions
+                {
+                    Deny = ["shell(rm*)"]
+                }
+            },
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            OnEvent = _ => { }
+        });
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.resume");
+        var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
+        Assert.Equal("shell(rm*)", Assert.Single(permissions.GetProperty("deny").EnumerateArray()).GetString());
     }
 
     private static void DispatchEvent(CopilotSession session, SessionEvent evt)

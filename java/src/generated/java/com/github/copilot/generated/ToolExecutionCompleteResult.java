@@ -35,6 +35,8 @@ public record ToolExecutionCompleteResult(
     /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
     @JsonProperty("structuredContent") Object structuredContent,
     /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
-    @JsonProperty("citableSources") List<CitableSource> citableSources
+    @JsonProperty("citableSources") List<CitableSource> citableSources,
+    /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental. */
+    @JsonProperty("mcpMeta") Object mcpMeta
 ) {
 }

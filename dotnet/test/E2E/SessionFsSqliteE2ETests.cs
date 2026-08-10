@@ -31,7 +31,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         await using var client = CreateSessionFsClient();
 
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             CreateSessionFsProvider = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
@@ -65,7 +65,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var client = CreateSessionFsClient();
 
         var handler = (InMemorySessionFsSqliteHandler?)null;
-        var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
             CreateSessionFsProvider = s =>

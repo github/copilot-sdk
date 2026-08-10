@@ -7,9 +7,11 @@ package com.github.copilot;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.NamedProviderConfig;
@@ -97,6 +99,10 @@ final class SessionRequestBuilder {
      * @return the built request object
      */
     static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId) {
+        return buildCreateRequest(config, sessionId, CopilotClientMode.COPILOT_CLI);
+    }
+
+    static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId, CopilotClientMode mode) {
         var request = new CreateSessionRequest();
         // Always request permission callbacks to enable deny-by-default behavior
         request.setRequestPermission(true);
@@ -104,6 +110,7 @@ final class SessionRequestBuilder {
         request.setEnvValueMode("direct");
         request.setSessionId(sessionId);
         if (config == null) {
+            request.setCustomAgentsLocalOnly(resolveCustomAgentsLocalOnly(null, mode));
             return request;
         }
 
@@ -124,6 +131,8 @@ final class SessionRequestBuilder {
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         request.setSessionLimits(config.getSessionLimits());
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -131,6 +140,7 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
+        request.setAdditionalDirectories(config.getAdditionalDirectories());
         if (config.isStreaming()) {
             request.setStreaming(true);
         }
@@ -138,6 +148,8 @@ final class SessionRequestBuilder {
         request.setMcpServers(config.getMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
+        request.setCustomAgentsLocalOnly(
+                resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setInfiniteSessions(config.getInfiniteSessions());
@@ -148,6 +160,7 @@ final class SessionRequestBuilder {
         request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
+        request.setDisabledMcpServers(config.getDisabledMcpServers());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
@@ -176,6 +189,7 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
+        request.setGitHubMcpToolConfig(config.getGitHubMcpToolConfig());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }
@@ -187,6 +201,7 @@ final class SessionRequestBuilder {
         request.setCloud(config.getCloud());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
+        request.setManagedSettings(config.getManagedSettings());
 
         return request;
     }
@@ -217,6 +232,11 @@ final class SessionRequestBuilder {
      * @return the built request object
      */
     static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config) {
+        return buildResumeRequest(sessionId, config, CopilotClientMode.COPILOT_CLI);
+    }
+
+    static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config,
+            CopilotClientMode mode) {
         var request = new ResumeSessionRequest();
         request.setSessionId(sessionId);
         // Always request permission callbacks to enable deny-by-default behavior
@@ -225,6 +245,7 @@ final class SessionRequestBuilder {
         request.setEnvValueMode("direct");
 
         if (config == null) {
+            request.setCustomAgentsLocalOnly(resolveCustomAgentsLocalOnly(null, mode));
             return request;
         }
 
@@ -245,6 +266,8 @@ final class SessionRequestBuilder {
         config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
         config.getEnableCitations().ifPresent(request::setEnableCitations);
         request.setSessionLimits(config.getSessionLimits());
+        experimentalModeForMode(mode, config.getEnableExperimentalMode().orElse(null))
+                .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
@@ -252,6 +275,7 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
+        request.setAdditionalDirectories(config.getAdditionalDirectories());
         request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
@@ -276,6 +300,8 @@ final class SessionRequestBuilder {
         request.setMcpServers(config.getMcpServers());
         request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
+        request.setCustomAgentsLocalOnly(
+                resolveCustomAgentsLocalOnly(config.getCustomAgentsLocalOnly().orElse(null), mode));
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
@@ -285,6 +311,7 @@ final class SessionRequestBuilder {
         request.setToolSearch(config.getToolSearch());
         request.setMemory(config.getMemory());
         request.setDisabledSkills(config.getDisabledSkills());
+        request.setDisabledMcpServers(config.getDisabledMcpServers());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
 
@@ -300,6 +327,7 @@ final class SessionRequestBuilder {
         if (config.isEnableMcpApps()) {
             request.setRequestMcpApps(true);
         }
+        request.setGitHubMcpToolConfig(config.getGitHubMcpToolConfig());
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }
@@ -310,8 +338,23 @@ final class SessionRequestBuilder {
         request.setRemoteSession(config.getRemoteSession());
         request.setExpAssignments(config.getExpAssignments());
         config.getEnableManagedSettings().ifPresent(request::setEnableManagedSettings);
+        request.setManagedSettings(config.getManagedSettings());
 
         return request;
+    }
+
+    private static Boolean resolveCustomAgentsLocalOnly(Boolean customAgentsLocalOnly, CopilotClientMode mode) {
+        if (customAgentsLocalOnly != null) {
+            return customAgentsLocalOnly;
+        }
+        return mode == CopilotClientMode.EMPTY ? true : null;
+    }
+
+    private static Optional<Boolean> experimentalModeForMode(CopilotClientMode mode, Boolean supplied) {
+        if (mode == CopilotClientMode.EMPTY) {
+            return Optional.of(supplied != null ? supplied : false);
+        }
+        return Optional.ofNullable(supplied);
     }
 
     /**
@@ -333,6 +376,8 @@ final class SessionRequestBuilder {
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
         }
+        session.setManagedSettingsEnabled(
+                config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }
@@ -383,6 +428,8 @@ final class SessionRequestBuilder {
         if (config.getOnPermissionRequest() != null) {
             session.registerPermissionHandler(config.getOnPermissionRequest());
         }
+        session.setManagedSettingsEnabled(
+                config.getEnableManagedSettings().orElse(false) || config.getManagedSettings() != null);
         if (config.getOnMcpAuthRequest() != null) {
             session.registerMcpAuthHandler(config.getOnMcpAuthRequest());
         }

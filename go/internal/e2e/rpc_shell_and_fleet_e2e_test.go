@@ -55,6 +55,7 @@ func TestRPCShellAndFleetE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		var command string
 		if runtime.GOOS == "windows" {

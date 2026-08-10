@@ -33,7 +33,8 @@ use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
     SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
+    SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionStatement,
 };
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
@@ -359,6 +360,12 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// When `true`, a successful call to this tool ends the agent turn: the
+    /// runtime's tool phase halts instead of feeding the result back to the
+    /// model for another round. A failed call leaves the loop running so the
+    /// model can read the error and retry.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_terminal: bool,
     /// Controls whether the tool may be deferred (loaded lazily via tool
     /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
     /// tool can be deferred and surfaced through tool search. When
@@ -366,6 +373,12 @@ pub struct Tool {
     /// runtime decide.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub defer: Option<DeferMode>,
+    /// Opaque, host-defined metadata associated with the tool definition.
+    /// Keys are namespaced and not part of the stable public API; values are
+    /// not interpreted and may be recognized to inform host-specific behavior.
+    /// Unknown keys are preserved and round-tripped untouched.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub metadata: IndexMap<String, Value>,
     /// Optional runtime implementation. When `Some`, the SDK dispatches
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
@@ -477,11 +490,30 @@ impl Tool {
         self
     }
 
+    /// Sets whether a successful call to this tool ends the agent turn.
+    ///
+    /// When `true`, the runtime's tool phase halts after a successful call
+    /// instead of feeding the result back to the model for another round. A
+    /// failed call leaves the loop running so the model can read the error and
+    /// retry.
+    #[must_use]
+    pub fn with_is_terminal(mut self, is_terminal: bool) -> Self {
+        self.is_terminal = is_terminal;
+        self
+    }
+
     /// Set the deferral mode controlling whether the tool may be loaded
     /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
     /// ([`DeferMode::Never`]).
     pub fn with_defer(mut self, defer: DeferMode) -> Self {
         self.defer = Some(defer);
+        self
+    }
+
+    /// Set opaque, host-defined metadata for the tool. Keys are namespaced and
+    /// not part of the stable public API. Replaces any previously-set metadata.
+    pub fn with_metadata(mut self, metadata: IndexMap<String, Value>) -> Self {
+        self.metadata = metadata;
         self
     }
 
@@ -512,7 +544,9 @@ impl std::fmt::Debug for Tool {
             .field("parameters", &self.parameters)
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
+            .field("is_terminal", &self.is_terminal)
             .field("defer", &self.defer)
+            .field("metadata", &self.metadata)
             .field(
                 "handler",
                 &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
@@ -642,6 +676,12 @@ pub struct CustomAgentConfig {
     /// falling back to the parent session model if unavailable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Reasoning effort level for this agent's model.
+    ///
+    /// When unset, the runtime resolves model configuration, then inherits the
+    /// parent effort only for the same model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
 }
 
 impl CustomAgentConfig {
@@ -707,6 +747,12 @@ impl CustomAgentConfig {
     /// Set the model identifier for this agent.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    /// Set the reasoning effort level for this agent's model.
+    pub fn with_reasoning_effort(mut self, reasoning_effort: impl Into<String>) -> Self {
+        self.reasoning_effort = Some(reasoning_effort.into());
         self
     }
 }
@@ -808,6 +854,80 @@ impl ToolSearchConfig {
     /// behind tool search.
     pub fn with_defer_threshold(mut self, defer_threshold: u32) -> Self {
         self.defer_threshold = Some(defer_threshold);
+        self
+    }
+}
+
+/// Configuration for the built-in GitHub MCP server.
+///
+/// `disable_form_deferral` only applies to the built-in GitHub MCP server and
+/// only has an effect when MCP Apps and form-backed GitHub tools are enabled.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GitHubMcpToolConfig {
+    /// Whether all GitHub MCP tools are enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_all_tools: Option<bool>,
+    /// Additional GitHub MCP toolsets to enable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_toolsets: Option<Vec<String>>,
+    /// Additional GitHub MCP tools to enable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_tools: Option<Vec<String>>,
+    /// Whether GitHub MCP insiders mode is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_insiders_mode: Option<bool>,
+    /// Disables form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_form_deferral: Option<bool>,
+}
+
+impl GitHubMcpToolConfig {
+    /// Construct an empty GitHub MCP tool configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set whether all GitHub MCP tools are enabled.
+    pub fn with_enable_all_tools(mut self, value: bool) -> Self {
+        self.enable_all_tools = Some(value);
+        self
+    }
+
+    /// Set the additional GitHub MCP toolsets to enable.
+    pub fn with_additional_toolsets<I, S>(mut self, values: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.additional_toolsets = Some(values.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the additional GitHub MCP tools to enable.
+    pub fn with_additional_tools<I, S>(mut self, values: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.additional_tools = Some(values.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set whether GitHub MCP insiders mode is enabled.
+    pub fn with_enable_insiders_mode(mut self, value: bool) -> Self {
+        self.enable_insiders_mode = Some(value);
+        self
+    }
+
+    /// Disable form deferral for GitHub MCP tools. This only applies to the
+    /// built-in GitHub MCP server and only has an effect when MCP Apps and
+    /// form-backed GitHub tools are enabled.
+    pub fn with_disable_form_deferral(mut self, value: bool) -> Self {
+        self.disable_form_deferral = Some(value);
         self
     }
 }
@@ -1339,7 +1459,7 @@ impl CapiSessionOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AzureProviderOptions {
-    /// Azure API version. Defaults to `"2024-10-21"`.
+    /// Azure API version. When omitted, the runtime uses the GA versionless v1 route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
 }
@@ -1596,6 +1716,160 @@ impl ProviderModelConfig {
     }
 }
 
+/// A single ExP (Experiment Platform) flag value.
+///
+/// ExP assignments resolve to a string, number, boolean, or null.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ExpFlagValue {
+    /// A boolean flag value.
+    Bool(bool),
+    /// An integer flag value.
+    Integer(i64),
+    /// A floating-point flag value.
+    Float(f64),
+    /// A string flag value.
+    String(String),
+    /// A null flag value.
+    Null,
+}
+
+/// A single configuration entry in a [`CopilotExpAssignmentResponse`].
+///
+/// Each entry carries an identifier and a bag of typed parameter values.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ExpConfigEntry {
+    /// Identifier of the configuration entry.
+    pub id: String,
+    /// Parameter values keyed by parameter name.
+    pub parameters: HashMap<String, ExpFlagValue>,
+}
+
+/// ExP ("flight") assignment data, in the same JSON shape the Copilot CLI
+/// fetches from the experimentation service.
+///
+/// Field names serialize as PascalCase (`Features`, `Flights`, ...) to match
+/// the on-the-wire contract consumed by the runtime.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct CopilotExpAssignmentResponse {
+    /// Enabled feature names.
+    #[serde(default)]
+    pub features: Vec<String>,
+    /// Assigned flights keyed by flight name.
+    #[serde(default)]
+    pub flights: HashMap<String, String>,
+    /// Configuration entries carrying typed parameter values.
+    #[serde(default)]
+    pub configs: Vec<ExpConfigEntry>,
+    /// Opaque parameter-group payload passed through untouched. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter_groups: Option<Value>,
+    /// Version of the flighting configuration. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flighting_version: Option<i64>,
+    /// Impression identifier for the assignment. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impression_id: Option<String>,
+    /// Assignment context string forwarded to CAPI and telemetry.
+    #[serde(default)]
+    pub assignment_context: String,
+}
+
+/// Controls whether bypass-permissions mode is available in a managed session.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum DisableBypassPermissionsMode {
+    /// Turn off bypass-permissions mode.
+    Disable,
+}
+
+/// Permission rules injected as a managed-settings layer at session bootstrap.
+///
+/// All fields are optional; an omitted field imposes no constraint from this
+/// layer. This layer composes restrictively with any server- or device-level
+/// managed settings: [`deny`](Self::deny) and [`ask`](Self::ask) rules are
+/// unioned across layers, every present [`allow`](Self::allow) list must admit a
+/// tool for it to be allowed, and
+/// [`disable_bypass_permissions_mode`](Self::disable_bypass_permissions_mode) is
+/// honored if any layer sets it (deny-wins).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ManagedSettingsPermissions {
+    /// When set to `"disable"`, bypass-permissions mode is turned off for the
+    /// session regardless of other layers. Serialized as
+    /// `disableBypassPermissionsMode`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_bypass_permissions_mode: Option<DisableBypassPermissionsMode>,
+    /// Tool-permission patterns that are always denied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deny: Option<Vec<String>>,
+    /// Tool-permission patterns that require an explicit ask.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ask: Option<Vec<String>>,
+    /// Tool-permission patterns that are allowed without prompting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow: Option<Vec<String>>,
+}
+
+impl ManagedSettingsPermissions {
+    /// Sets the bypass-permissions policy for this managed layer.
+    pub fn with_disable_bypass_permissions_mode(
+        mut self,
+        value: DisableBypassPermissionsMode,
+    ) -> Self {
+        self.disable_bypass_permissions_mode = Some(value);
+        self
+    }
+
+    /// Sets the rules that are always denied.
+    pub fn with_deny(mut self, rules: Vec<String>) -> Self {
+        self.deny = Some(rules);
+        self
+    }
+
+    /// Sets the rules that require explicit approval.
+    pub fn with_ask(mut self, rules: Vec<String>) -> Self {
+        self.ask = Some(rules);
+        self
+    }
+
+    /// Sets the rules that are allowed without prompting.
+    pub fn with_allow(mut self, rules: Vec<String>) -> Self {
+        self.allow = Some(rules);
+        self
+    }
+}
+
+/// Managed-settings layer injected at session startup. Currently carries only a
+/// [`permissions`](Self::permissions) object.
+///
+/// This layer is startup-only and is not persisted with the session. It must be
+/// re-supplied on resume to remain in effect; omitting it on resume clears the
+/// previously injected layer. It can be combined with
+/// [`SessionConfig::enable_managed_settings`]. Older runtimes may ignore this
+/// additive field, so hosts must not rely on injected policy until they ship a
+/// compatible runtime.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ManagedSettings {
+    /// Permission rules for this managed-settings layer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<ManagedSettingsPermissions>,
+}
+
+impl ManagedSettings {
+    /// Sets the permissions-only managed policy.
+    pub fn with_permissions(mut self, permissions: ManagedSettingsPermissions) -> Self {
+        self.permissions = Some(permissions);
+        self
+    }
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1712,7 +1986,8 @@ pub struct SessionConfig {
     /// applied automatically at session creation/resume time. `None` means no
     /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
-    /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval for this session.
     pub skip_embedding_retrieval: Option<bool>,
@@ -1758,6 +2033,11 @@ pub struct SessionConfig {
     ///
     /// Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Configuration for the built-in GitHub MCP server.
+    ///
+    /// `disable_form_deferral` only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -1774,6 +2054,10 @@ pub struct SessionConfig {
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
+    /// Exact MCP server names to disable for this session. Disabled servers are
+    /// not started or authenticated on create or cold resume; a resident resume
+    /// cannot stop servers that are already running.
+    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
@@ -1836,6 +2120,10 @@ pub struct SessionConfig {
     /// Working directory for the session. Tool operations resolve
     /// relative paths against this directory.
     pub working_directory: Option<PathBuf>,
+    /// Additional directories the agent may access beyond the working directory.
+    /// Relative paths resolve against the session working directory. Re-supply
+    /// them when resuming a session.
+    pub additional_directories: Option<Vec<PathBuf>>,
     /// Per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
     /// which authenticates the CLI process itself; this token determines
@@ -1866,7 +2154,7 @@ pub struct SessionConfig {
     /// When absent, the session does not block on ExP. Set via
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
-    pub exp_assignments: Option<Value>,
+    pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in: when `Some(true)`, the runtime self-fetches enterprise managed
     /// settings (bypass-permissions policy) at session bootstrap using the
     /// session's [`github_token`](Self::github_token). Requires `github_token`
@@ -1874,6 +2162,15 @@ pub struct SessionConfig {
     /// (fail-closed). When `None`, behaves exactly as before. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Optional managed-settings layer injected at session bootstrap. Currently
+    /// carries a [`permissions`](ManagedSettingsPermissions) object that composes
+    /// restrictively with any server- or device-level managed settings. This
+    /// layer is startup-only and is not persisted: it must be re-supplied on
+    /// resume to remain in effect. Can be combined with
+    /// [`enable_managed_settings`](Self::enable_managed_settings). Serialized on
+    /// the wire as `managedSettings`. Set via
+    /// [`with_managed_settings`](Self::with_managed_settings).
+    pub managed_settings: Option<ManagedSettings>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1916,10 +2213,15 @@ pub struct SessionConfig {
     /// Applied via `session.options.update` after create/resume. Defaults to
     /// `true` in [`crate::ClientMode::Empty`] when unset.
     pub skip_custom_instructions: Option<bool>,
-    /// Whether to constrain custom agents to local-only execution. Applied
-    /// via `session.options.update` after create/resume. Defaults to `true`
-    /// in [`crate::ClientMode::Empty`] when unset.
+    /// Whether to constrain custom agents to local-only execution. Sent with
+    /// the initial create request and maintained via `session.options.update`.
+    /// Defaults to `true` in [`crate::ClientMode::Empty`] when unset.
     pub custom_agents_local_only: Option<bool>,
+    /// Controls whether the session enables experimental features.
+    ///
+    /// Defaults to `false` in [`crate::ClientMode::Empty`] when unset;
+    /// in `copilot-cli` mode, leaving this unset lets the runtime decide.
+    pub enable_experimental_mode: Option<bool>,
     /// Whether to include the `Co-authored-by` trailer in commit messages.
     /// Applied via `session.options.update` after create/resume. Defaults to
     /// `false` in [`crate::ClientMode::Empty`] when unset.
@@ -1985,6 +2287,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
+            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -1999,6 +2302,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
+            .field("additional_directories", &self.additional_directories)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
@@ -2012,6 +2316,8 @@ impl std::fmt::Debug for SessionConfig {
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
+            .field("enable_experimental_mode", &self.enable_experimental_mode)
+            .field("managed_settings", &self.managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2091,12 +2397,14 @@ impl Default for SessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
             tool_search: None,
             disabled_skills: None,
+            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -2113,6 +2421,7 @@ impl Default for SessionConfig {
             memory: None,
             config_directory: None,
             working_directory: None,
+            additional_directories: None,
             github_token: None,
             remote_session: None,
             cloud: None,
@@ -2120,6 +2429,7 @@ impl Default for SessionConfig {
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
             elicitation_handler: None,
@@ -2132,6 +2442,7 @@ impl Default for SessionConfig {
             system_message_transform: None,
             skip_custom_instructions: None,
             custom_agents_local_only: None,
+            enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
         }
@@ -2249,6 +2560,7 @@ impl SessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2256,7 +2568,9 @@ impl SessionConfig {
             large_output: self.large_output,
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
+            disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
+            custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
@@ -2271,6 +2585,7 @@ impl SessionConfig {
             memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
+            additional_directories: self.additional_directories,
             github_token: self.github_token,
             remote_session: self.remote_session,
             cloud: self.cloud,
@@ -2279,6 +2594,8 @@ impl SessionConfig {
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
+            is_experimental_mode: self.enable_experimental_mode,
+            managed_settings: self.managed_settings,
         };
 
         let runtime = SessionConfigRuntime {
@@ -2567,7 +2884,8 @@ impl SessionConfig {
         self
     }
 
-    /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
@@ -2628,6 +2946,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set the built-in GitHub MCP server configuration.
+    pub fn with_github_mcp_tool_config(mut self, config: GitHubMcpToolConfig) -> Self {
+        self.github_mcp_tool_config = Some(config);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -2680,6 +3004,16 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set exact MCP server names to disable for this session.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -2792,6 +3126,16 @@ impl SessionConfig {
         self
     }
 
+    /// Set directories the agent may access beyond the working directory.
+    pub fn with_additional_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.additional_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token);
     /// this token determines the GitHub identity used for content exclusion,
@@ -2835,6 +3179,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`enable_experimental_mode`](Self::enable_experimental_mode).
+    pub fn with_enable_experimental_mode(mut self, enable_experimental_mode: bool) -> Self {
+        self.enable_experimental_mode = Some(enable_experimental_mode);
+        self
+    }
+
     /// Set [`Self::coauthor_enabled`].
     pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
         self.coauthor_enabled = Some(value);
@@ -2855,7 +3205,7 @@ impl SessionConfig {
     /// integrators that fetch ExP data out of process; malformed payloads
     /// are dropped by the runtime (fail-open).
     #[doc(hidden)]
-    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+    pub fn with_exp_assignments(mut self, assignments: CopilotExpAssignmentResponse) -> Self {
         self.exp_assignments = Some(assignments);
         self
     }
@@ -2867,6 +3217,15 @@ impl SessionConfig {
     /// (fail-closed).
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
+        self
+    }
+
+    /// Inject a managed-settings layer (currently permission rules) at session
+    /// bootstrap. This layer is startup-only and is not persisted, so it must be
+    /// re-supplied on resume to remain in effect. Can be combined with
+    /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
+    pub fn with_managed_settings(mut self, managed_settings: ManagedSettings) -> Self {
+        self.managed_settings = Some(managed_settings);
         self
     }
 }
@@ -2937,7 +3296,8 @@ pub struct ResumeSessionConfig {
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
-    /// Enable config discovery on resume.
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval on resume.
     pub skip_embedding_retrieval: Option<bool>,
@@ -2961,6 +3321,11 @@ pub struct ResumeSessionConfig {
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
     /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
+    /// Configuration for the built-in GitHub MCP server.
+    ///
+    /// `disable_form_deferral` only applies to that server and only has an
+    /// effect when MCP Apps and form-backed GitHub tools are enabled.
+    pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -2975,6 +3340,9 @@ pub struct ResumeSessionConfig {
     pub tool_search: Option<ToolSearchConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
+    /// Exact MCP server names to disable on resume. This prevents startup and
+    /// authentication during a cold resume, but cannot stop resident servers.
+    pub disabled_mcp_servers: Option<Vec<String>>,
     /// Enable session hooks on resume.
     pub hooks: Option<bool>,
     /// Custom agents to re-supply on resume.
@@ -3025,6 +3393,9 @@ pub struct ResumeSessionConfig {
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
     pub working_directory: Option<PathBuf>,
+    /// Additional directories the agent may access on resume. Relative paths
+    /// resolve against the session working directory.
+    pub additional_directories: Option<Vec<PathBuf>>,
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
     pub github_token: Option<String>,
@@ -3042,13 +3413,19 @@ pub struct ResumeSessionConfig {
     /// re-applies the assignments after a CLI process restart. Set via
     /// [`with_exp_assignments`](Self::with_exp_assignments).
     #[doc(hidden)]
-    pub exp_assignments: Option<Value>,
+    pub exp_assignments: Option<CopilotExpAssignmentResponse>,
     /// Opt-in flag injected on resume. See
     /// [`SessionConfig::enable_managed_settings`]. Re-supply on resume so
     /// the runtime re-applies the managed-settings self-fetch after a CLI
     /// process restart. Set via
     /// [`with_enable_managed_settings`](Self::with_enable_managed_settings).
     pub enable_managed_settings: Option<bool>,
+    /// Optional managed-settings layer injected on resume. See
+    /// [`SessionConfig::managed_settings`]. This layer is not persisted, so it
+    /// must be re-supplied on resume to remain in effect; omitting it clears the
+    /// previously injected layer. Serialized on the wire as `managedSettings`.
+    /// Set via [`with_managed_settings`](Self::with_managed_settings).
+    pub managed_settings: Option<ManagedSettings>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -3092,6 +3469,11 @@ pub struct ResumeSessionConfig {
     pub skip_custom_instructions: Option<bool>,
     /// See [`SessionConfig::custom_agents_local_only`].
     pub custom_agents_local_only: Option<bool>,
+    /// Controls whether the session enables experimental features.
+    ///
+    /// Defaults to `false` in [`crate::ClientMode::Empty`] when unset;
+    /// in `copilot-cli` mode, leaving this unset lets the runtime decide.
+    pub enable_experimental_mode: Option<bool>,
     /// See [`SessionConfig::coauthor_enabled`].
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
@@ -3154,6 +3536,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("large_output", &self.large_output)
             .field("tool_search", &self.tool_search)
             .field("disabled_skills", &self.disabled_skills)
+            .field("disabled_mcp_servers", &self.disabled_mcp_servers)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
             .field("default_agent", &self.default_agent)
@@ -3168,6 +3551,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("memory", &self.memory)
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
+            .field("additional_directories", &self.additional_directories)
             .field(
                 "github_token",
                 &self.github_token.as_ref().map(|_| "<redacted>"),
@@ -3180,6 +3564,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("commands", &self.commands)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
+            .field("enable_experimental_mode", &self.enable_experimental_mode)
+            .field("managed_settings", &self.managed_settings)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -3303,6 +3689,7 @@ impl ResumeSessionConfig {
             request_auto_mode_switch,
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -3310,7 +3697,9 @@ impl ResumeSessionConfig {
             large_output: self.large_output,
             tool_search: self.tool_search,
             disabled_skills: self.disabled_skills,
+            disabled_mcp_servers: self.disabled_mcp_servers,
             custom_agents: self.custom_agents,
+            custom_agents_local_only: self.custom_agents_local_only,
             default_agent: self.default_agent,
             agent: self.agent,
             infinite_sessions: self.infinite_sessions,
@@ -3325,6 +3714,7 @@ impl ResumeSessionConfig {
             memory: self.memory,
             config_dir: self.config_directory,
             working_directory: self.working_directory,
+            additional_directories: self.additional_directories,
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
@@ -3332,6 +3722,8 @@ impl ResumeSessionConfig {
             commands: wire_commands,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
+            is_experimental_mode: self.enable_experimental_mode,
+            managed_settings: self.managed_settings,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         };
@@ -3394,12 +3786,14 @@ impl ResumeSessionConfig {
             enable_skills: None,
             embedding_cache_storage: None,
             enable_mcp_apps: None,
+            github_mcp_tool_config: None,
             skill_directories: None,
             instruction_directories: None,
             plugin_directories: None,
             large_output: None,
             tool_search: None,
             disabled_skills: None,
+            disabled_mcp_servers: None,
             hooks: None,
             custom_agents: None,
             default_agent: None,
@@ -3416,12 +3810,14 @@ impl ResumeSessionConfig {
             memory: None,
             config_directory: None,
             working_directory: None,
+            additional_directories: None,
             github_token: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
             exp_assignments: None,
             enable_managed_settings: None,
+            managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
@@ -3436,6 +3832,7 @@ impl ResumeSessionConfig {
             system_message_transform: None,
             skip_custom_instructions: None,
             custom_agents_local_only: None,
+            enable_experimental_mode: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
         }
@@ -3691,7 +4088,8 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Enable or disable CLI config discovery on resume.
+    /// Enables runtime discovery of supported configuration. Explicitly supplied
+    /// configuration takes precedence over discovered values.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
         self
@@ -3752,6 +4150,12 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the built-in GitHub MCP server configuration.
+    pub fn with_github_mcp_tool_config(mut self, config: GitHubMcpToolConfig) -> Self {
+        self.github_mcp_tool_config = Some(config);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI on resume.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -3804,6 +4208,16 @@ impl ResumeSessionConfig {
         S: Into<String>,
     {
         self.disabled_skills = Some(names.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set exact MCP server names to disable for this session.
+    pub fn with_disabled_mcp_servers<I, S>(mut self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.disabled_mcp_servers = Some(names.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3913,6 +4327,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set directories the agent may access beyond the working directory on resume.
+    pub fn with_additional_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.additional_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Set the per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`] for distinction from the
     /// client-level token.
@@ -3965,6 +4389,12 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set [`enable_experimental_mode`](Self::enable_experimental_mode).
+    pub fn with_enable_experimental_mode(mut self, enable_experimental_mode: bool) -> Self {
+        self.enable_experimental_mode = Some(enable_experimental_mode);
+        self
+    }
+
     /// Set [`Self::coauthor_enabled`].
     pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
         self.coauthor_enabled = Some(value);
@@ -3981,7 +4411,7 @@ impl ResumeSessionConfig {
     /// [`SessionConfig::with_exp_assignments`]. Re-supply the assignments on
     /// resume so the runtime re-applies them after a CLI process restart.
     #[doc(hidden)]
-    pub fn with_exp_assignments(mut self, assignments: Value) -> Self {
+    pub fn with_exp_assignments(mut self, assignments: CopilotExpAssignmentResponse) -> Self {
         self.exp_assignments = Some(assignments);
         self
     }
@@ -3990,6 +4420,14 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_enable_managed_settings`].
     pub fn with_enable_managed_settings(mut self, enabled: bool) -> Self {
         self.enable_managed_settings = Some(enabled);
+        self
+    }
+
+    /// Inject a managed-settings layer (currently permission rules) on resume.
+    /// See [`SessionConfig::with_managed_settings`]. Must be re-supplied on
+    /// resume; omitting it clears the previously injected layer.
+    pub fn with_managed_settings(mut self, managed_settings: ManagedSettings) -> Self {
+        self.managed_settings = Some(managed_settings);
         self
     }
 }
@@ -4150,7 +4588,7 @@ impl LogOptions {
 #[derive(Debug, Clone, Default)]
 pub struct SetModelOptions {
     /// Reasoning effort for the new model (e.g. `"low"`, `"medium"`,
-    /// `"high"`, `"xhigh"`).
+    /// `"high"`, `"xhigh"`, `"max"`).
     pub reasoning_effort: Option<String>,
     /// Reasoning summary mode for the new model. Use
     /// [`ReasoningSummary::None`] to suppress summary output regardless of
@@ -5367,8 +5805,15 @@ pub struct PermissionRequestData {
     /// to a specific tool invocation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
-    /// The full permission request params from the CLI. The shape varies by
-    /// permission type and CLI version, so we preserve it as `Value`.
+    /// Whether managed policy requires an explicit human decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_approval_required: Option<bool>,
+    /// Whether managed settings are enabled for this session.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub managed_settings_enabled: bool,
+    /// The full permission event params from the CLI, including the request ID
+    /// and nested permission request. The shape varies by permission type and
+    /// CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
     pub extra: Value,
 }
@@ -5408,6 +5853,7 @@ impl Default for ExitPlanModeData {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use serde_json::json;
@@ -5415,12 +5861,13 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, AzureProviderOptions, CapiSessionOptions, ConnectionState,
-        CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig,
-        LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig, MemoryConfiguration,
-        NamedProviderConfig, ProviderConfig, ProviderModelConfig, ReasoningSummary,
-        ResumeSessionConfig, SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool,
-        ToolBinaryResult, ToolResult, ToolResultExpanded, ToolResultResponse,
-        ensure_attachment_display_names,
+        CopilotExpAssignmentResponse, CustomAgentConfig, DeliveryMode, ExpConfigEntry,
+        ExpFlagValue, ExtensionInfo, GitHubMcpToolConfig, GitHubReferenceType,
+        InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
+        MemoryConfiguration, NamedProviderConfig, ProviderConfig, ProviderModelConfig,
+        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -5459,6 +5906,32 @@ mod tests {
     }
 
     #[test]
+    fn tool_metadata_serialization() {
+        use indexmap::IndexMap;
+
+        let mut metadata = IndexMap::new();
+        metadata.insert(
+            "github.com/copilot:safeForTelemetry".to_string(),
+            json!({ "name": true, "inputsNames": false }),
+        );
+        let tool = Tool::new("lookup").with_metadata(metadata);
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(
+            value
+                .get("metadata")
+                .unwrap()
+                .get("github.com/copilot:safeForTelemetry")
+                .unwrap(),
+            &json!({ "name": true, "inputsNames": false })
+        );
+
+        // Empty metadata is omitted on the wire.
+        let plain = Tool::new("plain");
+        let value = serde_json::to_value(&plain).unwrap();
+        assert!(value.get("metadata").is_none());
+    }
+
+    #[test]
     fn custom_agent_config_builder_with_model() {
         let agent = CustomAgentConfig::new("my-agent", "You are helpful.")
             .with_model("claude-haiku-4.5")
@@ -5481,6 +5954,28 @@ mod tests {
         let agent = CustomAgentConfig::new("no-model-agent", "prompt");
         let wire = serde_json::to_value(&agent).unwrap();
         assert!(wire.get("model").is_none());
+    }
+
+    #[test]
+    fn custom_agent_config_builder_with_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        assert_eq!(agent.reasoning_effort.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn custom_agent_config_serializes_reasoning_effort() {
+        let agent =
+            CustomAgentConfig::new("reasoning-agent", "prompt").with_reasoning_effort("high");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert_eq!(wire["reasoningEffort"], "high");
+    }
+
+    #[test]
+    fn custom_agent_config_omits_reasoning_effort_when_none() {
+        let agent = CustomAgentConfig::new("default-agent", "prompt");
+        let wire = serde_json::to_value(&agent).unwrap();
+        assert!(wire.get("reasoningEffort").is_none());
     }
 
     #[test]
@@ -5649,6 +6144,35 @@ mod tests {
     }
 
     #[test]
+    fn custom_agents_local_only_serializes_on_create_and_resume() {
+        let (create_wire, _) = SessionConfig::default()
+            .with_custom_agents_local_only(false)
+            .into_wire(Some(SessionId::from("create-locality")))
+            .expect("create config has no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(create_json["customAgentsLocalOnly"], false);
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-locality"))
+            .with_custom_agents_local_only(false)
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(resume_json["customAgentsLocalOnly"], false);
+
+        let (unset_create_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("create-unset")))
+            .expect("create config has no duplicate handlers");
+        let unset_create_json = serde_json::to_value(&unset_create_wire).unwrap();
+        assert!(unset_create_json.get("customAgentsLocalOnly").is_none());
+
+        let (unset_resume_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-unset"))
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        let unset_resume_json = serde_json::to_value(&unset_resume_wire).unwrap();
+        assert!(unset_resume_json.get("customAgentsLocalOnly").is_none());
+    }
+
+    #[test]
     fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
         let cfg = SessionConfig::default().with_enable_mcp_apps(true);
         assert_eq!(cfg.enable_mcp_apps, Some(true));
@@ -5675,6 +6199,47 @@ mod tests {
 
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn github_mcp_tool_config_serializes_for_create_and_resume() {
+        let github_config = GitHubMcpToolConfig::new()
+            .with_enable_all_tools(true)
+            .with_additional_toolsets(["repos"])
+            .with_additional_tools(["get_issue"])
+            .with_enable_insiders_mode(true)
+            .with_disable_form_deferral(true);
+
+        let (create_wire, _) = SessionConfig::default()
+            .with_github_mcp_tool_config(github_config.clone())
+            .into_wire(Some(SessionId::from("github-mcp")))
+            .expect("create config has no duplicate handlers");
+        assert_eq!(
+            serde_json::to_value(&create_wire).unwrap()["githubMcpToolConfig"],
+            serde_json::json!({
+                "enableAllTools": true,
+                "additionalToolsets": ["repos"],
+                "additionalTools": ["get_issue"],
+                "enableInsidersMode": true,
+                "disableFormDeferral": true,
+            })
+        );
+
+        let (resume_wire, _) = ResumeSessionConfig::new(SessionId::from("github-mcp"))
+            .with_github_mcp_tool_config(github_config)
+            .into_wire()
+            .expect("resume config has no duplicate handlers");
+        assert!(resume_wire.github_mcp_tool_config.is_some());
+
+        let (unset_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("github-mcp-unset")))
+            .expect("default config has no duplicate handlers");
+        assert!(
+            serde_json::to_value(&unset_wire)
+                .unwrap()
+                .get("githubMcpToolConfig")
+                .is_none()
+        );
     }
 
     #[test]
@@ -5728,18 +6293,55 @@ mod tests {
         assert!(empty_json.get("memory").is_none());
     }
 
+    fn sample_exp_assignments(context: &str) -> CopilotExpAssignmentResponse {
+        CopilotExpAssignmentResponse {
+            features: vec!["copilot_exp_flag".to_string()],
+            flights: HashMap::from([("copilot_exp_flag".to_string(), "treatment".to_string())]),
+            configs: vec![ExpConfigEntry {
+                id: "cfg-1".to_string(),
+                parameters: HashMap::from([
+                    ("threshold".to_string(), ExpFlagValue::Integer(5)),
+                    ("enabled".to_string(), ExpFlagValue::Bool(true)),
+                ]),
+            }],
+            assignment_context: context.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn exp_flag_value_round_trips_all_variants() {
+        let values = serde_json::json!({
+            "s": "text",
+            "i": 7,
+            "f": 1.5,
+            "b": true,
+            "n": null,
+        });
+        let parsed: HashMap<String, ExpFlagValue> = serde_json::from_value(values.clone()).unwrap();
+        assert_eq!(parsed["s"], ExpFlagValue::String("text".to_string()));
+        assert_eq!(parsed["i"], ExpFlagValue::Integer(7));
+        assert_eq!(parsed["f"], ExpFlagValue::Float(1.5));
+        assert_eq!(parsed["b"], ExpFlagValue::Bool(true));
+        assert_eq!(parsed["n"], ExpFlagValue::Null);
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), values);
+    }
+
     #[test]
     fn session_config_with_exp_assignments_serializes() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-123",
-        });
+        let assignments = sample_exp_assignments("ctx-123");
+        let expected = serde_json::to_value(&assignments).unwrap();
         let (wire, _runtime) = SessionConfig::default()
-            .with_exp_assignments(assignments.clone())
+            .with_exp_assignments(assignments)
             .into_wire(Some(SessionId::from("exp-on")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(json["expAssignments"], expected);
+        assert_eq!(json["expAssignments"]["AssignmentContext"], "ctx-123");
+        assert_eq!(
+            json["expAssignments"]["Flights"]["copilot_exp_flag"],
+            "treatment"
+        );
 
         // Unset exp assignments are omitted on the wire.
         let (empty_wire, _) = SessionConfig::default()
@@ -5751,16 +6353,14 @@ mod tests {
 
     #[test]
     fn resume_session_config_with_exp_assignments_serializes() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-456",
-        });
+        let assignments = sample_exp_assignments("ctx-456");
+        let expected = serde_json::to_value(&assignments).unwrap();
         let (wire, _runtime) = ResumeSessionConfig::new(SessionId::from("resume-exp-on"))
-            .with_exp_assignments(assignments.clone())
+            .with_exp_assignments(assignments)
             .into_wire()
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(json["expAssignments"], expected);
 
         // Unset exp assignments are omitted on the wire.
         let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("resume-exp-unset"))
@@ -5772,10 +6372,7 @@ mod tests {
 
     #[test]
     fn session_config_clone_preserves_exp_assignments() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-clone",
-        });
+        let assignments = sample_exp_assignments("ctx-clone");
         let config = SessionConfig::default().with_exp_assignments(assignments.clone());
         let cloned = config.clone();
 
@@ -5785,15 +6382,15 @@ mod tests {
             .into_wire(Some(SessionId::from("exp-clone")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(
+            json["expAssignments"],
+            serde_json::to_value(&assignments).unwrap()
+        );
     }
 
     #[test]
     fn resume_session_config_clone_preserves_exp_assignments() {
-        let assignments = serde_json::json!({
-            "Parameters": { "copilot_exp_flag": "treatment" },
-            "AssignmentContext": "ctx-clone-resume",
-        });
+        let assignments = sample_exp_assignments("ctx-clone-resume");
         let config = ResumeSessionConfig::new(SessionId::from("resume-exp-clone"))
             .with_exp_assignments(assignments.clone());
         let cloned = config.clone();
@@ -5802,7 +6399,10 @@ mod tests {
 
         let (wire, _runtime) = cloned.into_wire().expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
-        assert_eq!(json["expAssignments"], assignments);
+        assert_eq!(
+            json["expAssignments"],
+            serde_json::to_value(&assignments).unwrap()
+        );
     }
 
     #[test]
@@ -5939,6 +6539,10 @@ mod tests {
 
         let cfg = SessionConfig {
             plugin_directories: Some(vec![PathBuf::from("/tmp/plugins")]),
+            disabled_mcp_servers: Some(vec![
+                "local-files".to_string(),
+                "remote-github".to_string(),
+            ]),
             large_output: Some(
                 LargeToolOutputConfig::new()
                     .with_enabled(true)
@@ -5953,6 +6557,10 @@ mod tests {
             .expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins");
+        assert_eq!(
+            wire_json["disabledMcpServers"],
+            serde_json::json!(["local-files", "remote-github"])
+        );
         assert_eq!(wire_json["largeOutput"]["enabled"], true);
         assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 1024);
         assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output");
@@ -5962,6 +6570,7 @@ mod tests {
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
     }
 
@@ -6011,6 +6620,7 @@ mod tests {
 
         let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
         cfg.plugin_directories = Some(vec![PathBuf::from("/tmp/plugins-r")]);
+        cfg.disabled_mcp_servers = Some(vec!["local-files-r".to_string()]);
         cfg.large_output = Some(
             LargeToolOutputConfig::new()
                 .with_enabled(false)
@@ -6021,6 +6631,10 @@ mod tests {
         let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins-r");
+        assert_eq!(
+            wire_json["disabledMcpServers"],
+            serde_json::json!(["local-files-r"])
+        );
         assert_eq!(wire_json["largeOutput"]["enabled"], false);
         assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 2048);
         assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output-r");
@@ -6030,7 +6644,36 @@ mod tests {
             .expect("default resume has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("disabledMcpServers").is_none());
         assert!(empty_json.get("largeOutput").is_none());
+    }
+
+    #[test]
+    fn session_config_clones_disabled_mcp_servers() {
+        let create = SessionConfig::default().with_disabled_mcp_servers(["local-files"]);
+        let mut create_clone = create.clone();
+        create_clone
+            .disabled_mcp_servers
+            .as_mut()
+            .expect("configured disabled MCP servers")
+            .push("remote-github".to_string());
+        assert_eq!(
+            create.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_disabled_mcp_servers(["local-files"]);
+        let mut resume_clone = resume.clone();
+        resume_clone
+            .disabled_mcp_servers
+            .as_mut()
+            .expect("configured disabled MCP servers")
+            .push("remote-github".to_string());
+        assert_eq!(
+            resume.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
     }
 
     #[test]
@@ -6054,9 +6697,11 @@ mod tests {
             .with_enable_on_demand_instruction_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["local-files"])
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_additional_directories([PathBuf::from("/tmp/shared")])
             .with_github_token("ghp_test")
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
@@ -6091,9 +6736,17 @@ mod tests {
             cfg.disabled_skills.as_deref(),
             Some(&["broken-skill".to_string()][..])
         );
+        assert_eq!(
+            cfg.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(
+            cfg.additional_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/shared")][..])
+        );
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
@@ -6125,9 +6778,11 @@ mod tests {
             .with_enable_on_demand_instruction_discovery(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
+            .with_disabled_mcp_servers(["local-files"])
             .with_agent("researcher")
             .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
+            .with_additional_directories([PathBuf::from("/tmp/shared")])
             .with_github_token("ghp_test")
             .with_capi(CapiSessionOptions::new().with_enable_web_socket_responses(false))
             .with_enable_session_telemetry(false)
@@ -6162,9 +6817,17 @@ mod tests {
             cfg.disabled_skills.as_deref(),
             Some(&["broken-skill".to_string()][..])
         );
+        assert_eq!(
+            cfg.disabled_mcp_servers.as_deref(),
+            Some(&["local-files".to_string()][..])
+        );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
         assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
+        assert_eq!(
+            cfg.additional_directories.as_deref(),
+            Some(&[PathBuf::from("/tmp/shared")][..])
+        );
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(
             cfg.capi,
@@ -6197,6 +6860,29 @@ mod tests {
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("continuePendingWork").is_none());
+    }
+
+    #[test]
+    fn session_configs_serialize_additional_directories() {
+        let create = SessionConfig::default().with_additional_directories([
+            PathBuf::from("/tmp/shared"),
+            PathBuf::from("/tmp/generated"),
+        ]);
+        let (create_wire, _) = create.into_wire(None).expect("no duplicate handlers");
+        let create_json = serde_json::to_value(&create_wire).unwrap();
+        assert_eq!(
+            create_json["additionalDirectories"],
+            serde_json::json!(["/tmp/shared", "/tmp/generated"])
+        );
+
+        let resume = ResumeSessionConfig::new(SessionId::from("sess-1"))
+            .with_additional_directories([PathBuf::from("/tmp/resumed")]);
+        let (resume_wire, _) = resume.into_wire().expect("no duplicate handlers");
+        let resume_json = serde_json::to_value(&resume_wire).unwrap();
+        assert_eq!(
+            resume_json["additionalDirectories"],
+            serde_json::json!(["/tmp/resumed"])
+        );
     }
 
     /// The Rust field is `suppress_resume_event`, but the wire field stays
@@ -7021,5 +7707,109 @@ mod permission_builder_tests {
             dispatch(&hb).await,
             PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
         ));
+    }
+
+    #[test]
+    fn session_config_enable_experimental_mode_serializes_when_set() {
+        let cfg = SessionConfig::default().with_enable_experimental_mode(false);
+        assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("experimental-mode")))
+            .expect("enable_experimental_mode config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, Some(false));
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+    }
+
+    #[test]
+    fn session_config_enable_experimental_mode_omitted_when_none() {
+        let cfg = SessionConfig::default();
+        assert_eq!(cfg.enable_experimental_mode, None);
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("no-experimental-mode")))
+            .expect("default config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, None);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("isExperimentalMode").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_enable_experimental_mode_serializes_when_set() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-experimental-mode"))
+            .with_enable_experimental_mode(false);
+        assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_experimental_mode config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, Some(false));
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+    }
+
+    #[test]
+    fn resume_session_config_enable_experimental_mode_omitted_when_none() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-no-experimental-mode"));
+        assert_eq!(cfg.enable_experimental_mode, None);
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("default resume config has no duplicate handlers");
+        assert_eq!(wire.is_experimental_mode, None);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("isExperimentalMode").is_none());
+    }
+}
+
+#[cfg(test)]
+mod is_terminal_tests {
+    use super::Tool;
+
+    #[test]
+    fn is_terminal_serializes_as_camel_case_when_set() {
+        let tool = Tool {
+            name: "clear_context".to_owned(),
+            is_terminal: true,
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&tool).expect("tool serializes");
+        assert_eq!(
+            value.get("isTerminal"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn is_terminal_is_omitted_when_false() {
+        let tool = Tool {
+            name: "plain".to_owned(),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&tool).expect("tool serializes");
+        assert!(value.get("isTerminal").is_none());
+    }
+
+    /// `Tool` has a hand-written `Debug` impl, so a new field is only reported
+    /// if it is added there by hand. Guard against that drift.
+    #[test]
+    fn is_terminal_appears_in_debug_output() {
+        let terminal = Tool {
+            name: "clear_context".to_owned(),
+            is_terminal: true,
+            ..Default::default()
+        };
+        assert!(format!("{terminal:?}").contains("is_terminal: true"));
+
+        let plain = Tool {
+            name: "plain".to_owned(),
+            ..Default::default()
+        };
+        assert!(format!("{plain:?}").contains("is_terminal: false"));
     }
 }

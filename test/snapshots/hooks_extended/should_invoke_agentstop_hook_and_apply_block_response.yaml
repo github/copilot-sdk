@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Reply with exactly: AGENT_STOP_INITIAL"
+      - role: assistant
+        content: AGENT_STOP_INITIAL
+      - role: user
+        content: "Reply with exactly: AGENT_STOP_CONTINUED"
+      - role: assistant
+        content: AGENT_STOP_CONTINUED

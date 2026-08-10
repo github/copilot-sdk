@@ -29,6 +29,8 @@ public record SessionPermissionsHandlePendingPermissionRequestParams(
     /** Request ID of the pending permission request */
     @JsonProperty("requestId") String requestId,
     /** The client's response to the pending permission prompt */
-    @JsonProperty("result") Object result
+    @JsonProperty("result") Object result,
+    /** Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin. */
+    @JsonProperty("decisionContext") PermissionDecisionContext decisionContext
 ) {
 }

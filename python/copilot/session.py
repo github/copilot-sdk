@@ -36,7 +36,6 @@ from .generated.rpc import (
     CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    ExternalToolTextResultForLlm,
     HandlePendingToolCallRequest,
     LogRequest,
     MCPOauthHandlePendingRequest,
@@ -83,7 +82,13 @@ from .generated.session_events import (
 from .generated.session_events import (
     ReasoningSummary as _RpcReasoningSummary,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import (
+    Tool,
+    ToolHandler,
+    ToolInvocation,
+    ToolResult,
+    tool_result_to_external_tool_text_result_for_llm,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +169,7 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     return result
 
 
-ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 SessionFsConventions = Literal["posix", "windows"]
@@ -342,12 +347,11 @@ SystemMessageConfig = (
 
 @dataclass
 class PermissionNoResult:
-    """Sentinel returned by a permission handler to leave the request unanswered.
+    """Sentinel that leaves an event-dispatched permission request unanswered.
 
-    Only meaningful against protocol-v1 servers. v2 servers reject ``no-result``
-    responses; the SDK raises :class:`ValueError` if a v2 server receives one.
-    Mirrors the ``{kind: "no-result"}`` extension TS adds to its ``PermissionDecision``
-    union (see ``nodejs/src/types.ts:883``).
+    During event-based permission dispatch, the SDK suppresses its response so
+    another connected client, such as a human-facing host, can answer the pending
+    request. Legacy direct callbacks require a concrete decision and cannot abstain.
     """
 
     kind: Literal["no-result"] = "no-result"
@@ -355,15 +359,21 @@ class PermissionNoResult:
 
 # The decision returned by a permission handler. Identical shape to the wire
 # ``PermissionDecision`` discriminated union, plus a :class:`PermissionNoResult`
-# sentinel for v1 servers. Construct via the generated variant classes:
+# sentinel that suppresses this SDK client's response. Construct via the
+# generated variant classes:
 # ``PermissionDecisionApproveOnce()``, ``PermissionDecisionReject(feedback=...)``,
 # etc. The ``kind`` discriminator is baked in as a ``ClassVar`` default by
 # codegen, so callers must not pass it.
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
+class PermissionInvocation(TypedDict, total=False):
+    session_id: Required[str]
+    managed_settings_enabled: NotRequired[bool]
+
+
 _PermissionHandlerFn = Callable[
-    [PermissionRequest, dict[str, str]],
+    [PermissionRequest, PermissionInvocation],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
 ]
 
@@ -371,8 +381,12 @@ _PermissionHandlerFn = Callable[
 class PermissionHandler:
     @staticmethod
     def approve_all(
-        request: PermissionRequest, invocation: dict[str, str]
+        request: PermissionRequest, invocation: PermissionInvocation
     ) -> PermissionRequestResult:
+        if invocation.get("managed_settings_enabled", False):
+            raise RuntimeError("approve_all cannot be used when managed settings are enabled")
+        if getattr(request, "managed_approval_required", False) is True:
+            return PermissionNoResult()
         return PermissionDecisionApproveOnce()
 
 
@@ -943,6 +957,28 @@ UserPromptSubmittedHandler = Callable[
 ]
 
 
+class UserPromptTransformedHookInput(TypedDict):
+    """Input for the user-prompt-transformed hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    prompt: str
+    transformedPrompt: str
+
+
+class UserPromptTransformedHookOutput(TypedDict, total=False):
+    """Output for the user-prompt-transformed hook."""
+
+    modifiedTransformedPrompt: str
+
+
+UserPromptTransformedHandler = Callable[
+    [UserPromptTransformedHookInput, dict[str, str]],
+    UserPromptTransformedHookOutput | None | Awaitable[UserPromptTransformedHookOutput | None],
+]
+
+
 class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
@@ -1017,6 +1053,30 @@ ErrorOccurredHandler = Callable[
 ]
 
 
+class AgentStopHookInput(TypedDict):
+    """Input for the agent-stop hook."""
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    stopReason: NotRequired[str]
+    transcriptPath: NotRequired[str]
+    stopHookActive: NotRequired[bool]
+
+
+class AgentStopHookOutput(TypedDict, total=False):
+    """Output for the agent-stop hook."""
+
+    decision: Literal["block"]
+    reason: str
+
+
+AgentStopHandler = Callable[
+    [AgentStopHookInput, dict[str, str]],
+    AgentStopHookOutput | None | Awaitable[AgentStopHookOutput | None],
+]
+
+
 class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
@@ -1025,9 +1085,11 @@ class SessionHooks(TypedDict, total=False):
     on_post_tool_use: PostToolUseHandler
     on_post_tool_use_failure: PostToolUseFailureHandler
     on_user_prompt_submitted: UserPromptSubmittedHandler
+    on_user_prompt_transformed: UserPromptTransformedHandler
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
     on_error_occurred: ErrorOccurredHandler
+    on_agent_stop: AgentStopHandler
 
 
 # ============================================================================
@@ -1059,6 +1121,22 @@ class MCPHTTPServerConfig(TypedDict, total=False):
 
 MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
+
+class GitHubMcpToolConfig(TypedDict, total=False):
+    """Configuration for the built-in GitHub MCP server.
+
+    ``disable_form_deferral`` only applies to the built-in GitHub MCP server
+    and only has an effect when MCP Apps and form-backed GitHub tools are
+    enabled.
+    """
+
+    enable_all_tools: bool
+    additional_toolsets: list[str]
+    additional_tools: list[str]
+    enable_insiders_mode: bool
+    disable_form_deferral: bool
+
+
 # ============================================================================
 # Custom Agent Configuration Types
 # ============================================================================
@@ -1080,6 +1158,9 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
     # Model identifier (e.g. "claude-haiku-4.5"); runtime falls back to parent model if unavailable
     model: NotRequired[str]
+    # Reasoning effort for this agent's model. When omitted, the runtime resolves
+    # model configuration, then inherits the parent effort only for the same model.
+    reasoning_effort: NotRequired[ReasoningEffort]
 
 
 class DefaultAgentConfig(TypedDict, total=False):
@@ -1180,7 +1261,8 @@ class MemoryConfiguration(TypedDict):
 class AzureProviderOptions(TypedDict, total=False):
     """Azure-specific provider configuration"""
 
-    api_version: str  # Azure API version. Defaults to "2024-10-21".
+    # Azure API version. When omitted, the runtime uses the GA versionless v1 route.
+    api_version: str
 
 
 class ProviderTokenArgs(TypedDict):
@@ -1420,7 +1502,11 @@ class CopilotSession:
     """
 
     def __init__(
-        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+        self,
+        session_id: str,
+        client: Any,
+        workspace_path: os.PathLike[str] | str | None = None,
+        managed_settings_enabled: bool = False,
     ):
         """
         Initialize a new CopilotSession.
@@ -1434,8 +1520,11 @@ class CopilotSession:
             client: The internal client connection to the Copilot CLI.
             workspace_path: Path to the session workspace directory
                 (when infinite sessions enabled).
+            managed_settings_enabled: Whether managed settings were enabled when
+                creating or resuming the session.
         """
         self.session_id = session_id
+        self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
@@ -2034,13 +2123,7 @@ class CopilotSession:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ExternalToolTextResultForLlm(
-                            text_result_for_llm=tool_result.text_result_for_llm,
-                            error=tool_result.error,
-                            result_type=tool_result.result_type,
-                            tool_references=tool_result.tool_references,
-                            tool_telemetry=tool_result.tool_telemetry,
-                        ),
+                        result=tool_result_to_external_tool_text_result_for_llm(tool_result),
                     )
                 )
                 log_timing(
@@ -2073,7 +2156,13 @@ class CopilotSession:
         """Execute a permission handler and respond via RPC."""
         try:
             handler_start = time.perf_counter()
-            result = handler(permission_request, {"session_id": self.session_id})
+            result = handler(
+                permission_request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2105,6 +2194,10 @@ class CopilotSession:
                 request_id=request_id,
             )
         except Exception:
+            logger.exception(
+                "Permission handler or response delivery failed",
+                extra={"session_id": self.session_id, "request_id": request_id},
+            )
             try:
                 await self.rpc.permissions.handle_pending_permission_request(
                     PermissionDecisionRequest(
@@ -2499,7 +2592,13 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            result = handler(request, {"session_id": self.session_id})
+            result = handler(
+                request,
+                {
+                    "session_id": self.session_id,
+                    "managed_settings_enabled": self._managed_settings_enabled,
+                },
+            )
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -2509,11 +2608,14 @@ class CopilotSession:
                 handler_start,
                 session_id=self.session_id,
             )
-            return cast(PermissionRequestResult, result)
+            result = cast(PermissionRequestResult, result)
+            if isinstance(result, PermissionNoResult):
+                return PermissionDecisionUserNotAvailable()
+            return result
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission.
-            logger.debug(
-                "Error handling permission request",
+            logger.error(
+                "Permission handler failed",
                 extra={"session_id": self.session_id},
                 exc_info=True,
             )
@@ -2715,9 +2817,11 @@ class CopilotSession:
             "postToolUse": hooks.get("on_post_tool_use"),
             "postToolUseFailure": hooks.get("on_post_tool_use_failure"),
             "userPromptSubmitted": hooks.get("on_user_prompt_submitted"),
+            "userPromptTransformed": hooks.get("on_user_prompt_transformed"),
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),
             "errorOccurred": hooks.get("on_error_occurred"),
+            "agentStop": hooks.get("on_agent_stop"),
         }
 
         handler = handler_map.get(hook_type)
@@ -2734,6 +2838,8 @@ class CopilotSession:
             transformed: dict[str, Any] = dict(input_data)
             if "cwd" in transformed:
                 transformed["workingDirectory"] = transformed.pop("cwd")
+            if "stop_hook_active" in transformed:
+                transformed["stopHookActive"] = transformed.pop("stop_hook_active")
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
@@ -2894,7 +3000,7 @@ class CopilotSession:
         Args:
             model: Model ID to switch to (e.g., "gpt-5.4", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
-                (e.g., "low", "medium", "high", "xhigh").
+                (e.g., "low", "medium", "high", "xhigh", "max").
             reasoning_summary: Optional reasoning summary mode for supported
                 models. Use "none" to suppress summary output regardless of
                 whether reasoning is enabled.

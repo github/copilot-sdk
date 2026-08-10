@@ -593,7 +593,7 @@ public final class CopilotClient implements AutoCloseable {
                 registeredIdHolder[0] = localSessionId;
             }
 
-            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId);
+            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId, options.getMode());
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
@@ -754,7 +754,7 @@ public final class CopilotClient implements AutoCloseable {
             if (extracted.transformCallbacks() != null) {
                 session.registerTransformCallbacks(extracted.transformCallbacks());
             }
-            var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
+            var request = SessionRequestBuilder.buildResumeRequest(sessionId, config, options.getMode());
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
@@ -937,9 +937,11 @@ public final class CopilotClient implements AutoCloseable {
                 null, // workingDirectory
                 null, // availableTools
                 null, // excludedTools
+                null, // includedBuiltinAgents
                 null, // excludedBuiltinAgents
                 null, // toolFilterPrecedence
                 null, // enableScriptSafety
+                null, // shell
                 null, // shellInitProfile
                 null, // shellProcessFlags
                 null, // sandboxConfig
@@ -965,6 +967,7 @@ public final class CopilotClient implements AutoCloseable {
                 null, // enableReasoningSummaries
                 null, // agentContext
                 null, // eventsLogDirectory
+                null, // eventsLogIncludesSubagents
                 null, // additionalContentExclusionPolicies
                 patchSchedule, // manageScheduleEnabled
                 null, // sessionCapabilities

@@ -26,6 +26,10 @@ public record SandboxConfig(
     /** User-managed sandbox policy fragment merged into the auto-discovered base policy. */
     @JsonProperty("userPolicy") SandboxConfigUserPolicy userPolicy,
     /** Whether to auto-add the current working directory to readwritePaths. Default: true. */
-    @JsonProperty("addCurrentWorkingDirectory") Boolean addCurrentWorkingDirectory
+    @JsonProperty("addCurrentWorkingDirectory") Boolean addCurrentWorkingDirectory,
+    /** Credential-injection capability flags. */
+    @JsonProperty("auth") SandboxConfigAuth auth,
+    /** Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out). */
+    @JsonProperty("allowDevToolAccess") Boolean allowDevToolAccess
 ) {
 }

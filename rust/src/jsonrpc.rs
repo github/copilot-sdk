@@ -169,6 +169,68 @@ impl JsonRpcResponse {
 
 const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
 
+/// Rewrites unpaired UTF-16 surrogate escapes to `\uFFFD`.
+///
+/// Returns `None` when the body contains no unpaired surrogate, so valid
+/// frames do not incur a repair allocation.
+fn repair_lone_surrogates(body: &[u8]) -> Option<Vec<u8>> {
+    fn hex_escape_at(body: &[u8], index: usize) -> Option<u16> {
+        let digits = body.get(index + 2..index + 6)?;
+        let text = std::str::from_utf8(digits).ok()?;
+        u16::from_str_radix(text, 16).ok()
+    }
+
+    let mut repaired = None;
+    let mut in_string = false;
+    let mut index = 0;
+
+    while index < body.len() {
+        let byte = body[index];
+
+        if !in_string {
+            in_string = byte == b'"';
+            index += 1;
+            continue;
+        }
+
+        match byte {
+            b'"' => {
+                in_string = false;
+                index += 1;
+            }
+            // Consume non-Unicode escapes whole so an escaped backslash cannot
+            // be mistaken for the start of a surrogate escape.
+            b'\\' if body.get(index + 1) != Some(&b'u') => index += 2,
+            b'\\' => {
+                let Some(unit) = hex_escape_at(body, index) else {
+                    index += 2;
+                    continue;
+                };
+
+                let is_pair = (0xD800..0xDC00).contains(&unit)
+                    && body.get(index + 6) == Some(&b'\\')
+                    && body.get(index + 7) == Some(&b'u')
+                    && hex_escape_at(body, index + 6)
+                        .is_some_and(|low| (0xDC00..0xE000).contains(&low));
+
+                if is_pair {
+                    index += 12;
+                    continue;
+                }
+
+                if (0xD800..0xE000).contains(&unit) {
+                    let output = repaired.get_or_insert_with(|| body.to_vec());
+                    output[index..index + 6].copy_from_slice(br"\ufffd");
+                }
+                index += 6;
+            }
+            _ => index += 1,
+        }
+    }
+
+    repaired
+}
+
 /// One framed JSON-RPC message handed to the writer actor.
 ///
 /// `frame` is the fully serialized bytes (header + body); the caller pays
@@ -428,8 +490,26 @@ impl JsonRpcClient {
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body).await?;
 
-        let message: JsonRpcMessage = serde_json::from_slice(&body)?;
-        Ok(Some(message))
+        match serde_json::from_slice::<JsonRpcMessage>(&body) {
+            Ok(message) => Ok(Some(message)),
+            Err(error) => {
+                // Dropping an undecodable frame could leave its pending
+                // request waiting forever because this layer has no timeout.
+                match repair_lone_surrogates(&body)
+                    .and_then(|repaired| serde_json::from_slice::<JsonRpcMessage>(&repaired).ok())
+                {
+                    Some(message) => {
+                        warn!(
+                            error = %error,
+                            length,
+                            "recovered JSON-RPC frame containing unpaired UTF-16 surrogates"
+                        );
+                        Ok(Some(message))
+                    }
+                    None => Err(error.into()),
+                }
+            }
+        }
     }
 
     /// Send a JSON-RPC request and wait for the matching response.

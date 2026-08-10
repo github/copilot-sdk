@@ -312,6 +312,11 @@ func (c *TestContext) GetExchanges() ([]ParsedHttpExchange, error) {
 	return c.proxy.GetExchanges()
 }
 
+// GetRequests retrieves all captured outbound HTTP requests from the proxy.
+func (c *TestContext) GetRequests() ([]CapturedRequest, error) {
+	return c.proxy.GetRequests()
+}
+
 // WaitForExchanges waits until the proxy has captured at least the requested exchanges.
 func (c *TestContext) WaitForExchanges(t *testing.T, minimumCount int) []ParsedHttpExchange {
 	t.Helper()

@@ -7,6 +7,7 @@ package com.github.copilot.tool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -14,6 +15,7 @@ import java.io.FilterWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URI;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
@@ -37,6 +39,9 @@ import javax.tools.ToolProvider;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.rpc.ToolInvocation;
 
 /**
  * Tests that {@link CopilotToolProcessor} correctly generates
@@ -169,6 +174,30 @@ class CopilotToolProcessorTest {
     }
 
     @Test
+    void emitsError_forSingleRecordWrapperSchemaWithoutUnsupportedGuidance() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SingleRecordSchemaTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Single record")
+                    public String search(@CopilotToolParam(schema = "{\\"type\\":\\"object\\"}") SearchArgs req) {
+                    return req.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.SingleRecordSchemaTools", source)));
+
+        assertTrue(hasErrorContaining(result, "schema=...) is not supported on single-record tool parameters"),
+                "Expected unsupported schema diagnostic, got: " + result.diagnostics);
+        assertFalse(hasErrorContaining(result, "annotate record components"),
+                "Diagnostic must not recommend unsupported record-component annotations: " + result.diagnostics);
+    }
+
+    @Test
     void emitsError_forSingleRecordWrapperMetadataOverrides() {
         String source = """
                 package test;
@@ -187,6 +216,335 @@ class CopilotToolProcessorTest {
 
         assertTrue(hasErrorContaining(result, "name/value/required"),
                 "Expected compile error for single-record wrapper metadata overrides, got: " + result.diagnostics);
+    }
+
+    // ── Test: @CopilotToolParam schema override ─────────────────────────────────
+
+    @Test
+    void generatesCorrectSchema_forExplicitSchemaOverride() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SchemaOverrideTools {
+                    @CopilotTool("Schedule meeting")
+                    public String schedule(
+                            @CopilotToolParam(value = "When to meet",
+                                schema = "{\\"type\\":\\"string\\",\\"format\\":\\"date-time\\"}") String when) {
+                        return "scheduled " + when;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SchemaOverrideTools", source)));
+
+        assertNoErrors(result);
+        assertTrue(result.generatedSources.stream().anyMatch(s -> s.contains("date-time")),
+                "Expected generated code to contain the custom schema format, got: " + result.generatedSources);
+    }
+
+    @Test
+    void generatedSchemaOverride_supportsCustomTypeHandlerInvocation() throws Exception {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class AnnotationSchemaTools {
+                    public static class CustomDateTime {
+                        public String value;
+                    }
+                    @CopilotTool("Schedule meeting")
+                    public String schedule(@CopilotToolParam(value = "Meeting time",
+                        schema = "{\\"type\\":\\"object\\",\\"properties\\":{\\"value\\":{\\"type\\":\\"string\\"}}}") CustomDateTime when) {
+                        return "scheduled " + when.value;
+                    }
+                }
+                """;
+
+        CompilationResult compilation = compileWithProcessor(
+                List.of(inMemorySource("test.AnnotationSchemaTools", source)));
+        assertNoErrors(compilation);
+
+        try (URLClassLoader loader = new URLClassLoader(new java.net.URL[]{compilation.outputDir.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class<?> toolsClass = loader.loadClass("test.AnnotationSchemaTools");
+            Object tools = toolsClass.getConstructor().newInstance();
+            Class<?> providerClass = loader.loadClass("test.AnnotationSchemaTools$$CopilotToolMeta");
+            @SuppressWarnings("unchecked")
+            CopilotToolMetadataProvider<Object> provider = (CopilotToolMetadataProvider<Object>) providerClass
+                    .getConstructor().newInstance();
+            ToolDefinition tool = provider.definitions(tools, new com.fasterxml.jackson.databind.ObjectMapper()).get(0);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> schema = (Map<String, Object>) tool.parameters();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> whenSchema = (Map<String, Object>) properties.get("when");
+            assertEquals("object", whenSchema.get("type"));
+
+            var arguments = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+            arguments.putObject("when").put("value", "2026-07-23T22:00:00Z");
+            Object result = tool.handler().invoke(new ToolInvocation().setArguments(arguments)).get();
+            assertEquals("scheduled 2026-07-23T22:00:00Z", result);
+        }
+    }
+
+    @Test
+    void emitsError_forSchemaWithDefaultValue() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class SchemaDefaultConflict {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input",
+                                schema = "{\\"type\\":\\"string\\"}",
+                                defaultValue = "hello") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.SchemaDefaultConflict", source)));
+
+        assertTrue(hasErrorContaining(result, "schema and defaultValue"),
+                "Expected compile error for schema + defaultValue conflict, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forInvalidSchemaJson() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class InvalidSchemaTools {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input", schema = "not json") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.InvalidSchemaTools", source)));
+
+        assertTrue(hasErrorContaining(result, "valid JSON object string"),
+                "Expected compile error for invalid schema JSON, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forUnrepresentableSchemaNumber() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class UnrepresentableSchemaNumberTools {
+                    @CopilotTool("Do something")
+                    public String doIt(
+                            @CopilotToolParam(value = "Input", schema = "{\\"maximum\\":1e9999999999}") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.UnrepresentableSchemaNumberTools", source)));
+
+        assertTrue(hasErrorContaining(result, "Number cannot be represented"),
+                "Expected compile error for unrepresentable schema number, got: " + result.diagnostics);
+    }
+
+    @Test
+    void compilesSuccessfully_forEmptySchemaFallsThrough() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class EmptySchemaTools {
+                    @CopilotTool("Search")
+                    public String search(@CopilotToolParam(value = "Query", schema = "") String query) {
+                        return query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.EmptySchemaTools", source)));
+
+        assertNoErrors(result);
+    }
+
+    @Test
+    void generatesSchemaOverride_withLargeObjectsNullAndNumbers() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ComplexSchemaTools {
+                    @CopilotTool("Complex schema")
+                    public String useSchema(@CopilotToolParam(value = "Input",
+                        schema = "{\\"type\\":\\"object\\",\\"const\\":null,\\"enum\\":[\\"x\\",null],\\"minimum\\":2147483648,\\"k1\\":true,\\"k2\\":true,\\"k3\\":true,\\"k4\\":true,\\"k5\\":true,\\"k6\\":true,\\"k7\\":true}") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ComplexSchemaTools", source)));
+
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.ComplexSchemaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("mapOfNullable("), "Expected arity-independent map helper, got:\n" + generated);
+        assertTrue(generated.contains("new java.math.BigDecimal(\"2147483648\")"),
+                "Expected safe numeric source, got:\n" + generated);
+        assertTrue(generated.contains("\"const\", (Object) null"), "Expected null schema value, got:\n" + generated);
+        assertTrue(generated.contains("listOfNullable(\"x\", (Object) null)"),
+                "Expected null-tolerant list helper, got:\n" + generated);
+    }
+
+    @Test
+    void jsonToMapOfSource_decodesEscapesAndRejectsMalformedJson() {
+        String generated = CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"line\\n\\u0061\"}");
+
+        assertTrue(generated.contains("\"title\", \"line\\na\""), "Expected decoded JSON escapes, got: " + generated);
+        IllegalArgumentException escapeError = assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"\\q\"}"));
+        assertTrue(escapeError.getMessage().contains("Invalid escape sequence"));
+        IllegalArgumentException numberError = assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1.}"));
+        assertTrue(numberError.getMessage().contains("Expected digit in number fraction"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"minimum\":1\u0662}"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\f\"type\":\"string\"}"));
+        assertEquals("mapOfNullable(\"enum\", listOfNullable((Object) null))",
+                CopilotToolProcessor.jsonToMapOfSource("{\"enum\":[null]}"));
+        assertThrows(IllegalArgumentException.class,
+                () -> CopilotToolProcessor.jsonToMapOfSource("{\"title\":\"\\" + "u١٢٣٤\"}"));
+    }
+
+    @Test
+    void generatesSchemaOverride_withEscapedControlCharacters() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class EscapedControlSchemaTools {
+                    @CopilotTool("Escaped control schema")
+                    public String useSchema(@CopilotToolParam(value = "Input",
+                        schema = "{\\"title\\":\\"\\\\b\\\\fUNICODE_ESCAPE\\"}") String input) {
+                        return input;
+                    }
+                }
+                """.replace("UNICODE_ESCAPE", "\\\\" + "u0000");
+
+        CompilationResult result = compileWithProcessor(
+                List.of(inMemorySource("test.EscapedControlSchemaTools", source)));
+
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.EscapedControlSchemaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("\\b\\f\\000"),
+                "Expected Java-safe control escapes in generated source, got:\n" + generated);
+    }
+
+    // ── Test: Blank @CopilotToolParam description validation ────────────────────
+
+    @Test
+    void emitsError_forBlankParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class BlankDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.BlankDescTools", source)));
+
+        assertTrue(hasErrorContaining(result, "blank value (description)"),
+                "Expected compile error for blank @CopilotToolParam description, got: " + result.diagnostics);
+    }
+
+    @Test
+    void emitsError_forWhitespaceOnlyParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class WhitespaceDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("   ") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.WhitespaceDescTools", source)));
+
+        assertTrue(hasErrorContaining(result, "blank value (description)"),
+                "Expected compile error for whitespace-only @CopilotToolParam description, got: " + result.diagnostics);
+    }
+
+    @Test
+    void compilesSuccessfully_forValidParamDescription() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ValidDescTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(@CopilotToolParam("Search query") String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ValidDescTools", source)));
+
+        assertNoErrors(result);
+    }
+
+    @Test
+    void compilesSuccessfully_forParamWithoutAnnotation() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class NoAnnotationTools {
+                    @CopilotTool("Search for items")
+                    public String searchItems(String query) {
+                        return "results for " + query;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.NoAnnotationTools", source)));
+
+        assertNoErrors(result);
+    }
+
+    @Test
+    void doesNotEmitBlankError_forSingleRecordWrapperWithDefaultAnnotation() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class RecordWrapperTools {
+                    public record SearchArgs(String query, int limit) {}
+                    @CopilotTool("Search for items")
+                    public String search(@CopilotToolParam SearchArgs args) {
+                        return args.query();
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.RecordWrapperTools", source)));
+
+        assertFalse(hasErrorContaining(result, "blank value (description)"),
+                "Single-record wrapper should be exempt from blank description check, got: " + result.diagnostics);
     }
 
     // ── Test: Return type handling ──────────────────────────────────────────────
@@ -210,6 +568,89 @@ class CopilotToolProcessorTest {
         String generated = result.getGeneratedSource("test.StringReturn$$CopilotToolMeta");
         assertTrue(generated.contains("CompletableFuture.completedFuture(instance.doSomething("),
                 "Expected completedFuture wrapping for String return, got:\n" + generated);
+    }
+
+    @Test
+    void generatesMetadata_withNestedFlags() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class MetaTools {
+                    @CopilotTool(value = "Reports phase", metadata = {
+                        @CopilotTool.MetadataEntry(
+                            key = "github.com/copilot:safeForTelemetry",
+                            value = @CopilotTool.MetadataValue(flags = {
+                                @CopilotTool.MetadataFlag(name = "name", value = true),
+                                @CopilotTool.MetadataFlag(name = "inputsNames", value = false)
+                            }))
+                    })
+                    public String reportPhase(@CopilotToolParam("Phase") String phase) {
+                        return phase;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.MetaTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.MetaTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Map.<String, Object>of(\"github.com/copilot:safeForTelemetry\""),
+                "Expected typed metadata map, got:\n" + generated);
+        assertTrue(generated.contains("Map.of(\"name\", true, \"inputsNames\", false)"),
+                "Expected nested flag map, got:\n" + generated);
+    }
+
+    @Test
+    void generatesNullMetadata_whenAbsent() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class PlainTools {
+                    @CopilotTool("Plain tool")
+                    public String doSomething(@CopilotToolParam("Input") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.PlainTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.PlainTools$$CopilotToolMeta");
+        assertFalse(generated.contains("Map.<String, Object>of("),
+                "Expected no metadata map for a tool without metadata, got:\n" + generated);
+        String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
+        assertTrue(normalizedGenerated.contains("                null,\n                null\n            )"),
+                "Expected metadata and isTerminal constructor arguments to be null when absent, got:\n" + generated);
+    }
+
+    @Test
+    void generatesMetadata_alongsideOtherFlags() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                import com.github.copilot.rpc.ToolDefer;
+                import com.github.copilot.tool.CopilotToolParam;
+                public class ComboTools {
+                    @CopilotTool(value = "Combo", name = "combo", overridesBuiltInTool = true,
+                        skipPermission = true, defer = ToolDefer.NEVER,
+                        metadata = {
+                            @CopilotTool.MetadataEntry(key = "k",
+                                value = @CopilotTool.MetadataValue(bool = true))
+                        })
+                    public String doSomething(@CopilotToolParam("Input") String input) {
+                        return input;
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.ComboTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.ComboTools$$CopilotToolMeta");
+        assertTrue(generated.contains("Boolean.TRUE"), "Expected overrides/skip flags, got:\n" + generated);
+        assertTrue(generated.contains("ToolDefer.NEVER"), "Expected defer, got:\n" + generated);
+        assertTrue(generated.contains("Map.<String, Object>of(\"k\", true)"),
+                "Expected scalar bool metadata, got:\n" + generated);
     }
 
     @Test
@@ -802,6 +1243,28 @@ class CopilotToolProcessorTest {
                 "Expected Boolean.TRUE for overridesBuiltInTool, got:\n" + generated);
     }
 
+    @Test
+    void generatesTerminalTool_whenIsTerminal() {
+        String source = """
+                package test;
+                import com.github.copilot.tool.CopilotTool;
+                public class TerminalTools {
+                    @CopilotTool(value = "Ends the turn", isTerminal = true)
+                    public String finish() {
+                        return "done";
+                    }
+                }
+                """;
+
+        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.TerminalTools", source)));
+        assertNoErrors(result);
+        String generated = result.getGeneratedSource("test.TerminalTools$$CopilotToolMeta");
+        String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
+        assertTrue(normalizedGenerated.contains(
+                "                null,\n                null,\n                null,\n                null,\n                Boolean.TRUE\n            )"),
+                "Expected Boolean.TRUE for isTerminal in the final constructor position, got:\n" + generated);
+    }
+
     // ── Test: Combined flags all apply independently ────────────────────────────
 
     @Test
@@ -811,7 +1274,8 @@ class CopilotToolProcessorTest {
                 import com.github.copilot.tool.CopilotTool;
                 import com.github.copilot.rpc.ToolDefer;
                 public class CombinedTools {
-                    @CopilotTool(value = "Combined", overridesBuiltInTool = true, skipPermission = true, defer = ToolDefer.AUTO)
+                    @CopilotTool(value = "Combined", overridesBuiltInTool = true, skipPermission = true,
+                        isTerminal = true, defer = ToolDefer.AUTO)
                     public String doAll() {
                         return "done";
                     }
@@ -827,11 +1291,10 @@ class CopilotToolProcessorTest {
         assertTrue(generated.contains("Boolean.TRUE"),
                 "Expected Boolean.TRUE for override/skipPermission, got:\n" + generated);
         assertTrue(generated.contains("ToolDefer.AUTO"), "Expected ToolDefer.AUTO, got:\n" + generated);
-        // Count Boolean.TRUE occurrences — should be 2 (overridesBuiltInTool +
-        // skipPermission)
+        // Count Boolean.TRUE occurrences — override, skipPermission, and isTerminal.
         long boolCount = generated.lines().filter(l -> l.contains("Boolean.TRUE")).count();
-        assertEquals(2, boolCount,
-                "Expected 2 Boolean.TRUE lines (overridesBuiltInTool + skipPermission), got:\n" + generated);
+        assertEquals(3, boolCount,
+                "Expected 3 Boolean.TRUE lines (override + skipPermission + isTerminal), got:\n" + generated);
     }
 
     // ── Test: ToolDefer.NONE results in regular create ──────────────────────────

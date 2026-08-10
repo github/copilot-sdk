@@ -21,39 +21,44 @@ use serde_json::json;
 
 use super::support::{
     assert_uuid_like, assistant_message_content, collect_until_idle, event_types,
-    get_system_message, get_tool_names, wait_for_condition, wait_for_event, with_e2e_context,
+    get_system_message, get_tool_names, wait_for_condition, wait_for_event,
 };
 
 #[tokio::test]
 async fn shouldcreateanddisconnectsessions() {
-    with_e2e_context("session", "shouldcreateanddisconnectsessions", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(
-                    ctx.approve_all_session_config()
-                        .with_model("claude-sonnet-4.5"),
-                )
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "shouldcreateanddisconnectsessions",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_model("claude-sonnet-4.5"),
+                    )
+                    .await
+                    .expect("create session");
 
-            assert_uuid_like(session.id());
-            let messages = session.get_events().await.expect("get messages");
-            assert!(!messages.is_empty(), "expected initial session events");
-            let start = messages[0]
-                .typed_data::<SessionStartData>()
-                .expect("session.start data");
-            assert_eq!(start.session_id, session.id().clone());
+                assert_uuid_like(session.id());
+                let messages = session.get_events().await.expect("get messages");
+                assert!(!messages.is_empty(), "expected initial session events");
+                let start = messages[0]
+                    .typed_data::<SessionStartData>()
+                    .expect("session.start data");
+                assert_eq!(start.session_id, session.id().clone());
 
-            session.disconnect().await.expect("disconnect session");
-            assert!(
-                session.get_events().await.is_err(),
-                "disconnected session should no longer serve message history"
-            );
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                assert!(
+                    session.get_events().await.is_err(),
+                    "disconnected session should no longer serve message history"
+                );
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
@@ -88,39 +93,45 @@ async fn disposeasync_from_handler_does_not_deadlock() {
 
 #[tokio::test]
 async fn should_have_stateful_conversation() {
-    with_e2e_context("session", "should_have_stateful_conversation", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_have_stateful_conversation",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let first = session
-                .send_and_wait("What is 1+1?")
-                .await
-                .expect("first send")
-                .expect("first assistant message");
-            assert!(assistant_message_content(&first).contains('2'));
+                let first = session
+                    .send_and_wait("What is 1+1?")
+                    .await
+                    .expect("first send")
+                    .expect("first assistant message");
+                assert!(assistant_message_content(&first).contains('2'));
 
-            let second = session
-                .send_and_wait("Now if you double that, what do you get?")
-                .await
-                .expect("second send")
-                .expect("second assistant message");
-            assert!(assistant_message_content(&second).contains('4'));
+                let second = session
+                    .send_and_wait("Now if you double that, what do you get?")
+                    .await
+                    .expect("second send")
+                    .expect("second assistant message");
+                assert!(assistant_message_content(&second).contains('4'));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_create_a_session_with_appended_systemmessage_config() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_appended_systemmessage_config",
         |ctx| {
@@ -164,7 +175,8 @@ async fn should_create_a_session_with_appended_systemmessage_config() {
 
 #[tokio::test]
 async fn should_create_a_session_with_replaced_systemmessage_config() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_replaced_systemmessage_config",
         |ctx| {
@@ -206,7 +218,8 @@ async fn should_create_a_session_with_replaced_systemmessage_config() {
 
 #[tokio::test]
 async fn should_create_a_session_with_customized_systemmessage_config() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_customized_systemmessage_config",
         |ctx| {
@@ -260,7 +273,8 @@ async fn should_create_a_session_with_customized_systemmessage_config() {
 
 #[tokio::test]
 async fn should_create_a_session_with_availabletools() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_availabletools",
         |ctx| {
@@ -296,7 +310,8 @@ async fn should_create_a_session_with_availabletools() {
 
 #[tokio::test]
 async fn should_create_a_session_with_excludedtools() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_excludedtools",
         |ctx| {
@@ -332,7 +347,8 @@ async fn should_create_a_session_with_excludedtools() {
 
 #[tokio::test]
 async fn should_create_a_session_with_defaultagent_excludedtools() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_a_session_with_defaultagent_excludedtools",
         |ctx| {
@@ -371,37 +387,43 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
 
 #[tokio::test]
 async fn should_create_session_with_custom_tool() {
-    with_e2e_context("session", "should_create_session_with_custom_tool", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(
-                    SessionConfig::default()
-                        .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_permission_handler(Arc::new(ApproveAllHandler))
-                        .with_tools(vec![secret_number_tool()]),
-                )
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_create_session_with_custom_tool",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![secret_number_tool()]),
+                    )
+                    .await
+                    .expect("create session");
 
-            let answer = session
-                .send_and_wait("What is the secret number for key ALPHA?")
-                .await
-                .expect("send")
-                .expect("assistant message");
-            assert!(assistant_message_content(&answer).contains("54321"));
+                let answer = session
+                    .send_and_wait("What is the secret number for key ALPHA?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("54321"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_throw_error_when_resuming_non_existent_session() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_throw_error_when_resuming_non_existent_session",
         |ctx| {
@@ -425,7 +447,7 @@ async fn should_throw_error_when_resuming_non_existent_session() {
 
 #[tokio::test]
 async fn should_abort_a_session() {
-    with_e2e_context("session", "should_abort_a_session", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "session", "should_abort_a_session", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
@@ -457,11 +479,17 @@ async fn should_abort_a_session() {
             assert!(messages
                 .iter()
                 .any(|event| event.parsed_type() == SessionEventType::Abort));
-            let answer = session
-                .send_and_wait("What is 2+2?")
+            let answer_events = session.subscribe();
+            session
+                .send("What is 2+2?")
                 .await
-                .expect("send after abort")
-                .expect("assistant message");
+                .expect("send after abort");
+            let answer = wait_for_event(
+                answer_events,
+                "assistant message after abort",
+                |event| event.parsed_type() == SessionEventType::AssistantMessage,
+            )
+            .await;
             assert!(assistant_message_content(&answer).contains('4'));
 
             session.disconnect().await.expect("disconnect session");
@@ -473,7 +501,8 @@ async fn should_abort_a_session() {
 
 #[tokio::test]
 async fn should_resume_a_session_using_the_same_client() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_resume_a_session_using_the_same_client",
         |ctx| {
@@ -529,7 +558,7 @@ async fn should_resume_a_session_using_the_same_client() {
 
 #[tokio::test]
 async fn should_resume_a_session_using_a_new_client() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "session",
         "should_resume_a_session_using_a_new_client",
         |ctx| {
@@ -601,7 +630,7 @@ async fn should_resume_a_session_using_a_new_client() {
 
 #[tokio::test]
 async fn resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured() {
-    with_e2e_context(
+    super::support::with_dedicated_e2e_context(
         "session",
         "resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured",
         |ctx| {
@@ -655,38 +684,44 @@ async fn resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler
 
 #[tokio::test]
 async fn should_receive_session_events() {
-    with_e2e_context("session", "should_receive_session_events", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_receive_session_events",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let events = session.subscribe();
-            let answer = session
-                .send_and_wait("What is 100+200?")
-                .await
-                .expect("send")
-                .expect("assistant message");
-            assert!(assistant_message_content(&answer).contains("300"));
-            let observed = collect_until_idle(events).await;
-            let types = event_types(&observed);
-            assert!(types.contains(&"user.message"));
-            assert!(types.contains(&"assistant.message"));
-            assert!(types.contains(&"session.idle"));
+                let events = session.subscribe();
+                let answer = session
+                    .send_and_wait("What is 100+200?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("300"));
+                let observed = collect_until_idle(events).await;
+                let types = event_types(&observed);
+                assert!(types.contains(&"user.message"));
+                assert!(types.contains(&"assistant.message"));
+                assert!(types.contains(&"session.idle"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn send_returns_immediately_while_events_stream_in_background() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "send_returns_immediately_while_events_stream_in_background",
         |ctx| {
@@ -725,7 +760,8 @@ async fn send_returns_immediately_while_events_stream_in_background() {
 
 #[tokio::test]
 async fn sendandwait_blocks_until_session_idle_and_returns_final_assistant_message() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "sendandwait_blocks_until_session_idle_and_returns_final_assistant_message",
         |ctx| {
@@ -761,127 +797,143 @@ async fn sendandwait_blocks_until_session_idle_and_returns_final_assistant_messa
 
 #[tokio::test]
 async fn should_list_sessions_with_context() {
-    with_e2e_context("session", "should_list_sessions_with_context", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let session_id = session.id().clone();
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_list_sessions_with_context",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let session_id = session.id().clone();
 
-            session.send_and_wait("Say OK.").await.expect("send");
-            wait_for_condition("session to appear in list", || {
-                let client = client.clone();
-                let session_id = session_id.clone();
-                async move {
-                    client.list_sessions(None).await.is_ok_and(|sessions| {
-                        sessions
-                            .iter()
-                            .any(|session| session.session_id == session_id)
-                    })
-                }
+                session.send_and_wait("Say OK.").await.expect("send");
+                wait_for_condition("session to appear in list", || {
+                    let client = client.clone();
+                    let session_id = session_id.clone();
+                    async move {
+                        client.list_sessions(None).await.is_ok_and(|sessions| {
+                            sessions
+                                .iter()
+                                .any(|session| session.session_id == session_id)
+                        })
+                    }
+                })
+                .await;
+
+                let all_sessions = client.list_sessions(None).await.expect("list sessions");
+                assert!(!all_sessions.is_empty());
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
             })
-            .await;
-
-            let all_sessions = client.list_sessions(None).await.expect("list sessions");
-            assert!(!all_sessions.is_empty());
-
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_get_session_metadata_by_id() {
-    with_e2e_context("session", "should_get_session_metadata_by_id", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let session_id = session.id().clone();
-
-            session.send_and_wait("Say hello").await.expect("send");
-            wait_for_condition("session metadata to persist", || {
-                let client = client.clone();
-                let session_id = session_id.clone();
-                async move {
-                    client
-                        .get_session_metadata(&session_id)
-                        .await
-                        .is_ok_and(|metadata| metadata.is_some())
-                }
-            })
-            .await;
-
-            let metadata = client
-                .get_session_metadata(&session_id)
-                .await
-                .expect("get metadata")
-                .expect("session metadata");
-            assert_eq!(metadata.session_id, session_id);
-            assert!(!metadata.start_time.is_empty());
-            assert!(!metadata.modified_time.is_empty());
-            assert!(
-                client
-                    .get_session_metadata(&github_copilot_sdk::SessionId::new(
-                        "non-existent-session-id"
-                    ))
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_get_session_metadata_by_id",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
                     .await
-                    .expect("get missing metadata")
-                    .is_none()
-            );
+                    .expect("create session");
+                let session_id = session.id().clone();
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.send_and_wait("Say hello").await.expect("send");
+                wait_for_condition("session metadata to persist", || {
+                    let client = client.clone();
+                    let session_id = session_id.clone();
+                    async move {
+                        client
+                            .get_session_metadata(&session_id)
+                            .await
+                            .is_ok_and(|metadata| metadata.is_some())
+                    }
+                })
+                .await;
+
+                let metadata = client
+                    .get_session_metadata(&session_id)
+                    .await
+                    .expect("get metadata")
+                    .expect("session metadata");
+                assert_eq!(metadata.session_id, session_id);
+                assert!(!metadata.start_time.is_empty());
+                assert!(!metadata.modified_time.is_empty());
+                assert!(
+                    client
+                        .get_session_metadata(&github_copilot_sdk::SessionId::new(
+                            "non-existent-session-id"
+                        ))
+                        .await
+                        .expect("get missing metadata")
+                        .is_none()
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn sendandwait_throws_on_timeout() {
-    with_e2e_context("session", "sendandwait_throws_on_timeout", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let idle = tokio::spawn(wait_for_event(
-                session.subscribe(),
-                "session.idle after timeout abort",
-                |event| event.parsed_type() == SessionEventType::SessionIdle,
-            ));
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "sendandwait_throws_on_timeout",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let idle = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "session.idle after timeout abort",
+                    |event| event.parsed_type() == SessionEventType::SessionIdle,
+                ));
 
-            let error = session
-                .send_and_wait(
-                    MessageOptions::new("Run 'sleep 2 && echo done'")
-                        .with_wait_timeout(Duration::from_millis(100)),
-                )
-                .await
-                .expect_err("send_and_wait should time out");
-            assert!(error.to_string().contains("timed out"));
+                let error = session
+                    .send_and_wait(
+                        MessageOptions::new("Run 'sleep 2 && echo done'")
+                            .with_wait_timeout(Duration::from_millis(100)),
+                    )
+                    .await
+                    .expect_err("send_and_wait should time out");
+                assert!(error.to_string().contains("timed out"));
 
-            session.abort().await.expect("abort session");
-            idle.await.expect("idle task");
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.abort().await.expect("abort session");
+                idle.await.expect("idle task");
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_create_session_with_custom_config_dir() {
-    with_e2e_context(
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
         "session",
         "should_create_session_with_custom_config_dir",
         |ctx| {
@@ -915,183 +967,198 @@ async fn should_create_session_with_custom_config_dir() {
 
 #[tokio::test]
 async fn should_set_model_on_existing_session() {
-    with_e2e_context("session", "should_set_model_on_existing_session", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let model_changed = tokio::spawn(wait_for_event(
-                session.subscribe(),
-                "session.model_change",
-                |event| event.parsed_type() == SessionEventType::SessionModelChange,
-            ));
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_set_model_on_existing_session",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let model_changed = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "session.model_change",
+                    |event| event.parsed_type() == SessionEventType::SessionModelChange,
+                ));
 
-            session.set_model("gpt-4.1", None).await.expect("set model");
-            let event = model_changed.await.expect("model change task");
-            let data = event
-                .typed_data::<SessionModelChangeData>()
-                .expect("session.model_change data");
-            assert_eq!(data.new_model, "gpt-4.1");
+                session.set_model("gpt-4.1", None).await.expect("set model");
+                let event = model_changed.await.expect("model change task");
+                let data = event
+                    .typed_data::<SessionModelChangeData>()
+                    .expect("session.model_change data");
+                assert_eq!(data.new_model, "gpt-4.1");
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_set_model_with_reasoningeffort() {
-    with_e2e_context("session", "should_set_model_with_reasoningeffort", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let model_changed = tokio::spawn(wait_for_event(
-                session.subscribe(),
-                "session.model_change with reasoning effort",
-                |event| event.parsed_type() == SessionEventType::SessionModelChange,
-            ));
+    super::support::with_dedicated_group_e2e_context(
+        &E2E,
+        "session",
+        "should_set_model_with_reasoningeffort",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let model_changed = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "session.model_change with reasoning effort",
+                    |event| event.parsed_type() == SessionEventType::SessionModelChange,
+                ));
 
-            session
-                .set_model(
-                    "gpt-4.1",
-                    Some(SetModelOptions::default().with_reasoning_effort("high")),
-                )
-                .await
-                .expect("set model");
-            let event = model_changed.await.expect("model change task");
-            let data = event
-                .typed_data::<SessionModelChangeData>()
-                .expect("session.model_change data");
-            assert_eq!(data.new_model, "gpt-4.1");
-            assert_eq!(data.reasoning_effort.as_deref(), Some("high"));
+                session
+                    .set_model(
+                        "gpt-5.4",
+                        Some(SetModelOptions::default().with_reasoning_effort("high")),
+                    )
+                    .await
+                    .expect("set model");
+                let event = model_changed.await.expect("model change task");
+                let data = event
+                    .typed_data::<SessionModelChangeData>()
+                    .expect("session.model_change data");
+                assert_eq!(data.new_model, "gpt-5.4");
+                assert_eq!(data.reasoning_effort.as_deref(), Some("high"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_log_messages_at_various_levels() {
-    with_e2e_context("session", "should_log_messages_at_various_levels", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let mut events = session.subscribe();
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_log_messages_at_various_levels",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let mut events = session.subscribe();
 
-            session.log("Info message", None).await.expect("info log");
-            session
-                .log(
-                    "Warning message",
-                    Some(LogOptions::default().with_level(SessionLogLevel::Warning)),
-                )
-                .await
-                .expect("warning log");
-            session
-                .log(
-                    "Error message",
-                    Some(LogOptions::default().with_level(SessionLogLevel::Error)),
-                )
-                .await
-                .expect("error log");
-            session
-                .log(
-                    "Ephemeral message",
-                    Some(LogOptions::default().with_ephemeral(true)),
-                )
-                .await
-                .expect("ephemeral log");
+                session.log("Info message", None).await.expect("info log");
+                session
+                    .log(
+                        "Warning message",
+                        Some(LogOptions::default().with_level(SessionLogLevel::Warning)),
+                    )
+                    .await
+                    .expect("warning log");
+                session
+                    .log(
+                        "Error message",
+                        Some(LogOptions::default().with_level(SessionLogLevel::Error)),
+                    )
+                    .await
+                    .expect("error log");
+                session
+                    .log(
+                        "Ephemeral message",
+                        Some(LogOptions::default().with_ephemeral(true)),
+                    )
+                    .await
+                    .expect("ephemeral log");
 
-            let mut observed = Vec::new();
-            tokio::time::timeout(Duration::from_secs(10), async {
-                while observed.len() < 4 {
-                    let event = events.recv().await.expect("session event");
-                    if matches!(
-                        event.parsed_type(),
-                        SessionEventType::SessionInfo
-                            | SessionEventType::SessionWarning
-                            | SessionEventType::SessionError
-                    ) {
-                        observed.push(event);
+                let mut observed = Vec::new();
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    while observed.len() < 4 {
+                        let event = events.recv().await.expect("session event");
+                        if matches!(
+                            event.parsed_type(),
+                            SessionEventType::SessionInfo
+                                | SessionEventType::SessionWarning
+                                | SessionEventType::SessionError
+                        ) {
+                            observed.push(event);
+                        }
                     }
-                }
-            })
-            .await
-            .expect("log events");
+                })
+                .await
+                .expect("log events");
 
-            let info = observed
-                .iter()
-                .find(|event| {
+                let info = observed
+                    .iter()
+                    .find(|event| {
+                        event
+                            .typed_data::<SessionInfoData>()
+                            .is_some_and(|data| data.message == "Info message")
+                    })
+                    .expect("info message");
+                assert_eq!(
+                    info.typed_data::<SessionInfoData>()
+                        .expect("info data")
+                        .info_type,
+                    "notification"
+                );
+                let warning = observed
+                    .iter()
+                    .find(|event| {
+                        event
+                            .typed_data::<SessionWarningData>()
+                            .is_some_and(|data| data.message == "Warning message")
+                    })
+                    .expect("warning message");
+                assert_eq!(
+                    warning
+                        .typed_data::<SessionWarningData>()
+                        .expect("warning data")
+                        .warning_type,
+                    "notification"
+                );
+                let error = observed
+                    .iter()
+                    .find(|event| {
+                        event
+                            .typed_data::<SessionErrorData>()
+                            .is_some_and(|data| data.message == "Error message")
+                    })
+                    .expect("error message");
+                assert_eq!(
+                    error
+                        .typed_data::<SessionErrorData>()
+                        .expect("error data")
+                        .error_type,
+                    "notification"
+                );
+                assert!(observed.iter().any(|event| {
                     event
                         .typed_data::<SessionInfoData>()
-                        .is_some_and(|data| data.message == "Info message")
-                })
-                .expect("info message");
-            assert_eq!(
-                info.typed_data::<SessionInfoData>()
-                    .expect("info data")
-                    .info_type,
-                "notification"
-            );
-            let warning = observed
-                .iter()
-                .find(|event| {
-                    event
-                        .typed_data::<SessionWarningData>()
-                        .is_some_and(|data| data.message == "Warning message")
-                })
-                .expect("warning message");
-            assert_eq!(
-                warning
-                    .typed_data::<SessionWarningData>()
-                    .expect("warning data")
-                    .warning_type,
-                "notification"
-            );
-            let error = observed
-                .iter()
-                .find(|event| {
-                    event
-                        .typed_data::<SessionErrorData>()
-                        .is_some_and(|data| data.message == "Error message")
-                })
-                .expect("error message");
-            assert_eq!(
-                error
-                    .typed_data::<SessionErrorData>()
-                    .expect("error data")
-                    .error_type,
-                "notification"
-            );
-            assert!(observed.iter().any(|event| {
-                event
-                    .typed_data::<SessionInfoData>()
-                    .is_some_and(|data| data.message == "Ephemeral message")
-            }));
+                        .is_some_and(|data| data.message == "Ephemeral message")
+                }));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_accept_blob_attachments() {
-    with_e2e_context("session", "should_accept_blob_attachments", |ctx| {
+    super::support::with_shared_e2e_context(&E2E, "session", "should_accept_blob_attachments", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -1133,197 +1200,213 @@ async fn should_accept_blob_attachments() {
 
 #[tokio::test]
 async fn should_send_with_file_attachment() {
-    with_e2e_context("session", "should_send_with_file_attachment", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let file_path = ctx.work_dir().join("attached-file.txt");
-            std::fs::write(&file_path, "FILE_ATTACHMENT_SENTINEL").expect("write attached file");
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_send_with_file_attachment",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let file_path = ctx.work_dir().join("attached-file.txt");
+                std::fs::write(&file_path, "FILE_ATTACHMENT_SENTINEL")
+                    .expect("write attached file");
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            session
-                .send_and_wait(
-                    MessageOptions::new("Read the attached file and reply with its contents.")
-                        .with_attachments(vec![Attachment::File {
-                            path: file_path.clone(),
-                            display_name: Some("attached-file.txt".to_string()),
-                            line_range: Some(AttachmentLineRange { start: 1, end: 1 }),
-                        }]),
-                )
-                .await
-                .expect("send");
+                session
+                    .send_and_wait(
+                        MessageOptions::new("Read the attached file and reply with its contents.")
+                            .with_attachments(vec![Attachment::File {
+                                path: file_path.clone(),
+                                display_name: Some("attached-file.txt".to_string()),
+                                line_range: Some(AttachmentLineRange { start: 1, end: 1 }),
+                            }]),
+                    )
+                    .await
+                    .expect("send");
 
-            let user = latest_user_message(&session).await;
-            let attachments = user
-                .typed_data::<UserMessageData>()
-                .expect("user message data")
-                .attachments
-                .expect("attachments");
-            assert_eq!(attachments.len(), 1);
-            assert_eq!(
-                attachments[0]
-                    .get("displayName")
-                    .and_then(serde_json::Value::as_str),
-                Some("attached-file.txt")
-            );
-            assert_eq!(
-                attachments[0]
-                    .get("path")
-                    .and_then(serde_json::Value::as_str),
-                Some(file_path.to_string_lossy().as_ref())
-            );
-            assert_eq!(
-                attachments[0]
-                    .get("lineRange")
-                    .and_then(|value| value.get("start"))
-                    .and_then(serde_json::Value::as_u64),
-                Some(1)
-            );
+                let user = latest_user_message(&session).await;
+                let attachments = user
+                    .typed_data::<UserMessageData>()
+                    .expect("user message data")
+                    .attachments
+                    .expect("attachments");
+                assert_eq!(attachments.len(), 1);
+                assert_eq!(
+                    attachments[0]
+                        .get("displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("attached-file.txt")
+                );
+                assert_eq!(
+                    attachments[0]
+                        .get("path")
+                        .and_then(serde_json::Value::as_str),
+                    Some(file_path.to_string_lossy().as_ref())
+                );
+                assert_eq!(
+                    attachments[0]
+                        .get("lineRange")
+                        .and_then(|value| value.get("start"))
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_send_with_directory_attachment() {
-    with_e2e_context("session", "should_send_with_directory_attachment", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let directory_path = ctx.work_dir().join("attached-directory");
-            std::fs::create_dir(&directory_path).expect("create attached directory");
-            std::fs::write(
-                directory_path.join("readme.txt"),
-                "DIRECTORY_ATTACHMENT_SENTINEL",
-            )
-            .expect("write attached directory file");
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-
-            session
-                .send_and_wait(
-                    MessageOptions::new("List the attached directory.").with_attachments(vec![
-                        Attachment::Directory {
-                            path: directory_path.clone(),
-                            display_name: Some("attached-directory".to_string()),
-                        },
-                    ]),
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_send_with_directory_attachment",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let directory_path = ctx.work_dir().join("attached-directory");
+                std::fs::create_dir(&directory_path).expect("create attached directory");
+                std::fs::write(
+                    directory_path.join("readme.txt"),
+                    "DIRECTORY_ATTACHMENT_SENTINEL",
                 )
-                .await
-                .expect("send");
+                .expect("write attached directory file");
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            let user = latest_user_message(&session).await;
-            let attachments = user
-                .typed_data::<UserMessageData>()
-                .expect("user message data")
-                .attachments
-                .expect("attachments");
-            assert_eq!(attachments.len(), 1);
-            assert_eq!(
-                attachments[0]
-                    .get("displayName")
-                    .and_then(serde_json::Value::as_str),
-                Some("attached-directory")
-            );
-            assert_eq!(
-                attachments[0]
-                    .get("path")
-                    .and_then(serde_json::Value::as_str),
-                Some(directory_path.to_string_lossy().as_ref())
-            );
+                session
+                    .send_and_wait(
+                        MessageOptions::new("List the attached directory.").with_attachments(vec![
+                            Attachment::Directory {
+                                path: directory_path.clone(),
+                                display_name: Some("attached-directory".to_string()),
+                            },
+                        ]),
+                    )
+                    .await
+                    .expect("send");
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                let user = latest_user_message(&session).await;
+                let attachments = user
+                    .typed_data::<UserMessageData>()
+                    .expect("user message data")
+                    .attachments
+                    .expect("attachments");
+                assert_eq!(attachments.len(), 1);
+                assert_eq!(
+                    attachments[0]
+                        .get("displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("attached-directory")
+                );
+                assert_eq!(
+                    attachments[0]
+                        .get("path")
+                        .and_then(serde_json::Value::as_str),
+                    Some(directory_path.to_string_lossy().as_ref())
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_send_with_selection_attachment() {
-    with_e2e_context("session", "should_send_with_selection_attachment", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let file_path = std::path::PathBuf::from("selected-file.cs");
-            let absolute_file_path = ctx.work_dir().join(&file_path);
-            std::fs::write(
-                &absolute_file_path,
-                "class C { string Value = \"SELECTION_SENTINEL\"; }",
-            )
-            .expect("write selection file");
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_send_with_selection_attachment",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let file_path = std::path::PathBuf::from("selected-file.cs");
+                let absolute_file_path = ctx.work_dir().join(&file_path);
+                std::fs::write(
+                    &absolute_file_path,
+                    "class C { string Value = \"SELECTION_SENTINEL\"; }",
+                )
+                .expect("write selection file");
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            session
-                .send_and_wait(
-                    MessageOptions::new("Summarize the selected code.").with_attachments(vec![
-                        Attachment::Selection {
-                            file_path: file_path.clone(),
-                            text: "string Value = \"SELECTION_SENTINEL\";".to_string(),
-                            display_name: Some("selected-file.cs".to_string()),
-                            selection: AttachmentSelectionRange {
-                                start: AttachmentSelectionPosition {
-                                    line: 1,
-                                    character: 10,
-                                },
-                                end: AttachmentSelectionPosition {
-                                    line: 1,
-                                    character: 45,
+                session
+                    .send_and_wait(
+                        MessageOptions::new("Summarize the selected code.").with_attachments(vec![
+                            Attachment::Selection {
+                                file_path: file_path.clone(),
+                                text: "string Value = \"SELECTION_SENTINEL\";".to_string(),
+                                display_name: Some("selected-file.cs".to_string()),
+                                selection: AttachmentSelectionRange {
+                                    start: AttachmentSelectionPosition {
+                                        line: 1,
+                                        character: 10,
+                                    },
+                                    end: AttachmentSelectionPosition {
+                                        line: 1,
+                                        character: 45,
+                                    },
                                 },
                             },
-                        },
-                    ]),
-                )
-                .await
-                .expect("send");
+                        ]),
+                    )
+                    .await
+                    .expect("send");
 
-            let user = latest_user_message(&session).await;
-            let attachment = user
-                .typed_data::<UserMessageData>()
-                .expect("user message data")
-                .attachments
-                .expect("attachments")
-                .into_iter()
-                .next()
-                .expect("attachment");
-            assert_eq!(
-                attachment
-                    .get("displayName")
-                    .and_then(serde_json::Value::as_str),
-                Some("selected-file.cs")
-            );
-            assert_eq!(
-                attachment
-                    .get("filePath")
-                    .and_then(serde_json::Value::as_str),
-                Some(file_path.to_string_lossy().as_ref())
-            );
-            assert_eq!(
-                attachment.get("text").and_then(serde_json::Value::as_str),
-                Some("string Value = \"SELECTION_SENTINEL\";")
-            );
+                let user = latest_user_message(&session).await;
+                let attachment = user
+                    .typed_data::<UserMessageData>()
+                    .expect("user message data")
+                    .attachments
+                    .expect("attachments")
+                    .into_iter()
+                    .next()
+                    .expect("attachment");
+                assert_eq!(
+                    attachment
+                        .get("displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("selected-file.cs")
+                );
+                assert_eq!(
+                    attachment
+                        .get("filePath")
+                        .and_then(serde_json::Value::as_str),
+                    Some(file_path.to_string_lossy().as_ref())
+                );
+                assert_eq!(
+                    attachment.get("text").and_then(serde_json::Value::as_str),
+                    Some("string Value = \"SELECTION_SENTINEL\";")
+                );
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_send_with_github_reference_attachment() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(&E2E,
         "session",
         "should_send_with_github_reference_attachment",
         |ctx| {
@@ -1388,101 +1471,114 @@ async fn should_send_with_github_reference_attachment() {
 
 #[tokio::test]
 async fn should_send_with_custom_requestheaders() {
-    with_e2e_context("session", "should_send_with_custom_requestheaders", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-            let mut headers = HashMap::new();
-            headers.insert(
-                "x-copilot-sdk-test-header".to_string(),
-                "csharp-request-headers".to_string(),
-            );
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_send_with_custom_requestheaders",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let mut headers = HashMap::new();
+                headers.insert(
+                    "x-copilot-sdk-test-header".to_string(),
+                    "csharp-request-headers".to_string(),
+                );
 
-            session
-                .send_and_wait(MessageOptions::new("What is 1+1?").with_request_headers(headers))
-                .await
-                .expect("send");
+                session
+                    .send_and_wait(
+                        MessageOptions::new("What is 1+1?").with_request_headers(headers),
+                    )
+                    .await
+                    .expect("send");
 
-            let exchanges = ctx.exchanges();
-            assert!(!exchanges.is_empty(), "expected captured CAPI exchange");
-            let request_headers = exchanges
-                .last()
-                .and_then(|exchange| exchange.get("requestHeaders"))
-                .and_then(serde_json::Value::as_object)
-                .expect("request headers");
-            let header = request_headers
-                .iter()
-                .find(|(key, _)| key.eq_ignore_ascii_case("x-copilot-sdk-test-header"))
-                .and_then(|(_, value)| value.as_str())
-                .expect("test header");
-            assert!(header.contains("csharp-request-headers"));
+                let exchanges = ctx.exchanges();
+                assert!(!exchanges.is_empty(), "expected captured CAPI exchange");
+                let request_headers = exchanges
+                    .last()
+                    .and_then(|exchange| exchange.get("requestHeaders"))
+                    .and_then(serde_json::Value::as_object)
+                    .expect("request headers");
+                let header = request_headers
+                    .iter()
+                    .find(|(key, _)| key.eq_ignore_ascii_case("x-copilot-sdk-test-header"))
+                    .and_then(|(_, value)| value.as_str())
+                    .expect("test header");
+                assert!(header.contains("csharp-request-headers"));
 
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_send_with_mode_property() {
-    with_e2e_context("session", "should_send_with_mode_property", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_send_with_mode_property",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
 
-            session
-                .client()
-                .call(
-                    "session.send",
-                    Some(json!({
-                        "sessionId": session.id().as_str(),
-                        "prompt": "Say mode ok.",
-                        "mode": "plan",
-                    })),
-                )
-                .await
-                .expect("send with agent mode");
-            wait_for_event(session.subscribe(), "session.idle", |event| {
-                event.parsed_type() == SessionEventType::SessionIdle
+                session
+                    .client()
+                    .call(
+                        "session.send",
+                        Some(json!({
+                            "sessionId": session.id().as_str(),
+                            "prompt": "Say mode ok.",
+                            "mode": "plan",
+                        })),
+                    )
+                    .await
+                    .expect("send with agent mode");
+                wait_for_event(session.subscribe(), "session.idle", |event| {
+                    event.parsed_type() == SessionEventType::SessionIdle
+                })
+                .await;
+
+                let user_message = session
+                    .get_events()
+                    .await
+                    .expect("get messages")
+                    .into_iter()
+                    .rev()
+                    .find(|event| event.parsed_type() == SessionEventType::UserMessage)
+                    .expect("user.message");
+                let data = user_message
+                    .typed_data::<UserMessageData>()
+                    .expect("user.message data");
+                assert_eq!(data.content, "Say mode ok.");
+                assert!(
+                    data.agent_mode.is_none(),
+                    "runtime should accept but not echo per-message mode"
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
             })
-            .await;
-
-            let user_message = session
-                .get_events()
-                .await
-                .expect("get messages")
-                .into_iter()
-                .rev()
-                .find(|event| event.parsed_type() == SessionEventType::UserMessage)
-                .expect("user.message");
-            let data = user_message
-                .typed_data::<UserMessageData>()
-                .expect("user.message data");
-            assert_eq!(data.content, "Say mode ok.");
-            assert!(
-                data.agent_mode.is_none(),
-                "runtime should accept but not echo per-message mode"
-            );
-
-            session.disconnect().await.expect("disconnect session");
-            client.stop().await.expect("stop client");
-        })
-    })
+        },
+    )
     .await;
 }
 
 #[tokio::test]
 async fn should_create_session_with_custom_provider() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_session_with_custom_provider",
         |ctx| {
@@ -1509,7 +1605,8 @@ async fn should_create_session_with_custom_provider() {
 
 #[tokio::test]
 async fn should_create_session_with_azure_provider() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_create_session_with_azure_provider",
         |ctx| {
@@ -1539,7 +1636,8 @@ async fn should_create_session_with_azure_provider() {
 
 #[tokio::test]
 async fn should_resume_session_with_custom_provider() {
-    with_e2e_context(
+    super::support::with_shared_e2e_context(
+        &E2E,
         "session",
         "should_resume_session_with_custom_provider",
         |ctx| {
@@ -1653,3 +1751,5 @@ fn secret_number_tool() -> Tool {
         }))
         .with_handler(Arc::new(SecretNumberTool))
 }
+static E2E: super::support::SharedE2eGroup =
+    super::support::SharedE2eGroup::standard("session", 30);

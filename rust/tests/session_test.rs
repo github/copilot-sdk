@@ -17,12 +17,14 @@ use github_copilot_sdk::rpc::{
     OpenCanvasInstance,
 };
 use github_copilot_sdk::session_events::{
-    McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+    ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
+    SessionManagedSettingsResolvedData,
 };
 use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
-    CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
-    ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig, SessionId,
+    CommandDefinition, CommandHandler, DeliveryMode, DisableBypassPermissionsMode,
+    ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo, ManagedSettings,
+    ManagedSettingsPermissions, MessageOptions, RequestId, SessionConfig, SessionId,
     SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, ContextTier, ErrorKind, ProtocolErrorKind, tool};
@@ -761,6 +763,135 @@ async fn create_session_sends_canvas_wire_fields() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn create_and_resume_send_managed_settings_permissions() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let managed = ManagedSettings::default().with_permissions(
+        ManagedSettingsPermissions::default()
+            .with_disable_bypass_permissions_mode(DisableBypassPermissionsMode::Disable)
+            .with_deny(vec!["shell(rm*)".to_string()])
+            .with_ask(vec!["write".to_string()])
+            .with_allow(vec![]),
+    );
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        let managed = managed.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_enable_managed_settings(true)
+                        .with_managed_settings(managed),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["enableManagedSettings"], true);
+    let perms = &request["params"]["managedSettings"]["permissions"];
+    assert_eq!(perms["disableBypassPermissionsMode"], "disable");
+    assert_eq!(perms["deny"][0], "shell(rm*)");
+    assert_eq!(perms["ask"][0], "write");
+    assert_eq!(perms["allow"], serde_json::json!([]));
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id.clone() },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from(session_id))
+                        .with_managed_settings(managed),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(
+        request["params"]["managedSettings"]["permissions"]["deny"][0],
+        "shell(rm*)"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[test]
+fn managed_settings_resolved_event_preserves_client_provenance() {
+    let sources = [
+        (ManagedSettingsResolvedSource::Server, "server"),
+        (ManagedSettingsResolvedSource::Device, "device"),
+        (ManagedSettingsResolvedSource::Client, "client"),
+        (ManagedSettingsResolvedSource::Mixed, "mixed"),
+        (ManagedSettingsResolvedSource::None, "none"),
+    ];
+    for (source, wire_value) in sources {
+        assert_eq!(
+            serde_json::to_value(source).unwrap(),
+            serde_json::json!(wire_value)
+        );
+    }
+
+    let with_client = SessionManagedSettingsResolvedData {
+        bypass_permissions_disabled: true,
+        client_managed: Some(true),
+        managed_keys: vec!["permissions".to_string()],
+        source: ManagedSettingsResolvedSource::Client,
+        ..Default::default()
+    };
+    let serialized = serde_json::to_value(&with_client).unwrap();
+    assert_eq!(serialized["source"], "client");
+    assert_eq!(serialized["clientManaged"], true);
+
+    let round_tripped: SessionManagedSettingsResolvedData =
+        serde_json::from_value(serialized).unwrap();
+    assert_eq!(round_tripped.source, ManagedSettingsResolvedSource::Client);
+    assert_eq!(round_tripped.client_managed, Some(true));
+
+    let without_client = SessionManagedSettingsResolvedData {
+        bypass_permissions_disabled: true,
+        managed_keys: vec!["permissions".to_string()],
+        source: ManagedSettingsResolvedSource::Mixed,
+        ..Default::default()
+    };
+    let serialized = serde_json::to_value(&without_client).unwrap();
+    assert_eq!(serialized["source"], "mixed");
+    assert!(serialized.get("clientManaged").is_none());
 }
 
 fn make_client_with_telemetry(
@@ -3326,6 +3457,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                     extension_id: "github-app:counter-provider".to_string(),
                     extension_name: Some("Counter Provider".to_string()),
                     canvas_id: "counter".to_string(),
+                    icon: None,
                     title: Some("Counter".to_string()),
                     status: Some("ready".to_string()),
                     url: Some("https://example.test/counter".to_string()),
@@ -4308,7 +4440,7 @@ async fn command_execute_handler_error_propagates_to_ack() {
 use github_copilot_sdk::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions,
     SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError, SessionFsSqliteTransactionStatement,
 };
 
 struct RecordingFsProvider {
@@ -4428,6 +4560,24 @@ impl SessionFsSqliteProvider for RecordingFsProvider {
             rows_affected: 0,
             last_insert_rowid: None,
         }))
+    }
+
+    async fn sqlite_transaction(
+        &self,
+        statements: &[SessionFsSqliteTransactionStatement],
+    ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+        let mut results = Vec::with_capacity(statements.len());
+        for statement in statements {
+            let result = self
+                .sqlite_query(
+                    statement.query_type.clone(),
+                    &statement.query,
+                    statement.params.as_ref(),
+                )
+                .await?;
+            results.push(result.unwrap_or_default());
+        }
+        Ok(results)
     }
 
     async fn sqlite_exists(&self) -> Result<bool, FsError> {
@@ -4616,6 +4766,13 @@ async fn session_fs_maps_sqlite_errors_to_results() {
                 FsErrorKind::Other,
                 "sqlite unavailable",
             ))
+        }
+
+        async fn sqlite_transaction(
+            &self,
+            _statements: &[SessionFsSqliteTransactionStatement],
+        ) -> Result<Vec<SessionFsSqliteQueryResult>, SessionFsSqliteTransactionError> {
+            Err(SessionFsSqliteTransactionError::fatal("sqlite unavailable"))
         }
 
         async fn sqlite_exists(&self) -> Result<bool, FsError> {

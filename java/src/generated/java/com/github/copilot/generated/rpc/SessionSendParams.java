@@ -42,7 +42,7 @@ public record SessionSendParams(
     @JsonProperty("billable") Boolean billable,
     /** If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange */
     @JsonProperty("requiredTool") String requiredTool,
-    /** Optional provenance tag copied to the resulting user.message event. Must match one of three forms: the literal `system`, `command-<command-id>` for messages originating from a command (e.g. slash command, Mission Control command), or `schedule-<numeric-id>` for messages originating from a scheduled job. */
+    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent. */
     @JsonProperty("source") String source,
     /** The UI mode the agent was in when this message was sent. Defaults to the session's current mode. */
     @JsonProperty("agentMode") SendAgentMode agentMode,
@@ -52,7 +52,7 @@ public record SessionSendParams(
     @JsonProperty("traceparent") String traceparent,
     /** W3C Trace Context tracestate header for distributed tracing */
     @JsonProperty("tracestate") String tracestate,
-    /** If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. */
+    /** If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly. */
     @JsonProperty("wait") Boolean wait_
 ) {
 }

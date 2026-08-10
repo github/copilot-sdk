@@ -1,0 +1,30 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call set_marker with value 'go' and, at the same time, use the ask_user tool to ask me to choose between
+          'Option A' and 'Option B'. Wait for my answer before continuing.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: set_marker
+              arguments: '{"value":"go"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ask_user
+              arguments: '{"question":"Please choose between the following options:","choices":["Option A","Option B"]}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: MARKER_GO
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "User selected: Option A"
+      - role: assistant
+        content: |-
+          The marker is set (MARKER_GO) and you selected **Option A**.

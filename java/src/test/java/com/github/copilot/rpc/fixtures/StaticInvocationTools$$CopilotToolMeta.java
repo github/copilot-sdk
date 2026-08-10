@@ -24,6 +24,6 @@ public final class StaticInvocationTools$$CopilotToolMeta
                     Map<String, Object> args = invocation.getArguments();
                     String phase = (String) args.get("phase");
                     return CompletableFuture.completedFuture(StaticInvocationTools.reportStatic(phase, invocation));
-                }, null, null, null));
+                }, null, null, null, null));
     }
 }

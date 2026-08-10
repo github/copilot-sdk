@@ -10,25 +10,8 @@ on:
       - ".github/workflows/java-sdk-tests.yml"
       - ".github/actions/setup-copilot/**"
       - ".github/actions/java-test-report/**"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "java/**"
-      - "test/**"
-      - ".github/workflows/java-sdk-tests.yml"
-      - ".github/actions/setup-copilot/**"
-      - ".github/actions/java-test-report/**"
-      - "!**/*.md"
-      - "!**/LICENSE*"
-      - "!**/.gitignore"
-      - "!**/.editorconfig"
-      - "!**/*.png"
-      - "!**/*.jpg"
-      - "!**/*.jpeg"
-      - "!**/*.gif"
-      - "!**/*.svg"
   workflow_dispatch:
-  merge_group:
+  workflow_call:
 
 permissions:
   contents: read
@@ -61,6 +44,10 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 22
+
+      - name: Test documentation version updater
+        if: matrix.test-jdk == '25'
+        run: ./scripts/test-update-documentation-versions.sh
 
       - name: Build SDK and set up test harness
         run: mvn test-compile jar:jar

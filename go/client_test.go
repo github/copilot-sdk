@@ -251,6 +251,60 @@ func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	assertCapiEnableWebSocketResponses(t, <-resumeParams)
 }
 
+func TestClient_ForwardsAdditionalDirectoriesToSessionRequests(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+
+	createParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		createParams <- append(json.RawMessage(nil), params...)
+		sessionID := sessionIDFromParams(t, params)
+		return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err := client.CreateSession(t.Context(), &SessionConfig{
+		AdditionalDirectories: []string{"/repo/shared", "/repo/generated"},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	assertAdditionalDirectories(t, <-createParams, []string{"/repo/shared", "/repo/generated"})
+
+	resumeParams := make(chan json.RawMessage, 1)
+	server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeParams <- append(json.RawMessage(nil), params...)
+		return []byte(`{"sessionId":"resumed-additional-directories","workspacePath":"/workspace"}`), nil
+	})
+
+	_, err = client.ResumeSessionWithOptions(
+		t.Context(),
+		"resumed-additional-directories",
+		&ResumeSessionConfig{AdditionalDirectories: []string{"/repo/resumed"}},
+	)
+	if err != nil {
+		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+	}
+	assertAdditionalDirectories(t, <-resumeParams, []string{"/repo/resumed"})
+}
+
+func assertAdditionalDirectories(t *testing.T, params json.RawMessage, want []string) {
+	t.Helper()
+	var payload struct {
+		AdditionalDirectories []string `json:"additionalDirectories"`
+	}
+	if err := json.Unmarshal(params, &payload); err != nil {
+		t.Fatalf("failed to decode request params: %v", err)
+	}
+	if !reflect.DeepEqual(payload.AdditionalDirectories, want) {
+		t.Fatalf("additionalDirectories = %v, want %v", payload.AdditionalDirectories, want)
+	}
+}
+
 func TestClient_ForwardsCanvasProviderToSessionRequests(t *testing.T) {
 	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
 	t.Cleanup(server.Stop)
@@ -1049,9 +1103,11 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		"outputDir":    "/tmp/large-output",
 	}
 	expectedPluginDirs := []any{"/tmp/plugins/a", "/tmp/plugins/b"}
+	expectedDisabledMCPServers := []any{"local-files", "remote-github"}
+	disabledMCPServers := []string{"local-files", "remote-github"}
 
 	t.Run("create includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
-		req := createSessionRequest{PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		req := createSessionRequest{PluginDirectories: pluginDirs, DisabledMCPServers: &disabledMCPServers, LargeOutput: largeOutput}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -1062,6 +1118,9 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		}
 		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
 			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["disabledMcpServers"], expectedDisabledMCPServers) {
+			t.Errorf("Expected disabledMcpServers %v, got %v", expectedDisabledMCPServers, m["disabledMcpServers"])
 		}
 		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
 			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
@@ -1069,7 +1128,7 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 
 	t.Run("resume includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, DisabledMCPServers: &disabledMCPServers, LargeOutput: largeOutput}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -1081,8 +1140,33 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
 			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
 		}
+		if !reflect.DeepEqual(m["disabledMcpServers"], expectedDisabledMCPServers) {
+			t.Errorf("Expected disabledMcpServers %v, got %v", expectedDisabledMCPServers, m["disabledMcpServers"])
+		}
 		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
 			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("create and resume include explicit empty disabledMcpServers", func(t *testing.T) {
+		emptyDisabledMCPServers := []string{}
+		requests := []any{
+			createSessionRequest{DisabledMCPServers: &emptyDisabledMCPServers},
+			resumeSessionRequest{SessionID: "s1", DisabledMCPServers: &emptyDisabledMCPServers},
+		}
+
+		for _, request := range requests {
+			data, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+			var m map[string]any
+			if err := json.Unmarshal(data, &m); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+			if value, ok := m["disabledMcpServers"]; !ok || !reflect.DeepEqual(value, []any{}) {
+				t.Errorf("Expected explicit empty disabledMcpServers, got %v", value)
+			}
 		}
 	})
 
@@ -1099,8 +1183,26 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 		if _, ok := m["pluginDirectories"]; ok {
 			t.Errorf("Expected pluginDirectories to be omitted")
 		}
+		if _, ok := m["disabledMcpServers"]; ok {
+			t.Error("Expected disabledMcpServers to be omitted")
+		}
 		if _, ok := m["largeOutput"]; ok {
 			t.Errorf("Expected largeOutput to be omitted")
+		}
+	})
+
+	t.Run("resume omits disabledMcpServers when nil", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["disabledMcpServers"]; ok {
+			t.Error("Expected disabledMcpServers to be omitted")
 		}
 	})
 }
@@ -1424,6 +1526,53 @@ func TestToolDefer(t *testing.T) {
 		}
 		if _, ok := m["defer"]; ok {
 			t.Errorf("expected defer to be omitted, got %v", m)
+		}
+	})
+}
+
+func TestToolMetadata(t *testing.T) {
+	t.Run("Metadata is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "my_tool",
+			Description: "A custom tool",
+			Metadata: map[string]any{
+				"github.com/copilot:safeForTelemetry": map[string]any{"name": true, "inputsNames": false},
+			},
+			Handler: func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		meta, ok := m["metadata"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected metadata object, got %v", m)
+		}
+		if _, ok := meta["github.com/copilot:safeForTelemetry"]; !ok {
+			t.Errorf("expected namespaced key preserved, got %v", meta)
+		}
+	})
+
+	t.Run("Metadata omitted when unset", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["metadata"]; ok {
+			t.Errorf("expected metadata to be omitted, got %v", m)
 		}
 	})
 }
@@ -2286,6 +2435,63 @@ func TestCreateSessionRequest_RequestMCPApps(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_EnableExperimentalMode(t *testing.T) {
+	t.Run("create forwards enableExperimentalMode when explicitly false", func(t *testing.T) {
+		req := createSessionRequest{
+			IsExperimentalMode: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isExperimentalMode"] != false {
+			t.Errorf("Expected isExperimentalMode to be false, got %v", m["isExperimentalMode"])
+		}
+	})
+
+	t.Run("create omits enableExperimentalMode when unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["isExperimentalMode"]; ok {
+			t.Error("Expected isExperimentalMode to be omitted when not set")
+		}
+	})
+
+	t.Run("resume forwards enableExperimentalMode when explicitly true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:          "s1",
+			IsExperimentalMode: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isExperimentalMode"] != true {
+			t.Errorf("Expected isExperimentalMode to be true, got %v", m["isExperimentalMode"])
+		}
+	})
+
+	t.Run("resume omits enableExperimentalMode when unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["isExperimentalMode"]; ok {
+			t.Error("Expected isExperimentalMode to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
 	t.Run("sends requestMcpApps flag when EnableMCPApps is set", func(t *testing.T) {
 		req := resumeSessionRequest{
@@ -2312,6 +2518,68 @@ func TestResumeSessionRequest_RequestMCPApps(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["requestMcpApps"]; ok {
 			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
+func TestSessionRequests_GitHubMCPToolConfig(t *testing.T) {
+	config := &GitHubMCPToolConfig{
+		EnableAllTools:      Bool(true),
+		AdditionalToolsets:  []string{"repos"},
+		AdditionalTools:     []string{"get_issue"},
+		EnableInsidersMode:  Bool(true),
+		DisableFormDeferral: Bool(true),
+	}
+	expected := map[string]any{
+		"enableAllTools":      true,
+		"additionalToolsets":  []any{"repos"},
+		"additionalTools":     []any{"get_issue"},
+		"enableInsidersMode":  true,
+		"disableFormDeferral": true,
+	}
+
+	t.Run("create", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{GitHubMCPToolConfig: config})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(payload["githubMcpToolConfig"], expected) {
+			t.Fatalf("Unexpected githubMcpToolConfig: %#v", payload["githubMcpToolConfig"])
+		}
+	})
+
+	t.Run("resume", func(t *testing.T) {
+		data, err := json.Marshal(resumeSessionRequest{
+			SessionID:           "s1",
+			GitHubMCPToolConfig: config,
+		})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(payload["githubMcpToolConfig"], expected) {
+			t.Fatalf("Unexpected githubMcpToolConfig: %#v", payload["githubMcpToolConfig"])
+		}
+	})
+
+	t.Run("unset is omitted", func(t *testing.T) {
+		data, err := json.Marshal(createSessionRequest{})
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(data, &payload); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := payload["githubMcpToolConfig"]; ok {
+			t.Fatal("Expected githubMcpToolConfig to be omitted")
 		}
 	})
 }
@@ -3134,9 +3402,13 @@ func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 }
 
 func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-123",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"threshold": 5, "enabled": true}},
+		},
+		AssignmentContext: "ctx-123",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
@@ -3174,10 +3446,50 @@ func TestCreateSessionRequest_ExpAssignments(t *testing.T) {
 	})
 }
 
+func TestCopilotExpAssignmentResponse_MarshalNormalizesNilCollections(t *testing.T) {
+	// A response left with zero-value collections must still serialize the
+	// required fields as JSON arrays/objects, not null, so the runtime does not
+	// treat the payload as malformed.
+	data, err := json.Marshal(&CopilotExpAssignmentResponse{AssignmentContext: "ctx"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	for _, tc := range []struct{ key, want string }{
+		{"Features", "[]"},
+		{"Flights", "{}"},
+		{"Configs", "[]"},
+		{"AssignmentContext", `"ctx"`},
+	} {
+		if got := string(m[tc.key]); got != tc.want {
+			t.Errorf("Expected %s to serialize as %s, got %s", tc.key, tc.want, got)
+		}
+	}
+
+	// A nil Parameters map on an entry must likewise serialize as {}.
+	entryData, err := json.Marshal(ExpConfigEntry{ID: "cfg"})
+	if err != nil {
+		t.Fatalf("Failed to marshal entry: %v", err)
+	}
+	if err := json.Unmarshal(entryData, &m); err != nil {
+		t.Fatalf("Failed to unmarshal entry: %v", err)
+	}
+	if got := string(m["Parameters"]); got != "{}" {
+		t.Errorf("Expected Parameters to serialize as {}, got %s", got)
+	}
+}
+
 func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
-	assignments := map[string]any{
-		"Parameters":        map[string]any{"copilot_exp_flag": "treatment"},
-		"AssignmentContext": "ctx-456",
+	assignments := &CopilotExpAssignmentResponse{
+		Features: []string{"copilot_exp_flag"},
+		Flights:  map[string]string{"copilot_exp_flag": "treatment"},
+		Configs: []ExpConfigEntry{
+			{ID: "cfg-1", Parameters: map[string]ExpFlagValue{"copilot_exp_flag": "treatment"}},
+		},
+		AssignmentContext: "ctx-456",
 	}
 
 	t.Run("includes expAssignments in JSON when set", func(t *testing.T) {
@@ -3211,6 +3523,202 @@ func TestResumeSessionRequest_ExpAssignments(t *testing.T) {
 		}
 		if _, ok := m["expAssignments"]; ok {
 			t.Error("Expected expAssignments to be omitted when nil")
+		}
+	})
+}
+
+func TestIsTerminal(t *testing.T) {
+	t.Run("IsTerminal is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:        "clear_context",
+			Description: "Clear the conversation",
+			IsTerminal:  true,
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["isTerminal"] != true {
+			t.Errorf("Expected isTerminal to be true, got %v", m["isTerminal"])
+		}
+	})
+
+	t.Run("IsTerminal is omitted when false", func(t *testing.T) {
+		tool := Tool{Name: "plain", Description: "A plain tool"}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["isTerminal"]; ok {
+			t.Error("Expected isTerminal to be omitted when false")
+		}
+	})
+}
+
+func TestSessionRequests_ManagedSettings(t *testing.T) {
+	settings := &ManagedSettings{
+		Permissions: &ManagedSettingsPermissions{
+			DisableBypassPermissionsMode: DisableBypassPermissionsModeDisable,
+			Deny:                         []string{"Shell(git push)"},
+			Ask:                          []string{"Domain(publish.example)"},
+			Allow:                        []string{"Read(**)"},
+		},
+	}
+
+	expectedPermissions := map[string]any{
+		"disableBypassPermissionsMode": "disable",
+		"deny":                         []any{"Shell(git push)"},
+		"ask":                          []any{"Domain(publish.example)"},
+		"allow":                        []any{"Read(**)"},
+	}
+
+	t.Run("direct injection enables managed safeguards", func(t *testing.T) {
+		if !hasManagedSettings(nil, settings) {
+			t.Fatal("expected injected managed settings to enable managed safeguards")
+		}
+		if hasManagedSettings(nil, nil) {
+			t.Fatal("expected an ordinary session to remain unmanaged")
+		}
+	})
+
+	t.Run("includes managedSettings on create when set", func(t *testing.T) {
+		req := createSessionRequest{EnableManagedSettings: Bool(true), ManagedSettings: settings}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableManagedSettings"] != true {
+			t.Errorf("Expected enableManagedSettings true, got %v", m["enableManagedSettings"])
+		}
+		ms, ok := m["managedSettings"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+		perms, ok := ms["permissions"].(map[string]any)
+		if !ok {
+			t.Fatalf("Expected permissions object, got %v", ms["permissions"])
+		}
+		if !reflect.DeepEqual(perms, expectedPermissions) {
+			t.Errorf("permissions mismatch:\n got: %#v\nwant: %#v", perms, expectedPermissions)
+		}
+	})
+
+	t.Run("includes managedSettings on resume when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["managedSettings"].(map[string]any); !ok {
+			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
+		}
+	})
+
+	t.Run("omits managedSettings when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["managedSettings"]; ok {
+			t.Error("Expected managedSettings to be omitted when nil")
+		}
+	})
+
+	t.Run("preserves explicit empty permission arrays", func(t *testing.T) {
+		// A non-nil empty allow list is restrictive: it admits no operations.
+		// Preserve field presence while still omitting nil slices.
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				DisableBypassPermissionsMode: DisableBypassPermissionsModeDisable,
+				Deny:                         []string{},
+				Ask:                          []string{},
+				Allow:                        []string{},
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		if perms["disableBypassPermissionsMode"] != "disable" {
+			t.Errorf("Expected disableBypassPermissionsMode preserved, got %v", perms["disableBypassPermissionsMode"])
+		}
+		for _, key := range []string{"deny", "ask", "allow"} {
+			if value, ok := perms[key].([]any); !ok || len(value) != 0 {
+				t.Errorf("Expected %s to be an explicit empty array, got %v", key, perms[key])
+			}
+		}
+	})
+
+	t.Run("distinguishes explicit empty allow from an absent allow", func(t *testing.T) {
+		// Security-critical: a present empty allow list admits nothing, while an
+		// absent allow list imposes no allow restriction. The wire output must
+		// tell these apart per-field, so an explicit empty slice serializes as
+		// `[]` while a nil slice is omitted entirely.
+		req := createSessionRequest{ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				Allow: []string{}, // present but empty: admit nothing
+				// Deny and Ask left nil: no such restriction supplied.
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+
+		allow, ok := perms["allow"].([]any)
+		if !ok || len(allow) != 0 {
+			t.Errorf("Expected allow to be an explicit empty array, got %v", perms["allow"])
+		}
+		if _, present := perms["deny"]; present {
+			t.Errorf("Expected deny to be omitted when nil, got %v", perms["deny"])
+		}
+		if _, present := perms["ask"]; present {
+			t.Errorf("Expected ask to be omitted when nil, got %v", perms["ask"])
+		}
+	})
+
+	t.Run("distinguishes explicit empty arrays on resume", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: &ManagedSettings{
+			Permissions: &ManagedSettingsPermissions{
+				Deny:  []string{},
+				Ask:   []string{},
+				Allow: []string{},
+			},
+		}}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		perms := m["managedSettings"].(map[string]any)["permissions"].(map[string]any)
+		for _, key := range []string{"deny", "ask", "allow"} {
+			if value, ok := perms[key].([]any); !ok || len(value) != 0 {
+				t.Errorf("Expected %s to be an explicit empty array on resume, got %v", key, perms[key])
+			}
 		}
 	})
 }

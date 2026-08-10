@@ -188,12 +188,18 @@ public class McpOAuthE2ETest {
                                             .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
                 waitForMcpServerStatus(session, serverName, McpServerStatus.NEEDS_AUTH, observedRequest);
-            }
 
-            var request = observedRequest.get();
-            assertNotNull(request, "MCP auth handler should be invoked");
-            assertEquals(serverName, request.serverName());
-            assertEquals(McpOauthRequestReason.INITIAL, request.reason());
+                // Race: session.create kicks off the MCP connection, but the SDK
+                // registers its `mcp.oauth_required` interest only after create
+                // returns. If the initial 401 wins, the runtime records
+                // `needs-auth` without invoking the host callback. A later auth
+                // retry (interest now registered) fires the callback with the same
+                // INITIAL reason. Wait for the callback instead of sampling it the
+                // instant `needs-auth` appears, which is what made this test flaky.
+                var request = waitForAuthRequest(observedRequest);
+                assertEquals(serverName, request.serverName());
+                assertEquals(McpOauthRequestReason.INITIAL, request.reason());
+            }
         }
     }
 

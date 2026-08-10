@@ -299,6 +299,20 @@ describe("Session Fs Adapter", () => {
                         rowsAffected: 0,
                     };
                 },
+                async transaction(statements) {
+                    return statements.map((statement) => ({
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [
+                            {
+                                sessionId: "handler-session",
+                                query: statement.query,
+                                queryType: statement.queryType,
+                                answer: statement.params?.answer,
+                            },
+                        ],
+                        rowsAffected: 0,
+                    }));
+                },
                 async exists() {
                     return true;
                 },
@@ -431,6 +445,9 @@ describe("Session Fs Adapter", () => {
             },
             sqlite: {
                 query: async () => {
+                    throw enoent;
+                },
+                transaction: async () => {
                     throw enoent;
                 },
                 exists: async () => {
@@ -588,6 +605,13 @@ function createTestSessionFsHandler(
                     rows: [],
                     rowsAffected: 0,
                 };
+            },
+            async transaction(statements) {
+                return statements.map(() => ({
+                    columns: [],
+                    rows: [],
+                    rowsAffected: 0,
+                }));
             },
             async exists() {
                 return true;
