@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,6 +91,91 @@ it.skipIf(isInProcessTransport)(
             result: { source: "sdk-e2e", count: 11 },
         });
     }
+);
+
+it.skipIf(isInProcessTransport)(
+    "refuses a factory started through the context session from a factory body",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const result = await session.factory.run("starts-from-context-session");
+
+        expect(result).toMatchObject({
+            status: "completed",
+            result: expect.stringContaining("factory.run and factory.resume"),
+        });
+        expect((result as { result: string }).result).toContain("factory body");
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "refuses a factory started through the module session from a factory body",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        await using session = await setupFactoryExtension(workDir);
+
+        const result = await session.factory.run("starts-from-module-session");
+
+        expect(result).toMatchObject({
+            status: "completed",
+            result: expect.stringContaining("factory.run and factory.resume"),
+        });
+        expect((result as { result: string }).result).toContain("factory body");
+    }
+);
+
+it.skipIf(isInProcessTransport)(
+    "allows a module-level extension watcher to start a factory while another body is parked",
+    async () => {
+        if (!factoryTestContext) {
+            throw new Error("Factory E2E requires the stdio transport");
+        }
+        const { workDir } = factoryTestContext;
+        const extensionDir = join(workDir, ".github", "extensions", "factory-smoke");
+        await using session = await setupFactoryExtension(workDir);
+
+        const parked = session.factory.run("parked");
+        await retry(
+            "wait for the parked factory to enter its body",
+            async () => {
+                expect(existsSync(join(extensionDir, "entered"))).toBe(true);
+            },
+            100,
+            100
+        );
+
+        writeFileSync(join(extensionDir, "start-b"), "start");
+        const bResultFile = join(extensionDir, "b-result");
+        await retry(
+            "wait for the module-level watcher factory run to succeed",
+            async () => {
+                expect(existsSync(bResultFile)).toBe(true);
+                expect(JSON.parse(readFileSync(bResultFile, "utf8"))).toMatchObject({
+                    status: "success",
+                    result: {
+                        status: "completed",
+                        result: { source: "module-watcher" },
+                    },
+                });
+            },
+            100,
+            100
+        );
+
+        writeFileSync(join(extensionDir, "release"), "release");
+        await expect(parked).resolves.toMatchObject({
+            status: "completed",
+            result: "released",
+        });
+    },
+    60_000
 );
 
 it.skipIf(isInProcessTransport)(

@@ -569,6 +569,133 @@ describe("factories", () => {
         expect(sendRequest).not.toHaveBeenCalled();
     });
 
+    it("keeps factory reads and cancellation available inside a factory body", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            switch (method) {
+                case "session.factory.getRun":
+                    return { runId: "other-run", status: "completed" };
+                case "session.factory.listRuns":
+                    return { runs: [] };
+                case "session.factory.cancel":
+                    return {};
+                default:
+                    throw new Error(`Unexpected method: ${method}`);
+            }
+        });
+        const session = new CopilotSession("session-factory-reads", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "factory-reads",
+                description: "Read factory state from a factory body",
+                phases: [],
+            },
+            run: async ({ session: contextSession }) => {
+                const [run, runs] = await Promise.all([
+                    contextSession.factory.getRun("other-run"),
+                    contextSession.factory.listRuns(),
+                    contextSession.factory.cancel("other-run"),
+                ]);
+                return { runId: run.runId, runCount: runs.length };
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "factory-reads",
+                runId: "run-factory-reads",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: { runId: "other-run", runCount: 0 } });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.getRun", {
+            sessionId: session.sessionId,
+            runId: "other-run",
+        });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.listRuns", {
+            sessionId: session.sessionId,
+        });
+        expect(sendRequest).toHaveBeenCalledWith("session.factory.cancel", {
+            sessionId: session.sessionId,
+            runId: "other-run",
+        });
+    });
+
+    it("allows factory.run after a factory body returns", async () => {
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.run") {
+                return { runId: "run-after-body", status: "completed", result: "started" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-after-body", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "returns",
+                description: "Return before a separate factory run",
+                phases: [],
+            },
+            run: async () => "finished",
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "returns",
+                runId: "run-returns",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "finished" });
+        await expect(session.factory.run("after-body")).resolves.toMatchObject({
+            status: "completed",
+            result: "started",
+        });
+    });
+
+    it("allows a factory-body timer to start a factory after the body settles", async () => {
+        const delayedRun = Promise.withResolvers<unknown>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.run") {
+                return { runId: "run-from-timer", status: "completed", result: "started" };
+            }
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const session = new CopilotSession("session-timer", { sendRequest } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "timer",
+                description: "Start a factory from an unawaited timer",
+                phases: [],
+            },
+            run: async () => {
+                setTimeout(() => {
+                    void session.factory
+                        .run("from-timer")
+                        .then(delayedRun.resolve, delayedRun.reject);
+                }, 0);
+                return "finished";
+            },
+        });
+        session.registerFactories([factory]);
+
+        await expect(
+            session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "timer",
+                runId: "run-timer",
+                executionToken: "execution-token",
+                args: {},
+            })
+        ).resolves.toEqual({ result: "finished" });
+        await expect(delayedRun.promise).resolves.toMatchObject({
+            status: "completed",
+            result: "started",
+        });
+    });
+
     it("flushes progress incrementally while a factory body is awaiting", async () => {
         const sendRequest = vi.fn(async () => ({}));
         const session = new CopilotSession("session-live-progress", { sendRequest } as never);

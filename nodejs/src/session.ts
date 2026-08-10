@@ -7,6 +7,7 @@
  * @module session
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
@@ -84,6 +85,16 @@ function isFactoryResumeErrorCode(value: unknown): value is FactoryResumeErrorCo
         value === "reapproval_declined" ||
         value === "no_approval_provider"
     );
+}
+
+const factoryExecutionStore = new AsyncLocalStorage<{ active: boolean }>();
+
+function throwIfFactoryExecutionIsActive(): void {
+    if (factoryExecutionStore.getStore()?.active) {
+        throw new Error(
+            "factory.run and factory.resume are not allowed while a factory body is running on this call path."
+        );
+    }
 }
 
 /**
@@ -421,6 +432,7 @@ export class CopilotSession {
             nameOrHandle: string | FactoryHandle,
             options?: RunOptions
         ): Promise<unknown> => {
+            throwIfFactoryExecutionIsActive();
             const name =
                 typeof nameOrHandle === "string"
                     ? nameOrHandle
@@ -441,6 +453,7 @@ export class CopilotSession {
             return this.settleFactoryRun(envelope);
         }) as SessionFactoryApi["run"],
         resume: (async (runId: string, options?: Parameters<SessionFactoryApi["resume"]>[1]) => {
+            throwIfFactoryExecutionIsActive();
             let response;
             try {
                 response = await this.rpc.factory.resume({
@@ -1441,7 +1454,14 @@ export class CopilotSession {
                             throw new Error("nested factories are not supported");
                         },
                     };
-                    const result = await definition.run(context);
+                    const execution = { active: true };
+                    const result = await factoryExecutionStore.run(execution, async () => {
+                        try {
+                            return await definition.run(context);
+                        } finally {
+                            execution.active = false;
+                        }
+                    });
                     if (result === undefined) {
                         return {};
                     }
