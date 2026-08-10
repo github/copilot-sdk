@@ -2208,7 +2208,24 @@ describe("CopilotClient", () => {
             await expect(session.disconnect()).resolves.toBeUndefined();
             expect(
                 sendRequest.mock.calls.filter(([method]) => method === "session.detach")
-            ).toHaveLength(2);
+            ).toHaveLength(3);
+        });
+
+        it("retries an unsuccessful detach response before disconnecting", async () => {
+            const sendRequest = vi
+                .fn()
+                .mockResolvedValueOnce({ success: false, error: "cleanup raced" })
+                .mockResolvedValueOnce({ success: true });
+            const session = new CopilotSession(
+                "test-session",
+                { sendRequest } as any,
+                undefined,
+                undefined
+            );
+
+            await expect(session.disconnect()).resolves.toBeUndefined();
+            await expect(session.getEvents()).rejects.toThrow("has been disconnected");
+            expect(sendRequest).toHaveBeenCalledTimes(2);
         });
 
         it("detaches a session when asynchronously disposed", async () => {
