@@ -95,6 +95,12 @@ Add both the SDK and the platform-specific native runtime to your project:
         <version>${copilot.version}</version>
         <classifier>linux-x64</classifier>
     </dependency>
+    <!-- JNA (required for in-process mode) -->
+    <dependency>
+        <groupId>net.java.dev.jna</groupId>
+        <artifactId>jna</artifactId>
+        <version>5.19.1</version>
+    </dependency>
 </dependencies>
 ```
 
