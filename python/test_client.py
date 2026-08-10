@@ -6,6 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import asyncio
 import inspect
+import threading
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
@@ -2636,6 +2637,44 @@ class TestCopilotSessionDisconnect:
         await session.disconnect()
 
         assert client.request.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_successful_disconnect_unregisters_session(self):
+        from copilot.session import CopilotSession
+
+        rpc_client = Mock()
+        rpc_client.request = AsyncMock(return_value={"success": True})
+        sdk_client = CopilotClient.__new__(CopilotClient)
+        sdk_client._sessions = {}
+        sdk_client._sessions_lock = threading.Lock()
+        session = CopilotSession(
+            "session-id",
+            rpc_client,
+            on_disconnected=sdk_client._unregister_session,
+        )
+        sdk_client._sessions[session.session_id] = session
+
+        await session.disconnect()
+
+        assert sdk_client._get_session(session.session_id) is None
+
+    @pytest.mark.asyncio
+    async def test_disconnected_session_rejects_session_operations_locally(self):
+        from copilot.session import CopilotSession
+
+        client = Mock()
+        client.request = AsyncMock(return_value={"success": True})
+        session = CopilotSession("session-id", client)
+        await session.disconnect()
+        client.request.reset_mock()
+
+        with pytest.raises(RuntimeError, match="Session session-id has been disconnected"):
+            await session.send("hello")
+        with pytest.raises(RuntimeError, match="Session session-id has been disconnected"):
+            await session.get_events()
+        with pytest.raises(RuntimeError, match="Session session-id has been disconnected"):
+            _ = session.rpc
+        client.request.assert_not_awaited()
 
 
 class TestCustomAgentWireFormat:

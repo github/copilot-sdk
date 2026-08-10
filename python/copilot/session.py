@@ -1507,6 +1507,7 @@ class CopilotSession:
         client: Any,
         workspace_path: os.PathLike[str] | str | None = None,
         managed_settings_enabled: bool = False,
+        on_disconnected: Callable[[CopilotSession], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1522,6 +1523,7 @@ class CopilotSession:
                 (when infinite sessions enabled).
             managed_settings_enabled: Whether managed settings were enabled when
                 creating or resuming the session.
+            on_disconnected: Callback invoked after the session disconnects successfully.
         """
         self.session_id = session_id
         self._managed_settings_enabled = managed_settings_enabled
@@ -1560,10 +1562,17 @@ class CopilotSession:
         self._rpc: SessionRpc | None = None
         self._destroyed = False
         self._disconnect_lock = asyncio.Lock()
+        self._on_disconnected = on_disconnected
+
+    def _ensure_connected(self) -> None:
+        with self._event_handlers_lock:
+            if self._destroyed:
+                raise RuntimeError(f"Session {self.session_id} has been disconnected")
 
     @property
     def rpc(self) -> SessionRpc:
         """Typed session-scoped RPC methods."""
+        self._ensure_connected()
         if self._rpc is None:
             self._rpc = SessionRpc(self._client, self.session_id)
         return self._rpc
@@ -1644,6 +1653,7 @@ class CopilotSession:
             ...     attachments=[{"type": "file", "path": "./src/main.py"}],
             ... )
         """
+        self._ensure_connected()
         params: dict[str, Any] = {
             "sessionId": self.session_id,
             "prompt": prompt,
@@ -2890,6 +2900,7 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(f"Assistant: {data.content}")
         """
+        self._ensure_connected()
         response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
         # Convert dict events to SessionEvent objects
         events_dicts = response["events"]
@@ -2943,6 +2954,10 @@ class CopilotSession:
                 self._exit_plan_mode_handler = None
             with self._auto_mode_switch_handler_lock:
                 self._auto_mode_switch_handler = None
+            on_disconnected = self._on_disconnected
+            self._on_disconnected = None
+            if on_disconnected is not None:
+                on_disconnected(self)
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""
