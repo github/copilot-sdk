@@ -108,6 +108,35 @@
                             </excludes>
                         </configuration>
                     </execution>
+                    <!--
+                        Empty javadoc JAR required by Maven Central. This module
+                        has no Java sources so maven-javadoc-plugin produces nothing.
+                    -->
+                    <execution>
+                        <id>empty-javadoc-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>javadoc</classifier>
+                            <classesDirectory>${project.basedir}/src/main/javadoc</classesDirectory>
+                        </configuration>
+                    </execution>
+                    <!--
+                        Empty sources JAR required by Maven Central.
+                    -->
+                    <execution>
+                        <id>empty-sources-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>sources</classifier>
+                            <classesDirectory>${project.basedir}/src/main/java</classesDirectory>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <!--
@@ -149,10 +178,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-                Required by Maven Central: sources and javadoc artifacts. This
-                module has no Java sources, so both produce empty archives.
-            -->
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
