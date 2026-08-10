@@ -1068,6 +1068,10 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             writeResponse(message.id, { messageId: "fake-message" });
             return;
           }
+          if (message.method === "session.detach") {
+            writeResponse(message.id, { success: true });
+            return;
+          }
 
           writeResponse(message.id, {});
         }

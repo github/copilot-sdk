@@ -23,6 +23,21 @@ public class ZeroTimeoutContractTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void closeShouldPropagateDetachFailureAndRemainTerminal() {
+        var mockRpc = mock(JsonRpcClient.class);
+        when(mockRpc.invoke(eq("session.detach"), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(false, "cleanup failed")));
+        var session = new CopilotSession("detach-failure-test", mockRpc);
+
+        var error = assertThrows(IllegalStateException.class, session::close);
+
+        assertTrue(error.getMessage().contains("cleanup failed"));
+        assertThrows(IllegalStateException.class, () -> session.send("test"));
+        assertDoesNotThrow(session::close);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void sendAndWaitWithZeroTimeoutShouldNotTimeOut() throws Exception {
         // Build a session via reflection (package-private constructor)
         var ctor = CopilotSession.class.getDeclaredConstructor(String.class, JsonRpcClient.class, String.class);
@@ -33,7 +48,7 @@ public class ZeroTimeoutContractTest {
             Object method = invocation.getArgument(0);
             if ("session.detach".equals(method)) {
                 // Make session.close() non-blocking by completing detach immediately
-                return CompletableFuture.completedFuture(null);
+                return CompletableFuture.completedFuture(new CopilotSession.SessionDetachResponse(true, null));
             }
             // For other calls (e.g., message send), return an incomplete future so the
             // sendAndWait result does not complete due to a mock response.

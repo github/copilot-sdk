@@ -2605,6 +2605,39 @@ class TestCopilotSessionContextManager:
             mock_disconnect.assert_awaited_once()
 
 
+class TestCopilotSessionDisconnect:
+    @pytest.mark.asyncio
+    async def test_concurrent_disconnect_sends_one_request(self):
+        from copilot.session import CopilotSession
+
+        client = Mock()
+        client.request = AsyncMock(return_value={"success": True})
+        session = CopilotSession("session-id", client)
+
+        await asyncio.gather(session.disconnect(), session.disconnect())
+
+        client.request.assert_awaited_once_with("session.detach", {"sessionId": "session-id"})
+
+    @pytest.mark.asyncio
+    async def test_failed_disconnect_can_be_retried(self):
+        from copilot.session import CopilotSession
+
+        client = Mock()
+        client.request = AsyncMock(
+            side_effect=[
+                {"success": False, "error": "temporary failure"},
+                {"success": True},
+            ]
+        )
+        session = CopilotSession("session-id", client)
+
+        with pytest.raises(RuntimeError, match="temporary failure"):
+            await session.disconnect()
+        await session.disconnect()
+
+        assert client.request.await_count == 2
+
+
 class TestCustomAgentWireFormat:
     def test_model_field_is_forwarded_in_wire_format(self):
         """The model key in CustomAgentConfig should appear as 'model' in the wire payload."""

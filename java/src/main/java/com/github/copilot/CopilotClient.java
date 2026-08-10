@@ -381,26 +381,32 @@ public final class CopilotClient implements AutoCloseable {
 
         for (CopilotSession session : new ArrayList<>(sessions.values())) {
             Runnable closeTask = () -> {
-                try {
-                    session.close();
-                } catch (Exception e) {
-                    LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), e);
-                }
+                session.close();
             };
             CompletableFuture<Void> future;
             try {
                 future = CompletableFuture.runAsync(closeTask, executor);
             } catch (RejectedExecutionException e) {
                 LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
-                closeTask.run();
-                future = CompletableFuture.completedFuture(null);
+                try {
+                    closeTask.run();
+                    future = CompletableFuture.completedFuture(null);
+                } catch (RuntimeException closeError) {
+                    future = CompletableFuture.failedFuture(closeError);
+                }
             }
             closeFutures.add(future);
         }
         sessions.clear();
 
         return CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
-                .thenCompose(v -> cleanupConnection(true));
+                .handle((ignored, closeError) -> closeError)
+                .thenCompose(closeError -> cleanupConnection(true).thenApply(ignored -> {
+                    if (closeError != null) {
+                        throw new CompletionException(closeError);
+                    }
+                    return null;
+                }));
     }
 
     /**
@@ -571,6 +577,7 @@ public final class CopilotClient implements AutoCloseable {
                 long setupNanos = System.nanoTime();
                 var s = new CopilotSession(sid, connection.rpc);
                 s.setExecutor(executor);
+                s.setOnClosed(() -> sessions.remove(sid, s));
                 SessionRequestBuilder.configureSession(s, config);
                 if (extracted.transformCallbacks() != null) {
                     s.registerTransformCallbacks(extracted.transformCallbacks());
@@ -743,6 +750,7 @@ public final class CopilotClient implements AutoCloseable {
             long setupNanos = System.nanoTime();
             var session = new CopilotSession(sessionId, connection.rpc);
             session.setExecutor(executor);
+            session.setOnClosed(() -> sessions.remove(sessionId, session));
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
             LoggingHelpers.logTiming(LOG, Level.FINE,

@@ -1939,18 +1939,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
         finally
         {
             RemoveFromClient();
+            _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
+            _toolHandlers.Clear();
+            _commandHandlers.Clear();
+
+            _permissionHandler = null;
+            _userInputHandler = null;
+            _elicitationHandler = null;
+            _exitPlanModeHandler = null;
+            _autoModeSwitchHandler = null;
             GC.SuppressFinalize(this);
         }
-
-        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
-        _toolHandlers.Clear();
-        _commandHandlers.Clear();
-
-        _permissionHandler = null;
-        _userInputHandler = null;
-        _elicitationHandler = null;
-        _exitPlanModeHandler = null;
-        _autoModeSwitchHandler = null;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]

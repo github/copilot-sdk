@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -81,7 +82,7 @@ public class TimeoutEdgeCaseTest {
 
                 // close() blocks up to 5s on session.detach RPC. The 2s timeout
                 // fires during that window with the current per-call scheduler.
-                session.close();
+                assertThrows(IllegalStateException.class, session::close);
 
                 assertFalse(result.isDone(), "Future should not be completed by a timeout after session is closed. "
                         + "The per-call ScheduledExecutorService leaked a TimeoutException.");
@@ -126,6 +127,7 @@ public class TimeoutEdgeCaseTest {
 
                 result1.cancel(true);
                 result2.cancel(true);
+                assertThrows(IllegalStateException.class, session::close);
             }
         } finally {
             rpc.close();

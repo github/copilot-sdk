@@ -1939,6 +1939,36 @@ func TestClient_MCPAuthInterestRegistration(t *testing.T) {
 	})
 }
 
+func TestSessionDisconnectUnregistersBeforeClientStop(t *testing.T) {
+	client, requests, cleanup := newInMemoryClient(t)
+	defer cleanup()
+
+	session, err := client.CreateSession(t.Context(), &SessionConfig{
+		OnPermissionRequest: PermissionHandler.ApproveAll,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	requests.clear()
+
+	if err := session.Disconnect(); err != nil {
+		t.Fatalf("Disconnect failed: %v", err)
+	}
+	if err := client.Stop(); err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+
+	detachCount := 0
+	for _, request := range requests.snapshot() {
+		if request.Method == "session.detach" {
+			detachCount++
+		}
+	}
+	if detachCount != 1 {
+		t.Fatalf("expected exactly one session.detach request, got %d", detachCount)
+	}
+}
+
 type recordedRequest struct {
 	Method string
 	Params map[string]any

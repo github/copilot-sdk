@@ -201,6 +201,8 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
+    private volatile Runnable onClosed = () -> {
+    };
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -250,6 +252,10 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setExecutor(Executor executor) {
         this.executor = executor;
+    }
+
+    void setOnClosed(Runnable onClosed) {
+        this.onClosed = onClosed;
     }
 
     /**
@@ -2302,19 +2308,20 @@ public final class CopilotSession implements AutoCloseable {
 
         timeoutScheduler.shutdownNow();
 
+        RuntimeException detachFailure = null;
         try {
             SessionDetachResponse response = rpc
                     .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
                     .get(5, TimeUnit.SECONDS);
             if (response == null || !response.success()) {
-                LOG.log(Level.FINE, "Failed to detach session {0}: {1}",
-                        new Object[] {
-                                sessionId,
-                                response != null && response.error() != null ? response.error() : "unknown error"
-                        });
+                String detail = response != null && response.error() != null ? response.error() : "unknown error";
+                detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
             }
         } catch (Exception e) {
-            LOG.log(Level.FINE, "Error detaching session", e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         }
 
         eventHandlers.clear();
@@ -2326,13 +2333,17 @@ public final class CopilotSession implements AutoCloseable {
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
+        onClosed.run();
+
+        if (detachFailure != null) {
+            throw detachFailure;
+        }
     }
 
     // ===== Internal response types for agent API =====
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SessionDetachResponse(@JsonProperty("success") boolean success,
-            @JsonProperty("error") String error) {
+    record SessionDetachResponse(@JsonProperty("success") boolean success, @JsonProperty("error") String error) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
