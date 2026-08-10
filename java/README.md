@@ -207,7 +207,7 @@ See the full source of [`jbang-example.java`](sdk/jbang-example.java) for a comp
 Or run it directly from the repository:
 
 ```bash
-jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
+jbang https://github.com/github/copilot-sdk/blob/main/java/sdk/jbang-example.java
 ```
 
 ## Annotation-based tools and `ToolInvocation` context

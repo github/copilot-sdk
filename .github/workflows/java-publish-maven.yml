@@ -173,10 +173,10 @@ jobs:
           VERSION="${{ steps.versions.outputs.release_version }}"
           DEV_VERSION="${{ steps.versions.outputs.dev_version }}"
           ./scripts/test-update-documentation-versions.sh
-          ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md jbang-example.java
+          ./scripts/update-documentation-versions.sh "$VERSION" "$DEV_VERSION" README.md sdk/jbang-example.java
 
           # Commit the documentation changes before release:prepare (requires clean working directory)
-          git add README.md jbang-example.java
+          git add README.md sdk/jbang-example.java
           git commit -m "docs: update version references to ${VERSION}"
 
           # Save the commit SHA for potential rollback
