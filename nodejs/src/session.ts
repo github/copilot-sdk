@@ -279,7 +279,10 @@ class FactoryProgressBuffer {
         const lines = this.pending.splice(0);
         await this.flushTail;
         if (this.flushFailed) {
-            throw this.flushError;
+            console.warn(
+                "Ignoring a background factory progress flush failure after the factory body settled",
+                this.flushError
+            );
         }
         if (lines.length > 0) {
             try {

@@ -1647,6 +1647,56 @@ describe("factories", () => {
         );
     });
 
+    it("keeps a completed execution successful when a background progress flush fails", async () => {
+        vi.useFakeTimers();
+        const release = Promise.withResolvers<void>();
+        const sendRequest = vi.fn(async (method: string) => {
+            if (method === "session.factory.log") {
+                throw new Error("background transport failure");
+            }
+            return {};
+        });
+        const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const session = new CopilotSession("session-background-flush-failure", {
+            sendRequest,
+        } as never);
+        const factory = defineFactory({
+            meta: {
+                name: "background-flush-failure",
+                description: "Background flush failure regression test",
+                phases: [],
+            },
+            run: async ({ log }) => {
+                log("background line");
+                await release.promise;
+                return "done";
+            },
+        });
+        session.registerFactories([factory]);
+
+        try {
+            const execution = session.clientSessionApis.factory!.execute({
+                sessionId: session.sessionId,
+                name: "background-flush-failure",
+                runId: "run-background-flush-failure",
+                executionToken: "execution-token",
+                args: {},
+            });
+            await vi.advanceTimersByTimeAsync(10_000);
+            await Promise.resolve();
+
+            release.resolve();
+
+            await expect(execution).resolves.toEqual({ result: "done" });
+            expect(warning).toHaveBeenCalledWith(
+                "Ignoring a background factory progress flush failure after the factory body settled",
+                expect.objectContaining({ message: "background transport failure" })
+            );
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("keeps a mid-run progress flush failure fatal", async () => {
         const sendRequest = vi.fn(async (method: string) => {
             if (method === "session.factory.log") {
