@@ -59,6 +59,7 @@ import type {
     WorkingDirectoryContextHostType,
     FactoryContext,
     FactoryDefinition,
+    FactoryRunResult,
     JsonValue,
 } from "../src/index.js";
 
@@ -97,6 +98,11 @@ type _DefaultFactoryResultIsJsonValueOrVoid = _AssertEqual<
     JsonValue | void
 >;
 const _defaultFactoryResultCheck: _DefaultFactoryResultIsJsonValueOrVoid = true;
+type _FactoryRunResultIsJsonValueOrUndefined = _AssertEqual<
+    FactoryRunResult["result"],
+    JsonValue | undefined
+>;
+const _factoryRunResultCheck: _FactoryRunResultIsJsonValueOrUndefined = true;
 // @ts-expect-error Factory arguments must be representable on the JSON wire.
 type _FactoryArgsRejectUndefined = FactoryContext<undefined>;
 // @ts-expect-error Factory results must be JSON values or top-level void.

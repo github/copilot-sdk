@@ -10,5 +10,14 @@ const argumentEcho = defineFactory({
     run: async ({ args }) => args,
 });
 
-await joinSession({ factories: [argumentEcho] });
+const arrayResult = defineFactory({
+    meta: {
+        name: "array-result",
+        description: "Return an array result.",
+        phases: [],
+    },
+    run: async () => [1, "two", false],
+});
+
+await joinSession({ factories: [argumentEcho, arrayResult] });
 writeFileSync(new URL("./ready", import.meta.url), "ready");

@@ -6,38 +6,14 @@ import type {
     FactoryGetRunProgressRequest,
     FactoryProgressPage,
     FactoryRunDetail,
-    FactoryRunResult as WireFactoryRunResult,
+    FactoryRunResult,
     FactoryRunStatus,
     FactoryRunSummary,
 } from "./generated/rpc.js";
 import type { CopilotSession } from "./session.js";
 import type { FactoryLimits, FactoryMeta } from "./types.js";
 
-/**
- * The envelope describing a factory run: its identity, status, and — once it
- * has completed — its result. `getRun` returns this for an in-flight run too,
- * so `status` may be `pending` or `running` and the outcome fields absent.
- *
- * `result` is re-typed here rather than taken from the generated wire type. The
- * runtime returns any JSON value — including `null`, a string, a number, or an
- * array — but the schema models the field as an opaque node, which the
- * generator renders as an object. Narrowing the correction to this surface
- * keeps the `x-opaque-json` handling unchanged for every other consumer.
- *
- * This override is temporary. Once the schema distinguishes an opaque JSON
- * value from an opaque in-process value and that ships in a CLI release,
- * regenerating produces the right type directly, and this declaration, the
- * `toPublicFactoryRunResult` boundary helper, and the casts around it should
- * all be deleted. Tracked by github/copilot-agent-runtime#14122.
- *
- * @experimental Part of the experimental Agent Factories surface and may
- * change or be removed in future SDK or CLI releases.
- */
-export type FactoryRunResult = Omit<WireFactoryRunResult, "result"> & {
-    /** Completed factory result. */
-    result?: JsonValue;
-};
-
+export type { FactoryRunResult };
 export type {
     FactoryAgentSummary,
     FactoryPhaseStatus,
