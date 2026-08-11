@@ -53,7 +53,7 @@ The `run()` context provides:
 
 - `ctx.runId`: Stable ID reused across resumed attempts.
 - `ctx.args`: Invocation arguments, forwarded verbatim. When the caller omits `args`, this is `{}` rather than `undefined`.
-- `ctx.agent(prompt, options?)`: Runs one factory-owned subagent. Options are exactly `label`, `schema`, and `model`. See [Subagent calls](#subagent-calls).
+- `ctx.agent(prompt, options?)`: Runs one factory-owned subagent. Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`. The SDK forwards `agent`, `reasoningEffort`, and `contextTier`, but the current runtime does not yet honor them. See [Subagent calls](#subagent-calls).
 - `ctx.parallel(thunks)`: Runs thunks concurrently and awaits all of them (a barrier). A thunk that throws becomes `null` in the result array, so one failed item does not lose the rest. Cancellation and hard runtime failures (`ResponseError`, `ConnectionError`) are the exception — those propagate and reject the whole call, because they mean the run itself is in trouble rather than one item having failed. Handle them at run level; do not assume every failure arrives as a `null`. Rejects above 4096 items.
 - `ctx.pipeline(items, ...stages)`: Flows each item through every stage without a barrier between stages, so one item can be in a later stage while another is still in an earlier one. Each stage is called as `(previous, item, index)`, where `previous` is the prior stage's result and `item` is the original input. A stage that throws drops that item to `null` and skips its remaining stages, with the same exception for cancellation and hard runtime failures. Rejects above 4096 items.
 - `ctx.phase(title)`: Starts a named progress phase. This sets a single run-global value, so calling it from inside concurrent `parallel`/`pipeline` stages races. Call it at run-level transitions and distinguish concurrent work by `label` instead.
@@ -61,7 +61,7 @@ The `run()` context provides:
 - `ctx.step(key, producer, options?)`: Journals the producer's JSON result under a stable key so a resume replays it without re-running the producer. A journaled (default) producer must return a JSON-serializable value; `undefined` or a non-JSON value is rejected. Pass `{ volatile: true }` to bypass the journal and run the producer every time.
 
   The key is the *sole* identity: neither the producer body nor its inputs contribute to it. A resume replays the cached value for a matching key even if the producer has since changed, so version the key (`"scan-v2"`) whenever its inputs or meaning change. Journaled producers are best-effort at-least-once and may run again across crashes or concurrent same-key callers, so keep side effects idempotent.
-- `ctx.session`: The full session returned by `joinSession`.
+- `ctx.session`: The full session returned by `joinSession`. It remains the full session, but `factory.run` and `factory.resume` are refused while the factory body runs on the same call path.
 - `ctx.signal`: Cooperative cancellation signal for extension work and subprocesses.
 - `ctx.factory(...)`: Always rejects because nested factories are not supported.
 
@@ -156,7 +156,7 @@ session.factory.resume(
 ): Promise<FactoryRunResult>;
 ```
 
-Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. A declined fresh run is not a pre-execution failure: the run row already exists by the time the prompt is answered, so it resolves with a terminal `cancelled` envelope carrying the run ID. Only failures that occur *before* a run exists reject: an unknown factory name or an already-active session. Pre-execution resume failures, including a declined reapproval, throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `reapproval_declined`, or `no_approval_provider`.
+Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. The model's `run_factory` tool requests permission before the durable row exists; declining it creates no run row. An SDK-initiated run is refused only when four top-level runs are already active. Pre-execution resume failures throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, or `factory_storage_corrupt`.
 
 An agent that no longer has a prior run's ID in context can recover it with `factories_manage` and `operation: "runs"`, which lists the session's factory runs with their IDs and statuses. This matters for resume: a run that reached a limit keeps its journal, so resuming it replays completed work for free, while restarting it from scratch pays for that work twice.
 
@@ -210,7 +210,7 @@ const page = await session.factory.getRunProgress(runId, {
 });
 ```
 
-- `listRuns()` returns summaries in durable creation order.
+- `listRuns()` returns the newest default page (the SDK sends `{}`, so the runtime defaults to 200 runs and caps the page at 500).
 - `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
 

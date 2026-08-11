@@ -174,7 +174,12 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
     factory(name: string, args?: JsonValue): Promise<JsonValue | void>;
     /** Caller-supplied input, forwarded verbatim. */
     args: TArgs;
-    /** The same full session instance returned by `joinSession`. */
+    /**
+     * The same full session instance returned by `joinSession`.
+     *
+     * While the factory body runs, `factory.run` and `factory.resume` are
+     * refused on the same call path.
+     */
     session: CopilotSession;
     /** Cooperative cancellation signal for the current factory run. */
     signal: AbortSignal;
@@ -282,9 +287,11 @@ export interface SessionFactoryApi {
      *
      * The envelope is returned for every outcome, including `error`, `halted`,
      * and `cancelled` — inspect `status` and read `result` only when the run
-     * completed. A declined fresh run resolves with a terminal `cancelled`
-     * envelope. Failures that occur before a run exists (such as an unknown
-     * factory or an already-active session) still reject.
+     * completed. SDK-initiated runs do not request permission, so they have no
+     * declined outcome. The model's `run_factory` tool requests permission
+     * before a durable row exists; declining it creates no run row. Failures
+     * that occur before a run exists (such as an unknown factory or attempting
+     * to start a fifth top-level run while four are active) still reject.
      */
     run(name: string, options?: RunOptions): Promise<FactoryRunResult>;
     run<TArgs extends JsonValue>(
@@ -294,9 +301,9 @@ export interface SessionFactoryApi {
     /**
      * Resume a run from its persisted factory name, arguments, journal, and accounting.
      *
-     * Resolves with the run envelope like {@link SessionFactoryApi.run}. A
-     * pre-execution failure, including declined reapproval, rejects with
-     * {@link FactoryResumeError}.
+     * Resolves with the run envelope like {@link SessionFactoryApi.run}.
+     * SDK-initiated resumes do not request permission. A pre-execution failure
+     * with a documented resume code rejects with {@link FactoryResumeError}.
      */
     resume(runId: string, options?: ResumeOptions): Promise<FactoryRunResult>;
     /** Read the latest durable envelope for a factory run. */
@@ -316,7 +323,10 @@ export interface SessionFactoryApi {
      * {@link SessionFactoryApi.cancel} to actually stop it.
      */
     waitForRun(runId: string, options?: { signal?: AbortSignal }): Promise<FactoryRunResult>;
-    /** List this session's durable factory runs in creation order. */
+    /**
+     * List the newest default page (the SDK sends `{}`, so the runtime defaults
+     * to 200 runs and caps the page at 500).
+     */
     listRuns(): Promise<FactoryRunSummary[]>;
     /** Read durable phases, direct agents, and the latest progress tail for a run. */
     getRunDetail(runId: string): Promise<FactoryRunDetail>;

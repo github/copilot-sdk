@@ -402,6 +402,66 @@ describe("factories", () => {
         expect(generatedRpc).toContain("timeoutSeconds?: number;");
     });
 
+    it("documents factory invocation and list paging behavior accurately", () => {
+        const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
+        const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
+        const listRunsPagingWording =
+            "newest default page (the SDK sends `{}`, so the runtime defaults to 200 runs and caps the page at 500)";
+        const resumeCodes = [
+            "not_found",
+            "non_resumable",
+            "already_active",
+            "factory_already_running",
+            "factory_limits_invalid",
+            "factory_session_disposed",
+            "factory_storage_unavailable",
+            "factory_storage_corrupt",
+        ];
+        const normalizeJSDoc = (document: string) =>
+            document.replace(/\r?\n\s*\* ?/g, " ").replace(/\s+/g, " ");
+        const normalizedGuide = normalizeJSDoc(guide);
+        const normalizedPublicApi = normalizeJSDoc(publicApi);
+
+        for (const document of [guide, publicApi]) {
+            expect(document).not.toContain("reapproval_declined");
+            expect(document).not.toContain("no_approval_provider");
+            expect(document).not.toMatch(/declined fresh run[\s\S]*terminal `cancelled` envelope/i);
+        }
+
+        for (const document of [normalizedGuide, normalizedPublicApi]) {
+            expect(document).toContain(listRunsPagingWording);
+        }
+
+        expect(normalizedGuide).toContain(
+            "SDK-initiated `run` and `resume` do not request permission"
+        );
+        expect(normalizedGuide).toContain("`run_factory` tool requests permission before the durable row exists");
+        expect(normalizedGuide).toContain("declining it creates no run row");
+        expect(normalizedGuide).toContain("only when four top-level runs are already active");
+        for (const code of resumeCodes) {
+            expect(guide).toContain(`\`${code}\``);
+        }
+        expect(guide).toContain(
+            "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
+        );
+        expect(guide).toContain(
+            "The SDK forwards `agent`, `reasoningEffort`, and `contextTier`"
+        );
+        expect(guide).toContain("the current runtime does not yet honor them");
+        expect(normalizedGuide).toContain("full session returned by `joinSession`");
+        expect(normalizedGuide).toContain("factory body runs on the same call path");
+
+        expect(normalizedPublicApi).toContain("SDK-initiated runs do not request permission");
+        expect(normalizedPublicApi).toContain("declining it creates no run row");
+        expect(normalizedPublicApi).toContain("fifth top-level run while four are active");
+        expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
+        expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
+        expect(normalizedPublicApi).toContain("same full session instance returned by `joinSession`");
+        expect(normalizedPublicApi).toContain(
+            "factory.run` and `factory.resume` are refused on the same call path"
+        );
+    });
+
     it("serializes only factory metadata in the extension resume payload", async () => {
         const client = new CopilotClient();
         await client.start();
