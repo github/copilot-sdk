@@ -61,7 +61,7 @@ The `run()` context provides:
 - `ctx.step(key, producer, options?)`: Journals the producer's JSON result under a stable key so a resume replays it without re-running the producer. A journaled (default) producer must return a JSON-serializable value; `undefined` or a non-JSON value is rejected. Pass `{ volatile: true }` to bypass the journal and run the producer every time.
 
   The key is the *sole* identity: neither the producer body nor its inputs contribute to it. A resume replays the cached value for a matching key even if the producer has since changed, so version the key (`"scan-v2"`) whenever its inputs or meaning change. Journaled producers are best-effort at-least-once and may run again across crashes or concurrent same-key callers, so keep side effects idempotent.
-- `ctx.session`: The session returned by `joinSession`, without the APIs that start and resume factory runs. Call `extensions_manage` with `operation: "guide"` to read more about the session APIs.
+- `ctx.session`: The session returned by `joinSession`. It refuses calls that start or resume a factory run. Call `extensions_manage` with `operation: "guide"` to read more about the session APIs.
 - `ctx.signal`: Cooperative cancellation signal for extension work and subprocesses.
 - `ctx.factory(...)`: Always rejects because nested factories are not supported.
 

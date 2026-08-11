@@ -175,8 +175,8 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
     /** Caller-supplied input, forwarded verbatim. */
     args: TArgs;
     /**
-     * The session instance returned by `joinSession`, without the APIs that
-     * start and resume factory runs.
+     * The session instance returned by `joinSession`. It refuses calls that
+     * start or resume a factory run.
      */
     session: CopilotSession;
     /** Cooperative cancellation signal for the current factory run. */

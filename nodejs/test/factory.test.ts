@@ -446,7 +446,7 @@ describe("factories", () => {
             "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
         );
         expect(normalizedGuide).toContain(
-            "session returned by `joinSession`, without the APIs that start and resume factory runs"
+            "session returned by `joinSession`. It refuses calls that start or resume a factory run"
         );
 
         expect(normalizedPublicApi).toContain("SDK-initiated runs do not request permission");
@@ -457,7 +457,7 @@ describe("factories", () => {
         expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
         expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
         expect(normalizedPublicApi).toContain(
-            "session instance returned by `joinSession`, without the APIs that start and resume factory runs"
+            "session instance returned by `joinSession`. It refuses calls that start or resume a factory run"
         );
     });
 
