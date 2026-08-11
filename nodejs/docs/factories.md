@@ -61,7 +61,7 @@ The `run()` context provides:
 - `ctx.step(key, producer, options?)`: Journals the producer's JSON result under a stable key so a resume replays it without re-running the producer. A journaled (default) producer must return a JSON-serializable value; `undefined` or a non-JSON value is rejected. Pass `{ volatile: true }` to bypass the journal and run the producer every time.
 
   The key is the *sole* identity: neither the producer body nor its inputs contribute to it. A resume replays the cached value for a matching key even if the producer has since changed, so version the key (`"scan-v2"`) whenever its inputs or meaning change. Journaled producers are best-effort at-least-once and may run again across crashes or concurrent same-key callers, so keep side effects idempotent.
-- `ctx.session`: The full session returned by `joinSession`. It remains the full session, but `factory.run` and `factory.resume` are refused while the factory body runs on the same call path.
+- `ctx.session`: The session returned by `joinSession`, without the APIs that start and resume factory runs. Call `extensions_manage` with `operation: "guide"` to read more about the session APIs.
 - `ctx.signal`: Cooperative cancellation signal for extension work and subprocesses.
 - `ctx.factory(...)`: Always rejects because nested factories are not supported.
 
@@ -156,7 +156,7 @@ session.factory.resume(
 ): Promise<FactoryRunResult>;
 ```
 
-Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. The model's `run_factory` tool requests permission before the durable row exists; declining it creates no run row. An SDK-initiated run is refused only when four top-level runs are already active. Pre-execution resume failures throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, or `factory_storage_corrupt`.
+Both resolve with the run envelope (`FactoryRunResult`) for **every** outcome — `completed`, `error`, `halted`, and `cancelled` alike. Inspect `status` and read `result` only when the run completed; a limit breach carries a typed `failure`. SDK-initiated `run` and `resume` do not request permission, so they have no declined outcome. The model's `run_factory` tool requests permission before the durable row exists; declining it creates no run row. An SDK-initiated run is refused only when the session already has its maximum number of active top-level runs. Pre-execution resume failures throw `FactoryResumeError`, whose `code` is one of `not_found`, `non_resumable`, `already_active`, `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, or `factory_storage_corrupt`.
 
 An agent that no longer has a prior run's ID in context can recover it with `factories_manage` and `operation: "runs"`, which lists the session's factory runs with their IDs and statuses. This matters for resume: a run that reached a limit keeps its journal, so resuming it replays completed work for free, while restarting it from scratch pays for that work twice.
 
@@ -210,7 +210,7 @@ const page = await session.factory.getRunProgress(runId, {
 });
 ```
 
-- `listRuns()` returns the newest default page (the SDK sends `{}`, so the runtime defaults to 200 runs and caps the page at 500).
+- `listRuns()` returns the newest default page of this session's durable factory runs.
 - `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
 

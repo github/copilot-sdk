@@ -175,10 +175,8 @@ export interface FactoryContext<TArgs extends JsonValue = JsonValue> {
     /** Caller-supplied input, forwarded verbatim. */
     args: TArgs;
     /**
-     * The same full session instance returned by `joinSession`.
-     *
-     * While the factory body runs, `factory.run` and `factory.resume` are
-     * refused on the same call path.
+     * The session instance returned by `joinSession`, without the APIs that
+     * start and resume factory runs.
      */
     session: CopilotSession;
     /** Cooperative cancellation signal for the current factory run. */
@@ -291,7 +289,8 @@ export interface SessionFactoryApi {
      * declined outcome. The model's `run_factory` tool requests permission
      * before a durable row exists; declining it creates no run row. Failures
      * that occur before a run exists (such as an unknown factory or attempting
-     * to start a fifth top-level run while four are active) still reject.
+     * to start a run while the session is at its active top-level run limit)
+     * still reject.
      */
     run(name: string, options?: RunOptions): Promise<FactoryRunResult>;
     run<TArgs extends JsonValue>(
@@ -324,8 +323,7 @@ export interface SessionFactoryApi {
      */
     waitForRun(runId: string, options?: { signal?: AbortSignal }): Promise<FactoryRunResult>;
     /**
-     * List the newest default page (the SDK sends `{}`, so the runtime defaults
-     * to 200 runs and caps the page at 500).
+     * List the newest default page of this session's durable factory runs.
      */
     listRuns(): Promise<FactoryRunSummary[]>;
     /** Read durable phases, direct agents, and the latest progress tail for a run. */

@@ -405,8 +405,7 @@ describe("factories", () => {
     it("documents factory invocation and list paging behavior accurately", () => {
         const guide = readFileSync(new URL("../docs/factories.md", import.meta.url), "utf8");
         const publicApi = readFileSync(new URL("../src/factory.ts", import.meta.url), "utf8");
-        const listRunsPagingWording =
-            "newest default page (the SDK sends `{}`, so the runtime defaults to 200 runs and caps the page at 500)";
+        const listRunsPagingWording = "newest default page of this session's durable factory runs";
         const resumeCodes = [
             "not_found",
             "non_resumable",
@@ -439,26 +438,26 @@ describe("factories", () => {
             "`run_factory` tool requests permission before the durable row exists"
         );
         expect(normalizedGuide).toContain("declining it creates no run row");
-        expect(normalizedGuide).toContain("only when four top-level runs are already active");
+        expect(normalizedGuide).toContain("its maximum number of active top-level runs");
         for (const code of resumeCodes) {
             expect(guide).toContain(`\`${code}\``);
         }
         expect(guide).toContain(
             "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
         );
-        expect(normalizedGuide).toContain("full session returned by `joinSession`");
-        expect(normalizedGuide).toContain("factory body runs on the same call path");
+        expect(normalizedGuide).toContain(
+            "session returned by `joinSession`, without the APIs that start and resume factory runs"
+        );
 
         expect(normalizedPublicApi).toContain("SDK-initiated runs do not request permission");
         expect(normalizedPublicApi).toContain("declining it creates no run row");
-        expect(normalizedPublicApi).toContain("fifth top-level run while four are active");
+        expect(normalizedPublicApi).toContain(
+            "while the session is at its active top-level run limit"
+        );
         expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
         expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
         expect(normalizedPublicApi).toContain(
-            "same full session instance returned by `joinSession`"
-        );
-        expect(normalizedPublicApi).toContain(
-            "factory.run` and `factory.resume` are refused on the same call path"
+            "session instance returned by `joinSession`, without the APIs that start and resume factory runs"
         );
     });
 
