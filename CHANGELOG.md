@@ -42,27 +42,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-### Fix: Agent Factories types and behavior now match the wire contract
-
-The `@experimental` Agent Factories surface described several things the runtime does not do, and the TypeScript generator was the root cause. The schema marks an opaque value that travels as JSON with `x-opaque-json`, and one that never serializes with `x-opaque-in-process`. The generator read neither marker, so both kinds of value rendered as an object index signature.
-
-`FactoryRunResult.result` and factory arguments are now `JsonValue`, so an array, a string, a number, or `null` fits the type the runtime already sent. `ctx.agent()` gains `agent`, `reasoningEffort`, and `contextTier`, which the SDK previously dropped before sending.
-
-`FactoryResumeErrorCode` now names the eight codes the runtime raises before a resumed run starts. `reapproval_declined` and `no_approval_provider` are removed, because no runtime path raises them. `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, and `factory_storage_corrupt` are added.
-
-A factory body can no longer start a second top-level run. `factory.run` and `factory.resume` are refused while a factory body runs on the same call path, through any session reference the body reaches. A run started elsewhere in the extension is unaffected. A background progress-flush error no longer turns a completed run into an errored run.
-
-```ts
-const run = await session.factory.run("collect-findings");
-if (run.status === "completed" && Array.isArray(run.result)) {
-    for (const finding of run.result) {
-        console.log(finding);
-    }
-}
-```
-
-Correcting the two markers also retypes declarations outside the factory surface. `CanvasJsonSchema`, `CanvasActionInvokeResult`, `ElicitationCompletedContent`, and `CustomNotificationPayload` change from interfaces to type aliases, and `ElicitationCompletedContent` becomes optional. `ToolTelemetry` narrows its inner record to `Record<string, JsonValue>`, which is what the wire accepts.
-
 ## [v1.0.7](https://github.com/github/copilot-sdk/releases/tag/v1.0.7) (2026-07-16)
 
 ### Feature: in-process (FFI) transport
