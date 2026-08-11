@@ -647,8 +647,12 @@ public final class CopilotClient implements AutoCloseable {
             if (this.options.getOnGitHubTelemetry() != null) {
                 connectParams.put("enableGitHubTelemetryForwarding", true);
             }
-            var connectResponse = connection.rpc.invoke("connect", connectParams, ConnectResult.class).get(30,
-                    TimeUnit.SECONDS);
+            // A legacy server rejects 'connect' and we fall back to 'ping' below, so
+            // only that rejection is expected; anything else stays a warning.
+            var connectResponse = connection.rpc
+                    .invoke("connect", connectParams, ConnectResult.class,
+                            cause -> cause instanceof JsonRpcException rpcEx && isUnsupportedConnectMethod(rpcEx))
+                    .get(30, TimeUnit.SECONDS);
             serverVersion = connectResponse.protocolVersion() != null
                     ? connectResponse.protocolVersion().intValue()
                     : null;
