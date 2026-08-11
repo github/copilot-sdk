@@ -15,9 +15,11 @@ alongside the other SDKs. There is no Rust-specific release workflow.
      prerelease version requirement to install it.
    - `unstable` — skipped for Rust (Cargo doesn't have a clean
      equivalent of npm's `unstable` dist-tag).
-4. The workflow publishes all SDKs at the shared computed version,
-   tags `rust/vX.Y.Z` for source traceability, and creates one combined
-   `vX.Y.Z` GitHub Release.
+4. For `latest` and `prerelease`, the workflow publishes all SDKs at
+   the shared computed version, tags `rust/vX.Y.Z` for source
+   traceability, and creates one combined `vX.Y.Z` GitHub Release.
+   The `unstable` channel publishes only the Node.js SDK and does not
+   create a GitHub Release.
 
 ## Version, tag, and release notes
 

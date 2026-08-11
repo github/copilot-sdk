@@ -147,6 +147,8 @@ While `session.rpc.models.setModel()` already worked, there is now a convenience
 - C#: `session.SetModel("gpt-4o")`
 - Python: `session.set_model("gpt-4o")`
 - Go: `session.SetModel("gpt-4o")`
+- Java: `session.setModel("gpt-4o").get()`
+- Rust: `session.set_model("gpt-4o", None).await?`
 
 ### Other changes
 
@@ -164,7 +166,7 @@ While `session.rpc.models.setModel()` already worked, there is now a convenience
 **Key rules visible in the example:**
 
 - Highlighted features get their own `### Feature:` heading, a short description, and code snippets
-- Code snippets are TypeScript and C# primarily; Go/Python only when listing one-liner equivalents or when meaningfully different
+- Code snippets use whichever of TypeScript, C#, Go, Python, Java, and Rust best illustrate the change; list all affected languages when showing equivalents
 - The `### Other changes` section is a flat bulleted list with lowercase `bugfix:` / `feature:` / `improvement:` prefixes
 - PR numbers are linked inline, not at the end with author attribution (keep it clean)
 
