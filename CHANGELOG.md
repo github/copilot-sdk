@@ -46,7 +46,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 The `@experimental` Agent Factories surface described several things the runtime does not do, and the TypeScript generator was the root cause. The schema marks an opaque value that travels as JSON with `x-opaque-json`, and one that never serializes with `x-opaque-in-process`. The generator read neither marker, so both kinds of value rendered as an object index signature.
 
-`FactoryRunResult.result` and factory arguments are now `JsonValue`, so an array, a string, a number, or `null` fits the type the runtime already sent. `ctx.agent()` gains `agent`, `reasoningEffort`, and `contextTier`, which the SDK previously dropped before sending. The SDK forwards them, and the current runtime accepts but does not yet honor them.
+`FactoryRunResult.result` and factory arguments are now `JsonValue`, so an array, a string, a number, or `null` fits the type the runtime already sent. `ctx.agent()` gains `agent`, `reasoningEffort`, and `contextTier`, which the SDK previously dropped before sending.
 
 `FactoryResumeErrorCode` now names the eight codes the runtime raises before a resumed run starts. `reapproval_declined` and `no_approval_provider` are removed, because no runtime path raises them. `factory_already_running`, `factory_limits_invalid`, `factory_session_disposed`, `factory_storage_unavailable`, and `factory_storage_corrupt` are added.
 

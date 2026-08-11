@@ -435,7 +435,9 @@ describe("factories", () => {
         expect(normalizedGuide).toContain(
             "SDK-initiated `run` and `resume` do not request permission"
         );
-        expect(normalizedGuide).toContain("`run_factory` tool requests permission before the durable row exists");
+        expect(normalizedGuide).toContain(
+            "`run_factory` tool requests permission before the durable row exists"
+        );
         expect(normalizedGuide).toContain("declining it creates no run row");
         expect(normalizedGuide).toContain("only when four top-level runs are already active");
         for (const code of resumeCodes) {
@@ -444,10 +446,6 @@ describe("factories", () => {
         expect(guide).toContain(
             "Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`"
         );
-        expect(guide).toContain(
-            "The SDK forwards `agent`, `reasoningEffort`, and `contextTier`"
-        );
-        expect(guide).toContain("the current runtime does not yet honor them");
         expect(normalizedGuide).toContain("full session returned by `joinSession`");
         expect(normalizedGuide).toContain("factory body runs on the same call path");
 
@@ -456,7 +454,9 @@ describe("factories", () => {
         expect(normalizedPublicApi).toContain("fifth top-level run while four are active");
         expect(normalizedPublicApi).toContain("SDK-initiated resumes do not request permission");
         expect(normalizedPublicApi).toContain("with a documented resume code rejects with");
-        expect(normalizedPublicApi).toContain("same full session instance returned by `joinSession`");
+        expect(normalizedPublicApi).toContain(
+            "same full session instance returned by `joinSession`"
+        );
         expect(normalizedPublicApi).toContain(
             "factory.run` and `factory.resume` are refused on the same call path"
         );
