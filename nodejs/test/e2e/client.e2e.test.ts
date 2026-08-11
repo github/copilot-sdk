@@ -1,5 +1,5 @@
 import { ChildProcess } from "child_process";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { isInProcessTransport } from "./harness/sdkTestContext.js";
 
@@ -95,7 +95,12 @@ describe("Client", () => {
             const cliProcess = (client as any).cliProcess as ChildProcess;
             expect(cliProcess).toBeDefined();
             cliProcess.kill("SIGKILL");
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await vi.waitFor(
+                () => {
+                    expect((client as unknown as { state: string }).state).toBe("disconnected");
+                },
+                { timeout: 10_000 }
+            );
 
             const errors = await client.stop();
             if (errors.length > 0) {

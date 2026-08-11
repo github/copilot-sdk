@@ -686,6 +686,17 @@ export type FactoryRunFailure =
        */
       runId: string;
       type: "factory_durable_failure";
+    }
+  | {
+      /**
+       * Factory run identifier.
+       */
+      runId: string;
+      /**
+       * Confirmed usage in nano-AIU, representing the floor of what the run spent.
+       */
+      drainedNanoAiu: number;
+      type: "factory_accounting_incomplete";
     };
 /**
  * Cumulative resource ceiling that stopped a factory run.
@@ -5733,6 +5744,15 @@ export interface FactoryAgentOptions {
    * Optional model identifier for the subagent.
    */
   model?: string;
+  /**
+   * Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+   */
+  reasoningEffort?: string;
+  contextTier?: ContextTier;
+  /**
+   * Optional custom agent name for the subagent. This field is accepted but not yet honored.
+   */
+  agent?: string;
 }
 /**
  * Parameters for one factory-scoped subagent call.
@@ -5986,15 +6006,28 @@ export interface FactoryJournalPutRequest {
   };
 }
 /**
- * Empty parameters for listing factory runs.
+ * Parameters for paging factory runs.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FactoryListRunsRequest".
  */
 /** @experimental */
-export interface FactoryListRunsRequest {}
+export interface FactoryListRunsRequest {
+  /**
+   * Exclusive forward cursor.
+   */
+  afterSeq?: number;
+  /**
+   * Exclusive backward cursor.
+   */
+  beforeSeq?: number;
+  /**
+   * Maximum terminal runs to return. Defaults to 200 and is capped at 500.
+   */
+  limit?: number;
+}
 /**
- * Factory runs in durable creation order.
+ * A page of factory runs in durable creation order.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "FactoryListRunsResult".
@@ -6002,6 +6035,22 @@ export interface FactoryListRunsRequest {}
 /** @experimental */
 export interface FactoryListRunsResult {
   runs: FactoryRunSummary[];
+  /**
+   * Oldest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  oldestSeq?: number | null;
+  /**
+   * Newest terminal-run cursor in this page, or null when the terminal window is empty.
+   */
+  newestSeq?: number | null;
+  /**
+   * Whether terminal runs newer than this page exist.
+   */
+  hasMoreNewer?: boolean;
+  /**
+   * Number of terminal runs older than this page.
+   */
+  omittedOlder?: number;
 }
 /**
  * Durable factory run summary with read-time live overlays.
@@ -13240,14 +13289,7 @@ export interface SandboxConfig {
    * Whether to auto-add the current working directory to readwritePaths. Default: true.
    */
   addCurrentWorkingDirectory?: boolean;
-  /**
-   * Whether to inject the Copilot GitHub token as an `http.<host>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).
-   */
-  gitAuth?: boolean;
-  /**
-   * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
-   */
-  ghAuth?: boolean;
+  auth?: SandboxConfigAuth;
   /**
    * Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out).
    */
@@ -13365,6 +13407,23 @@ export interface SandboxConfigUserPolicyExperimentalSeatbelt {
    * Whether the macOS seatbelt profile may access the keychain.
    */
   keychainAccess?: boolean;
+}
+/**
+ * Credential-injection capability flags applied while the sandbox is enabled.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxConfigAuth".
+ */
+/** @experimental */
+export interface SandboxConfigAuth {
+  /**
+   * Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).
+   */
+  git?: boolean;
+  /**
+   * Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).
+   */
+  gh?: boolean;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -19726,10 +19785,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Lists durable factory runs for this session in creation order.
              *
-             * @returns Factory runs in durable creation order.
+             * @param params Parameters for paging factory runs.
+             *
+             * @returns A page of factory runs in durable creation order.
              */
-            listRuns: async (): Promise<FactoryListRunsResult> =>
-                connection.sendRequest("session.factory.listRuns", { sessionId }),
+            listRuns: async (params: FactoryListRunsRequest): Promise<FactoryListRunsResult> =>
+                connection.sendRequest("session.factory.listRuns", { sessionId, ...params }),
             /**
              * Gets durable and live observability detail for one factory run.
              *

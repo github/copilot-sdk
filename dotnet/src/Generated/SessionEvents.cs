@@ -3553,6 +3553,11 @@ public sealed partial class SubagentCompletedData
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
 
+    /// <summary>Whether the sub-agent was torn down by cancellation - its own abort, or an ancestor being killed - instead of finishing its work. Cancellation is not a failure, so the run still reports completion; this distinguishes a torn-down sub-agent from one that ran to the end.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cancelled")]
+    public bool? Cancelled { get; set; }
+
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -1498,6 +1498,51 @@ type SessionConfig struct {
 	// be set; if omitted, the runtime is expected to reject session creation
 	// (fail-closed). Unset behaves exactly as before.
 	EnableManagedSettings *bool
+	// ManagedSettings supplies host-injected enterprise managed settings for
+	// the session. Unlike EnableManagedSettings (which asks the runtime to
+	// self-fetch account/org and device policy), this provides the managed
+	// policy directly. The runtime validates it with the same
+	// managed-permission parser it uses for fetched policy and composes it
+	// restrictively with any self-fetched (server) and device-managed (MDM)
+	// layers. It is startup-only and not persisted: re-supply it on resume,
+	// where it replaces the prior injected layer (omitting it clears the
+	// layer). It may be combined with EnableManagedSettings. Requires a runtime
+	// whose RPC schema includes managedSettings.
+	ManagedSettings *ManagedSettings
+}
+
+// ManagedSettings is host-injected enterprise managed settings for a session.
+// The first supported contract is permissions-only; unknown sibling keys are
+// rejected by the runtime. Serialized on the wire as managedSettings.
+type ManagedSettings struct {
+	// Permissions is the managed permission policy for the session.
+	Permissions *ManagedSettingsPermissions `json:"permissions,omitempty"`
+}
+
+// DisableBypassPermissionsMode is the managed bypass-permissions policy.
+type DisableBypassPermissionsMode = rpc.DisableBypassPermissionsMode
+
+const (
+	// DisableBypassPermissionsModeDisable turns off bypass-permissions mode.
+	DisableBypassPermissionsModeDisable = rpc.DisableBypassPermissionsModeDisable
+)
+
+// ManagedSettingsPermissions is the permissions-only managed policy injected
+// via ManagedSettings. Rule strings use the same vocabulary the runtime
+// accepts for fetched managed policy (e.g. "Read(**)", "Shell(git push *)");
+// malformed rules are rejected by the runtime at session creation.
+type ManagedSettingsPermissions struct {
+	// DisableBypassPermissionsMode, when set to "disable", turns off
+	// bypass-permissions ("yolo") mode for the session. Deny-wins: no other
+	// layer can re-enable it.
+	DisableBypassPermissionsMode DisableBypassPermissionsMode `json:"disableBypassPermissionsMode,omitempty"`
+	// Deny lists operations that must always be denied. Unioned across layers.
+	Deny []string `json:"deny,omitzero"`
+	// Ask lists operations that must prompt for approval. Unioned across layers.
+	Ask []string `json:"ask,omitzero"`
+	// Allow lists operations permitted without prompting. Every declared allow
+	// list across managed layers must admit an operation for it to be allowed.
+	Allow []string `json:"allow,omitzero"`
 }
 
 // ToolDefer controls whether a tool may be deferred (loaded lazily via tool
@@ -1961,6 +2006,11 @@ type ResumeSessionConfig struct {
 	// SessionConfig.EnableManagedSettings. Re-supply on resume so the runtime
 	// re-applies the managed-settings self-fetch after a CLI process restart.
 	EnableManagedSettings *bool
+	// ManagedSettings re-injects host-provided managed settings on resume. See
+	// SessionConfig.ManagedSettings. It must be re-supplied on resume: it
+	// replaces the prior injected layer, and omitting it clears that layer so
+	// warm and cold resume behave identically.
+	ManagedSettings *ManagedSettings
 }
 
 // ProviderTokenArgs carries the context passed to a [BearerTokenProvider] callback
@@ -2423,6 +2473,7 @@ type createSessionRequest struct {
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
+	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
@@ -2519,6 +2570,7 @@ type resumeSessionRequest struct {
 	CanvasProvider                     *CanvasProviderIdentity                `json:"canvasProvider,omitempty"`
 	ExpAssignments                     *CopilotExpAssignmentResponse          `json:"expAssignments,omitempty"`
 	EnableManagedSettings              *bool                                  `json:"enableManagedSettings,omitempty"`
+	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }

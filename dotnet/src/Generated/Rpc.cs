@@ -2314,11 +2314,6 @@ public sealed class SessionOpenResult
     [JsonPropertyName("remoteSessionId")]
     public string? RemoteSessionId { get; set; }
 
-    /// <summary>In-process SessionClientApi handle for the opened session, returned to CLI callers as a transitional shortcut. Marked internal so the public SDK surface does not expose it; SDK consumers should construct per-session clients from `sessionId` instead.</summary>
-    [JsonInclude]
-    [JsonPropertyName("sessionApi")]
-    internal JsonElement? SessionApi { get; set; }
-
     /// <summary>Opened session ID. Omitted when status is `not_found`.</summary>
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
@@ -3110,12 +3105,6 @@ public partial class RemoteControlStatusActive : RemoteControlStatus
     /// <summary>Whether the MC session may steer this session.</summary>
     [JsonPropertyName("isSteerable")]
     public required bool IsSteerable { get; set; }
-
-    /// <summary>In-process prompt-manager handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, the same bidirectional prompt-routing handshake is expressed via dedicated remote-control RPCs (register/resolve) rather than a shared in-process object.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("promptManager")]
-    internal JsonElement? PromptManager { get; set; }
 }
 
 /// <summary>The last setup attempt failed. The singleton is otherwise off.</summary>
@@ -3266,31 +3255,18 @@ internal sealed class SessionsStopRemoteControlRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterExtensionToolsResult
 {
-    /// <summary>In-process unsubscribe function (CLI-only optimization). Marked internal: replaced by an explicit `extensions.unregister` RPC in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("unsubscribe")]
-    internal JsonElement Unsubscribe { get; set; }
 }
 
 /// <summary>Optional registration options.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionsRegisterExtensionToolsOnSessionOptions
 {
-    /// <summary>In-process `() =&gt; boolean` gating callback (CLI-only optimization). Marked internal: replaced by runtime-side enable/disable RPCs in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("enabled")]
-    internal JsonElement? Enabled { get; set; }
 }
 
 /// <summary>Params to attach an extension loader's tools to a session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class RegisterExtensionToolsParams
 {
-    /// <summary>In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.</summary>
-    [JsonInclude]
-    [JsonPropertyName("loader")]
-    internal JsonElement Loader { get; set; }
-
     /// <summary>Optional registration options.</summary>
     [JsonPropertyName("options")]
     public SessionsRegisterExtensionToolsOnSessionOptions? Options { get; set; }
@@ -3304,11 +3280,6 @@ internal sealed class RegisterExtensionToolsParams
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ConfigureSessionExtensionsParams
 {
-    /// <summary>In-process ExtensionController delegate (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. The post-SDK extension surface exposes list/enable/disable/reload via dedicated RPCs served by the runtime.</summary>
-    [JsonInclude]
-    [JsonPropertyName("controller")]
-    internal JsonElement? Controller { get; set; }
-
     /// <summary>Session to attach the extension controller delegate to.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -4309,6 +4280,7 @@ internal sealed class CanvasActionInvokeRequest
 [JsonDerivedType(typeof(FactoryRunFailureFactoryLimitReached), "factory_limit_reached")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryResumeDeclined), "factory_resume_declined")]
 [JsonDerivedType(typeof(FactoryRunFailureFactoryDurableFailure), "factory_durable_failure")]
+[JsonDerivedType(typeof(FactoryRunFailureFactoryAccountingIncomplete), "factory_accounting_incomplete")]
 public partial class FactoryRunFailure
 {
     /// <summary>The type discriminator.</summary>
@@ -4370,6 +4342,24 @@ public partial class FactoryRunFailureFactoryDurableFailure : FactoryRunFailure
     /// <summary>Execution-critical durable operation that failed.</summary>
     [JsonPropertyName("operation")]
     public required FactoryDurableOperation Operation { get; set; }
+
+    /// <summary>Factory run identifier.</summary>
+    [JsonPropertyName("runId")]
+    public required string RunId { get; set; }
+}
+
+/// <summary>The run stopped because its usage accounting could not be completed.</summary>
+/// <remarks>The <c>factory_accounting_incomplete</c> variant of <see cref="FactoryRunFailure"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class FactoryRunFailureFactoryAccountingIncomplete : FactoryRunFailure
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "factory_accounting_incomplete";
+
+    /// <summary>Confirmed usage in nano-AIU, representing the floor of what the run spent.</summary>
+    [JsonPropertyName("drainedNanoAiu")]
+    public required long DrainedNanoAiu { get; set; }
 
     /// <summary>Factory run identifier.</summary>
     [JsonPropertyName("runId")]
@@ -4660,19 +4650,47 @@ public sealed class FactoryRunSummary
     public long UpdatedAt { get; set; }
 }
 
-/// <summary>Factory runs in durable creation order.</summary>
+/// <summary>A page of factory runs in durable creation order.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryListRunsResult
 {
+    /// <summary>Whether terminal runs newer than this page exist.</summary>
+    [JsonPropertyName("hasMoreNewer")]
+    public bool? HasMoreNewer { get; set; }
+
+    /// <summary>Newest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
+    [JsonPropertyName("newestSeq")]
+    public long? NewestSeq { get; set; }
+
+    /// <summary>Oldest terminal-run cursor in this page, or null when the terminal window is empty.</summary>
+    [JsonPropertyName("oldestSeq")]
+    public long? OldestSeq { get; set; }
+
+    /// <summary>Number of terminal runs older than this page.</summary>
+    [JsonPropertyName("omittedOlder")]
+    public long? OmittedOlder { get; set; }
+
     /// <summary>Gets or sets the <c>runs</c> value.</summary>
     [JsonPropertyName("runs")]
     public IList<FactoryRunSummary> Runs { get => field ??= []; set; }
 }
 
-/// <summary>Empty parameters for listing factory runs.</summary>
+/// <summary>Parameters for paging factory runs.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class FactoryListRunsRequest
 {
+    /// <summary>Exclusive forward cursor.</summary>
+    [JsonPropertyName("afterSeq")]
+    public long? AfterSeq { get; set; }
+
+    /// <summary>Exclusive backward cursor.</summary>
+    [JsonPropertyName("beforeSeq")]
+    public long? BeforeSeq { get; set; }
+
+    /// <summary>Maximum terminal runs to return. Defaults to 200 and is capped at 500.</summary>
+    [JsonPropertyName("limit")]
+    public int? Limit { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -5042,6 +5060,14 @@ public sealed class FactoryAgentResult
 [Experimental(Diagnostics.Experimental)]
 public sealed class FactoryAgentOptions
 {
+    /// <summary>Optional custom agent name for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("agent")]
+    public string? Agent { get; set; }
+
+    /// <summary>Optional context tier for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("contextTier")]
+    public ContextTier? ContextTier { get; set; }
+
     /// <summary>Optional label distinguishing otherwise identical memoized agent calls.</summary>
     [JsonPropertyName("label")]
     public string? Label { get; set; }
@@ -5049,6 +5075,10 @@ public sealed class FactoryAgentOptions
     /// <summary>Optional model identifier for the subagent.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
+
+    /// <summary>Optional reasoning effort for the subagent. This field is accepted but not yet honored.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>Optional JSON Schema for structured agent output.</summary>
     [JsonPropertyName("schema")]
@@ -7162,11 +7192,6 @@ internal sealed class McpStartServersResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpReloadWithConfigRequest
 {
-    /// <summary>Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).</summary>
-    [JsonInclude]
-    [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
-
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -7301,11 +7326,6 @@ internal sealed class McpConfigureGitHubResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpConfigureGitHubRequest
 {
-    /// <summary>Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).</summary>
-    [JsonInclude]
-    [JsonPropertyName("authInfo")]
-    internal JsonElement AuthInfo { get; set; }
-
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -7362,16 +7382,6 @@ internal sealed class McpStopServerRequest
 [Experimental(Diagnostics.Experimental)]
 internal sealed class McpRegisterExternalClientRequest
 {
-    /// <summary>In-process MCP Client instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</summary>
-    [JsonInclude]
-    [JsonPropertyName("client")]
-    internal JsonElement Client { get; set; }
-
-    /// <summary>In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.</summary>
-    [JsonInclude]
-    [JsonPropertyName("config")]
-    internal JsonElement Config { get; set; }
-
     /// <summary>Logical server name for the external client.</summary>
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
@@ -7379,11 +7389,6 @@ internal sealed class McpRegisterExternalClientRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</summary>
-    [JsonInclude]
-    [JsonPropertyName("transport")]
-    internal JsonElement Transport { get; set; }
 }
 
 /// <summary>Server name identifying the external client to remove.</summary>
@@ -8649,6 +8654,19 @@ public sealed class ProviderConfig
     public string? WireModel { get; set; }
 }
 
+/// <summary>Credential-injection capability flags applied while the sandbox is enabled.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SandboxConfigAuth
+{
+    /// <summary>Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).</summary>
+    [JsonPropertyName("gh")]
+    public bool? Gh { get; set; }
+
+    /// <summary>Whether to inject git credentials as an `http.&lt;url&gt;.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in).</summary>
+    [JsonPropertyName("git")]
+    public bool? Git { get; set; }
+}
+
 /// <summary>macOS seatbelt experimental options.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SandboxConfigUserPolicyExperimentalSeatbelt
@@ -8764,17 +8782,13 @@ public sealed class SandboxConfig
     [JsonPropertyName("allowDevToolAccess")]
     public bool? AllowDevToolAccess { get; set; }
 
+    /// <summary>Credential-injection capability flags.</summary>
+    [JsonPropertyName("auth")]
+    public SandboxConfigAuth? Auth { get; set; }
+
     /// <summary>Whether sandboxing is enabled for the session.</summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
-
-    /// <summary>Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in).</summary>
-    [JsonPropertyName("ghAuth")]
-    public bool? GhAuth { get; set; }
-
-    /// <summary>Whether to inject the Copilot GitHub token as an `http.&lt;host&gt;.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. Default: false (opt-in).</summary>
-    [JsonPropertyName("gitAuth")]
-    public bool? GitAuth { get; set; }
 
     /// <summary>User-managed sandbox policy fragment merged into the auto-discovered base policy.</summary>
     [JsonPropertyName("userPolicy")]
@@ -10193,16 +10207,6 @@ public sealed class UIEphemeralQueryResult
 [Experimental(Diagnostics.Experimental)]
 internal sealed class UIEphemeralQueryRequest
 {
-    /// <summary>In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.</summary>
-    [JsonInclude]
-    [JsonPropertyName("abortSignal")]
-    internal JsonElement? AbortSignal { get; set; }
-
-    /// <summary>In-process streaming callback `(text) =&gt; void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.</summary>
-    [JsonInclude]
-    [JsonPropertyName("onChunk")]
-    internal JsonElement? OnChunk { get; set; }
-
     /// <summary>Question to answer from the current conversation context.</summary>
     [JsonPropertyName("question")]
     public string Question { get; set; } = string.Empty;
@@ -24646,28 +24650,25 @@ public sealed class ServerSessionsApi
 
     /// <summary>Registers extension-provided tools on the given session, gated by an optional `enabled` callback. Returns an opaque unsubscribe function the caller must invoke to deregister the tools when the extension is torn down. Marked internal because `loader`, `enabled`, and the returned `unsubscribe` are in-process handles that cannot cross the JSON-RPC boundary. Disappears once extension discovery / launch / tool registration are owned by the runtime: SDK consumers will pass pure config (search paths, disabled ids) via `SessionOptions` and the runtime will resolve, launch, register, and tear down extensions itself.</summary>
     /// <param name="sessionId">Session to register extension tools on.</param>
-    /// <param name="loader">In-process ExtensionLoader handle (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. When the CLI migrates to a process-separated SDK, extension discovery/launch moves entirely into the runtime — the CLI passes pure config (search paths, disabled ids) via SessionOptions instead.</param>
     /// <param name="options">Optional registration options.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Handle for releasing the extension tool registration.</returns>
-    internal async Task<RegisterExtensionToolsResult> RegisterExtensionToolsOnSessionAsync(string sessionId, object loader, SessionsRegisterExtensionToolsOnSessionOptions? options = null, CancellationToken cancellationToken = default)
+    internal async Task<RegisterExtensionToolsResult> RegisterExtensionToolsOnSessionAsync(string sessionId, SessionsRegisterExtensionToolsOnSessionOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
-        ArgumentNullException.ThrowIfNull(loader);
 
-        var request = new RegisterExtensionToolsParams { SessionId = sessionId, Loader = CopilotClient.ToJsonElementForWire(loader)!.Value, Options = options };
+        var request = new RegisterExtensionToolsParams { SessionId = sessionId, Options = options };
         return await CopilotClient.InvokeRpcAsync<RegisterExtensionToolsResult>(_rpc, "sessions.registerExtensionToolsOnSession", [request], cancellationToken);
     }
 
     /// <summary>Attaches (or detaches) an in-process ExtensionController delegate for the given session, used by shared-API surfaces that need to query or modify the session's extension state. Pass `controller: undefined` to detach. Marked internal because the controller is an in-process object that cannot cross the JSON-RPC boundary. Disappears alongside `registerExtensionToolsOnSession`: once the runtime owns extension management, the public surface exposes list/enable/disable/reload as dedicated RPCs served by the runtime.</summary>
     /// <param name="sessionId">Session to attach the extension controller delegate to.</param>
-    /// <param name="controller">In-process ExtensionController delegate (CLI-only optimization). Marked internal: this field is excluded from the public SDK surface. The post-SDK extension surface exposes list/enable/disable/reload via dedicated RPCs served by the runtime.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task ConfigureSessionExtensionsAsync(string sessionId, object? controller = null, CancellationToken cancellationToken = default)
+    internal async Task ConfigureSessionExtensionsAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
 
-        var request = new ConfigureSessionExtensionsParams { SessionId = sessionId, Controller = CopilotClient.ToJsonElementForWire(controller) };
+        var request = new ConfigureSessionExtensionsParams { SessionId = sessionId };
         await CopilotClient.InvokeRpcAsync(_rpc, "sessions.configureSessionExtensions", [request], cancellationToken);
     }
 }
@@ -25299,13 +25300,16 @@ public sealed class FactoryApi
     }
 
     /// <summary>Lists durable factory runs for this session in creation order.</summary>
+    /// <param name="afterSeq">Exclusive forward cursor.</param>
+    /// <param name="beforeSeq">Exclusive backward cursor.</param>
+    /// <param name="limit">Maximum terminal runs to return. Defaults to 200 and is capped at 500.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Factory runs in durable creation order.</returns>
-    public async Task<FactoryListRunsResult> ListRunsAsync(CancellationToken cancellationToken = default)
+    /// <returns>A page of factory runs in durable creation order.</returns>
+    public async Task<FactoryListRunsResult> ListRunsAsync(long? afterSeq = null, long? beforeSeq = null, int? limit = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new FactoryListRunsRequest { SessionId = _session.SessionId };
+        var request = new FactoryListRunsRequest { SessionId = _session.SessionId, AfterSeq = afterSeq, BeforeSeq = beforeSeq, Limit = limit };
         return await CopilotClient.InvokeRpcAsync<FactoryListRunsResult>(_session.Rpc, "session.factory.listRuns", [request], cancellationToken);
     }
 
@@ -26337,15 +26341,13 @@ public sealed class McpApi
     }
 
     /// <summary>Reloads MCP server connections for the session with an explicit host-provided configuration.</summary>
-    /// <param name="config">Opaque runtime MCP reload configuration. Marked internal: an in-process runtime shape (reloadMcpServers throws over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>MCP server startup filtering result.</returns>
-    internal async Task<McpStartServersResult> ReloadWithConfigAsync(object config, CancellationToken cancellationToken = default)
+    internal async Task<McpStartServersResult> ReloadWithConfigAsync(CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
 
-        var request = new McpReloadWithConfigRequest { SessionId = _session.SessionId, Config = CopilotClient.ToJsonElementForWire(config)!.Value };
+        var request = new McpReloadWithConfigRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<McpStartServersResult>(_session.Rpc, "session.mcp.reloadWithConfig", [request], cancellationToken);
     }
 
@@ -26405,15 +26407,13 @@ public sealed class McpApi
     }
 
     /// <summary>Configures the built-in GitHub MCP server for the session's current auth context.</summary>
-    /// <param name="authInfo">Opaque runtime auth info for GitHub MCP configuration. Marked internal: an in-process runtime shape (configureGitHubMcp is a no-op over the wire).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of configuring GitHub MCP.</returns>
-    internal async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(object authInfo, CancellationToken cancellationToken = default)
+    internal async Task<McpConfigureGitHubResult> ConfigureGitHubAsync(CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(authInfo);
         _session.ThrowIfDisposed();
 
-        var request = new McpConfigureGitHubRequest { SessionId = _session.SessionId, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo)!.Value };
+        var request = new McpConfigureGitHubRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<McpConfigureGitHubResult>(_session.Rpc, "session.mcp.configureGitHub", [request], cancellationToken);
     }
 
@@ -26457,19 +26457,13 @@ public sealed class McpApi
 
     /// <summary>Registers a pre-connected external MCP client (e.g. IDE) on the session's host. The caller retains lifecycle ownership of the client and transport. Marked internal because the `client` and `transport` arguments are in-process MCP SDK instances that cannot be serialized across the JSON-RPC boundary; once the CLI moves on top of the SDK, external clients will be expressed as transport configs the runtime can construct itself.</summary>
     /// <param name="serverName">Logical server name for the external client.</param>
-    /// <param name="client">In-process MCP Client instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
-    /// <param name="transport">In-process MCP Transport instance. Marked internal: cannot be serialized across the JSON-RPC boundary.</param>
-    /// <param name="config">In-process server config (MCPServerConfig) paired with the in-process client/transport. Marked internal alongside its companions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task RegisterExternalClientAsync(string serverName, object client, object transport, object config, CancellationToken cancellationToken = default)
+    internal async Task RegisterExternalClientAsync(string serverName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serverName);
-        ArgumentNullException.ThrowIfNull(client);
-        ArgumentNullException.ThrowIfNull(transport);
-        ArgumentNullException.ThrowIfNull(config);
         _session.ThrowIfDisposed();
 
-        var request = new McpRegisterExternalClientRequest { SessionId = _session.SessionId, ServerName = serverName, Client = CopilotClient.ToJsonElementForWire(client)!.Value, Transport = CopilotClient.ToJsonElementForWire(transport)!.Value, Config = CopilotClient.ToJsonElementForWire(config)!.Value };
+        var request = new McpRegisterExternalClientRequest { SessionId = _session.SessionId, ServerName = serverName };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.registerExternalClient", [request], cancellationToken);
     }
 
@@ -27223,16 +27217,14 @@ public sealed class UiApi
 
     /// <summary>Runs a transient no-tools model query against the current conversation context.</summary>
     /// <param name="question">Question to answer from the current conversation context.</param>
-    /// <param name="onChunk">In-process streaming callback `(text) =&gt; void` invoked with each token as the model emits it. Marked internal: excluded from the public SDK surface. In a process-separated SDK this is replaced by a streaming RPC that yields chunks and a final answer.</param>
-    /// <param name="abortSignal">In-process `AbortSignal` forwarded to the model client to cancel an in-flight request. Marked internal: excluded from the public SDK surface. Replaced by an explicit cancellation token + cancel RPC in the SDK migration.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Transient answer generated from current conversation context.</returns>
-    public async Task<UIEphemeralQueryResult> EphemeralQueryAsync(string question, object? onChunk = null, object? abortSignal = null, CancellationToken cancellationToken = default)
+    public async Task<UIEphemeralQueryResult> EphemeralQueryAsync(string question, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(question);
         _session.ThrowIfDisposed();
 
-        var request = new UIEphemeralQueryRequest { SessionId = _session.SessionId, Question = question, OnChunk = CopilotClient.ToJsonElementForWire(onChunk), AbortSignal = CopilotClient.ToJsonElementForWire(abortSignal) };
+        var request = new UIEphemeralQueryRequest { SessionId = _session.SessionId, Question = question };
         return await CopilotClient.InvokeRpcAsync<UIEphemeralQueryResult>(_session.Rpc, "session.ui.ephemeralQuery", [request], cancellationToken);
     }
 
@@ -29818,6 +29810,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(RemoteSessionMetadataValue))]
 [JsonSerializable(typeof(RunOptions))]
 [JsonSerializable(typeof(SandboxConfig))]
+[JsonSerializable(typeof(SandboxConfigAuth))]
 [JsonSerializable(typeof(SandboxConfigUserPolicy))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyExperimental))]
 [JsonSerializable(typeof(SandboxConfigUserPolicyExperimentalSeatbelt))]

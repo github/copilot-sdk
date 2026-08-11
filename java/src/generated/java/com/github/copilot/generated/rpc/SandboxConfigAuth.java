@@ -10,27 +10,20 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Parameters for paging factory runs.
+ * Credential-injection capability flags applied while the sandbox is enabled.
  *
- * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
  */
-@CopilotExperimental
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record SessionFactoryListRunsParams(
-    /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId,
-    /** Exclusive forward cursor. */
-    @JsonProperty("afterSeq") Long afterSeq,
-    /** Exclusive backward cursor. */
-    @JsonProperty("beforeSeq") Long beforeSeq,
-    /** Maximum terminal runs to return. Defaults to 200 and is capped at 500. */
-    @JsonProperty("limit") Long limit
+public record SandboxConfigAuth(
+    /** Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in). */
+    @JsonProperty("git") Boolean git,
+    /** Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in). */
+    @JsonProperty("gh") Boolean gh
 ) {
 }

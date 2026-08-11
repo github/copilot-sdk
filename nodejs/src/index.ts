@@ -107,6 +107,8 @@ export type {
     DefaultAgentConfig,
     BearerTokenProvider,
     MessageOptions,
+    ManagedSettings,
+    ManagedSettingsPermissions,
     ModelBilling,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,

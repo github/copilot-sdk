@@ -108,6 +108,7 @@ public class SessionConfig {
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
+    private ManagedSettings managedSettings;
 
     /**
      * Gets the custom session ID.
@@ -2042,6 +2043,29 @@ public class SessionConfig {
     }
 
     /**
+     * Gets host-injected managed settings for this session.
+     *
+     * @return the managed settings, or {@code null} when unset
+     */
+    public ManagedSettings getManagedSettings() {
+        return managedSettings;
+    }
+
+    /**
+     * Supplies permissions-only managed settings at session startup. The runtime
+     * validates and composes this policy restrictively with self-fetched and device
+     * policy. Re-supply it on resume because it is not persisted.
+     *
+     * @param managedSettings
+     *            the host-injected managed settings
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setManagedSettings(ManagedSettings managedSettings) {
+        this.managedSettings = managedSettings;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code SessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -2128,6 +2152,7 @@ public class SessionConfig {
         copy.cloud = this.cloud;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
+        copy.managedSettings = this.managedSettings;
         return copy;
     }
 }
